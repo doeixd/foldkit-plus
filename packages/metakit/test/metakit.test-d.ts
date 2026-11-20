@@ -1,5 +1,7 @@
 import { Schema } from 'effect'
 import { Eq, Expr, Num, Path, Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
+import * as Prove from 'metakit/prove'
 
 const Account = Schema.Struct({
   id: Schema.String,
@@ -85,3 +87,32 @@ const appBalance: Path.Path<AppModel, number> = Path.of<AppModel>().account.bala
 const appTheme: Path.Path<AppModel, 'light' | 'dark'> = Path.of<AppModel>().theme
 void appBalance
 void appTheme
+
+// 9. Prove.machine constrains `pin` and `allowUnknown` keys to the Machine's transition names
+const AccountMachine = Machine.make({
+  state: Account,
+  transitions: {
+    Deposit: Transition.make({
+      state: Account,
+      input: Schema.Struct({ amount: Schema.Int }),
+      apply: ({ state, input }) => [
+        Transition.set(state.balance, Num.add(state.balance, input.amount)),
+      ],
+    }),
+  },
+})
+
+void Prove.machine(AccountMachine, {
+  pin: ['Deposit'],
+  allowUnknown: { Deposit: 'demo' },
+})
+
+void Prove.machine(AccountMachine, {
+  // @ts-expect-error 'Typo' is not a transition name on AccountMachine
+  pin: ['Typo'],
+})
+
+void Prove.machine(AccountMachine, {
+  // @ts-expect-error 'Typo' is not a transition name on AccountMachine
+  allowUnknown: { Typo: 'unknown transition' },
+})

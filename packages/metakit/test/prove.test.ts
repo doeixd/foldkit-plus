@@ -1,6 +1,7 @@
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Eq, Expr, Null, Num, Ord, Path, Transition, Verdict } from 'metakit'
+import * as Machine from 'metakit/machine'
 import * as Prove from 'metakit/prove'
 
 const Account = Schema.Struct({
@@ -145,5 +146,77 @@ describe('metakit/prove (Tier 3 Zone -> Tier 4 Z3 escalation)', () => {
       Prove.invariant(Modal, Ord.between(Num.clamp($.score, 0, 100), 0, 100)),
     )
     expect(Verdict.isTrue(v2)).toBe(true)
+  }, 30_000)
+
+  it('Prove.machine: verifies valid machines, formats witnesses, enforces pinning & allowUnknown', async () => {
+    const Freeze = Transition.make({
+      state: Account,
+      input: Schema.Struct({}),
+      when: ({ state }) => Eq.is(state.status, 'open'),
+      apply: ({ state }) => [Transition.set(state.status, 'frozen')],
+    })
+    const GoodMachine = Machine.make({
+      state: Account,
+      transitions: { Withdraw, Freeze },
+    })
+    const good = await Effect.runPromise(
+      Prove.machine(GoodMachine, { pin: ['Withdraw', 'Freeze'] }),
+    )
+    expect(good.ok).toBe(true)
+    expect(good.entries.every(e => e.status === 'proved')).toBe(true)
+    expect(good.format()).toContain('PROVED (zone) Withdraw [pinned]')
+
+    // Refuted machine produces structured WitnessReport + pasteable reproducer
+    const BadMachine = Machine.make({
+      state: Account,
+      transitions: { BuggyWithdraw },
+    })
+    const bad = await Effect.runPromise(Prove.machine(BadMachine))
+    expect(bad.ok).toBe(false)
+    expect(bad.entries[0]!.status).toBe('refuted')
+    expect(Option.isSome(bad.entries[0]!.witness)).toBe(true)
+    if (Option.isSome(bad.entries[0]!.witness)) {
+      const w = bad.entries[0]!.witness.value
+      expect(w.violated.length).toBeGreaterThan(0)
+      expect(w.reproducer).toContain('Transition.run(BuggyWithdraw,')
+    }
+    expect(bad.format()).toContain('REFUTED BuggyWithdraw')
+
+    // Opaque transition: fails in strict mode, passes with explicit allowUnknown, fails if pinned
+    const CustomOpaque = Transition.make({
+      state: Account,
+      input: Schema.Struct({}),
+      when: () => Expr.opaque({ name: 'externalCheck' }, () => true),
+      apply: ({ state }) => [Transition.set(state.balance, Num.sub(state.balance, 1))],
+    })
+    const OpaqueMachine = Machine.make({
+      state: Account,
+      transitions: { Withdraw, CustomOpaque },
+    })
+    const strictFail = await Effect.runPromise(Prove.machine(OpaqueMachine))
+    expect(strictFail.ok).toBe(false)
+
+    const allowedOk = await Effect.runPromise(
+      Prove.machine(OpaqueMachine, {
+        pin: ['Withdraw'],
+        allowUnknown: { CustomOpaque: 'verified by external ledger' },
+      }),
+    )
+    expect(allowedOk.ok).toBe(true)
+    expect(allowedOk.format()).toContain('UNDECIDED (allowed: verified by external ledger)')
+
+    const pinBroken = await Effect.runPromise(
+      Prove.machine(OpaqueMachine, {
+        pin: ['CustomOpaque'],
+        allowUnknown: { CustomOpaque: 'verified by external ledger' },
+      }),
+    )
+    expect(pinBroken.ok).toBe(false)
+    expect(pinBroken.entries.find(e => e.tag === 'CustomOpaque')?.pinBroken).toBe(true)
+
+    // Blank allowUnknown reason throws immediately
+    expect(() => Prove.machine(OpaqueMachine, { allowUnknown: { CustomOpaque: '   ' } })).toThrow(
+      /non-empty reason/,
+    )
   }, 30_000)
 })

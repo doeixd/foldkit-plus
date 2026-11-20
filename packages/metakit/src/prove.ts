@@ -6,13 +6,14 @@
  * all 15 v1 primitives — including `null.isNull` via companion Z3 boolean
  * nullability flags — with zero unsupported primitives.
  */
-import { Effect, Option, SchemaAST } from 'effect'
+import { Effect, Option, Result, SchemaAST } from 'effect'
 import type { Schema } from 'effect'
 import * as AbstractCheck from './abstract/check.js'
 import * as Expr from './expr.js'
+import type { Machine } from './machine.js'
 import * as Node from './node.js'
 import * as Path from './path.js'
-import type { Transition } from './transition.js'
+import * as Transition from './transition.js'
 import * as Verdict from './verdict.js'
 
 type Z3Context = import('z3-solver').Context<'metakit'>
@@ -478,7 +479,7 @@ export const invariant = <S extends Schema.Top>(
 /** Prove that `transition` preserves every invariant on `stateSchema`. */
 export const transition = <S extends Schema.Top, I, Emit>(
   stateSchema: S,
-  tr: Transition<S['Type'], I, Emit>,
+  tr: Transition.Transition<S['Type'], I, Emit>,
 ): Effect.Effect<Verdict.Verdict<Readonly<Record<string, unknown>>>> =>
   Effect.promise(async () => {
     const tier3 = AbstractCheck.checkTransition(stateSchema, tr)
@@ -525,3 +526,182 @@ export const policy = <Shape extends Readonly<Record<string, Schema.Top>>>(
     }
     return solveWithZ3(fields, hypotheses, [goal.node])
   })
+
+/** Structured counterexample report for a refuted transition. */
+export interface WitnessReport {
+  readonly before: Readonly<Record<string, unknown>>
+  readonly input: Readonly<Record<string, unknown>>
+  readonly after: Option.Option<Readonly<Record<string, unknown>>>
+  readonly violated: ReadonlyArray<string>
+  readonly reproducer: string
+}
+
+export interface MachineProofEntry {
+  readonly tag: string
+  readonly status: 'proved' | 'refuted' | 'undecided'
+  readonly pinned: boolean
+  readonly pinBroken: boolean
+  readonly allowedReason: Option.Option<string>
+  readonly verdict: Verdict.Verdict<Readonly<Record<string, unknown>>>
+  readonly witness: Option.Option<WitnessReport>
+}
+
+export interface MachineProofReport {
+  readonly ok: boolean
+  readonly entries: ReadonlyArray<MachineProofEntry>
+  /** Human-readable multi-line verification summary. */
+  readonly format: () => string
+}
+
+const nestWitness = (
+  flat: Readonly<Record<string, unknown>>,
+  prefix: string,
+): Readonly<Record<string, unknown>> => {
+  let out: Record<string, unknown> = {}
+  const lead = `${prefix}.`
+  for (const [k, v] of Object.entries(flat)) {
+    if (!k.startsWith(lead)) continue
+    const segments = k.slice(lead.length).split('.')
+    out = Path.set(Path.make<Record<string, unknown>, unknown>(segments), out, v)
+  }
+  return out
+}
+
+const buildWitnessReport = <State>(
+  tag: string,
+  stateSchema: Schema.Codec<State>,
+  tr: Transition.Transition<State, unknown, unknown>,
+  raw: Readonly<Record<string, unknown>>,
+): WitnessReport => {
+  const before = nestWitness(raw, 'state')
+  const input = nestWitness(raw, 'input')
+  const stepRes = Transition.run(tr, before as State, input)
+  const after = Result.isSuccess(stepRes)
+    ? Option.some(stepRes.success as Readonly<Record<string, unknown>>)
+    : Option.none()
+  const violated: Array<string> = []
+  if (Option.isSome(after)) {
+    for (const inv of Expr.refinementsOf(stateSchema)) {
+      if (!Expr.eval(inv, after.value as State)) {
+        violated.push(Expr.show(inv))
+      }
+    }
+  }
+  const reproducer = `Transition.run(${tag}, ${JSON.stringify(before)}, ${JSON.stringify(input)})`
+  return { before, input, after, violated, reproducer }
+}
+
+const formatEntry = (entry: MachineProofEntry): string => {
+  let pinLabel = ''
+  if (entry.pinBroken) {
+    pinLabel = ' [PIN BROKEN]'
+  } else if (entry.pinned) {
+    pinLabel = ' [pinned]'
+  }
+  if (entry.status === 'proved') {
+    const tier =
+      Verdict.isTrue(entry.verdict) && Option.isSome(entry.verdict.evidence)
+        ? entry.verdict.evidence.value.tier
+        : 'proved'
+    return `PROVED (${tier}) ${entry.tag}${pinLabel}`
+  }
+  if (entry.status === 'undecided') {
+    const reason = Verdict.isUnknown(entry.verdict) ? entry.verdict.reason : 'unknown'
+    const allow = Option.match(entry.allowedReason, {
+      onNone: () => 'disallowed',
+      onSome: why => `allowed: ${why}`,
+    })
+    return `UNDECIDED (${allow}) ${entry.tag}${pinLabel}: ${reason}`
+  }
+  const lines = [`REFUTED ${entry.tag}${pinLabel}`]
+  if (Option.isSome(entry.witness)) {
+    const w = entry.witness.value
+    lines.push(`  before:   ${JSON.stringify(w.before)}`)
+    lines.push(`  input:    ${JSON.stringify(w.input)}`)
+    if (Option.isSome(w.after)) lines.push(`  after:    ${JSON.stringify(w.after.value)}`)
+    if (w.violated.length > 0) lines.push(`  violated: ${w.violated.join(' ; ')}`)
+    lines.push(`  repro:    ${w.reproducer}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * Verify every transition in a `Machine` under strict/pinned CI discipline:
+ *   - `strict` (default `true`): fails if any transition is `refuted`, or
+ *     `undecided` without a non-empty reason in `allowUnknown`.
+ *   - `pin`: transitions that must remain `proved` (degrading to `undecided`
+ *     or `refuted` fails the report with `pinBroken: true`).
+ */
+export const machine = <State, Transitions extends Readonly<Record<string, unknown>>>(
+  m: Machine<State, Transitions>,
+  options?: {
+    readonly pin?: ReadonlyArray<keyof Transitions & string>
+    readonly allowUnknown?: Readonly<Partial<Record<keyof Transitions & string, string>>>
+    readonly strict?: boolean
+  },
+): Effect.Effect<MachineProofReport> => {
+  const tags = new Set(Object.keys(m.transitions))
+  const pinnedSet = new Set<string>()
+  if (options?.pin !== undefined) {
+    for (const tag of options.pin) {
+      if (!tags.has(tag)) {
+        throw new Error(`[metakit] Prove.machine pin references unknown transition "${tag}"`)
+      }
+      pinnedSet.add(tag)
+    }
+  }
+  const allowedMap = new Map<string, string>()
+  if (options?.allowUnknown !== undefined) {
+    for (const [tag, reason] of Object.entries(options.allowUnknown)) {
+      if (reason === undefined) continue
+      if (!tags.has(tag)) {
+        throw new Error(
+          `[metakit] Prove.machine allowUnknown references unknown transition "${tag}"`,
+        )
+      }
+      if (reason.trim().length === 0) {
+        throw new Error(
+          `[metakit] Prove.machine allowUnknown for "${tag}" requires a non-empty reason`,
+        )
+      }
+      allowedMap.set(tag, reason.trim())
+    }
+  }
+  const strict = options?.strict ?? true
+
+  return Effect.promise(async () => {
+    const entries: Array<MachineProofEntry> = []
+    let ok = true
+    for (const [tag, rawTr] of Object.entries(m.transitions)) {
+      const tr = rawTr as Transition.Transition<State, unknown, unknown>
+      const verdict = await Effect.runPromise(transition(m.stateSchema, tr))
+      const pinned = pinnedSet.has(tag)
+      const allowedReason = Option.fromUndefinedOr(allowedMap.get(tag))
+      const status: MachineProofEntry['status'] = Verdict.match(verdict, {
+        True: () => 'proved',
+        False: () => 'refuted',
+        Unknown: () => 'undecided',
+      })
+      const pinBroken = pinned && status !== 'proved'
+      const witness: Option.Option<WitnessReport> =
+        Verdict.isFalse(verdict) && Option.isSome(verdict.witness)
+          ? Option.some(buildWitnessReport(tag, m.stateSchema, tr, verdict.witness.value))
+          : Option.none()
+
+      if (
+        pinBroken ||
+        status === 'refuted' ||
+        (strict && status === 'undecided' && Option.isNone(allowedReason))
+      ) {
+        ok = false
+      }
+
+      entries.push({ tag, status, pinned, pinBroken, allowedReason, verdict, witness })
+    }
+    return {
+      ok,
+      entries,
+      format: () => entries.map(formatEntry).join('\n'),
+    }
+  })
+}

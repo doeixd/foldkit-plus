@@ -90,4 +90,26 @@ export default [
     ],
     tests: proveTests,
   },
+  {
+    name: 'Prove.machine accepts blank allowUnknown reason',
+    edits: [
+      {
+        file: prove,
+        find: 'if (reason.trim().length === 0) {',
+        replace: 'if (reason.length < 0) {',
+      },
+    ],
+    tests: proveTests,
+  },
+  {
+    name: 'Prove.machine ignores broken pin',
+    edits: [
+      {
+        file: prove,
+        find: "const pinBroken = pinned && status !== 'proved'",
+        replace: 'const pinBroken = false',
+      },
+    ],
+    tests: proveTests,
+  },
 ]
