@@ -1,8 +1,8 @@
 # Write a business rule once and run it in JS, SQL, forms, and proofs
 
-Most apps write the same rule four times: once in a TypeScript validator, once in a SQL `CHECK` or `WHERE` clause, once to disable a button before the user submits, and once in tests to make sure updates cannot break it. When one copy drifts, bugs slip through.
+Effect `Schema` already gives you types, runtime decoding, and JSON Schema from one shape—until you add a cross-field rule with `Schema.makeFilter` or an update function in plain TypeScript. Because JavaScript closures are opaque, you end up repeating the same rule in SQL `CHECK`/`WHERE` clauses, in UI `disabled` checks, and in tests.
 
-This guide takes you from a plain Effect `Schema` to one inspectable rule that validates values, generates Postgres SQL, disables UI actions when a row is frozen, and proves a withdrawal cannot overdraw an account. The full runnable version lives in [`examples/metakit/src/demo.ts`](../../../examples/metakit/src/demo.ts).
+`metakit` extends Effect `Schema` by keeping those rules and single-step transitions as inspectable data. This tutorial takes you from an ordinary Effect `Schema` to one rule that validates values, generates Postgres SQL, disables UI actions when a row is frozen, and proves a withdrawal cannot overdraw an account. For the deeper design rationale, see [Why Effect Schema needs inspectable expressions](./why-metakit.md); the full runnable version lives in [`examples/metakit/src/demo.ts`](../../../examples/metakit/src/demo.ts).
 
 ## Prerequisites
 

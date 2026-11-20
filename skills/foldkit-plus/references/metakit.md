@@ -85,6 +85,7 @@ void proof
 ## See also
 
 - [metakit README](https://github.com/doeixd/foldkit-plus/blob/main/packages/metakit/README.md)
+- [Why Effect Schema needs inspectable expressions](https://github.com/doeixd/foldkit-plus/blob/main/packages/metakit/docs/why-metakit.md)
 - [Getting started](https://github.com/doeixd/foldkit-plus/blob/main/packages/metakit/docs/getting-started.md)
 - [Domain types & aggregates](https://github.com/doeixd/foldkit-plus/blob/main/packages/metakit/docs/domain-types.md)
 - [Proving transitions in CI](https://github.com/doeixd/foldkit-plus/blob/main/packages/metakit/docs/proving-transitions.md)
