@@ -709,6 +709,7 @@ describe('defineDocumentHost with reactions', () => {
 
   const folders: Array<string> = []
   afterEach(() => {
+    closeScopes()
     for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true })
   })
   const notesFile = () => {
