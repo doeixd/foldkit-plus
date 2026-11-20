@@ -2,14 +2,16 @@
  * `foldkit-form/metakit` — a form reading what a metakit declaration already
  * says: the input attributes its Schema's bounds and domain types imply, and
  * whether a guarded `Transition` would go through with the values entered so
- * far. A subpath: the main entry imports no metakit module, so a page with a
+ * far, and which of its rules over several keys those values break. A
+ * subpath: the main entry imports no metakit module, so a page with a
  * form and no metakit keeps none of it.
  */
-import { Match, Option, Result, type Schema } from 'effect'
-import { Transition, type Expr, type Verdict } from 'metakit'
+import { Array as Arr, Match, Option, Result, type Schema } from 'effect'
+import * as FieldValidation from 'foldkit/fieldValidation'
+import { Expr, Transition, Verdict } from 'metakit'
 import { CalendarDay, Decimal, type Domain } from 'metakit/domain'
 import { fieldSpecs, type FieldSpec } from 'metakit/inspect'
-import { Input, type Control } from './input.js'
+import { Input, type Control, type Draft } from './input.js'
 
 /**
  * What an HTML `<input>` takes from a key's declaration. Each is none when the
@@ -35,14 +37,37 @@ export interface Constraint<Key extends string> extends Omit<FieldSpec, 'name'> 
   readonly attributes: InputAttributes
 }
 
-/** What `Declared.of` reads from a form: its input Schema, and what of it decodes as it stands. */
-export interface DeclaredForm<Fields extends Schema.Struct.Fields, Model> {
+/**
+ * What `Declared.of` reads from a form: its input Schema, what of it decodes as
+ * it stands, and one key's state as a view shows it.
+ */
+export interface DeclaredForm<Fields extends Schema.Struct.Fields, Model, FieldKey extends string> {
   readonly input: { readonly schema: Schema.Struct<Fields> }
   readonly partial: (model: Model) => Partial<Schema.Struct.Type<Fields>>
+  readonly field: (model: Model, key: FieldKey) => FieldValidation.Field<Draft>
+}
+
+/** A rule over several keys of the input that the values entered so far break. */
+export interface RuleFailure<Fields extends Schema.Struct.Fields> {
+  /** The keys of the form the rule reads: where a view shows it. None when it names none. */
+  readonly keys: ReadonlyArray<keyof Fields & string>
+  /** The rule itself, as `Expr.refine` wrote it on the input Schema. */
+  readonly rule: Expr.Expr<Schema.Struct.Type<Fields>, boolean>
+  /** The message given with the rule, if any. */
+  readonly message: Option.Option<string>
+}
+
+/** What `Declared.of` takes beside the form. */
+export interface DeclaredOptions<Fields extends Schema.Struct.Fields> {
+  /**
+   * The words `field` shows for a broken rule given no message. Needed when the
+   * input has such a rule: `Declared.of` refuses one it would show as nothing.
+   */
+  readonly unworded?: (failure: RuleFailure<Fields>) => string
 }
 
 /** A form's declarations, read once from its input Schema. */
-export interface Declarations<Fields extends Schema.Struct.Fields, Model> {
+export interface Declarations<Fields extends Schema.Struct.Fields, Model, FieldKey extends string> {
   /** Each key's constraint, by key. */
   readonly constraints: { readonly [K in keyof Fields & string]: Constraint<K> }
   /**
@@ -56,6 +81,19 @@ export interface Declarations<Fields extends Schema.Struct.Fields, Model> {
     transition: Transition.Transition<State, Schema.Struct.Type<Fields>, Emit>,
     state?: Expr.PartialEnv<State>,
   ) => Verdict.Verdict<never>
+  /**
+   * The input Schema's own rules over several keys (`Expr.refine` on the
+   * struct) that the values entered so far break. A rule is broken only when
+   * it is `False`: one reading a key not entered or not valid yet is
+   * undecided, and not here. A rule on one key is that key's own validation,
+   * which `form.field` already shows.
+   */
+  readonly failures: (model: Model) => ReadonlyArray<RuleFailure<Fields>>
+  /**
+   * `form.field`, made `Invalid` by each broken rule that reads `key`, its
+   * message after the key's own errors, as the form shows its marks.
+   */
+  readonly field: (model: Model, key: FieldKey) => FieldValidation.Field<Draft>
 }
 
 /** A domain type held as whole units at a scale: an amount of money, or a decimal. */
@@ -91,22 +129,11 @@ const DecimalInput = Input.kind<Scaled>('Decimal', {
   unparsed: 'Enter an amount',
 })
 
-/** The tighter of two bounds, either of which may be absent. */
-const tighter = (
-  a: Option.Option<number>,
-  b: Option.Option<number>,
-  pick: (x: number, y: number) => number,
-): Option.Option<number> =>
-  Option.match(a, {
-    onNone: () => b,
-    onSome: x => Option.some(Option.match(b, { onNone: () => x, onSome: y => pick(x, y) })),
-  })
-
 /**
  * The inclusive bounds of a key held as whole numbers, an exclusive bound made
- * inclusive: above 0 is at least 1. HTML has no exclusive bound, so a key that
- * is not whole keeps only its inclusive ones, and its exclusive ones are left
- * to validation.
+ * inclusive: above 0 is at least 1. `fieldSpecs` keeps one bound per side, the
+ * tightest. HTML has no exclusive bound, so a key that is not whole keeps only
+ * its inclusive ones, and its exclusive ones are left to validation.
  */
 const bounds = (
   spec: FieldSpec,
@@ -114,15 +141,11 @@ const bounds = (
 ): { readonly min: Option.Option<number>; readonly max: Option.Option<number> } =>
   whole
     ? {
-        min: tighter(
-          Option.map(spec.min, Math.ceil),
+        min: Option.orElse(Option.map(spec.min, Math.ceil), () =>
           Option.map(spec.exclusiveMin, n => Math.floor(n) + 1),
-          Math.max,
         ),
-        max: tighter(
-          Option.map(spec.max, Math.floor),
+        max: Option.orElse(Option.map(spec.max, Math.floor), () =>
           Option.map(spec.exclusiveMax, n => Math.ceil(n) - 1),
-          Math.min,
         ),
       }
     : { min: spec.min, max: spec.max }
@@ -217,27 +240,89 @@ const controlFor = (domain: Domain.DomainMetadata): Option.Option<Control> =>
   )
 
 /**
- * A form's declarations: each key's constraint, read once here, and whether a
- * guarded transition would go through with the values entered so far.
+ * A form's declarations: each key's constraint and the input's rules over
+ * several keys, read once here; whether a guarded transition would go through
+ * with the values entered so far; and which of those rules they break.
  */
-const of = <Fields extends Schema.Struct.Fields, Model>(
-  form: DeclaredForm<Fields, Model>,
-): Declarations<Fields, Model> => {
+const of = <Fields extends Schema.Struct.Fields, Model, FieldKey extends string>(
+  form: DeclaredForm<Fields, Model, FieldKey>,
+  options: DeclaredOptions<Fields> = {},
+): Declarations<Fields, Model, FieldKey> => {
+  type Key = keyof Fields & string
+  type Value = Schema.Struct.Type<Fields>
+  const { schema } = form.input
   const constraints = Object.fromEntries(
-    fieldSpecs(form.input.schema).map(spec => {
+    fieldSpecs(schema).map(spec => {
       const { name, ...read } = spec
       return [name, { ...read, key: name, attributes: attributesOf(spec) }]
     }),
-  ) as Declarations<Fields, Model>['constraints']
+  ) as Declarations<Fields, Model, FieldKey>['constraints']
+
+  const isKey = (name: string | undefined): name is Key =>
+    name !== undefined && Object.hasOwn(schema.fields, name)
+  // Each rule with the words `field` shows for it, decided here: they depend on the rule alone.
+  const rules = Expr.rulesOf(schema)
+    .filter(({ at }) => at.length === 0)
+    .map(({ expr, message }) => {
+      const failure: RuleFailure<Fields> = {
+        rule: expr,
+        message,
+        // An opaque term with no declared reads names no key; it is shown on none.
+        keys: Option.match(Expr.reads(expr), {
+          onNone: (): ReadonlyArray<Key> => [],
+          // Two paths into one key (a control backed by a Bundle holding a struct) name it once.
+          onSome: paths => Arr.dedupe(paths.map(path => path[0]).filter(isKey)),
+        }),
+      }
+      const words = Option.orElse(message, () =>
+        Option.map(Option.fromUndefinedOr(options.unworded), say => say(failure)),
+      )
+      return Option.match(words, {
+        onNone: () => {
+          throw new Error(
+            `Declared.of: the rule ${Expr.show(expr)} has no message; give it one (\`Expr.refine(…, { message })\`) or pass \`unworded\``,
+          )
+        },
+        onSome: text => ({ failure, text }),
+      })
+    })
+
+  // A value with keys missing is a value with parts unknown; TypeScript cannot
+  // see that a shallow `Partial` of a type fits its deep partial.
+  const known = (model: Model) => form.partial(model) as Expr.PartialEnv<Value>
+
+  // A view asks `field` once per key of one Model: judge the rules once per Model.
+  let last: Option.Option<{ readonly model: Model; readonly broken: typeof rules }> = Option.none()
+  const broken = (model: Model): typeof rules => {
+    if (Option.isSome(last) && last.value.model === model) return last.value.broken
+    const values = known(model)
+    const found = rules.filter(({ failure }) => Verdict.isFalse(Expr.judge(failure.rule, values)))
+    last = Option.some({ model, broken: found })
+    return found
+  }
+
   return {
     constraints,
     can: (model, transition, state) =>
       Transition.can(transition, {
-        // A value with keys missing is a value with parts unknown; TypeScript
-        // cannot see that a shallow `Partial` of a type fits its deep partial.
-        input: form.partial(model) as Expr.PartialEnv<Schema.Struct.Type<Fields>>,
+        input: known(model),
         ...(state === undefined ? {} : { state }),
       }),
+    failures: model => broken(model).map(({ failure }) => failure),
+    field: (model, key) => {
+      const field = form.field(model, key)
+      const said = broken(model)
+        .filter(({ failure }) => failure.keys.some(each => each === key))
+        .map(({ text }) => text)
+      if (!Arr.isReadonlyArrayNonEmpty(said)) return field
+      const own = FieldValidation.match(field, {
+        onNotValidated: (): ReadonlyArray<string> => [],
+        onValidating: () => [],
+        onValid: () => [],
+        onInvalid: ({ errors }) => errors,
+      })
+      return FieldValidation.Invalid({ value: field.value, errors: Arr.appendAll(own, said) })
+    },
   }
 }
 

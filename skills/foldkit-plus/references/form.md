@@ -462,6 +462,15 @@ const refused = Verdict.isFalse(can(WithdrawForm.initial, Withdraw, { balance: M
   on submit.
 - The transition's input must be the form's value type exactly; a key the form
   lacks is a type error.
+- `failures(model)`: the input struct's own `Expr.refine` rules (not a single
+  key's, which `form.field` shows) that are `False` on the decoded values, as
+  `{ keys, rule, message: Option }`; undecided is not a failure.
+  `field(model, key)` is `form.field` plus those messages after the key's own
+  errors. A rule with no message makes `Declared.of` throw unless you pass
+  `unworded: failure => string`. `FormView` reads `form.field`, not this: draw
+  keys with it, or pass the messages under the view's `errors`.
+- Required stays `controlsByKey[key].required` (does an empty draft decode),
+  not the constraint's `optional` (may the key be left out).
 
 ## Gotchas
 

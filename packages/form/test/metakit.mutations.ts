@@ -35,8 +35,6 @@ export default [
     'Option.map(spec.max, Math.floor)',
     'spec.max',
   ),
-  edit('the looser of two lower bounds stands', '          Math.max,', '          Math.min,'),
-  edit('the looser of two upper bounds stands', '          Math.min,', '          Math.max,'),
   edit(
     'a key that is not whole shows its exclusive bounds as inclusive',
     'const { min, max } = bounds(spec, whole)',
@@ -85,16 +83,58 @@ export default [
     'format: value => dayText(Number(value)),',
     'format: value => String(value),',
   ),
-  edit(
-    'a transition is judged without the values entered',
-    'input: form.partial(model) as Expr.PartialEnv<Schema.Struct.Type<Fields>>,',
-    'input: {},',
-    [unit, browser],
-  ),
+  edit('a transition is judged without the values entered', 'input: known(model),', 'input: {},', [
+    unit,
+    browser,
+  ]),
   edit(
     'a transition is judged without the state given',
     '...(state === undefined ? {} : { state }),',
     '',
     [unit, browser],
+  ),
+  edit(
+    'a rule on one key is reported beside its key',
+    '.filter(({ at }) => at.length === 0)',
+    '.filter(() => true)',
+  ),
+  edit(
+    'a rule still undecided is reported as broken',
+    'Verdict.isFalse(Expr.judge(failure.rule, values))',
+    '!Verdict.isTrue(Expr.judge(failure.rule, values))',
+  ),
+  edit(
+    'a broken rule names no key',
+    'onSome: paths => Arr.dedupe(paths.map(path => path[0]).filter(isKey)),',
+    'onSome: () => [],',
+  ),
+  {
+    ...edit(
+      'a key read through two paths is named twice',
+      'Arr.dedupe(paths.map(path => path[0]).filter(isKey))',
+      'paths.map(path => path[0]).filter(isKey)',
+    ),
+    survives:
+      'only a key holding a struct (a control backed by a Bundle) is read through two paths, and no test builds one',
+  },
+  edit(
+    'a rule with no message and no words is let through',
+    `throw new Error(`,
+    'return { failure, text: "" }\n          throw new Error(',
+  ),
+  edit(
+    'a broken rule is shown on every key',
+    '.filter(({ failure }) => failure.keys.some(each => each === key))',
+    '',
+  ),
+  edit(
+    "a broken rule's message replaces the key's own errors",
+    'errors: Arr.appendAll(own, said)',
+    'errors: said',
+  ),
+  edit(
+    'the given message is ignored for the fallback words',
+    'Option.orElse(message, () =>',
+    'Option.orElse(Option.none<string>(), () =>',
   ),
 ]

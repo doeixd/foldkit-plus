@@ -703,6 +703,8 @@ When your input Schema's rules are written with [metakit](../metakit/README.md),
 `Declared.of(form)` gives each key the `min`, `max`, `step` and `type` its
 bounds and domain type imply, and `can(model, transition, state)` says whether
 a guarded transition would go through with what has been typed so far.
+`field(model, key)` shows a rule over several keys beside each key it reads as
+soon as the values break it.
 `Declared.inputs(schema)` gives money and calendar days controls that read
 them. See [Take a form's limits and guards from its metakit declaration](./docs/metakit.md).
 

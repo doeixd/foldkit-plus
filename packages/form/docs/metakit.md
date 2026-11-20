@@ -7,8 +7,9 @@ input, and a `disabled` check on the button that drifts from the real rule.
 When those rules are written with [metakit](../../metakit/README.md), a
 library that keeps Schema rules and state transitions as data a program can
 read, `foldkit-form/metakit` reads them for you. It turns the Schema's bounds
-into input attributes and judges the transition against what has been typed so
-far.
+into input attributes, judges the transition against what has been typed so
+far, and shows a rule over two keys (leave after you arrive) beside both keys
+as soon as the dates break it.
 
 ## Read input attributes from the Schema
 
@@ -70,6 +71,11 @@ HTML has no exclusive bound, so `Schema.Number.check(Schema.isLessThan(1))`
 gives no `max`; the key's own validation still refuses 1. The constraint keeps
 the bound itself as `exclusiveMax`, with `min`, `max`, `literals` and `domain`
 beside it as `Inspect.fieldSpecs` read them.
+
+Whether a key must be filled stays the form's own `controlsByKey[key].required`,
+which asks whether an empty draft decodes. The constraint's `optional` says
+only whether the key may be left out: a plain `Schema.String` may not, yet
+accepts an empty draft, so it is not required.
 
 ## Give money and dates a control that reads them
 
@@ -148,6 +154,49 @@ h.button([...(Verdict.isFalse(verdict) ? [h.AriaDisabled(true)] : [])], ['Withdr
 transition in your `update` when the form submits (`Transition.run` refuses it
 there if the guard fails), and use `aria-disabled` rather than `disabled`, as
 the form's own submit button does, so Enter still reaches your `update`.
+
+## Show a rule over two keys beside both
+
+A rule written on the input struct itself, such as "leave after you arrive",
+fails no single key, so the form shows it only in `model.errors`, after a
+submit. `failures(model)` reports each such rule the values entered so far
+break, with the keys it reads, and `field(model, key)` is the form's own
+`field` with those messages added after the key's own errors:
+
+```ts
+import { CalendarDay } from 'metakit/domain'
+
+const StayInput = Schema.Struct({ arrives: CalendarDay.schema, leaves: CalendarDay.schema }).pipe(
+  Expr.refine($ => CalendarDay.before($.arrives, $.leaves), { message: 'Leave after you arrive' }),
+)
+const StayForm = Form.make('Stay', Form.input(StayInput), { inputs: Declared.inputs(StayInput) })
+const stay = Declared.of(StayForm)
+
+const typed = [
+  StayForm.Message.Changed({ key: 'arrives', value: '2026-03-05' }),
+  StayForm.Message.Changed({ key: 'leaves', value: '2026-03-01' }),
+].reduce((model, message) => StayForm.bundle.update(model, message, undefined).model, StayForm.initial)
+
+stay.failures(typed) // [{ keys: ['arrives', 'leaves'], rule, message: Option.some('Leave after you arrive') }]
+stay.field(typed, 'leaves') // { _tag: 'Invalid', value: '2026-03-01', errors: ['Leave after you arrive'] }
+```
+
+A rule is broken only when it is `False`. While `leaves` is empty, or holds
+text that is not a date, the rule is undecided and nothing is reported. A rule
+on one key (`Schema.isGreaterThan(0)` on `guests`) is left to that key's own
+validation, which `form.field` already shows.
+
+A rule given no message has nothing to show. `Declared.of` refuses such a rule
+when the form is declared, unless you pass `unworded`, which words it:
+
+```ts
+Declared.of(StayForm, { unworded: failure => `Check ${failure.keys.join(' and ')}` })
+```
+
+`foldkit-mixins-form`'s `FormView` draws each key from the form's own `field`,
+so it does not show these messages beside the keys. Draw the keys with
+`stay.field`, or pass the messages to `FormView` under `errors`, the list it
+draws above the fields.
 
 ## Next
 

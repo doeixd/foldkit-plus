@@ -52,3 +52,15 @@ const controls = Declared.inputs(WithdrawInput)
 expectTypeOf(controls.amount).toEqualTypeOf<Control | undefined>()
 // @ts-expect-error a key the Schema does not have
 void controls.amont
+
+// Broken rules name the form's keys, and their rule is over the form's value.
+const failure = declared.failures(WithdrawForm.initial)[0]!
+expectTypeOf(failure.keys).toEqualTypeOf<ReadonlyArray<'amount' | 'memo'>>()
+expectTypeOf(failure.message).toEqualTypeOf<Option.Option<string>>()
+expectTypeOf(failure.rule).toEqualTypeOf<
+  Expr.Expr<{ readonly amount: number; readonly memo: string }, boolean>
+>()
+// @ts-expect-error a key the form does not have
+declared.field(WithdrawForm.initial, 'amont')
+// @ts-expect-error `unworded` is given the failure and answers with words
+Declared.of(WithdrawForm, { unworded: () => 1 })

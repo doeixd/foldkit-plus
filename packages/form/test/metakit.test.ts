@@ -5,7 +5,7 @@
  * the guard reads something not entered.
  */
 import { Option, Schema } from 'effect'
-import { Eq, Expr, Ord, Transition, Verdict } from 'metakit'
+import { Eq, Expr, Num, Ord, Transition, Verdict } from 'metakit'
 import { CalendarDay, Money } from 'metakit/domain'
 import { describe, expect, it } from 'vitest'
 import { Form } from '../src/index.js'
@@ -33,7 +33,8 @@ const Booking = Schema.Struct({
   note: Schema.String,
 })
 const BookingForm = Form.make('Booking', Form.input(Booking), { inputs: Declared.inputs(Booking) })
-const declared = Declared.of(BookingForm)
+// Made in each test, so a refusal in `Declared.of` fails the tests rather than the file.
+const declared = () => Declared.of(BookingForm)
 
 const attributes = (
   type: string | undefined,
@@ -63,17 +64,17 @@ describe('Constraints from the input Schema', () => {
     ['method', attributes(undefined, undefined, undefined, undefined, undefined)],
     ['note', attributes(undefined, undefined, undefined, undefined, undefined)],
   ] as const)('%s takes the attributes its declaration implies', (key, expected) => {
-    expect(declared.constraints[key].attributes).toEqual(expected)
-    expect(declared.constraints[key].key).toBe(key)
+    expect(declared().constraints[key].attributes).toEqual(expected)
+    expect(declared().constraints[key].key).toBe(key)
   })
 
   it('carries what Inspect read: the domain type, the literals, the bounds as values', () => {
-    expect(declared.constraints.amount.domain).toEqual(
+    expect(declared().constraints.amount.domain).toEqual(
       Option.some({ kind: 'money', currency: 'USD', scale: 2 }),
     )
-    expect(declared.constraints.amount.exclusiveMin).toEqual(Option.some(0))
-    expect(declared.constraints.method.literals).toEqual(Option.some(['cash', 'card']))
-    expect(declared.constraints.note.kind).toBe('string')
+    expect(declared().constraints.amount.exclusiveMin).toEqual(Option.some(0))
+    expect(declared().constraints.method.literals).toEqual(Option.some(['cash', 'card']))
+    expect(declared().constraints.note.kind).toBe('string')
   })
 })
 
@@ -137,7 +138,7 @@ describe('Whether a transition would go through now', () => {
   const WithdrawForm = Form.make('Withdraw', Form.input(WithdrawInput), {
     inputs: Declared.inputs(WithdrawInput),
   })
-  const { can } = Declared.of(WithdrawForm)
+  const withdraw = () => Declared.of(WithdrawForm)
   const open = { balance: Money.minor('USD', 10000), frozen: false }
   const typed = (amount: string) =>
     WithdrawForm.bundle.update(
@@ -155,11 +156,113 @@ describe('Whether a transition would go through now', () => {
     // Refused whatever the amount: False however the unknown part turns out.
     ['a frozen account, nothing entered', WithdrawForm.initial, { ...open, frozen: true }, 'False'],
   ] as const)('%s gives the verdict in the table', (_, model, state, verdict) => {
-    expect(can(model, Withdraw, state)._tag).toBe(verdict)
+    expect(withdraw().can(model, Withdraw, state)._tag).toBe(verdict)
   })
 
   it('is Unknown with no state given, and with only the part of it the guard does not decide on', () => {
-    expect(Verdict.isUnknown(can(typed('50.00'), Withdraw))).toBe(true)
-    expect(Verdict.isUnknown(can(typed('50.00'), Withdraw, { frozen: false }))).toBe(true)
+    expect(Verdict.isUnknown(withdraw().can(typed('50.00'), Withdraw))).toBe(true)
+    expect(Verdict.isUnknown(withdraw().can(typed('50.00'), Withdraw, { frozen: false }))).toBe(
+      true,
+    )
+  })
+})
+
+describe('Rules over several keys', () => {
+  const StayFields = {
+    arrives: CalendarDay.schema,
+    leaves: CalendarDay.schema,
+    guests: Schema.Int.check(Schema.isGreaterThan(0, { message: 'Bring someone' })),
+  }
+  const Stay = Schema.Struct(StayFields).pipe(
+    Expr.refine($ => CalendarDay.before($.arrives, $.leaves), {
+      message: 'Leave after you arrive',
+    }),
+  )
+  const StayForm = Form.make('Stay', Form.input(Stay), { inputs: Declared.inputs(Stay) })
+  const declared = () => Declared.of(StayForm)
+  const day = (iso: string) => CalendarDay.parseIsoUnsafe(iso)
+
+  const entered = (...edits: ReadonlyArray<readonly [keyof typeof StayFields, string]>) =>
+    edits.reduce(
+      (model, [key, value]) =>
+        StayForm.bundle.update(model, StayForm.Message.Changed({ key, value }), undefined).model,
+      StayForm.initial,
+    )
+  const backwards = entered(['arrives', '2026-03-05'], ['leaves', '2026-03-01'], ['guests', '2'])
+
+  it('reports a rule the values break, with the keys it reads and its message', () => {
+    const [failure, ...rest] = declared().failures(backwards)
+    expect(rest).toEqual([])
+    expect(failure?.keys).toEqual(['arrives', 'leaves'])
+    expect(failure?.message).toEqual(Option.some('Leave after you arrive'))
+    expect(failure !== undefined && Expr.show(failure.rule)).toContain('arrives')
+  })
+
+  it('reports nothing for a rule still undecided: a key it reads is not entered, or does not read', () => {
+    expect(declared().failures(StayForm.initial)).toEqual([])
+    expect(declared().failures(entered(['arrives', '2026-03-05']))).toEqual([])
+    expect(declared().failures(entered(['arrives', '2026-03-05'], ['leaves', 'soon']))).toEqual([])
+    expect(
+      declared().failures(entered(['arrives', '2026-03-01'], ['leaves', '2026-03-05'])),
+    ).toEqual([])
+  })
+
+  it('leaves a rule on one key to that key, which already shows it', () => {
+    const none = entered(['arrives', '2026-03-01'], ['leaves', '2026-03-05'], ['guests', '0'])
+    expect(declared().failures(none)).toEqual([])
+    expect(declared().field(none, 'guests')).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['Bring someone'],
+    })
+  })
+
+  it("shows a broken rule's message on each key it reads, after the key's own errors, and on no other", () => {
+    expect(declared().field(backwards, 'leaves')).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['Leave after you arrive'],
+    })
+    expect(declared().field(backwards, 'arrives')._tag).toBe('Invalid')
+    expect(declared().field(backwards, 'guests')).toBe(StayForm.field(backwards, 'guests'))
+    const refused = StayForm.bundle.update(
+      backwards,
+      StayForm.Message.Refused({ key: 'leaves', error: 'Fully booked', value: day('2026-03-01') }),
+      undefined,
+    ).model
+    expect(declared().field(refused, 'leaves')).toMatchObject({
+      errors: ['Fully booked', 'Leave after you arrive'],
+    })
+  })
+
+  it('gives back the form field itself while no rule is broken', () => {
+    const fine = entered(['arrives', '2026-03-01'], ['leaves', '2026-03-05'])
+    expect(declared().field(fine, 'leaves')).toBe(StayForm.field(fine, 'leaves'))
+  })
+
+  describe('a rule given no message', () => {
+    const Party = Schema.Struct({ adults: Schema.Int, children: Schema.Int }).pipe(
+      Expr.refine($ => Num.lte($.children, $.adults)),
+    )
+    const PartyForm = Form.make('Party', Form.input(Party))
+
+    it('is refused when nothing says what to show for it', () => {
+      expect(() => Declared.of(PartyForm)).toThrow(/has no message/)
+    })
+
+    it('shows the words `unworded` gives, and reports no message of its own', () => {
+      const party = Declared.of(PartyForm, {
+        unworded: failure => `Check ${failure.keys.join(' and ')}`,
+      })
+      const model = [
+        PartyForm.Message.Changed({ key: 'adults', value: '1' }),
+        PartyForm.Message.Changed({ key: 'children', value: '3' }),
+      ].reduce(
+        (at, message) => PartyForm.bundle.update(at, message, undefined).model,
+        PartyForm.initial,
+      )
+      expect(party.failures(model).map(failure => failure.message)).toEqual([Option.none()])
+      expect(party.field(model, 'children')).toMatchObject({
+        errors: ['Check children and adults'],
+      })
+    })
   })
 })
