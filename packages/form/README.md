@@ -696,6 +696,16 @@ It compares authored state across both Models directly, so blurs, refused
 inputs, search text, `subject`, and row bookkeeping return `false`, letting
 packages like [`foldkit-cms`](../cms/README.md) trigger autosave reliably.
 
+## Limits and guards from a metakit declaration
+
+When your input Schema's rules are written with [metakit](../metakit/README.md),
+`foldkit-form/metakit` reads them instead of you repeating them in the view.
+`Declared.of(form)` gives each key the `min`, `max`, `step` and `type` its
+bounds and domain type imply, and `can(model, transition, state)` says whether
+a guarded transition would go through with what has been typed so far.
+`Declared.inputs(schema)` gives money and calendar days controls that read
+them. See [Take a form's limits and guards from its metakit declaration](./docs/metakit.md).
+
 ## Limits
 
 - **Headless:** draw forms with [`foldkit-mixins-form`](../mixins-form/README.md)
@@ -713,3 +723,4 @@ packages like [`foldkit-cms`](../cms/README.md) trigger autosave reliably.
 - Render forms with accessible slots and styles: [`foldkit-mixins-form`](../mixins-form/README.md)
 - Wire a form to load, save, and delete Remote records: [`foldkit-crud`](../crud/README.md)
 - Understand how form errors and server refusals fit together: [Errors and failures](../../docs/errors.md#forms)
+- Take input limits and action guards from a metakit declaration: [the metakit guide](./docs/metakit.md)

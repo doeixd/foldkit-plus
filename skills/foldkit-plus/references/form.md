@@ -420,6 +420,49 @@ picker) and declare each field only some cases have with `Schema.optionalKey`;
 and `form.shows(model, key)` whether to draw a key: a case's key is asked,
 required as the case holds it, and sent only in its case.
 
+## Limits and guards from a metakit declaration (`foldkit-form/metakit`)
+
+When the input Schema's rules and the action's guard are written with
+`metakit` ([metakit.md](metakit.md)), read them instead of restating them in the view:
+
+```ts standalone
+import { Schema } from 'effect'
+import { Form } from 'foldkit-form'
+import { Declared } from 'foldkit-form/metakit'
+import { Eq, Expr, Transition, Verdict } from 'metakit'
+import { Money } from 'metakit/domain'
+
+const Usd = Money.make('USD')
+const Input = Schema.Struct({ amount: Usd.pipe(Expr.refine($ => Money.gt($, Money.minor('USD', 0)))) })
+const Withdraw = Transition.make({
+  state: Schema.Struct({ balance: Usd, frozen: Schema.Boolean }),
+  input: Input,
+  when: ({ state, input }) => Expr.all(Eq.is(state.frozen, false), Money.lte(input.amount, state.balance)),
+  apply: ({ state, input }) => [Transition.set(state.balance, Money.sub(state.balance, input.amount))],
+})
+const WithdrawForm = Form.make('Withdraw', Form.input(Input), { inputs: Declared.inputs(Input) })
+const { constraints, can } = Declared.of(WithdrawForm)
+
+constraints.amount.attributes // min Some('0.01'), step Some('0.01'), type Some('number'): Options
+const refused = Verdict.isFalse(can(WithdrawForm.initial, Withdraw, { balance: Money.minor('USD', 5000), frozen: false }))
+```
+
+- `constraints[key]` is `Inspect.fieldSpecs`' reading (bounds, `literals`,
+  `domain`) plus `attributes` in the units the control shows: whole units for
+  `Money`/`Decimal`, `YYYY-MM-DD` for `CalendarDay`. An exclusive bound of a
+  whole key becomes inclusive; a `Schema.Number`'s exclusive bound has no HTML
+  form and is left to validation.
+- `Declared.inputs(schema)` gives `CalendarDay` and `Money`/`Decimal` keys
+  controls (`Declared.CalendarDay`, `Declared.Decimal`) that read those drafts;
+  without it a `Money` key gets `Number` and fails the integer check on `12.50`.
+  `foldkit-mixins-form` ships no renderer for them: pass one under `renderers`.
+- `can` is three-valued. `Unknown` (a value the guard reads is not typed or not
+  valid yet, no state given, an opaque term) is neither allowed nor refused:
+  set `aria-disabled` only on `False`, and run the `Transition` in `update`
+  on submit.
+- The transition's input must be the form's value type exactly; a key the form
+  lacks is a type error.
+
 ## Gotchas
 
 - A key is validated against **the input's schema for that key**, not the
@@ -458,6 +501,7 @@ Met in applications on this stack: what failed, and what to do instead.
 
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp (the compose box in `src/compose.ts`, the editor in `src/editor.ts`)
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/form/docs/metakit.md (limits and guards from metakit)
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-form/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form-recipes/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/examples/fields/README.md (every recipe through a real form)
