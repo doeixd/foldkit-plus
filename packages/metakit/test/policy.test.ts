@@ -1,5 +1,5 @@
 import { Effect, Option, Schema } from 'effect'
-import { Bool, Eq, Expr, Num, Path, Verdict } from 'metakit'
+import { Bool, Eq, Expr, Null, Num, Path, Verdict } from 'metakit'
 import * as Policy from 'metakit/policy'
 import * as Prove from 'metakit/prove'
 import { describe, expect, it } from 'vitest'
@@ -87,6 +87,27 @@ describe('metakit/policy (consistency, non-disclosure, opaque principal soundnes
     })
     expect(policy.allow('Read', { row: {}, principal: { userId: 'u', role: 'guest' } })).toBe(false)
     expect(Verdict.isUnknown(Policy.checkImplication(policy, 'Update', 'Read'))).toBe(true)
+  })
+
+  it('proves nothing of a null that a rule compares, and decides where none does', () => {
+    const row = Schema.Struct({ x: Schema.NullOr(Schema.Int) })
+    type Env = Policy.PolicyEnv<typeof row.Type, typeof Principal.Type>
+    // Evaluation compares null as zero, so null is "between zero and zero" and is not zero.
+    const compared = Path.make<Env, number>(['row', 'x'])
+    const policy = Policy.make({
+      row,
+      principal: Principal,
+      rules: ({ row }) => ({
+        Zeroed: Expr.all(Num.gte(compared, 0), Num.lte(compared, 0)),
+        Zero: Eq.is(row.x, 0),
+        Empty: Null.isNull(row.x),
+      }),
+    })
+    const env = { row: { x: null }, principal: { userId: 'u', role: 'guest' as const } }
+    expect([policy.allow('Zeroed', env), policy.allow('Zero', env)]).toEqual([true, false])
+    const undecided = Policy.checkImplication(policy, 'Zeroed', 'Zero')
+    expect(Verdict.isUnknown(undecided) && undecided.reason).toContain('"row.x" may hold NaN')
+    expect(Verdict.isTrue(Policy.checkImplication(policy, 'Empty', 'Empty'))).toBe(true)
   })
 
   it('takes a number of no single schema for one that may hold a fraction', async () => {

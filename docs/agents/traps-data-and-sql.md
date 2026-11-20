@@ -46,6 +46,8 @@ Read before touching Remote, Entity, Guard, Sync, Form, a live read, or the Driz
 
 - **Probe, do not assume, what a library type means.**
   `Schema.Struct({})` accepts `{foo:1}`, `[]` and `"str"` even with `onExcessProperty: 'error'`; use `Schema.Record(Schema.String, Schema.Never)`. Run a scratch probe against the installed version.
+- **A proof over numbers must leave out NaN and an absent key.**
+  `Guards.check` and `metakit/policy` proved a member readable by everyone who may update its row, over a `Schema.Number` field and over a `Schema.optionalKey` one: the Zone and Z3 take `x <= 0` for "not `x > 0`", and neither holds of NaN or of `undefined` (`4043124b3`, `4d7551b0f`). A schema's `Type` being `number` says nothing of either: ask `Schema.is(schema)(NaN)` and `SchemaAST.isOptional(ast)` before a checker orders a path, answer Unknown, and test with a row that holds the value.
 - **`Schema.Record` drops a key its key schema refuses.**
   Decoding `{ constructor: … }` against `Schema.Record(Id, Entry)` returned `{}` with no error unless the call passes `onExcessProperty: 'error'`, which also loses the value silently otherwise.
 - **`Optic.at` cannot insert.**

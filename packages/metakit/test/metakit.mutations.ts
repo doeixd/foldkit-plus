@@ -24,37 +24,84 @@ const policy = (name: string, file: string, find: string, replace: string) => ({
   edits: [{ file, find, replace }],
   tests: policyTests,
 })
+const unordered = (name: string, file: string, find: string, replace: string) => ({
+  name,
+  edits: [{ file, find, replace }],
+  tests: ['packages/metakit/test/unordered.test.ts'],
+})
 
 export default [
   policy(
     'the Zone proves an implication over a number that may be NaN',
     '../src/policy.ts',
-    '? Option.getOrElse(unorderedRead(policy, [fromRule.node, toRule.node]), () => verdict)',
-    '? verdict',
-  ),
-  policy(
-    'the solver proves an implication over a number that may be NaN',
-    prove,
-    'return Option.getOrElse(unorderedRead(pol, read), () => result)',
-    'return result',
+    'return ordered(verdict, slicesOf(policy), [fromRule.node, toRule.node])',
+    'return verdict',
   ),
   policy(
     'the Zone calls dead a rule that NaN passes',
     '../src/policy.ts',
-    'Option.getOrElse(unorderedRead(policy, [target.node]), () => Verdict.False<never>())',
+    'ordered(Verdict.False<never>(), slicesOf(policy), [target.node])',
     'Verdict.False<never>()',
   ),
   policy(
-    'the solver calls dead a rule that NaN passes',
+    'the solver proves a policy goal over a number that may be NaN',
     prove,
-    'unorderedRead(pol, [pol.rules[rule]!.node])',
-    'Option.none()',
+    'return ordered(solved, slices, [...given, goal.node])',
+    'return solved',
+  ),
+  unordered(
+    'the Zone proves an invariant over a number that may be NaN',
+    check,
+    'return ordered(state.entails(goal.node), [[[], schema]], [goal.node])',
+    'return state.entails(goal.node)',
+  ),
+  unordered(
+    'the Zone proves a transition over a number that may be NaN',
+    check,
+    'return ordered(overall, slices, [transition.when.node, ...postGoals])',
+    'return overall',
+  ),
+  unordered(
+    'the solver proves an invariant over a number that may be NaN',
+    prove,
+    'return ordered(solved, [[[], schema]], [goal.node])',
+    'return solved',
+  ),
+  unordered(
+    'the solver proves a transition over a number that may be NaN',
+    prove,
+    'return ordered(solved, slices, [tr.when.node, ...postGoals])',
+    'return solved',
+  ),
+  unordered(
+    'a counterexample over a number that may be NaN is thrown away',
+    '../src/abstract/unordered.ts',
+    '(Verdict.isFalse(verdict) && Option.isNone(verdict.witness))',
+    'Verdict.isFalse(verdict)',
+  ),
+  policy(
+    'a refutation with no witness stands over a number that may be NaN',
+    '../src/abstract/unordered.ts',
+    'Verdict.isTrue(verdict) || (Verdict.isFalse(verdict) && Option.isNone(verdict.witness))',
+    'Verdict.isTrue(verdict)',
+  ),
+  policy(
+    'a null that a rule compares is ordered',
+    '../src/abstract/unordered.ts',
+    ': compared && nullableNumber(current)',
+    ': false',
+  ),
+  policy(
+    'a null that no rule compares stops a proof',
+    '../src/abstract/unordered.ts',
+    ': compared && nullableNumber(current)',
+    ': nullableNumber(current)',
   ),
   policy(
     'a number whose key may be absent is ordered',
     '../src/abstract/unordered.ts',
-    '(absent || Schema.is(Schema.make(current))(NaN))',
-    'Schema.is(Schema.make(current))(NaN)',
+    '? absent || Schema.is(Schema.make(current))(NaN)',
+    '? Schema.is(Schema.make(current))(NaN)',
   ),
   policy(
     'a path of no known sort is an integer to the solver',

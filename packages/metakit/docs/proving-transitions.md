@@ -74,6 +74,10 @@ By default (`strict: true`), `Prove.machine` sets `report.ok = false` when any t
 
 An empty or whitespace-only string in `allowUnknown` throws immediately at definition time.
 
+## A transition is `undecided` and names a field that "may hold NaN"
+
+The checkers treat every number as ordered: `x <= 0` is what is left when `x > 0` is false. That is not so of `NaN`, which plain `Schema.Number` accepts, nor of a key declared with `Schema.optionalKey`. A proof that reads such a field, in the guard, in an invariant or in a written value, stays `undecided` and its reason names the path. Declare the field `Schema.Finite` or `Schema.Int`, and make the key required, to have it proved. A counterexample is still reported: its values are ordinary numbers.
+
 ## Reading a counterexample witness
 
 When a transition is refuted, `entry.witness` holds `Option.some(report)` with structured `before`, `input`, `after`, `violated` invariant strings, and a `reproducer` string. `report.format()` prints all five:

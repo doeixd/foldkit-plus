@@ -8,7 +8,7 @@
  */
 import { Effect, Option, Result, Schema, SchemaAST } from 'effect'
 import * as AbstractCheck from './abstract/check.js'
-import { unorderedRead } from './abstract/unordered.js'
+import { ordered, type Slice } from './abstract/unordered.js'
 import * as Expr from './expr.js'
 import type { Machine } from './machine.js'
 import * as Node from './node.js'
@@ -567,7 +567,8 @@ export const invariant = <S extends Schema.Top>(
     const fields = new Map<string, FieldSort>()
     collectFieldSorts(schema.ast, [], fields)
     const hypotheses = Expr.refinementsOf(schema).map(r => r.node)
-    return solveWithZ3(fields, hypotheses, [goal.node])
+    const solved = await solveWithZ3(fields, hypotheses, [goal.node])
+    return ordered(solved, [[[], schema]], [goal.node])
   })
 
 /** Prove that `transition` preserves every invariant on `stateSchema`. */
@@ -582,8 +583,10 @@ export const transition = <S extends Schema.Top, I, Emit>(
     const fields = new Map<string, FieldSort>()
     collectFieldSorts(stateSchema.ast, ['state'], fields)
     const preInvariants = Expr.refinementsOf(stateSchema).map(r => Node.prefix(r.node, ['state']))
+    const slices: Array<Slice> = [[['state'], stateSchema]]
     const inputInvariants: Array<Node.Node> = []
     if (Option.isSome(tr.inputSchema)) {
+      slices.push([['input'], tr.inputSchema.value])
       collectFieldSorts(tr.inputSchema.value.ast, ['input'], fields)
       for (const r of Expr.refinementsOf(tr.inputSchema.value)) {
         inputInvariants.push(Node.prefix(r.node, ['input']))
@@ -595,7 +598,8 @@ export const transition = <S extends Schema.Top, I, Emit>(
     }
     const postGoals = preInvariants.map(inv => substituteWrites(inv, writeMap))
     const hypotheses = [...preInvariants, ...inputInvariants, tr.when.node]
-    return solveWithZ3(fields, hypotheses, postGoals)
+    const solved = await solveWithZ3(fields, hypotheses, postGoals)
+    return ordered(solved, slices, [tr.when.node, ...postGoals])
   })
 
 /** Prove a policy/guard implication over an `Env` shape using Schema invariants as hypotheses. */
@@ -615,10 +619,10 @@ export const policy = <Shape extends Readonly<Record<string, Schema.Top>>>(
         hypotheses.push(Node.prefix(r.node, [slice]))
       }
     }
-    if (options?.hypotheses !== undefined) {
-      for (const h of options.hypotheses) hypotheses.push(h.node)
-    }
-    return solveWithZ3(fields, hypotheses, [goal.node])
+    const given = (options?.hypotheses ?? []).map(h => h.node)
+    const slices = Object.entries(shape).map(([slice, schema]): Slice => [[slice], schema])
+    const solved = await solveWithZ3(fields, [...hypotheses, ...given], [goal.node])
+    return ordered(solved, slices, [...given, goal.node])
   })
 
 /** Structured counterexample report for a refuted transition. */
@@ -832,10 +836,6 @@ export const policyImplies = <
       pol.rules[to]!,
       { hypotheses: [pol.rules[from]!] },
     )
-    if (Verdict.isTrue(result)) {
-      const read = [pol.rules[from]!.node, pol.rules[to]!.node]
-      return Option.getOrElse(unorderedRead(pol, read), () => result)
-    }
     return validatePolicyWitness(
       pol,
       result,
@@ -870,10 +870,7 @@ export const policyConsistent = <
     const res = validatePolicyWitness(pol, result, env => Expr.eval(pol.rules[rule]!, env))
     return Verdict.match(res, {
       // `hypotheses && NOT(false)` is UNSAT => rule is provably dead/unsatisfiable!
-      True: () =>
-        Option.getOrElse(unorderedRead(pol, [pol.rules[rule]!.node]), () =>
-          Verdict.False(Option.none()),
-        ),
+      True: () => Verdict.False(Option.none()),
       // `hypotheses && NOT(false)` is SAT (with no opaque terms) => rule is reachable!
       False: () => Verdict.True(Option.some(Verdict.Proved('z3'))),
       Unknown: u => u,

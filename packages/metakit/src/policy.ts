@@ -12,7 +12,7 @@
  */
 import { Option, type Schema } from 'effect'
 import * as AbstractCheck from './abstract/check.js'
-import { unorderedRead } from './abstract/unordered.js'
+import { ordered, type Slice } from './abstract/unordered.js'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
 import * as Bool from './ops/bool.js'
@@ -138,10 +138,16 @@ export const checkImplication = <
   // Refuting a consequent under assumed facts does not establish a reachable antecedent.
   if (Verdict.isFalse(verdict))
     return Verdict.Unknown('a counterexample requires a reachable allow rule')
-  return Verdict.isTrue(verdict)
-    ? Option.getOrElse(unorderedRead(policy, [fromRule.node, toRule.node]), () => verdict)
-    : verdict
+  return ordered(verdict, slicesOf(policy), [fromRule.node, toRule.node])
 }
+
+const slicesOf = (policy: {
+  readonly rowSchema: Schema.Top
+  readonly principalSchema: Schema.Top
+}): ReadonlyArray<Slice> => [
+  [['row'], policy.rowSchema],
+  [['principal'], policy.principalSchema],
+]
 
 /**
  * Tier 3 synchronous check: is `policy.rules[rule]` provably dead
@@ -173,8 +179,7 @@ export const checkConsistent = <
   ]
   const state = new AbstractCheck.AbstractState(hypotheses, fields)
   for (const h of hypotheses) state.assume(h)
-  const dead = () =>
-    Option.getOrElse(unorderedRead(policy, [target.node]), () => Verdict.False<never>())
+  const dead = () => ordered(Verdict.False<never>(), slicesOf(policy), [target.node])
   if (!state.propagate()) {
     return dead()
   }

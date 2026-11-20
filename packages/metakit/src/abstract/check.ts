@@ -22,6 +22,7 @@ import * as Path from '../path.js'
 import type { Transition } from '../transition.js'
 import * as Verdict from '../verdict.js'
 import * as Interval from './interval.js'
+import { ordered, type Slice } from './unordered.js'
 import { Zone, ZERO } from './zone.js'
 
 const MAX_ROUNDS = 16
@@ -1206,7 +1207,7 @@ export const checkInvariant = <S extends Schema.Top>(
   const invariants = Expr.refinementsOf(schema).map(r => r.node)
   const state = new AbstractState([...invariants, goal.node], fields)
   for (const inv of invariants) state.assume(inv)
-  return state.entails(goal.node)
+  return ordered(state.entails(goal.node), [[[], schema]], [goal.node])
 }
 
 /** Tier 3 synchronous check: does `transition` preserve every invariant on `stateSchema`? */
@@ -1222,9 +1223,11 @@ export const checkTransition = <S extends Schema.Top, I, Emit>(
   const fields = new Map<string, FieldInfo>()
   collectFields(stateSchema.ast, ['state'], fields)
 
+  const slices: Array<Slice> = [[['state'], stateSchema]]
   const inputInvariants: Array<Node.Node> = []
   if (Option.isSome(transition.inputSchema)) {
     const inputSchema = transition.inputSchema.value
+    slices.push([['input'], inputSchema])
     collectFields(inputSchema.ast, ['input'], fields)
     for (const r of Expr.refinementsOf(inputSchema)) {
       inputInvariants.push(Node.prefix(r.node, ['input']))
@@ -1244,7 +1247,7 @@ export const checkTransition = <S extends Schema.Top, I, Emit>(
   let overall: Verdict.Verdict<never> = Verdict.True(Option.some(Verdict.Proved('zone')))
   for (const goal of postGoals) {
     overall = Verdict.and(overall, state.entails(goal))
-    if (Verdict.isFalse(overall)) return overall
+    if (Verdict.isFalse(overall)) break
   }
-  return overall
+  return ordered(overall, slices, [transition.when.node, ...postGoals])
 }

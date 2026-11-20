@@ -67,6 +67,7 @@ void proof
 - **Using `Num.sub` to assign back to a `Money` field.** `Num.sub` returns `Expr<Env, number>`, which drops the currency brand. Use `Money.add` / `Money.sub` so `Transition.set(state.balance, ...)` keeps currency and scale safety.
 - **Passing 3 positional args to `Expr.when` or a bare string to `Expr.opaque`.** Use `Expr.when(cond, { then, else })` and `Expr.opaque({ name: '...', reads: [...] }, fn)`.
 - **Conflating `null` with missing (`Unknown`) in partial evaluation.** `{ discount: null }` is a known `null` (folds to a literal in `Expr.residualize` and `Graph.pruneStatic`); omit the key to leave it `Unknown`.
+- **Expecting a proof over plain `Schema.Number` or an optional key.** `NaN` and an absent key are neither above nor below anything, so `Abstract.checkInvariant`, `Abstract.checkTransition`, every `Prove.*` check and the `metakit/policy` checks answer `Unknown` and name the path. Declare a compared number `Schema.Finite` or `Schema.Int` on a required key.
 - **Importing `metakit/sql`, `metakit/drizzle`, or `metakit/prove` in browser bundles.** Keep browser code on `metakit`, `metakit/domain`, `metakit/aggregates`, `metakit/machine`, and `metakit/inspect`.
 
 ## Main exports by subpath
@@ -80,8 +81,7 @@ void proof
 - `metakit/graph`: `analyze`, `pruneStatic`, `queryReadiness`
 - `metakit/sql`: `toCheck`, `toWhere`, `toUpdate`, `SqlUnsupportedError`
 - `metakit/drizzle`: `toCheck`, `toWhere`, `toUpdate`
-- `metakit/policy`: `make` builds named boolean rules over a row and a principal. `checkConsistent` looks for an unreachable rule and `checkImplication` checks whether one rule implies another. Both stay unknown when a rule reads a number that may be NaN or whose key may be absent: give a compared number `Schema.Finite` or `Schema.Int`.
-- `metakit/prove`: `invariant`, `transition`, `policy`, `machine`, `policyConsistent`, `policyImplies`. The last two accept policy definitions from `metakit/policy` or `Guards.check` and escalate undecided checks to Z3.
+- `metakit/policy`: `make` builds named boolean rules over a row and a principal. `checkConsistent` looks for an unreachable rule and `checkImplication` checks whether one rule implies another.- `metakit/prove`: `invariant`, `transition`, `policy`, `machine`, `policyConsistent`, `policyImplies`. The last two accept policy definitions from `metakit/policy` or `Guards.check` and escalate undecided checks to Z3.
 - `metakit/conformance`: `checkOpSoundness`, `checkResidualizeSoundness`
 
 ## See also
