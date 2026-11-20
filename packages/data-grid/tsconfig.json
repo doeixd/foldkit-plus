@@ -14,6 +14,7 @@
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-form": ["../form/src/index.ts"],
+      "foldkit-form/metakit": ["../form/src/metakit.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote/filter": ["../remote/src/filter.ts"],

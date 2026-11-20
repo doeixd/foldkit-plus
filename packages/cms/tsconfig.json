@@ -18,6 +18,7 @@
       "foldkit-form-recipes/html": ["../form-recipes/src/html.ts"],
       "foldkit-form-recipes/image": ["../form-recipes/src/image.ts"],
       "foldkit-form-recipes/ui": ["../form-recipes/src/ui.ts"],
+      "foldkit-form/metakit": ["../form/src/metakit.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-crud": ["../mixins-crud/src/index.ts"],

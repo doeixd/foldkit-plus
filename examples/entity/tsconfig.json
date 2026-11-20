@@ -17,6 +17,7 @@
       "foldkit-example-site/guide": ["../site/src/guide.ts"],
       "foldkit-example-site/phone-audit": ["../site/src/phoneAudit.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
+      "foldkit-form/metakit": ["../../packages/form/src/metakit.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-crud": ["../../packages/mixins-crud/src/index.ts"],

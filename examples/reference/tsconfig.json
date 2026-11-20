@@ -17,6 +17,7 @@
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
+      "foldkit-form/metakit": ["../../packages/form/src/metakit.ts"],
       "foldkit-guard": ["../../packages/guard/src/index.ts"],
       "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
       "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],

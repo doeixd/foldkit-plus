@@ -17,6 +17,7 @@
       "foldkit-form-recipes/html": ["./src/html.ts"],
       "foldkit-form-recipes/image": ["./src/image.ts"],
       "foldkit-form-recipes/ui": ["./src/ui.ts"],
+      "foldkit-form/metakit": ["../form/src/metakit.ts"],
       "foldkit-media": ["../media/src/index.ts"],
       "foldkit-media/browser": ["../media/src/browser/index.ts"],
       "foldkit-media/client": ["../media/client.d.ts"],
