@@ -45,7 +45,7 @@ export interface UiStyles {
  * form view's own, and each control keeps what the plain one carries: the key
  * as its name, its id, and its validity and descriptions.
  *
- * Text, Number, Multiline and the selects are the plain elements under the
+ * Text, Number, the date and amount inputs, Multiline and the selects are the plain elements under the
  * component's Slot, so its recipe styles them; a FieldSlots style on the same
  * element no longer reaches it. Toggle, Choices and RelationMany are the
  * Checkbox's `role="checkbox"` buttons, which Space presses and a label for
@@ -74,6 +74,10 @@ export const renderers = <Message>(styles: UiStyles = {}): Renderers<Message> =>
       plain.Text({ ...context, slots: { ...context.slots, text: textInput(context) } }),
     Number: context =>
       plain.Number({ ...context, slots: { ...context.slots, number: textInput(context) } }),
+    CalendarDay: context =>
+      plain.CalendarDay({ ...context, slots: { ...context.slots, date: textInput(context) } }),
+    Decimal: context =>
+      plain.Decimal({ ...context, slots: { ...context.slots, decimal: textInput(context) } }),
     Multiline: context =>
       plain.Multiline({
         ...context,

@@ -104,11 +104,14 @@ For a `Money` key that should read and write amounts in the reader's locale
 from `foldkit-form-recipes` instead. It stores the same whole minor units, at
 the scale the currency itself uses.
 
-[`foldkit-mixins-form`](../../mixins-form/README.md#renderers) draws each kind
-of control with a renderer, and ships none for these two: pass one under
-`renderers`, keyed `CalendarDay` and `Decimal`. A renderer can tell them apart
-with `Declared.CalendarDay.is(control)` and `Declared.Decimal.is(control)`; the
-`Decimal` control's data is the domain's own, so it can show a `Money` key's
+[`foldkit-mixins-form`](../../mixins-form/README.md#draw-days-and-amounts-from-a-metakit-declaration)
+draws them with no renderer of yours: a `CalendarDay` key as a date input
+(`type="date"`), and a `Money` or `Decimal` key as a text input with the
+decimal keypad. Pass it `Declared.of(form)` under `declared` and it puts the `min`,
+`max` and `step` above on them. To draw one yourself, pass a renderer under
+`renderers`, keyed `CalendarDay` or `Decimal`; it can tell the controls apart
+with `Declared.CalendarDay.is(control)` and `Declared.Decimal.is(control)`, and
+the `Decimal` control's data is the domain's own, so it can show a `Money` key's
 currency.
 
 ## Refuse an action its guard refuses
@@ -193,10 +196,10 @@ when the form is declared, unless you pass `unworded`, which words it:
 Declared.of(StayForm, { unworded: failure => `Check ${failure.keys.join(' and ')}` })
 ```
 
-`foldkit-mixins-form`'s `FormView` draws each key from the form's own `field`,
-so it does not show these messages beside the keys. Draw the keys with
-`stay.field`, or pass the messages to `FormView` under `errors`, the list it
-draws above the fields.
+`foldkit-mixins-form`'s `FormView` draws each key from the form's own `field`
+unless you pass it `declared: stay`, which shows these messages beside the keys
+as a key's own errors are shown. A view of your own draws the keys with
+`stay.field`.
 
 ## Next
 

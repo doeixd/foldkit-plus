@@ -29,7 +29,18 @@
       "foldkit-mixins/theme/knob-data": ["../mixins/src/theme/knobData.ts"],
       "foldkit-mixins/theme/runtime": ["../mixins/src/theme/runtime.ts"],
       "foldkit-mixins/utilities": ["../mixins/src/utilities.ts"],
-      "foldkit-mixins/vite": ["../mixins/src/vite.ts"]
+      "foldkit-mixins/vite": ["../mixins/src/vite.ts"],
+      "metakit": ["../metakit/src/index.ts"],
+      "metakit/aggregates": ["../metakit/src/aggregates.ts"],
+      "metakit/conformance": ["../metakit/src/conformance.ts"],
+      "metakit/domain": ["../metakit/src/domain.ts"],
+      "metakit/drizzle": ["../metakit/src/drizzle.ts"],
+      "metakit/graph": ["../metakit/src/graph.ts"],
+      "metakit/inspect": ["../metakit/src/inspect.ts"],
+      "metakit/machine": ["../metakit/src/machine.ts"],
+      "metakit/policy": ["../metakit/src/policy.ts"],
+      "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/sql": ["../metakit/src/sql.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
@@ -48,6 +59,9 @@
     },
     {
       "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../metakit/tsconfig.build.json"
     },
     {
       "path": "../mixins/tsconfig.build.json"

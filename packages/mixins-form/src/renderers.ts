@@ -14,6 +14,8 @@ export type Shipped<Message> = {
       | 'Text'
       | 'Multiline'
       | 'Number'
+      | 'CalendarDay'
+      | 'Decimal'
       | 'Toggle'
       | 'Select'
       | 'RelationOne'
@@ -104,6 +106,11 @@ export const plainRenderers = <Message>(): Shipped<Message> => {
       ...(spellcheck === undefined ? [] : [h.Attribute('spellcheck', String(spellcheck))]),
     ]
   }
+  const limits = <M>({ attrs, h }: { readonly attrs: FieldAttrs; readonly h: HtmlBuilder<M> }) => [
+    ...(attrs.min === undefined ? [] : [h.Min(attrs.min)]),
+    ...(attrs.max === undefined ? [] : [h.Max(attrs.max)]),
+    ...(attrs.step === undefined ? [] : [h.Step(attrs.step)]),
+  ]
   return {
     Text: context =>
       context.h.input(
@@ -143,6 +150,28 @@ export const plainRenderers = <Message>(): Shipped<Message> => {
           // `decimal` has no minus on iOS: a field that takes negatives says `text`, and one of
           // whole numbers `numeric`.
           context.h.InputMode(context.attrs.inputMode ?? 'decimal'),
+          ...(context.attrs.placeholder === undefined
+            ? []
+            : [context.h.Placeholder(context.attrs.placeholder)]),
+        ]),
+      ),
+    // The `CalendarDay` control of `foldkit-form/metakit`: its draft is `YYYY-MM-DD`,
+    // which is what a date input holds.
+    CalendarDay: context =>
+      context.h.input(
+        context.slots.date.attrs([...typed(context), context.h.Type('date'), ...limits(context)]),
+      ),
+    // The `Decimal` control of `foldkit-form/metakit`, for `Money` and `Decimal`
+    // keys: text, as `Number` is, for the same partial drafts. A caller who wants
+    // the browser's own range check passes `attrs: { key: { type: 'number' } }`.
+    Decimal: context =>
+      context.h.input(
+        context.slots.decimal.attrs([
+          ...typed(context),
+          ...keyboard(context),
+          context.h.Type(context.attrs.type ?? 'text'),
+          context.h.InputMode(context.attrs.inputMode ?? 'decimal'),
+          ...limits(context),
           ...(context.attrs.placeholder === undefined
             ? []
             : [context.h.Placeholder(context.attrs.placeholder)]),

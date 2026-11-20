@@ -104,7 +104,9 @@ const unitsText = (units: number, scale: number): string =>
   // A brand of metakit's own, which only its constructors give.
   Decimal.format(units as Decimal.DecimalValue<number>, { scale })
 
-const dayText = (day: number): string => CalendarDay.toIso(day as CalendarDay.CalendarDayValue)
+/** The day as `YYYY-MM-DD`, or none for one outside years 0001 to 9999, which has no such text. */
+const dayText = (day: number): string | undefined =>
+  Result.getOrUndefined(CalendarDay.toIso(day as CalendarDay.CalendarDayValue))
 
 /**
  * A control for a `CalendarDay` key: the draft is the day as `YYYY-MM-DD`, what
@@ -113,7 +115,7 @@ const dayText = (day: number): string => CalendarDay.toIso(day as CalendarDay.Ca
 const CalendarDayInput = Input.kind('CalendarDay', {
   draft: 'text',
   parse: draft => Result.getOrUndefined(CalendarDay.fromIso(draft)),
-  format: value => dayText(Number(value)),
+  format: value => dayText(Number(value)) ?? '',
   unparsed: 'Enter a date',
 })
 
@@ -153,11 +155,12 @@ const bounds = (
 const numeric = (
   spec: FieldSpec,
   whole: boolean,
-  text: (n: number) => string,
+  text: (n: number) => string | undefined,
   rest: Pick<InputAttributes, 'type' | 'inputMode' | 'step'>,
 ): InputAttributes => {
   const { min, max } = bounds(spec, whole)
-  return { ...rest, min: Option.map(min, text), max: Option.map(max, text) }
+  const shown = (n: number) => Option.fromUndefinedOr(text(n))
+  return { ...rest, min: Option.flatMap(min, shown), max: Option.flatMap(max, shown) }
 }
 
 const none: InputAttributes = {
