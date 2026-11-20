@@ -14,6 +14,10 @@ export type DomainMetadata =
       readonly scale: number
     }
   | {
+      readonly kind: 'decimal'
+      readonly scale: number
+    }
+  | {
       readonly kind: 'calendarDay'
     }
   | {

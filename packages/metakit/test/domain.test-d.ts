@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { Expr } from 'metakit'
-import { CalendarDay, Money, OrderedEnum } from 'metakit/domain'
+import { CalendarDay, Decimal, Money, OrderedEnum } from 'metakit/domain'
 
 const Usd = Money.make('USD')
 const Eur = Money.make('EUR')
@@ -34,4 +34,19 @@ const Doc = Schema.Struct({ status: Status.schema })
 Expr.in({ row: Doc }, ({ row }) =>
   // @ts-expect-error 'archived' is not in Status
   Status.gte(row.status, 'archived'),
+)
+
+// Decimal enforces compile-time scale safety
+const Dec2 = Decimal.make({ scale: 2 })
+const Dec4 = Decimal.make({ scale: 4 })
+const Rates = Schema.Struct({ fee: Dec2, rate: Dec4 })
+
+Expr.in({ row: Rates }, ({ row }) => Decimal.add(row.fee, Decimal.units(250, 2)))
+Expr.in({ row: Rates }, ({ row }) =>
+  // @ts-expect-error scale 4 cannot be added to scale 2
+  Decimal.add(row.fee, row.rate),
+)
+Expr.in({ row: Rates }, ({ row }) =>
+  // @ts-expect-error scale 4 cannot be compared with scale 2
+  Decimal.lte(row.fee, row.rate),
 )

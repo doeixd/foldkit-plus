@@ -2,7 +2,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { Effect, Option, Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Abstract, Eq, Expr, Ord, Path, Transition, Verdict } from 'metakit'
-import { CalendarDay, Domain, Money, OrderedEnum } from 'metakit/domain'
+import { CalendarDay, Decimal, Domain, Money, OrderedEnum } from 'metakit/domain'
 import * as Prove from 'metakit/prove'
 import * as Sql from 'metakit/sql'
 
@@ -190,4 +190,69 @@ describe('metakit/domain', () => {
       true,
     )
   }, 30_000)
+
+  it('Decimal: fixed-scale integer parsing, formatting, pinned half-even rounding, and Zone proof', () => {
+    const Dec2 = Decimal.make({ scale: 2 })
+    expect(Domain.domainOf(Dec2)).toEqual(Option.some({ kind: 'decimal', scale: 2 }))
+    expect(() => Decimal.make({ scale: -1 })).toThrow(/between 0 and 12/)
+    expect(() => Decimal.make({ scale: 13 })).toThrow(/between 0 and 12/)
+
+    expect(Decimal.parse('12.50', { scale: 2 })).toEqual(Result.succeed(Decimal.units(1250, 2)))
+    expect(Decimal.parse('-0.05', { scale: 2 })).toEqual(Result.succeed(Decimal.units(-5, 2)))
+    expect(Decimal.parse('0.1', { scale: 2 })).toEqual(Result.succeed(Decimal.units(10, 2)))
+    expect(Result.isFailure(Decimal.parse('1.234', { scale: 2 }))).toBe(true)
+    expect(Result.isFailure(Decimal.parse('abc', { scale: 2 }))).toBe(true)
+
+    expect(Decimal.format(Decimal.units(1250, 2), { scale: 2 })).toBe('12.50')
+    expect(Decimal.format(Decimal.units(-5, 2), { scale: 2 })).toBe('-0.05')
+    expect(Decimal.format(Decimal.units(42, 0), { scale: 0 })).toBe('42')
+
+    // Pinned half-even (banker's) rounding across positive & negative ties
+    const ties: ReadonlyArray<readonly [number, number, number]> = [
+      [5, 2, 2],
+      [7, 2, 4],
+      [-5, 2, -2],
+      [-7, 2, -4],
+      [-50, 100, 0],
+      [50, 100, 0],
+      [150, 100, 2],
+      [-150, 100, -2],
+      [250, 100, 2],
+      [350, 100, 4],
+      [149, 100, 1],
+      [151, 100, 2],
+      [-149, 100, -1],
+      [-151, 100, -2],
+    ]
+    for (const [n, d, expected] of ties) {
+      expect(Decimal.roundHalfEven(n, d)).toBe(expected)
+    }
+
+    // Tier 3 Zone proves a Decimal discount transition preserves 0 <= discount <= subtotal
+    const Order = Schema.Struct({
+      subtotal: Dec2,
+      discount: Dec2,
+    }).pipe(
+      Expr.refine($ =>
+        Expr.all(
+          Decimal.gte($.subtotal, Decimal.units(0, 2)),
+          Decimal.gte($.discount, Decimal.units(0, 2)),
+          Decimal.lte($.discount, $.subtotal),
+        ),
+      ),
+    )
+    const ApplyExtraDiscount = Transition.make({
+      state: Order,
+      input: Schema.Struct({ extra: Dec2 }),
+      when: ({ state, input }) =>
+        Expr.all(
+          Decimal.gte(input.extra, Decimal.units(0, 2)),
+          Decimal.lte(Decimal.add(state.discount, input.extra), state.subtotal),
+        ),
+      apply: ({ state, input }) => [
+        Transition.set(state.discount, Decimal.add(state.discount, input.extra)),
+      ],
+    })
+    expect(Verdict.isTrue(Abstract.checkTransition(Order, ApplyExtraDiscount))).toBe(true)
+  })
 })
