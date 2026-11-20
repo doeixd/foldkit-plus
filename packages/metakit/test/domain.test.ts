@@ -69,7 +69,7 @@ describe('metakit/domain', () => {
     expect(Domain.domainOf(PositiveUsd)).toEqual(
       Option.some({ kind: 'money', currency: 'USD', scale: 2 }),
     )
-    expect(Money.format(Money.minor('USD', 1250), 'USD')).toBe('12.50 USD')
+    expect(Money.format(Money.minor('USD', 1250), 'USD', { scale: 2 })).toBe('12.50 USD')
     expect(() => Money.minor('USD', 12.5)).toThrow(/integer/)
     expect(() => Money.make('USD', { scale: -1 })).toThrow(/scale/)
     expect(() => Money.make('')).toThrow(/currency/)
@@ -84,7 +84,7 @@ describe('metakit/domain', () => {
   it('CalendarDay: round-trips ISO dates, rejects invalid dates, and proves trial rules in Tier 3 Zone', () => {
     expect(Domain.domainOf(CalendarDay.schema)).toEqual(Option.some({ kind: 'calendarDay' }))
     const d1 = CalendarDay.parseIsoUnsafe('2026-11-20')
-    expect(CalendarDay.toIso(d1)).toBe('2026-11-20')
+    expect(CalendarDay.toIso(d1)).toEqual(Result.succeed('2026-11-20'))
     expect(Result.isFailure(CalendarDay.fromIso('2026-02-30'))).toBe(true)
     expect(Result.isFailure(CalendarDay.fromIso('not-a-date'))).toBe(true)
 

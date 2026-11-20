@@ -18,34 +18,55 @@ export const CalendarDayBrand: unique symbol = Symbol.for('metakit/CalendarDay')
 export type CalendarDayValue = number & { readonly [CalendarDayBrand]: true }
 
 export class InvalidCalendarDayError extends Data.TaggedError('InvalidCalendarDayError')<{
-  readonly input: string
+  readonly input: string | number
+  readonly reason: string
 }> {}
 
 const MS_PER_DAY = 86_400_000
 const ISO_DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 
-/** Effect `Schema` for an integer epoch-day `CalendarDay` with `metakit/domain` metadata. */
+/** `0001-01-01`, the first day the ISO conversions accept. */
+export const earliest = -719_162 as CalendarDayValue
+/** `9999-12-31`, the last day the ISO conversions accept. */
+export const latest = 2_932_896 as CalendarDayValue
+
+/**
+ * Effect `Schema` for an integer epoch-day `CalendarDay` with `metakit/domain`
+ * metadata. It holds any safe integer; the ISO conversions cover
+ * `earliest` to `latest` (years 0001 to 9999).
+ */
 export const schema: Schema.Codec<CalendarDayValue, number> = Schema.Int.annotate({
   [DOMAIN_ANNOTATION_KEY]: { kind: 'calendarDay' },
 } as Schema.Annotations.Annotations) as unknown as Schema.Codec<CalendarDayValue, number>
 
-/** Parse an ISO `YYYY-MM-DD` string into an exact epoch-day `CalendarDayValue`. */
+/**
+ * Parse an ISO `YYYY-MM-DD` string, years 0001 to 9999, into an exact
+ * epoch-day `CalendarDayValue`. Refuses a day the month does not have.
+ */
 export const fromIso = (iso: string): Result.Result<CalendarDayValue, InvalidCalendarDayError> => {
   const m = ISO_DAY_RE.exec(iso)
-  if (m === null) return Result.fail(new InvalidCalendarDayError({ input: iso }))
+  if (m === null) {
+    return Result.fail(new InvalidCalendarDayError({ input: iso, reason: 'expected YYYY-MM-DD' }))
+  }
   const year = Number(m[1])
   const month = Number(m[2])
   const day = Number(m[3])
-  const ms = Date.UTC(year, month - 1, day)
-  const check = new Date(ms)
+  if (year < 1) {
+    return Result.fail(
+      new InvalidCalendarDayError({ input: iso, reason: 'years 0001 to 9999 are supported' }),
+    )
+  }
+  // `Date.UTC` reads years 0 to 99 as 1900 to 1999; `setUTCFullYear` does not.
+  const check = new Date(0)
+  check.setUTCFullYear(year, month - 1, day)
   if (
     check.getUTCFullYear() !== year ||
     check.getUTCMonth() + 1 !== month ||
     check.getUTCDate() !== day
   ) {
-    return Result.fail(new InvalidCalendarDayError({ input: iso }))
+    return Result.fail(new InvalidCalendarDayError({ input: iso, reason: 'no such day' }))
   }
-  return Result.succeed(Math.floor(ms / MS_PER_DAY) as CalendarDayValue)
+  return Result.succeed((check.getTime() / MS_PER_DAY) as CalendarDayValue)
 }
 
 /** Parse a known-valid ISO `YYYY-MM-DD` string, throwing on invalid input. */
@@ -57,13 +78,24 @@ export const parseIsoUnsafe = (iso: string): CalendarDayValue => {
   return res.success
 }
 
-/** Format an epoch-day `CalendarDayValue` as `YYYY-MM-DD`. */
-export const toIso = (day: CalendarDayValue): string => {
+/**
+ * Format an epoch-day `CalendarDayValue` as `YYYY-MM-DD`. Refuses a day that
+ * is not an integer or lies outside `earliest` to `latest`.
+ */
+export const toIso = (day: CalendarDayValue): Result.Result<string, InvalidCalendarDayError> => {
+  if (!Number.isInteger(day) || day < earliest || day > latest) {
+    return Result.fail(
+      new InvalidCalendarDayError({
+        input: day,
+        reason: `expected an integer day from ${earliest} (0001-01-01) to ${latest} (9999-12-31)`,
+      }),
+    )
+  }
   const d = new Date(day * MS_PER_DAY)
   const y = String(d.getUTCFullYear()).padStart(4, '0')
   const m = String(d.getUTCMonth() + 1).padStart(2, '0')
   const dd = String(d.getUTCDate()).padStart(2, '0')
-  return `${y}-${m}-${dd}`
+  return Result.succeed(`${y}-${m}-${dd}`)
 }
 
 type DayInput<Env> = ExprInput<Env, CalendarDayValue>

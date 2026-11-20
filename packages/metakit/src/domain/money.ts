@@ -4,24 +4,14 @@
  * Amounts are stored as exact integer minor units (e.g. cents for scale 2), so
  * Tier 3 Zone and Tier 4 Z3 prove financial invariants in exact linear integer
  * arithmetic without JS float drift. Currency & scale mismatches are compile
- * errors.
+ * errors. `Money` shares its implementation and its operations with `Decimal`.
  */
-import { Schema } from 'effect'
-import * as Node from '../node.js'
-import * as Bool from '../ops/bool.js'
-import {
-  call,
-  toNode,
-  wrap,
-  type EnvOfInput,
-  type ExprInput,
-  type ValueOfInput,
-} from '../ops/core.js'
-import * as Eq from '../ops/eq.js'
-import * as Num from '../ops/num.js'
-import * as Ord from '../ops/ord.js'
+import { Option, Result, Schema } from 'effect'
+import type { EnvOfInput, ExprInput, ValueOfInput } from '../ops/core.js'
 import type { Expr } from '../path.js'
 import { DOMAIN_ANNOTATION_KEY } from './annotation.js'
+import type { DecimalValue } from './decimal.js'
+import * as Fixed from './fixed.js'
 
 export const MoneyBrand: unique symbol = Symbol.for('metakit/Money')
 
@@ -49,137 +39,96 @@ export const make = <const C extends string, const S extends number = 2>(
   if (code.trim().length === 0) {
     throw new Error('[metakit] Money.make requires a non-empty currency code')
   }
-  const scale = (options?.scale ?? 2) as S
-  if (!Number.isInteger(scale) || scale < 0 || scale > 12) {
-    throw new Error(`[metakit] Money.make scale must be an integer between 0 and 12, got ${scale}`)
-  }
+  const scale = options?.scale ?? 2
+  Fixed.assertScale(scale, 'Money.make')
   return Schema.Int.annotate({
     [DOMAIN_ANNOTATION_KEY]: { kind: 'money', currency: code, scale },
   } as Schema.Annotations.Annotations) as unknown as Schema.Codec<MoneyValue<C, S>, number>
 }
 
-/** Construct a typed `MoneyValue<C, S>` constant from integer minor units. */
+/** Construct a typed `MoneyValue<C, S>` constant from a safe integer of minor units (default `scale: 2`). */
 export const minor = <const C extends string, const S extends number = 2>(
   _currency: C,
   amount: number,
-  _scale?: S,
+  scale?: S,
 ): MoneyValue<C, S> => {
-  if (!Number.isInteger(amount)) {
-    throw new Error(`[metakit] Money.minor requires an integer minor-unit amount, got ${amount}`)
-  }
-  return amount as MoneyValue<C, S>
+  Fixed.assertScale(scale ?? 2, 'Money.minor')
+  return Fixed.assertUnits(amount, 'Money.minor') as MoneyValue<C, S>
 }
 
-/** Format integer minor units as a fixed-decimal string (e.g. `1250` -> `"12.50 USD"`). */
-export const format = <C extends string, S extends number = 2>(
+/**
+ * Parse exact base-10 text (`"12.50"`) into minor units of `code` at `scale`
+ * (default 2). Refuses text with more fractional digits than `scale` and a
+ * result outside the safe integer range.
+ */
+export const parse = <const C extends string, const S extends number = 2>(
+  _currency: C,
+  text: string,
+  options?: { readonly scale?: S },
+): Result.Result<MoneyValue<C, S>, Fixed.InvalidDecimalError> => {
+  const scale = options?.scale ?? 2
+  Fixed.assertScale(scale, 'Money.parse')
+  return Fixed.parseUnits(text, scale) as Result.Result<MoneyValue<C, S>, Fixed.InvalidDecimalError>
+}
+
+/**
+ * Format minor units as exact fixed-decimal text with the currency code
+ * (`1250` USD at scale 2 is `"12.50 USD"`). The currency and the scale must be
+ * the amount's own: a mismatch does not compile. Throws on an amount that is
+ * not a safe integer.
+ */
+export const format = <C extends string, S extends number>(
   amount: MoneyValue<C, S>,
-  code: C,
-  scale: S = 2 as S,
-): string => {
-  const divisor = 10 ** scale
-  return `${(amount / divisor).toFixed(scale)} ${code}`
-}
+  code: NoInfer<C>,
+  options: { readonly scale: NoInfer<S> },
+): string => `${Fixed.formatUnits(amount, options.scale, 'Money.format')} ${code}`
 
-type AnyMoneyInput = ExprInput<never, MoneyValue<string, number>>
-type MoneyCurrency<T> = ValueOfInput<T> extends MoneyValue<infer C, number> ? C : never
-type MoneyScale<T> = ValueOfInput<T> extends MoneyValue<string, infer S> ? S : never
-type SameMoneyInput<L> = ExprInput<never, MoneyValue<MoneyCurrency<L>, MoneyScale<L>>>
-type MoneyResult<L> = MoneyValue<MoneyCurrency<L>, MoneyScale<L>>
+const ops = Fixed.ops<MoneyValue<string, number>>()
 
 /** Add two `Money` amounts of the same currency and scale. */
-export const add = <L extends AnyMoneyInput, R extends SameMoneyInput<L>>(
-  left: L,
-  right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, MoneyResult<L>> =>
-  Num.add(left as ExprInput<never, number>, right as ExprInput<never, number>) as unknown as Expr<
-    EnvOfInput<L> & EnvOfInput<R>,
-    MoneyResult<L>
-  >
-
+export const add = ops.add
 /** Subtract two `Money` amounts of the same currency and scale. */
-export const sub = <L extends AnyMoneyInput, R extends SameMoneyInput<L>>(
-  left: L,
-  right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, MoneyResult<L>> =>
-  Num.sub(left as ExprInput<never, number>, right as ExprInput<never, number>) as unknown as Expr<
-    EnvOfInput<L> & EnvOfInput<R>,
-    MoneyResult<L>
-  >
-
-/** Multiply a `Money` amount by an integer scalar. */
-export const mulInt = <M extends AnyMoneyInput, F extends ExprInput<never, number>>(
-  money: M,
-  factor: F,
-): Expr<EnvOfInput<M> & EnvOfInput<F>, MoneyResult<M>> =>
-  Num.mul(money as ExprInput<never, number>, factor) as unknown as Expr<
-    EnvOfInput<M> & EnvOfInput<F>,
-    MoneyResult<M>
-  >
-
+export const sub = ops.sub
 /** Negate a `Money` amount. */
-export const neg = <M extends AnyMoneyInput>(money: M): Expr<EnvOfInput<M>, MoneyResult<M>> =>
-  Num.neg(money as ExprInput<never, number>) as unknown as Expr<EnvOfInput<M>, MoneyResult<M>>
+export const neg = ops.neg
+/** Multiply a `Money` amount by an integer scalar. */
+export const mulInt = ops.mulInt
+/** The smaller of two amounts of the same currency and scale. */
+export const min = ops.min
+/** The larger of two amounts of the same currency and scale. */
+export const max = ops.max
+export const lt = ops.lt
+export const lte = ops.lte
+export const gt = ops.gt
+export const gte = ops.gte
+export const is = ops.is
+export const isNot = ops.isNot
+/** `lo <= value <= hi`, all of one currency and scale. */
+export const between = ops.between
 
-export const lt = <L extends AnyMoneyInput, R extends SameMoneyInput<L>>(
-  left: L,
-  right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> =>
-  Ord.lt(left as ExprInput<never, number>, right as ExprInput<never, number>)
+type RateScale<R> = ValueOfInput<R> extends DecimalValue<infer S> ? S : never
 
-export const lte = <L extends AnyMoneyInput, R extends SameMoneyInput<L>>(
-  left: L,
-  right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> =>
-  Ord.lte(left as ExprInput<never, number>, right as ExprInput<never, number>)
-
-export const gt = <L extends AnyMoneyInput, R extends SameMoneyInput<L>>(
-  left: L,
-  right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> =>
-  Ord.gt(left as ExprInput<never, number>, right as ExprInput<never, number>)
-
-export const gte = <L extends AnyMoneyInput, R extends SameMoneyInput<L>>(
-  left: L,
-  right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> =>
-  Ord.gte(left as ExprInput<never, number>, right as ExprInput<never, number>)
-
-export const is = <L extends AnyMoneyInput, R extends SameMoneyInput<L>>(
-  left: L,
-  right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> => call(Eq.isOp, [left, right])
-
-export const between = <
-  X extends AnyMoneyInput,
-  Lo extends SameMoneyInput<X>,
-  Hi extends SameMoneyInput<X>,
+/**
+ * Multiply an amount by a `Decimal` rate (a tax rate, an exchange rate) into
+ * an amount of the same currency and scale, rounding half-even. `rateScale`
+ * must be the rate's own scale. Exact in integers; evaluated in memory only:
+ * SQL lowering refuses it and the static checkers read it as unknown. A missing
+ * operand, or a product outside the safe integer range, evaluates to `null`
+ * (typed so when an operand may be null).
+ */
+export const mul = <
+  M extends ExprInput<never, MoneyValue<string, number> | null>,
+  R extends ExprInput<never, DecimalValue<number> | null>,
 >(
-  value: X,
-  lo: Lo,
-  hi: Hi,
-): Expr<EnvOfInput<X> & EnvOfInput<Lo> & EnvOfInput<Hi>, boolean> =>
-  Bool.and(gte(value, lo), lte(value, hi))
-
-export const min = <L extends AnyMoneyInput, R extends SameMoneyInput<L>>(
-  left: L,
-  right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, MoneyResult<L>> =>
-  wrap(
-    Node.If({
-      cond: lte(left, right).node,
-      then: toNode(left),
-      otherwise: toNode(right),
-    }),
+  amount: M,
+  rate: R,
+  options: { readonly rateScale: NoInfer<RateScale<R>> },
+): Expr<EnvOfInput<M> & EnvOfInput<R>, NonNullable<ValueOfInput<M>> | Fixed.NullIn<M | R>> => {
+  Fixed.assertScale(options.rateScale, 'Money.mul')
+  return Fixed.mulExpr(
+    'money.mul',
+    { value: amount, scale: Option.none() },
+    { value: rate, scale: Option.some(options.rateScale) },
+    options.rateScale,
   )
-
-export const max = <L extends AnyMoneyInput, R extends SameMoneyInput<L>>(
-  left: L,
-  right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, MoneyResult<L>> =>
-  wrap(
-    Node.If({
-      cond: gte(left, right).node,
-      then: toNode(left),
-      otherwise: toNode(right),
-    }),
-  )
+}
