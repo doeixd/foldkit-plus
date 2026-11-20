@@ -205,6 +205,11 @@ export const toUpdate = <State, Input, Emit>(
   const set: Record<string, SQL> = {}
   for (const eq of transition.writes) {
     const colKey = eq.target.join('_')
+    if (!Object.hasOwn(table, colKey)) {
+      return Result.fail(
+        new SqlUnsupportedError({ reason: `table has no write target column "${colKey}"` }),
+      )
+    }
     const rhs = residualizeNode(eq.value.node, partialEnv)
     const rhsRes = lowerDrizzleNode(rhs, table, { dialect, rowPrefix: ['state'] })
     if (Result.isFailure(rhsRes)) return Result.fail(rhsRes.failure)

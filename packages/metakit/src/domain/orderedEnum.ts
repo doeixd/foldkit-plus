@@ -64,6 +64,9 @@ export interface OrderedEnum<Values extends readonly [string, ...Array<string>]>
 export const make = <const Values extends readonly [string, ...Array<string>]>(
   values: Values,
 ): OrderedEnum<Values> => {
+  if (values.length === 0) {
+    throw new Error('[metakit] OrderedEnum.make requires at least one value')
+  }
   const rankMap = new Map<string, number>()
   for (let i = 0; i < values.length; i++) {
     const v = values[i]!

@@ -46,7 +46,13 @@ export const make = <const C extends string, const S extends number = 2>(
   code: C,
   options?: { readonly scale?: S },
 ): Schema.Codec<MoneyValue<C, S>, number> => {
+  if (code.trim().length === 0) {
+    throw new Error('[metakit] Money.make requires a non-empty currency code')
+  }
   const scale = (options?.scale ?? 2) as S
+  if (!Number.isInteger(scale) || scale < 0 || scale > 12) {
+    throw new Error(`[metakit] Money.make scale must be an integer between 0 and 12, got ${scale}`)
+  }
   return Schema.Int.annotate({
     [DOMAIN_ANNOTATION_KEY]: { kind: 'money', currency: code, scale },
   } as Schema.Annotations.Annotations) as unknown as Schema.Codec<MoneyValue<C, S>, number>

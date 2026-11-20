@@ -71,6 +71,8 @@ describe('metakit/domain', () => {
     )
     expect(Money.format(Money.minor('USD', 1250), 'USD')).toBe('12.50 USD')
     expect(() => Money.minor('USD', 12.5)).toThrow(/integer/)
+    expect(() => Money.make('USD', { scale: -1 })).toThrow(/scale/)
+    expect(() => Money.make('')).toThrow(/currency/)
 
     const verdict = Abstract.checkTransition(Wallet, DebitWallet)
     expect(Verdict.isTrue(verdict)).toBe(true)

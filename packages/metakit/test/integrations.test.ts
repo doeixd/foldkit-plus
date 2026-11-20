@@ -133,6 +133,10 @@ describe('Phase 3: metakit/drizzle against PGlite', () => {
         .returning()
       expect(none.length).toBe(0)
     }
+
+    // Missing column on target table fails loudly with SqlUnsupportedError
+    const missingCol = Drizzle.toUpdate(Withdraw, { amount: 10 }, {})
+    expect(Result.isFailure(missingCol)).toBe(true)
   })
 })
 
