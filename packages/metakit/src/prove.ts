@@ -95,8 +95,22 @@ const collectFieldSorts = (
           exclusiveMax = repr.payload['exclusiveMaximum']
         }
         if (repr?.id === 'effect/schema/isBetween') {
-          if (typeof repr.payload?.['minimum'] === 'number') min = repr.payload['minimum']
-          if (typeof repr.payload?.['maximum'] === 'number') max = repr.payload['maximum']
+          if (typeof repr.payload?.['minimum'] === 'number') {
+            if (repr.payload['exclusiveMinimum'] === true) {
+              exclusiveMin = repr.payload['minimum']
+            } else {
+              min =
+                min === undefined ? repr.payload['minimum'] : Math.max(min, repr.payload['minimum'])
+            }
+          }
+          if (typeof repr.payload?.['maximum'] === 'number') {
+            if (repr.payload['exclusiveMaximum'] === true) {
+              exclusiveMax = repr.payload['maximum']
+            } else {
+              max =
+                max === undefined ? repr.payload['maximum'] : Math.min(max, repr.payload['maximum'])
+            }
+          }
         }
         if ('checks' in c && Array.isArray(c.checks)) scanChecks(c.checks)
       }
@@ -218,54 +232,12 @@ const z3Ops: Readonly<Record<Node.OpId, Z3OpLower>> = {
   },
 }
 
-const prefixNode = (node: Node.Node, prefix: ReadonlyArray<string>): Node.Node => {
-  if (prefix.length === 0) return node
-  return Node.$match(node, {
-    Lit: lit => lit,
-    Path: ({ segments, ast }) => Node.Path({ segments: [...prefix, ...segments], ast }),
-    Call: ({ op, args }) => Node.Call({ op, args: args.map(a => prefixNode(a, prefix)) }),
-    If: ({ cond, then, otherwise }) =>
-      Node.If({
-        cond: prefixNode(cond, prefix),
-        then: prefixNode(then, prefix),
-        otherwise: prefixNode(otherwise, prefix),
-      }),
-    Match: ({ on, cases, otherwise }) =>
-      Node.Match({
-        on: prefixNode(on, prefix),
-        cases: cases.map(([v, b]) => [v, prefixNode(b, prefix)] as const),
-        otherwise: Option.map(otherwise, b => prefixNode(b, prefix)),
-      }),
-    Opaque: o => o,
-  })
-}
-
 const substituteWrites = (node: Node.Node, writes: ReadonlyMap<string, Node.Node>): Node.Node =>
-  Node.$match(node, {
-    Lit: lit => lit,
-    Path: path => {
-      if (path.segments[0] === 'state') {
-        const rel = Path.format(path.segments.slice(1))
-        const rep = writes.get(rel)
-        if (rep !== undefined) return rep
-      }
-      return path
-    },
-    Call: ({ op, args }) => Node.Call({ op, args: args.map(a => substituteWrites(a, writes)) }),
-    If: ({ cond, then, otherwise }) =>
-      Node.If({
-        cond: substituteWrites(cond, writes),
-        then: substituteWrites(then, writes),
-        otherwise: substituteWrites(otherwise, writes),
-      }),
-    Match: ({ on, cases, otherwise }) =>
-      Node.Match({
-        on: substituteWrites(on, writes),
-        cases: cases.map(([v, b]) => [v, substituteWrites(b, writes)] as const),
-        otherwise: Option.map(otherwise, b => substituteWrites(b, writes)),
-      }),
-    Opaque: o => o,
-  })
+  Node.substitutePaths(node, segments =>
+    segments[0] === 'state'
+      ? Option.fromUndefinedOr(writes.get(Path.format(segments.slice(1))))
+      : Option.none(),
+  )
 
 const solveWithZ3 = async (
   fields: ReadonlyMap<string, FieldSort>,
@@ -404,6 +376,15 @@ const solveWithZ3 = async (
     return Verdict.True(Option.some(Verdict.Proved('z3')))
   }
   if (status === 'sat') {
+    // Under uninterpreted-symbol over-approximation for Opaque terms, `unsat`
+    // is a sound proof of True, but `sat` may rely on a fictional return value
+    // for the opaque function and MUST degrade to Unknown rather than False.
+    if (opaqueVars.size > 0) {
+      return Verdict.Unknown(
+        'counterexample involves opaque term',
+        Option.some({ kind: 'opaque', detail: Array.from(opaqueVars.keys()).join(', ') }),
+      )
+    }
     const model = solver.model()
     const witness: Record<string, unknown> = {}
     for (const [name, v] of vars) {
@@ -463,12 +444,12 @@ export const transition = <S extends Schema.Top, I, Emit>(
 
     const fields = new Map<string, FieldSort>()
     collectFieldSorts(stateSchema.ast, ['state'], fields)
-    const preInvariants = Expr.refinementsOf(stateSchema).map(r => prefixNode(r.node, ['state']))
+    const preInvariants = Expr.refinementsOf(stateSchema).map(r => Node.prefix(r.node, ['state']))
     const inputInvariants: Array<Node.Node> = []
     if (Option.isSome(tr.inputSchema)) {
       collectFieldSorts(tr.inputSchema.value.ast, ['input'], fields)
       for (const r of Expr.refinementsOf(tr.inputSchema.value)) {
-        inputInvariants.push(prefixNode(r.node, ['input']))
+        inputInvariants.push(Node.prefix(r.node, ['input']))
       }
     }
     const writeMap = new Map<string, Node.Node>()
@@ -498,7 +479,7 @@ export const policy = <Shape extends Readonly<Record<string, Schema.Top>>>(
     for (const [slice, schema] of Object.entries(shape)) {
       collectFieldSorts(schema.ast, [slice], fields)
       for (const r of Expr.refinementsOf(schema)) {
-        hypotheses.push(prefixNode(r.node, [slice]))
+        hypotheses.push(Node.prefix(r.node, [slice]))
       }
     }
     if (options?.hypotheses !== undefined) {

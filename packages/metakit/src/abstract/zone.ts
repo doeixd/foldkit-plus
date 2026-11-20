@@ -113,9 +113,14 @@ export class Zone {
     return !this.close()
   }
 
-  /** Current upper bound on `v_i - v_j`. */
+  /** Current upper bound on `v_i - v_j`, closing first if needed. */
   diffBound(i: number, j: number): number {
     if (!this.close()) return -Infinity
+    return this.m[i]![j]!
+  }
+
+  /** Read `m[i][j]` directly without re-closing (for callers that already closed this round). */
+  rawBound(i: number, j: number): number {
     return this.m[i]![j]!
   }
 

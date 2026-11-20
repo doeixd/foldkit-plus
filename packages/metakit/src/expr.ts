@@ -14,6 +14,7 @@ import * as Node from './node.js'
 import * as Bool from './ops/bool.js'
 import { isExpr, toNode, wrap, type EnvOfInput, type ExprInput } from './ops/core.js'
 import { evalNode } from './ops/eval.js'
+import { gtOp, gteOp, ltOp, lteOp } from './ops/num.js'
 import { judgeNode, readsOfNode, residualizeNode } from './ops/residualize.js'
 import * as Path from './path.js'
 import type { Expr as ExprType, Path as PathType, PathAccessor } from './path.js'
@@ -176,58 +177,96 @@ export const refine =
   }
 
 /**
- * Read every symbolic `Expr` node attached to `schema` via `Expr.refine`
- * (including refinements attached to nested struct properties, prefixed with
- * their property path).
+ * Read every symbolic `Expr` constraint attached to `schema` via `Expr.refine`
+ * as well as built-in Effect `Schema` numeric bound checks (`isGreaterThan`,
+ * `isGreaterThanOrEqualTo`, `isLessThan`, `isLessThanOrEqualTo`, `isBetween`),
+ * including nested struct properties prefixed with their property path.
  */
 export const refinementsOf = <S extends Schema.Top>(
   schema: S,
 ): ReadonlyArray<ExprType<S['Type'], boolean>> =>
   collectAstRefinements(schema.ast, []).map(node => wrap<S['Type'], boolean>(node))
 
-const prefixNode = (node: Node.Node, prefix: ReadonlyArray<string>): Node.Node => {
-  if (prefix.length === 0) return node
-  return Node.$match(node, {
-    Lit: lit => lit,
-    Path: ({ segments, ast }) => Node.Path({ segments: [...prefix, ...segments], ast }),
-    Call: ({ op, args }) => Node.Call({ op, args: args.map(a => prefixNode(a, prefix)) }),
-    If: ({ cond, then, otherwise }) =>
-      Node.If({
-        cond: prefixNode(cond, prefix),
-        then: prefixNode(then, prefix),
-        otherwise: prefixNode(otherwise, prefix),
-      }),
-    Match: ({ on, cases, otherwise }) =>
-      Node.Match({
-        on: prefixNode(on, prefix),
-        cases: cases.map(([v, b]) => [v, prefixNode(b, prefix)] as const),
-        otherwise: Option.map(otherwise, b => prefixNode(b, prefix)),
-      }),
-    Opaque: ({ name, reads, run }) =>
-      Node.Opaque({
-        name,
-        reads: Option.map(reads, list => list.map(s => [...prefix, ...s])),
-        run: env => {
-          let sub: unknown = env
-          for (const seg of prefix) {
-            if (sub === null || typeof sub !== 'object') return undefined
-            sub = (sub as Record<string, unknown>)[seg]
-          }
-          return run(sub)
-        },
-      }),
-  })
-}
-
 const collectChecks = (
   checks: ReadonlyArray<SchemaAST.Check<unknown>>,
   prefix: ReadonlyArray<string>,
   out: Array<Node.Node>,
 ): void => {
+  const selfPath = Node.Path({ segments: prefix, ast: Option.none() })
   for (const check of checks) {
     const ann = check.annotations as Readonly<Record<string, unknown>> | undefined
-    if (ann !== undefined && REFINEMENT_ANNOTATION_KEY in ann) {
-      out.push(prefixNode(ann[REFINEMENT_ANNOTATION_KEY] as Node.Node, prefix))
+    if (ann !== undefined) {
+      if (REFINEMENT_ANNOTATION_KEY in ann) {
+        out.push(Node.prefix(ann[REFINEMENT_ANNOTATION_KEY] as Node.Node, prefix))
+      }
+      const repr = ann['representation'] as
+        | { readonly id?: string; readonly payload?: Readonly<Record<string, unknown>> | null }
+        | undefined
+      if (repr !== undefined && typeof repr.id === 'string') {
+        switch (repr.id) {
+          case 'effect/schema/isGreaterThanOrEqualTo':
+            if (typeof repr.payload?.['minimum'] === 'number') {
+              out.push(
+                Node.Call({
+                  op: gteOp,
+                  args: [selfPath, Node.Lit({ value: repr.payload['minimum'] })],
+                }),
+              )
+            }
+            break
+          case 'effect/schema/isGreaterThan':
+            if (typeof repr.payload?.['exclusiveMinimum'] === 'number') {
+              out.push(
+                Node.Call({
+                  op: gtOp,
+                  args: [selfPath, Node.Lit({ value: repr.payload['exclusiveMinimum'] })],
+                }),
+              )
+            }
+            break
+          case 'effect/schema/isLessThanOrEqualTo':
+            if (typeof repr.payload?.['maximum'] === 'number') {
+              out.push(
+                Node.Call({
+                  op: lteOp,
+                  args: [selfPath, Node.Lit({ value: repr.payload['maximum'] })],
+                }),
+              )
+            }
+            break
+          case 'effect/schema/isLessThan':
+            if (typeof repr.payload?.['exclusiveMaximum'] === 'number') {
+              out.push(
+                Node.Call({
+                  op: ltOp,
+                  args: [selfPath, Node.Lit({ value: repr.payload['exclusiveMaximum'] })],
+                }),
+              )
+            }
+            break
+          case 'effect/schema/isBetween':
+            if (
+              typeof repr.payload?.['minimum'] === 'number' &&
+              typeof repr.payload?.['maximum'] === 'number'
+            ) {
+              const loOp = repr.payload['exclusiveMinimum'] === true ? gtOp : gteOp
+              const hiOp = repr.payload['exclusiveMaximum'] === true ? ltOp : lteOp
+              out.push(
+                Node.Call({
+                  op: loOp,
+                  args: [selfPath, Node.Lit({ value: repr.payload['minimum'] })],
+                }),
+              )
+              out.push(
+                Node.Call({
+                  op: hiOp,
+                  args: [selfPath, Node.Lit({ value: repr.payload['maximum'] })],
+                }),
+              )
+            }
+            break
+        }
+      }
     }
     if ('checks' in check && Array.isArray(check.checks)) {
       collectChecks(check.checks, prefix, out)
@@ -257,7 +296,7 @@ const collectAstRefinements = (
 export const lift = <Outer, Inner, A>(
   path: PathType<Outer, Inner>,
   expr: ExprType<Inner, A>,
-): ExprType<Outer, A> => wrap(prefixNode(expr.node, path.segments))
+): ExprType<Outer, A> => wrap(Node.prefix(expr.node, path.segments))
 
 /** Evaluate `expr` against a complete environment `env`. */
 export const evaluate = <Env, A>(expr: ExprType<Env, A>, env: Env): A =>

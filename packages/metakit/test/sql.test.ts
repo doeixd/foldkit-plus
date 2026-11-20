@@ -124,6 +124,18 @@ describe('metakit/sql against PGlite', () => {
       expect(Expr.eval(NoteIsNull, { row })).toBe(true)
     }
 
+    // oneOf with null matches both 'vip' and NULL in PGlite and Expr.eval
+    const NoteIn = Expr.in({ row: Account }, ({ row }) => Eq.oneOf(row.note, ['vip', null]))
+    const whereIn = Sql.toWhere(NoteIn)
+    expect(Result.isSuccess(whereIn)).toBe(true)
+    if (Result.isSuccess(whereIn)) {
+      const inRows = await db.query<{ id: string }>(
+        `SELECT "id" FROM "accounts" WHERE ${whereIn.success.text} ORDER BY "id"`,
+        [...whereIn.success.params],
+      )
+      expect(inRows.rows.map(r => r.id)).toEqual(['u1', 'u2'])
+    }
+
     // String ops in SQL
     const IdPrefix = Expr.in({ row: Account }, ({ row }) =>
       Expr.all(Str.startsWith(row.id, 'u'), Str.contains(row.id, '2')),

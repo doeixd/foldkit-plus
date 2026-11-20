@@ -136,3 +136,62 @@ export const key = (node: Node): string =>
       return `opaque#${id}:${name}`
     },
   })
+
+/** Prefix every `Path` (and `Opaque` read/env) inside `node` with `segments`. */
+export const prefix = (node: Node, segments: ReadonlyArray<string>): Node => {
+  if (segments.length === 0) return node
+  return $match(node, {
+    Lit: lit => lit,
+    Path: ({ segments: inner, ast }) => Path({ segments: [...segments, ...inner], ast }),
+    Call: ({ op, args }) => Call({ op, args: args.map(a => prefix(a, segments)) }),
+    If: ({ cond, then, otherwise }) =>
+      If({
+        cond: prefix(cond, segments),
+        then: prefix(then, segments),
+        otherwise: prefix(otherwise, segments),
+      }),
+    Match: ({ on, cases, otherwise }) =>
+      Match({
+        on: prefix(on, segments),
+        cases: cases.map(([v, b]) => [v, prefix(b, segments)] as const),
+        otherwise: Option.map(otherwise, b => prefix(b, segments)),
+      }),
+    Opaque: ({ name, reads, run }) =>
+      Opaque({
+        name,
+        reads: Option.map(reads, list => list.map(s => [...segments, ...s])),
+        run: env => {
+          let sub: unknown = env
+          for (const seg of segments) {
+            if (sub === null || typeof sub !== 'object') return undefined
+            sub = (sub as Record<string, unknown>)[seg]
+          }
+          return run(sub)
+        },
+      }),
+  })
+}
+
+/** Substitute matching `Path` nodes using `replace`. */
+export const substitutePaths = (
+  node: Node,
+  replace: (segments: ReadonlyArray<string>) => Option.Option<Node>,
+): Node =>
+  $match(node, {
+    Lit: lit => lit,
+    Path: path => Option.getOrElse(replace(path.segments), () => path),
+    Call: ({ op, args }) => Call({ op, args: args.map(a => substitutePaths(a, replace)) }),
+    If: ({ cond, then, otherwise }) =>
+      If({
+        cond: substitutePaths(cond, replace),
+        then: substitutePaths(then, replace),
+        otherwise: substitutePaths(otherwise, replace),
+      }),
+    Match: ({ on, cases, otherwise }) =>
+      Match({
+        on: substitutePaths(on, replace),
+        cases: cases.map(([v, b]) => [v, substitutePaths(b, replace)] as const),
+        otherwise: Option.map(otherwise, b => substitutePaths(b, replace)),
+      }),
+    Opaque: o => o,
+  })

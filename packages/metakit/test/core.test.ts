@@ -298,22 +298,10 @@ describe('Tier 3 synchronous Abstract checker (Interval + Zone)', () => {
   })
 
   it('proves derived invariant balance - reserved >= 0 from Account schema', () => {
-    const goal = Expr.in({ row: Account }, ({ row }) =>
-      Num.gte(Num.sub(row.balance, row.reserved), 0),
-    )
-    const lifted = Expr.in({ row: Account }, ({ row }) => Num.lte(row.reserved, row.balance))
-    expect(
-      Verdict.isTrue(
-        Abstract.checkInvariant(Account, Expr.all(Num.gte(Path.forSchema(Account).balance, 0))),
-      ),
-    ).toBe(true)
-    // Using schema-rooted path
     const $ = Path.forSchema(Account)
+    expect(Verdict.isTrue(Abstract.checkInvariant(Account, Num.gte($.balance, 0)))).toBe(true)
     expect(
       Verdict.isTrue(Abstract.checkInvariant(Account, Num.gte(Num.sub($.balance, $.reserved), 0))),
     ).toBe(true)
-    // Suppress unused check
-    expect(goal.node._tag).toBe('Call')
-    expect(lifted.node._tag).toBe('Call')
   })
 })

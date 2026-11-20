@@ -106,4 +106,25 @@ describe('metakit/prove (Tier 3 Zone -> Tier 4 Z3 escalation)', () => {
     )
     expect(Verdict.isTrue(verdict)).toBe(true)
   }, 30_000)
+
+  it('returns Unknown (never bogus False) when a Z3 counterexample relies on an Opaque term', async () => {
+    const AlwaysTrueOpaque = Expr.in({ row: Account }, () =>
+      Expr.opaque({ name: 'alwaysTrue' }, () => true),
+    )
+    const verdict = await Effect.runPromise(Prove.policy({ row: Account }, AlwaysTrueOpaque))
+    expect(Verdict.isUnknown(verdict)).toBe(true)
+  }, 30_000)
+
+  it('catches violations of built-in Schema numeric checks on post-states', async () => {
+    const Counter = Schema.Struct({
+      count: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+    })
+    const DecrementUnchecked = Transition.make({
+      state: Counter,
+      input: Schema.Struct({}),
+      apply: ({ state }) => [Transition.set(state.count, Num.sub(state.count, 1))],
+    })
+    const verdict = await Effect.runPromise(Prove.transition(Counter, DecrementUnchecked))
+    expect(Verdict.isFalse(verdict)).toBe(true)
+  }, 30_000)
 })

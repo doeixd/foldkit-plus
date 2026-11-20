@@ -2,7 +2,6 @@
  * Tier 3 synchronous static checker combining:
  *   - Effect `Schema` numeric/literal domain extraction,
  *   - Interval + Zone (DBM) relational propagation,
- *   - Finite literal case splitting (e.g. `status: 'open' | 'frozen'`),
  *   - Deterministic bounded fixed-point loop (max 16 rounds), degrading
  *     soundly to `Verdict.Unknown` + `Obligation` for Tier 4 (Z3).
  */
@@ -27,7 +26,6 @@ interface FieldInfo {
 
 interface EnvModel {
   readonly fields: Map<string, FieldInfo>
-  readonly invariants: Array<Node.Node>
 }
 
 const emptyField = (): FieldInfo => ({
@@ -80,8 +78,12 @@ const extractChecksInterval = (
               typeof repr.payload?.['minimum'] === 'number' &&
               typeof repr.payload?.['maximum'] === 'number'
             ) {
-              const lo = repr.payload['minimum']
-              const hi = repr.payload['maximum']
+              const rawLo = repr.payload['minimum']
+              const rawHi = repr.payload['maximum']
+              const lo =
+                repr.payload['exclusiveMinimum'] === true && isInt ? Math.floor(rawLo) + 1 : rawLo
+              const hi =
+                repr.payload['exclusiveMaximum'] === true && isInt ? Math.ceil(rawHi) - 1 : rawHi
               iv = Interval.meet(iv, Interval.between(lo, hi))
             }
             break
@@ -152,28 +154,6 @@ const collectFieldsFromAst = (
       fields.set(key, { ...info, literals: Option.some(lits) })
     }
   }
-}
-
-const prefixNode = (node: Node.Node, prefix: ReadonlyArray<string>): Node.Node => {
-  if (prefix.length === 0) return node
-  return Node.$match(node, {
-    Lit: lit => lit,
-    Path: ({ segments, ast }) => Node.Path({ segments: [...prefix, ...segments], ast }),
-    Call: ({ op, args }) => Node.Call({ op, args: args.map(a => prefixNode(a, prefix)) }),
-    If: ({ cond, then, otherwise }) =>
-      Node.If({
-        cond: prefixNode(cond, prefix),
-        then: prefixNode(then, prefix),
-        otherwise: prefixNode(otherwise, prefix),
-      }),
-    Match: ({ on, cases, otherwise }) =>
-      Node.Match({
-        on: prefixNode(on, prefix),
-        cases: cases.map(([v, b]) => [v, prefixNode(b, prefix)] as const),
-        otherwise: Option.map(otherwise, b => prefixNode(b, prefix)),
-      }),
-    Opaque: o => o,
-  })
 }
 
 /** Flatten top-level `and` conjunctions into a list of conjuncts. */
@@ -521,13 +501,15 @@ class AbstractState {
           break
         }
         case 'isNot': {
-          if (Node.$is('Path')(a!) && Node.$is('Lit')(b!)) {
-            const pk = Path.format(a!.segments)
-            if (this.eqFacts.get(pk) === b!.value) {
+          const pathNode = Node.$is('Path')(a!) ? a! : Node.$is('Path')(b!) ? b! : undefined
+          const litNode = Node.$is('Lit')(a!) ? a! : Node.$is('Lit')(b!) ? b! : undefined
+          if (pathNode !== undefined && litNode !== undefined) {
+            const pk = Path.format(pathNode.segments)
+            if (this.eqFacts.get(pk) === litNode.value) {
               this.zone.constrainDiff(ZERO, ZERO, -1)
             }
             const set = this.neqFacts.get(pk) ?? new Set()
-            set.add(b!.value)
+            set.add(litNode.value)
             this.neqFacts.set(pk, set)
           }
           break
@@ -550,7 +532,7 @@ class AbstractState {
 
       const tighten = (i: number, j: number, bound: number) => {
         if (!Number.isFinite(bound)) return
-        const before = this.zone.diffBound(i, j)
+        const before = this.zone.rawBound(i, j)
         if (bound < before) {
           this.zone.constrainDiff(i, j, bound)
           changed = true
@@ -574,8 +556,8 @@ class AbstractState {
         // x - y <= diffBound(x, y)  ==>  t <= diffBound(x, y)
         // y - x <= diffBound(y, x)  ==>  -t <= diffBound(y, x)  ==>  0 - t <= diffBound(y, x)
         if (Option.isSome(lv) && Option.isSome(rv)) {
-          tighten(id, ZERO, this.zone.diffBound(lv.value, rv.value))
-          tighten(ZERO, id, this.zone.diffBound(rv.value, lv.value))
+          tighten(id, ZERO, this.zone.rawBound(lv.value, rv.value))
+          tighten(ZERO, id, this.zone.rawBound(rv.value, lv.value))
         }
       }
 
@@ -648,14 +630,19 @@ class AbstractState {
       case 'gt':
         return this.entailsLeq(b!, a!, true)
       case 'is': {
-        if (Node.$is('Path')(a!) && Node.$is('Lit')(b!)) {
-          const pk = Path.format(a!.segments)
+        if (Node.key(a!) === Node.key(b!)) {
+          return Verdict.True(Option.some(Verdict.Proved('concrete')))
+        }
+        const pathNode = Node.$is('Path')(a!) ? a! : Node.$is('Path')(b!) ? b! : undefined
+        const litNode = Node.$is('Lit')(a!) ? a! : Node.$is('Lit')(b!) ? b! : undefined
+        if (pathNode !== undefined && litNode !== undefined) {
+          const pk = Path.format(pathNode.segments)
           if (this.eqFacts.has(pk)) {
-            return this.eqFacts.get(pk) === b!.value
+            return this.eqFacts.get(pk) === litNode.value
               ? Verdict.True(Option.some(Verdict.Proved('zone')))
               : Verdict.False()
           }
-          if (this.neqFacts.get(pk)?.has(b!.value)) {
+          if (this.neqFacts.get(pk)?.has(litNode.value)) {
             return Verdict.False()
           }
         }
@@ -731,32 +718,11 @@ const substituteStateWrites = (
   node: Node.Node,
   writes: ReadonlyMap<string, Node.Node>,
 ): Node.Node =>
-  Node.$match(node, {
-    Lit: lit => lit,
-    Path: path => {
-      if (path.segments[0] === 'state') {
-        const rel = Path.format(path.segments.slice(1))
-        const replacement = writes.get(rel)
-        if (replacement !== undefined) return replacement
-      }
-      return path
-    },
-    Call: ({ op, args }) =>
-      Node.Call({ op, args: args.map(a => substituteStateWrites(a, writes)) }),
-    If: ({ cond, then, otherwise }) =>
-      Node.If({
-        cond: substituteStateWrites(cond, writes),
-        then: substituteStateWrites(then, writes),
-        otherwise: substituteStateWrites(otherwise, writes),
-      }),
-    Match: ({ on, cases, otherwise }) =>
-      Node.Match({
-        on: substituteStateWrites(on, writes),
-        cases: cases.map(([v, b]) => [v, substituteStateWrites(b, writes)] as const),
-        otherwise: Option.map(otherwise, b => substituteStateWrites(b, writes)),
-      }),
-    Opaque: o => o,
-  })
+  Node.substitutePaths(node, segments =>
+    segments[0] === 'state'
+      ? Option.fromUndefinedOr(writes.get(Path.format(segments.slice(1))))
+      : Option.none(),
+  )
 
 /**
  * Tier 3 synchronous check: does `schema` (including its `Expr.refine`
@@ -769,22 +735,21 @@ export const checkInvariant = <S extends Schema.Top>(
   const fields = new Map<string, FieldInfo>()
   collectFieldsFromAst(schema.ast, [], fields)
   const invariants = Expr.refinementsOf(schema).map(r => r.node)
-  const env: EnvModel = { fields, invariants }
-  const state = new AbstractState([...invariants, goal.node], env)
+  const state = new AbstractState([...invariants, goal.node], { fields })
   for (const inv of invariants) state.assume(inv)
   return state.entails(goal.node)
 }
 
 /**
- * Tier 3 synchronous check: does `transition` preserve every `Expr.refine`
- * invariant on `stateSchema` for every valid pre-state and input satisfying
+ * Tier 3 synchronous check: does `transition` preserve every invariant on
+ * `stateSchema` for every valid pre-state and input satisfying
  * `transition.when`?
  */
 export const checkTransition = <S extends Schema.Top, I, Emit>(
   stateSchema: S,
   transition: Transition<S['Type'], I, Emit>,
 ): Verdict.Verdict<never> => {
-  const preInvariants = Expr.refinementsOf(stateSchema).map(r => prefixNode(r.node, ['state']))
+  const preInvariants = Expr.refinementsOf(stateSchema).map(r => Node.prefix(r.node, ['state']))
   if (preInvariants.length === 0) {
     return Verdict.True(Option.some(Verdict.Proved('concrete')))
   }
@@ -797,7 +762,7 @@ export const checkTransition = <S extends Schema.Top, I, Emit>(
     const inputSchema = transition.inputSchema.value
     collectFieldsFromAst(inputSchema.ast, ['input'], fields)
     for (const r of Expr.refinementsOf(inputSchema)) {
-      inputInvariants.push(prefixNode(r.node, ['input']))
+      inputInvariants.push(Node.prefix(r.node, ['input']))
     }
   }
 
@@ -808,8 +773,7 @@ export const checkTransition = <S extends Schema.Top, I, Emit>(
   const postGoals = preInvariants.map(inv => substituteStateWrites(inv, writeMap))
 
   const allHypotheses = [...preInvariants, ...inputInvariants, transition.when.node]
-  const env: EnvModel = { fields, invariants: allHypotheses }
-  const state = new AbstractState([...allHypotheses, ...postGoals], env)
+  const state = new AbstractState([...allHypotheses, ...postGoals], { fields })
   for (const hyp of allHypotheses) state.assume(hyp)
 
   let overall: Verdict.Verdict<never> = Verdict.True(Option.some(Verdict.Proved('zone')))

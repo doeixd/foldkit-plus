@@ -108,13 +108,20 @@ const sqlOps: Readonly<Record<Node.OpId, OpLower>> = {
         )
       }
       if (list.value.length === 0) return Result.succeed('FALSE')
+      let hasNull = false
       const items: Array<string> = []
       for (const item of list.value) {
+        if (item === null) {
+          hasNull = true
+          continue
+        }
         const bound = ctx.bind(item)
         if (Result.isFailure(bound)) return bound
         items.push(bound.success)
       }
-      return Result.succeed(`(${needle} IN (${items.join(', ')}))`)
+      if (items.length === 0) return Result.succeed(`(${needle} IS NULL)`)
+      const inClause = `(${needle} IN (${items.join(', ')}))`
+      return Result.succeed(hasNull ? `(${inClause} OR (${needle} IS NULL))` : inClause)
     }),
   lt: lowerBinary('<'),
   lte: lowerBinary('<='),
@@ -316,6 +323,11 @@ export const toUpdate = <State, Input, Emit>(
   const partialEnv = { input }
 
   const setClauses: Array<string> = []
+  if (transition.writes.length === 0) {
+    return Result.fail(
+      new SqlUnsupportedError({ reason: 'cannot lower a transition with no writes to SQL UPDATE' }),
+    )
+  }
   for (const eq of transition.writes) {
     const rhs = residualizeNode(eq.value.node, partialEnv)
     const rhsRes = lowerNodeWith(rhs, {
