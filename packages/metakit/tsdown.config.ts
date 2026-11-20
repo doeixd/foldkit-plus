@@ -12,5 +12,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   target: 'es2022',
-  deps: { neverBundle: [/^\.\.?\//, 'effect', 'z3-solver'] },
+  deps: { neverBundle: [/^\.\.?\//, 'effect', 'z3-solver', /^drizzle-orm(\/.*)?$/] },
 })

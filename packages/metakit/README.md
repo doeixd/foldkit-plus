@@ -69,9 +69,14 @@ What you get from those two declarations:
 | Import | Runs in | Purpose |
 | --- | --- | --- |
 | `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 15-op v1 primitive set (`Bool`, `Eq`, `Null`, `Ord`, `Num` + derived `min`, `max`, `abs`, `clamp`, `between`, `isNotNull`, `implies`), and Tier 3 Interval + Zone checks (`Abstract`). |
+| `metakit/domain` | Browser / server | Integer-backed `Money` (compile-time currency & scale safety), timezone-free `CalendarDay`, `OrderedEnum`, and `Domain.domainOf`. |
+| `metakit/aggregates` | Browser / server | `Rows.sum`, `Rows.count` (`algebra: 'group'` with $O(1)$ IVM deltas), and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any` (`algebra: 'semilattice'`). |
+| `metakit/machine` | Browser / server | Framework-independent declarative state machine (`dispatch`, TEA `update`, `canDispatch`, `affordances`, `footprints`). |
+| `metakit/inspect` | Browser / server | Non-interpreter Schema & Transition inspector (`fieldSpecs`, enriched `toJsonSchema`, `affordances`) for forms and AI agent tools. |
 | `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` (parameterized Postgres/SQLite lowering with `IS NOT DISTINCT FROM` / `IS` null safety). |
+| `metakit/drizzle` | Server (optional `drizzle-orm`) | `Drizzle.toWhere`, `Drizzle.toUpdate` lowering directly to Drizzle `SQL` ASTs. |
 | `metakit/prove` | Dev / CI only | `Prove.invariant`, `Prove.transition`, `Prove.policy` — runs Tier 3 Zone first, dynamically imports `z3-solver` only when Tier 3 returns `Unknown` or needs a concrete counterexample witness. |
-| `metakit/conformance` | Dev / CI only | Property tests verifying Galois soundness of Tier 3 Interval transformers via Effect's `Arbitrary.schema`. |
+| `metakit/conformance` | Dev / CI only | Property tests verifying forward/backward Galois soundness and `residualize` parity via Effect's `Arbitrary.schema`. |
 
 ## When to use something else
 

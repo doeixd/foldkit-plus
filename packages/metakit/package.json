@@ -42,6 +42,21 @@
       "types": "./dist/aggregates.d.ts",
       "import": "./dist/aggregates.js"
     },
+    "./drizzle": {
+      "foldkit-plus:source": "./src/drizzle.ts",
+      "types": "./dist/drizzle.d.ts",
+      "import": "./dist/drizzle.js"
+    },
+    "./machine": {
+      "foldkit-plus:source": "./src/machine.ts",
+      "types": "./dist/machine.d.ts",
+      "import": "./dist/machine.js"
+    },
+    "./inspect": {
+      "foldkit-plus:source": "./src/inspect.ts",
+      "types": "./dist/inspect.d.ts",
+      "import": "./dist/inspect.js"
+    },
     "./sql": {
       "foldkit-plus:source": "./src/sql.ts",
       "types": "./dist/sql.d.ts",
@@ -68,16 +83,21 @@
     "typecheck": "tsc -b"
   },
   "peerDependencies": {
+    "drizzle-orm": ">=0.45.0",
     "effect": "^4.1.0",
     "z3-solver": ">=4.15.0"
   },
   "peerDependenciesMeta": {
+    "drizzle-orm": {
+      "optional": true
+    },
     "z3-solver": {
       "optional": true
     }
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",
+    "drizzle-orm": "1.0.0-rc.5",
     "effect": "4.1.4",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2",
