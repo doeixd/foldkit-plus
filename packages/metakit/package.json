@@ -37,6 +37,11 @@
       "types": "./dist/domain.d.ts",
       "import": "./dist/domain.js"
     },
+    "./aggregates": {
+      "foldkit-plus:source": "./src/aggregates.ts",
+      "types": "./dist/aggregates.d.ts",
+      "import": "./dist/aggregates.js"
+    },
     "./sql": {
       "foldkit-plus:source": "./src/sql.ts",
       "types": "./dist/sql.d.ts",

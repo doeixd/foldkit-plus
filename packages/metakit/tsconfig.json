@@ -8,6 +8,7 @@
     "noEmit": false,
     "paths": {
       "metakit": ["./src/index.ts"],
+      "metakit/aggregates": ["./src/aggregates.ts"],
       "metakit/conformance": ["./src/conformance.ts"],
       "metakit/domain": ["./src/domain.ts"],
       "metakit/prove": ["./src/prove.ts"],
