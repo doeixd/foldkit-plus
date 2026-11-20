@@ -1,0 +1,90 @@
+# Verify a state machine in CI
+
+When a state machine grows, someone eventually adds an opaque helper or weakens a guard on a critical transition. If a proof silently degrades from `True` to `Unknown`, CI stays green while the guarantee disappears.
+
+`Prove.machine` verifies every transition in a `Machine` under strict CI rules: `pin` locks critical transitions to `proved`, `allowUnknown` requires an explicit non-empty reason for any transition that cannot be proved (such as an `Expr.opaque` escape hatch), and refuted transitions print a copy-pasteable reproducer.
+
+## Pin critical transitions and allow opaque ones explicitly
+
+Pass `pin` and `allowUnknown` to `Prove.machine`. Both keys are checked against the machine's transition names at compile time, so a typo fails typechecking.
+
+```ts
+import { Effect, Schema } from 'effect'
+import { Eq, Expr, Num, Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
+import * as Prove from 'metakit/prove'
+
+const Account = Schema.Struct({
+  balance: Schema.Int,
+  reserved: Schema.Int,
+  status: Schema.Literals(['open', 'frozen']),
+}).pipe(
+  Expr.refine($ =>
+    Expr.all(Num.gte($.balance, 0), Num.gte($.reserved, 0), Num.lte($.reserved, $.balance)),
+  ),
+)
+
+const AccountMachine = Machine.make({
+  state: Account,
+  transitions: {
+    Withdraw: Transition.make({
+      state: Account,
+      input: Schema.Struct({ amount: Schema.Int }),
+      when: ({ state, input }) =>
+        Expr.all(
+          Eq.is(state.status, 'open'),
+          Num.gt(input.amount, 0),
+          Num.lte(input.amount, Num.sub(state.balance, state.reserved)),
+        ),
+      apply: ({ state, input }) => [
+        Transition.set(state.balance, Num.sub(state.balance, input.amount)),
+      ],
+    }),
+    ExternalReconcile: Transition.make({
+      state: Account,
+      input: Schema.Struct({}),
+      when: ({ state }) =>
+        Expr.opaque({ name: 'fraudCheck', reads: [state.balance] }, () => true),
+      apply: ({ state }) => [Transition.set(state.balance, Num.sub(state.balance, 1))],
+    }),
+  },
+})
+
+const report = await Effect.runPromise(
+  Prove.machine(AccountMachine, {
+    pin: ['Withdraw'],
+    allowUnknown: {
+      ExternalReconcile: 'Calls external fraudCheck callback',
+    },
+  }),
+)
+// report.ok -> true
+// report.format():
+//   PROVED (zone) Withdraw [pinned]
+//   UNDECIDED (allowed: Calls external fraudCheck callback) ExternalReconcile: ...
+```
+
+## What causes `report.ok` to be `false`
+
+By default (`strict: true`), `Prove.machine` sets `report.ok = false` when any transition is:
+
+1. **`refuted`**: Z3 found a concrete `(before, input)` pair where the guard passes and the post-state breaks an invariant on `stateSchema`.
+2. **`undecided` without an entry in `allowUnknown`**: an `Opaque` term or non-linear expression prevented a proof, and no reason was documented.
+3. **`pinBroken`**: a transition listed in `pin` returned `undecided` or `refuted` instead of `proved` (even if `strict: false` or listed in `allowUnknown`).
+
+An empty or whitespace-only string in `allowUnknown` throws immediately at definition time.
+
+## Reading a counterexample witness
+
+When a transition is refuted, `entry.witness` holds `Option.some(report)` with structured `before`, `input`, `after`, `violated` invariant strings, and a `reproducer` string. `report.format()` prints all five:
+
+```text
+REFUTED Withdraw [PIN BROKEN]
+  before:   {"balance":0,"reserved":0,"status":"open"}
+  input:    {"amount":1}
+  after:    {"balance":-1,"reserved":0,"status":"open"}
+  violated: (((balance >= 0) && (reserved >= 0)) && (reserved <= balance))
+  repro:    Transition.run(Withdraw, {"balance":0,"reserved":0,"status":"open"}, {"amount":1})
+```
+
+In a Vitest test, assert `expect(report.ok, report.format()).toBe(true)` so a failing proof prints the formatted witness directly in the test output.

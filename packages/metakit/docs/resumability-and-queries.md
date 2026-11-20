@@ -1,0 +1,118 @@
+# Prune SSR payloads and gate dependent queries
+
+Server-rendered pages often serialize the entire model to the browser even when half the UI is behind a disabled feature flag or never changes after load. And cascading forms (country -> region -> city) often fire broken queries before upstream selections are filled in.
+
+`metakit/graph` solves both statically from your `Machine` and `Expr` definitions without running a runtime subscription tracker.
+
+## Compute static `affectedBy` maps and dead bindings
+
+`Graph.analyze(machine, bindings)` compares every transition's write paths against every view binding's read paths (symmetrically along parent and child prefixes). It returns:
+
+- `affectedBy[tag]`: the exact bindings invalidated when `tag` fires.
+- `deadBindings`: bindings that depend on no path written by any transition, so they never need client subscriptions.
+- `liveModelPaths`: the minimal set of model paths touched anywhere.
+
+```ts
+import { Option, Schema } from 'effect'
+import { Eq, Expr, Num, Path, Transition } from 'metakit'
+import * as Graph from 'metakit/graph'
+import * as Machine from 'metakit/machine'
+
+const Account = Schema.Struct({
+  id: Schema.String,
+  balance: Schema.Int,
+  reserved: Schema.Int,
+  status: Schema.Literals(['open', 'frozen']),
+  promoEnabled: Schema.Boolean,
+})
+
+const AccountMachine = Machine.make({
+  state: Account,
+  transitions: {
+    Withdraw: Transition.make({
+      state: Account,
+      input: Schema.Struct({ amount: Schema.Int }),
+      apply: ({ state, input }) => [
+        Transition.set(state.balance, Num.sub(state.balance, input.amount)),
+      ],
+    }),
+    Freeze: Transition.make({
+      state: Account,
+      input: Schema.Struct({}),
+      apply: ({ state }) => [Transition.set(state.status, 'frozen')],
+    }),
+  },
+})
+
+const $ = Path.from(Account)
+const bindings = {
+  available: Num.sub($.balance, $.reserved),
+  statusLabel: Expr.match($.status, { open: 'Active', frozen: 'Frozen' }),
+  accountId: $.id,
+  promoBonus: Expr.when($.promoEnabled, { then: Num.sub($.balance, $.reserved), else: 0 }),
+}
+
+const analysis = Graph.analyze(AccountMachine, bindings)
+// analysis.affectedBy.Withdraw -> ['available', 'promoBonus']
+// analysis.affectedBy.Freeze   -> ['statusLabel']
+// analysis.deadBindings        -> ['accountId']
+```
+
+If a binding contains an `Expr.opaque` node without explicit `reads`, `Graph.analyze` conservatively marks it affected by every transition that writes at least one path.
+
+## Shrink SSR resume payloads (`Graph.pruneStatic`)
+
+At SSR time, pass known server-side values (feature flags, tenant settings, fixed constants) to `Graph.pruneStatic`. Bindings that fold completely to a literal move into `staticValues` (including known `null`, which stays distinct from omitted `Unknown` fields), and `resumePaths` returns the exact minimal model paths still needed by `liveBindings`.
+
+```ts
+const pruned = Graph.pruneStatic(bindings, { promoEnabled: false })
+// pruned.staticValues -> { promoBonus: 0 }
+// Object.keys(pruned.liveBindings) -> ['available', 'statusLabel', 'accountId']
+// Option.map(pruned.resumePaths, ps => ps.map(Path.format))
+//   -> Some(['balance', 'reserved', 'status', 'id'])
+```
+
+## Gate dependent queries (`Graph.queryReadiness`)
+
+For a cascading filter over `{ row, params }`, `Graph.queryReadiness(expr, partialEnv)` partially evaluates the predicate and reports whether any non-row paths remain unbound.
+
+```ts
+import { Result } from 'effect'
+import * as Sql from 'metakit/sql'
+
+const City = Schema.Struct({ id: Schema.String, countryId: Schema.String, regionId: Schema.String })
+const Params = Schema.Struct({
+  all: Schema.Boolean,
+  countryId: Schema.String,
+  regionId: Schema.String,
+})
+
+const filter = Expr.in({ row: City, params: Params }, ({ row, params }) =>
+  Expr.any(
+    Eq.is(params.all, true),
+    Expr.all(Eq.is(row.countryId, params.countryId), Eq.is(row.regionId, params.regionId)),
+  ),
+)
+
+const step1 = Graph.queryReadiness(filter, { params: { countryId: 'US' } })
+// step1 -> { ready: false, missing: Some([['params', 'all'], ['params', 'regionId']]), residual }
+
+const step2 = Graph.queryReadiness(filter, { params: { all: true } })
+// step2 -> { ready: true, residual } (short-circuited: countryId and regionId are not required)
+
+const step3 = Graph.queryReadiness(filter, {
+  params: { all: false, countryId: 'US', regionId: 'CA' },
+})
+if (step3.ready) {
+  const where = Result.getOrThrow(
+    Sql.toWhere(step3.residual, { dialect: 'postgres', rowPrefix: ['row'] }),
+  )
+  // where.text   -> (("countryId" IS NOT DISTINCT FROM $1) AND ("regionId" IS NOT DISTINCT FROM $2))
+  // where.params -> ['US', 'CA']
+  void where
+}
+void Option.isSome(analysis.liveModelPaths)
+void pruned
+void step1
+void step2
+```
