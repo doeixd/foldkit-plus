@@ -79,7 +79,7 @@ void proof
 - `metakit/graph`: `analyze`, `pruneStatic`, `queryReadiness`
 - `metakit/sql`: `toCheck`, `toWhere`, `toUpdate`, `SqlUnsupportedError`
 - `metakit/drizzle`: `toCheck`, `toWhere`, `toUpdate`
-- `metakit/policy`: `make` builds named boolean rules over a row and a principal. `checkConsistent` looks for an unreachable rule and `checkImplication` checks whether one rule implies another.
+- `metakit/policy`: `make` builds named boolean rules over a row and a principal. `checkConsistent` looks for an unreachable rule and `checkImplication` checks whether one rule implies another. Both stay unknown when a rule reads a number that may be NaN or whose key may be absent: give a compared number `Schema.Finite` or `Schema.Int`.
 - `metakit/prove`: `invariant`, `transition`, `policy`, `machine`, `policyConsistent`, `policyImplies`. The last two accept policy definitions from `metakit/policy` or `Guards.check` and escalate undecided checks to Z3.
 - `metakit/conformance`: `checkOpSoundness`, `checkResidualizeSoundness`
 

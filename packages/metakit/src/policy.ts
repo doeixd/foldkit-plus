@@ -12,6 +12,7 @@
  */
 import { Option, type Schema } from 'effect'
 import * as AbstractCheck from './abstract/check.js'
+import { unorderedRead } from './abstract/unordered.js'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
 import * as Bool from './ops/bool.js'
@@ -135,8 +136,10 @@ export const checkImplication = <
   for (const h of hypotheses) state.assume(h)
   const verdict = state.entails(toRule.node)
   // Refuting a consequent under assumed facts does not establish a reachable antecedent.
-  return Verdict.isFalse(verdict)
-    ? Verdict.Unknown('a counterexample requires a reachable allow rule')
+  if (Verdict.isFalse(verdict))
+    return Verdict.Unknown('a counterexample requires a reachable allow rule')
+  return Verdict.isTrue(verdict)
+    ? Option.getOrElse(unorderedRead(policy, [fromRule.node, toRule.node]), () => verdict)
     : verdict
 }
 
@@ -170,8 +173,10 @@ export const checkConsistent = <
   ]
   const state = new AbstractCheck.AbstractState(hypotheses, fields)
   for (const h of hypotheses) state.assume(h)
+  const dead = () =>
+    Option.getOrElse(unorderedRead(policy, [target.node]), () => Verdict.False<never>())
   if (!state.propagate()) {
-    return Verdict.False()
+    return dead()
   }
   const notTarget = Bool.not(target)
   const baseHypotheses: Array<Node.Node> = [
@@ -181,7 +186,7 @@ export const checkConsistent = <
   const base = new AbstractCheck.AbstractState([...baseHypotheses, notTarget.node], fields)
   for (const h of baseHypotheses) base.assume(h)
   if (Verdict.isTrue(base.entails(notTarget.node))) {
-    return Verdict.False()
+    return dead()
   }
   return Verdict.Unknown(
     `Tier 3 could not prove "${rule}" unsatisfiable; escalate to Prove.policyConsistent for a witness`,

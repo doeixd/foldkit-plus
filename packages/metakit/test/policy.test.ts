@@ -1,5 +1,5 @@
 import { Effect, Option, Schema } from 'effect'
-import { Eq, Expr, Num, Verdict } from 'metakit'
+import { Bool, Eq, Expr, Num, Path, Verdict } from 'metakit'
 import * as Policy from 'metakit/policy'
 import * as Prove from 'metakit/prove'
 import { describe, expect, it } from 'vitest'
@@ -27,6 +27,80 @@ describe('metakit/policy (consistency, non-disclosure, opaque principal soundnes
       Verdict.isUnknown(await Effect.runPromise(Prove.policyImplies(policy, 'Update', 'Read'))),
     ).toBe(true)
   })
+  // Every row may be updated, and is read where `x` is above zero or not above it. NaN is
+  // neither, and is `Neither`: not at least one and not at most two, which no number is.
+  const split = (x: typeof Schema.Number) =>
+    Policy.make({
+      row: Schema.Struct({ x }),
+      principal: Principal,
+      rules: ({ row }) => ({
+        Update: Expr.lit(true),
+        Read: Expr.any(Num.gt(row.x, 0), Num.lte(row.x, 0)),
+        Neither: Expr.all(Bool.not(Num.gte(row.x, 1)), Bool.not(Num.lte(row.x, 2))),
+      }),
+    })
+
+  it('proves nothing of a number that may be NaN, which no comparison orders', async () => {
+    const policy = split(Schema.Number)
+    const env = { row: { x: NaN }, principal: { userId: 'u', role: 'guest' as const } }
+    expect((['Update', 'Read', 'Neither'] as const).map(rule => policy.allow(rule, env))).toEqual([
+      true,
+      false,
+      true,
+    ])
+    const sync = [
+      Policy.checkImplication(policy, 'Update', 'Read'),
+      Policy.checkConsistent(policy, 'Neither'),
+    ]
+    const proved = await Effect.runPromise(
+      Effect.all([
+        Prove.policyImplies(policy, 'Update', 'Read'),
+        Prove.policyConsistent(policy, 'Neither'),
+      ]),
+    )
+    expect([...sync, ...proved].map(verdict => verdict._tag)).toEqual(Array(4).fill('Unknown'))
+    expect(Verdict.isUnknown(sync[0]!) && sync[0].reason).toContain('"row.x" may hold NaN')
+  }, 30_000)
+
+  it('orders a number that is always finite', async () => {
+    const policy = split(Schema.Finite)
+    expect(Verdict.isTrue(Policy.checkImplication(policy, 'Update', 'Read'))).toBe(true)
+    expect(Verdict.isFalse(Policy.checkConsistent(policy, 'Neither'))).toBe(true)
+    expect(
+      Verdict.isFalse(await Effect.runPromise(Prove.policyConsistent(policy, 'Neither'))),
+    ).toBe(true)
+  }, 30_000)
+
+  it('proves nothing of a number whose key may be absent', () => {
+    const row = Schema.Struct({ x: Schema.optionalKey(Schema.Finite) })
+    const x = Path.make<Policy.PolicyEnv<typeof row.Type, typeof Principal.Type>, number>([
+      'row',
+      'x',
+    ])
+    const policy = Policy.make({
+      row,
+      principal: Principal,
+      rules: () => ({
+        Update: Expr.lit(true),
+        Read: Expr.any(Num.gt(x, 0), Num.lte(x, 0)),
+      }),
+    })
+    expect(policy.allow('Read', { row: {}, principal: { userId: 'u', role: 'guest' } })).toBe(false)
+    expect(Verdict.isUnknown(Policy.checkImplication(policy, 'Update', 'Read'))).toBe(true)
+  })
+
+  it('takes a number of no single schema for one that may hold a fraction', async () => {
+    const policy = Policy.make({
+      row: Schema.Struct({ x: Schema.Union([Schema.Finite, Schema.Int]) }),
+      principal: Principal,
+      rules: ({ row }) => ({ Update: Num.gt(row.x, 0), Read: Num.gte(row.x, 1) }),
+    })
+    const verdict = await Effect.runPromise(Prove.policyImplies(policy, 'Update', 'Read'))
+    const half = Verdict.isFalse(verdict) ? Option.getOrThrow(verdict.witness)['row.x'] : undefined
+    expect(half).toBeGreaterThan(0)
+    expect(half).toBeLessThan(1)
+  }, 30_000)
+
   it('requires a reachable antecedent to refute an implication', () => {
     const policy = Policy.make({
       row: Document,

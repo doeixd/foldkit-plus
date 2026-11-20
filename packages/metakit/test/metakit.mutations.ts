@@ -17,8 +17,51 @@ const proveTests = ['packages/metakit/test/prove.test.ts']
 const graphTests = ['packages/metakit/test/graph.test.ts']
 const domainTests = ['packages/metakit/test/domain.test.ts']
 const strArrTests = ['packages/metakit/test/str-arr.test.ts']
+const policyTests = ['packages/metakit/test/policy.test.ts']
+
+const policy = (name: string, file: string, find: string, replace: string) => ({
+  name,
+  edits: [{ file, find, replace }],
+  tests: policyTests,
+})
 
 export default [
+  policy(
+    'the Zone proves an implication over a number that may be NaN',
+    '../src/policy.ts',
+    '? Option.getOrElse(unorderedRead(policy, [fromRule.node, toRule.node]), () => verdict)',
+    '? verdict',
+  ),
+  policy(
+    'the solver proves an implication over a number that may be NaN',
+    prove,
+    'return Option.getOrElse(unorderedRead(pol, read), () => result)',
+    'return result',
+  ),
+  policy(
+    'the Zone calls dead a rule that NaN passes',
+    '../src/policy.ts',
+    'Option.getOrElse(unorderedRead(policy, [target.node]), () => Verdict.False<never>())',
+    'Verdict.False<never>()',
+  ),
+  policy(
+    'the solver calls dead a rule that NaN passes',
+    prove,
+    'unorderedRead(pol, [pol.rules[rule]!.node])',
+    'Option.none()',
+  ),
+  policy(
+    'a number whose key may be absent is ordered',
+    '../src/abstract/unordered.ts',
+    '(absent || Schema.is(Schema.make(current))(NaN))',
+    'Schema.is(Schema.make(current))(NaN)',
+  ),
+  policy(
+    'a path of no known sort is an integer to the solver',
+    prove,
+    'const unsorted = z3.Real.const(name)',
+    'const unsorted = z3.Int.const(name)',
+  ),
   {
     name: 'mixed literal sorts silently alias text with numbers',
     edits: [
@@ -31,8 +74,8 @@ export default [
     edits: [
       {
         file: '../src/policy.ts',
-        find: 'return Verdict.isFalse(verdict)',
-        replace: 'return false',
+        find: 'if (Verdict.isFalse(verdict))',
+        replace: 'if (false)',
       },
     ],
     tests: ['packages/metakit/test/policy.test.ts'],

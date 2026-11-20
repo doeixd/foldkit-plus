@@ -8,6 +8,7 @@
  */
 import { Effect, Option, Result, Schema, SchemaAST } from 'effect'
 import * as AbstractCheck from './abstract/check.js'
+import { unorderedRead } from './abstract/unordered.js'
 import * as Expr from './expr.js'
 import type { Machine } from './machine.js'
 import * as Node from './node.js'
@@ -447,12 +448,13 @@ const solveWithZ3 = async (
         },
         Path: ({ segments }) => {
           const name = Path.format(segments)
-          let v = vars.get(name)
-          if (v === undefined) {
-            v = z3.Int.const(name)
-            vars.set(name, v)
-          }
-          return v
+          const sorted = vars.get(name)
+          if (sorted !== undefined) return sorted
+          // A path whose schema names no sort may hold a fraction: an integer
+          // would prove `x >= 1` from `x > 0`.
+          const unsorted = z3.Real.const(name)
+          vars.set(name, unsorted)
+          return unsorted
         },
         Call: ({ op, args }) => smtOps[op.id](args, ctx),
         If: ({ cond, then, otherwise }) =>
@@ -830,6 +832,10 @@ export const policyImplies = <
       pol.rules[to]!,
       { hypotheses: [pol.rules[from]!] },
     )
+    if (Verdict.isTrue(result)) {
+      const read = [pol.rules[from]!.node, pol.rules[to]!.node]
+      return Option.getOrElse(unorderedRead(pol, read), () => result)
+    }
     return validatePolicyWitness(
       pol,
       result,
@@ -864,7 +870,10 @@ export const policyConsistent = <
     const res = validatePolicyWitness(pol, result, env => Expr.eval(pol.rules[rule]!, env))
     return Verdict.match(res, {
       // `hypotheses && NOT(false)` is UNSAT => rule is provably dead/unsatisfiable!
-      True: () => Verdict.False(Option.none()),
+      True: () =>
+        Option.getOrElse(unorderedRead(pol, [pol.rules[rule]!.node]), () =>
+          Verdict.False(Option.none()),
+        ),
       // `hypotheses && NOT(false)` is SAT (with no opaque terms) => rule is reachable!
       False: () => Verdict.True(Option.some(Verdict.Proved('z3'))),
       Unknown: u => u,
