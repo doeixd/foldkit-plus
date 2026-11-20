@@ -174,7 +174,11 @@ export const count = <S extends Schema.Top>(
     symbolicUpdateDelta,
     toSql: options =>
       Option.match(pred, {
-        onNone: () => Result.succeed({ text: 'COUNT(*)::INTEGER', params: [] }),
+        onNone: () =>
+          Result.succeed({
+            text: options?.dialect === 'sqlite' ? 'COUNT(*)' : 'COUNT(*)::INTEGER',
+            params: [],
+          }),
         onSome: p =>
           Result.map(lowerRowExpr(p, options), frag => ({
             text:

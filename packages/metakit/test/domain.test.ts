@@ -65,6 +65,10 @@ afterAll(async () => {
 describe('metakit/domain', () => {
   it('Money: proves Wallet debit in Tier 3 Zone without Z3 and exposes domain metadata', () => {
     expect(Domain.domainOf(Usd)).toEqual(Option.some({ kind: 'money', currency: 'USD', scale: 2 }))
+    const PositiveUsd = Usd.pipe(Expr.refine($ => Money.gt($, Money.minor('USD', 0))))
+    expect(Domain.domainOf(PositiveUsd)).toEqual(
+      Option.some({ kind: 'money', currency: 'USD', scale: 2 }),
+    )
     expect(Money.format(Money.minor('USD', 1250), 'USD')).toBe('12.50 USD')
     expect(() => Money.minor('USD', 12.5)).toThrow(/integer/)
 

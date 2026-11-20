@@ -98,6 +98,9 @@ describe('Phase 3: metakit/drizzle against PGlite', () => {
   it('executes Drizzle.toWhere and guarded Drizzle.toUpdate end to end', async () => {
     const db = drizzle({ client })
 
+    const checkRes = Drizzle.toCheck(Account, accountsTable)
+    expect(Result.isSuccess(checkRes)).toBe(true)
+
     const whereRes = Drizzle.toWhere(CanWithdraw, accountsTable, {
       env: { principal: { userId: 'u1', role: 'owner' } },
     })

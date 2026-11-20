@@ -7,7 +7,7 @@
  */
 import { Option, SchemaAST } from 'effect'
 import type { Schema } from 'effect'
-import { DOMAIN_ANNOTATION_KEY, type DomainMetadata } from './domain/annotation.js'
+import { domainOfAst, type DomainMetadata } from './domain/annotation.js'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
 import * as Transition from './transition.js'
@@ -25,26 +25,10 @@ export interface FieldSpec {
   readonly domain: Option.Option<DomainMetadata>
 }
 
-const readDomainFromAst = (ast: SchemaAST.AST): Option.Option<DomainMetadata> => {
-  if (ast.checks !== undefined) {
-    for (let i = ast.checks.length - 1; i >= 0; i--) {
-      const ann = ast.checks[i]!.annotations as Readonly<Record<string, unknown>> | undefined
-      if (ann !== undefined && DOMAIN_ANNOTATION_KEY in ann) {
-        return Option.some(ann[DOMAIN_ANNOTATION_KEY] as DomainMetadata)
-      }
-    }
-  }
-  const ann = ast.annotations as Readonly<Record<string, unknown>> | undefined
-  if (ann !== undefined && DOMAIN_ANNOTATION_KEY in ann) {
-    return Option.some(ann[DOMAIN_ANNOTATION_KEY] as DomainMetadata)
-  }
-  return Option.none()
-}
-
 const extractSingleField = (name: string, rawAst: SchemaAST.AST): FieldSpec => {
   let ast = rawAst
   let nullable = false
-  let domain = readDomainFromAst(ast)
+  let domain = domainOfAst(ast)
 
   if (SchemaAST.isUnion(ast)) {
     const hasNull = ast.types.some(SchemaAST.isNull)
@@ -52,7 +36,7 @@ const extractSingleField = (name: string, rawAst: SchemaAST.AST): FieldSpec => {
     if (hasNull && nonNull.length === 1) {
       nullable = true
       ast = nonNull[0]!
-      if (Option.isNone(domain)) domain = readDomainFromAst(ast)
+      if (Option.isNone(domain)) domain = domainOfAst(ast)
     }
   }
 
@@ -168,7 +152,50 @@ export const fieldSpecs = <S extends Schema.Top>(schema: S): ReadonlyArray<Field
     }
   }
 
-  // Enrich per-field numeric bounds from top-level Expr.refine conjuncts (e.g. Num.gte($.balance, 0))
+  // Enrich per-field numeric bounds from top-level Expr.refine conjuncts (both `$.x >= 0` and `0 <= $.x`)
+  const applyBound = (
+    fieldName: string,
+    op: 'ord.gte' | 'ord.gt' | 'ord.lte' | 'ord.lt',
+    v: number,
+  ): void => {
+    const prev = specs.get(fieldName)
+    if (prev === undefined) return
+    if (op === 'ord.gte') {
+      specs.set(fieldName, {
+        ...prev,
+        min: Option.some(Option.match(prev.min, { onNone: () => v, onSome: m => Math.max(m, v) })),
+      })
+    } else if (op === 'ord.gt') {
+      specs.set(fieldName, {
+        ...prev,
+        exclusiveMin: Option.some(
+          Option.match(prev.exclusiveMin, { onNone: () => v, onSome: m => Math.max(m, v) }),
+        ),
+      })
+    } else if (op === 'ord.lte') {
+      specs.set(fieldName, {
+        ...prev,
+        max: Option.some(Option.match(prev.max, { onNone: () => v, onSome: m => Math.min(m, v) })),
+      })
+    } else {
+      specs.set(fieldName, {
+        ...prev,
+        exclusiveMax: Option.some(
+          Option.match(prev.exclusiveMax, { onNone: () => v, onSome: m => Math.min(m, v) }),
+        ),
+      })
+    }
+  }
+
+  const flipOp = (op: 'ord.gte' | 'ord.gt' | 'ord.lte' | 'ord.lt') =>
+    op === 'ord.gte'
+      ? 'ord.lte'
+      : op === 'ord.gt'
+        ? 'ord.lt'
+        : op === 'ord.lte'
+          ? 'ord.gte'
+          : 'ord.gt'
+
   const visitConjunct = (node: Node.Node): void => {
     if (!Node.$is('Call')(node)) return
     if (node.op.id === 'bool.and') {
@@ -176,33 +203,29 @@ export const fieldSpecs = <S extends Schema.Top>(schema: S): ReadonlyArray<Field
       visitConjunct(node.args[1]!)
       return
     }
-    const [a, b] = node.args
     if (
-      !Node.$is('Path')(a!) ||
-      a!.segments.length !== 1 ||
-      !Node.$is('Lit')(b!) ||
-      typeof b!.value !== 'number'
+      node.op.id !== 'ord.gte' &&
+      node.op.id !== 'ord.gt' &&
+      node.op.id !== 'ord.lte' &&
+      node.op.id !== 'ord.lt'
     ) {
       return
     }
-    const fieldName = a!.segments[0]!
-    const prev = specs.get(fieldName)
-    if (prev === undefined) return
-    const v = b!.value
-    if (node.op.id === 'ord.gte') {
-      specs.set(fieldName, {
-        ...prev,
-        min: Option.some(Option.match(prev.min, { onNone: () => v, onSome: m => Math.max(m, v) })),
-      })
-    } else if (node.op.id === 'ord.gt') {
-      specs.set(fieldName, { ...prev, exclusiveMin: Option.some(v) })
-    } else if (node.op.id === 'ord.lte') {
-      specs.set(fieldName, {
-        ...prev,
-        max: Option.some(Option.match(prev.max, { onNone: () => v, onSome: m => Math.min(m, v) })),
-      })
-    } else if (node.op.id === 'ord.lt') {
-      specs.set(fieldName, { ...prev, exclusiveMax: Option.some(v) })
+    const [a, b] = node.args
+    if (
+      Node.$is('Path')(a!) &&
+      a!.segments.length === 1 &&
+      Node.$is('Lit')(b!) &&
+      typeof b!.value === 'number'
+    ) {
+      applyBound(a!.segments[0]!, node.op.id, b!.value)
+    } else if (
+      Node.$is('Lit')(a!) &&
+      typeof a!.value === 'number' &&
+      Node.$is('Path')(b!) &&
+      b!.segments.length === 1
+    ) {
+      applyBound(b!.segments[0]!, flipOp(node.op.id), a!.value)
     }
   }
 
@@ -223,7 +246,18 @@ export const toJsonSchema = <S extends Schema.Top>(
 
   for (const f of fields) {
     const prop: Record<string, unknown> = {}
-    const baseType = f.kind === 'enum' ? 'string' : f.kind === 'unknown' ? 'string' : f.kind
+    let baseType: string = f.kind
+    if (f.kind === 'enum') {
+      const lits = Option.getOrElse(f.literals, () => [])
+      baseType =
+        lits.length > 0 && lits.every(v => typeof v === 'number')
+          ? 'number'
+          : lits.length > 0 && lits.every(v => typeof v === 'boolean')
+            ? 'boolean'
+            : 'string'
+    } else if (f.kind === 'unknown') {
+      baseType = 'string'
+    }
     prop['type'] = f.nullable ? [baseType, 'null'] : baseType
     if (Option.isSome(f.min)) prop['minimum'] = f.min.value
     if (Option.isSome(f.max)) prop['maximum'] = f.max.value

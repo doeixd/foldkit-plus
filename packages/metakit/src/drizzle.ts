@@ -7,6 +7,7 @@
  */
 import { sql, type AnyColumn, type SQL } from 'drizzle-orm'
 import { Option, Result } from 'effect'
+import type { Schema } from 'effect'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
 import { residualizeNode } from './ops/residualize.js'
@@ -146,6 +147,26 @@ const lowerDrizzleNode = (
       }),
   }
   return ctx.lower(node)
+}
+
+/** Lower every invariant on `schema` into a Drizzle `SQL` expression for `check(name, sql)`. */
+export const toCheck = <S extends Schema.Top>(
+  schema: S,
+  table: DrizzleTableColumns,
+  options?: { readonly dialect?: SqlDialect },
+): Result.Result<SQL, SqlUnsupportedError> => {
+  const refinements = Expr.refinementsOf(schema)
+  if (refinements.length === 0) return Result.succeed(sql`TRUE`)
+  const parts: Array<SQL> = []
+  for (const r of refinements) {
+    const res = lowerDrizzleNode(r.node, table, {
+      dialect: options?.dialect ?? 'postgres',
+      rowPrefix: [],
+    })
+    if (Result.isFailure(res)) return res
+    parts.push(res.success)
+  }
+  return Result.succeed(parts.length === 1 ? parts[0]! : sql`(${sql.join(parts, sql` AND `)})`)
 }
 
 /** Lower a boolean `Expr` into a Drizzle `SQL` predicate for `.where(...)`. */
