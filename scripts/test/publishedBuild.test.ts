@@ -226,6 +226,27 @@ test('a page reading only Metadata keeps no Evidence module, built or source', a
   expect([...built, ...source].filter(id => /\/evidence\.(js|ts)$/.test(id))).toEqual([])
 }, 120_000)
 
+/**
+ * A form reads metakit declarations through `foldkit-form/metakit`, so a page
+ * with a form and no metakit keeps none of it, built or source. Broken by hand:
+ * a module-level `console.log(fieldSpecs)` in `src/index.ts` turned it red (a
+ * bare re-export of `Declared` there does not: the page drops it unread).
+ */
+test('a page reading Form from foldkit-form keeps no metakit module, built or source', async () => {
+  const root = scratchIn('form', 'published-')
+  made.push(root)
+  const page = `import { Form } from 'pkg'\nexport const used = Form.make`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('form', root))
+  const source = await kept(join(packages, 'form', 'src', 'index.ts'))
+  expect(built.some(id => id.endsWith('/dist/index.js'))).toBe(true)
+  expect(source.some(id => id.endsWith('/form/src/index.ts'))).toBe(true)
+  expect(
+    [...built, ...source].filter(id => /\/metakit\/(src|dist)\/|\/metakit\.(js|ts)$/.test(id)),
+  ).toEqual([])
+}, 120_000)
+
 test('a page reading only Expr.eval and Num.lte from metakit keeps no sql, prove, conformance, z3, or zone modules', async () => {
   const root = scratchIn('metakit', 'published-')
   made.push(root)

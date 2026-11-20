@@ -2,9 +2,10 @@
  * `foldkit-form/metakit` — a form reading what a metakit declaration already
  * says: the input attributes its Schema's bounds and domain types imply, and
  * whether a guarded `Transition` would go through with the values entered so
- * far. A subpath, so a page with a form and no metakit loads none of it.
+ * far. A subpath: the main entry imports no metakit module, so a page with a
+ * form and no metakit keeps none of it.
  */
-import { Match, Option, Result, Schema } from 'effect'
+import { Match, Option, Result, type Schema } from 'effect'
 import { Transition, type Expr, type Verdict } from 'metakit'
 import { CalendarDay, Decimal, type Domain } from 'metakit/domain'
 import { fieldSpecs, type FieldSpec } from 'metakit/inspect'
@@ -73,7 +74,7 @@ const dayText = (day: number): string => CalendarDay.toIso(day as CalendarDay.Ca
  */
 const CalendarDayInput = Input.kind('CalendarDay', {
   draft: 'text',
-  parse: draft => Result.getOrUndefined(CalendarDay.fromIso(draft.trim())),
+  parse: draft => Result.getOrUndefined(CalendarDay.fromIso(draft)),
   format: value => dayText(Number(value)),
   unparsed: 'Enter a date',
 })
@@ -223,10 +224,10 @@ const of = <Fields extends Schema.Struct.Fields, Model>(
   form: DeclaredForm<Fields, Model>,
 ): Declarations<Fields, Model> => {
   const constraints = Object.fromEntries(
-    fieldSpecs(form.input.schema).map(({ name, ...spec }) => [
-      name,
-      { key: name, ...spec, attributes: attributesOf({ name, ...spec }) },
-    ]),
+    fieldSpecs(form.input.schema).map(spec => {
+      const { name, ...read } = spec
+      return [name, { ...read, key: name, attributes: attributesOf(spec) }]
+    }),
   ) as Declarations<Fields, Model>['constraints']
   return {
     constraints,

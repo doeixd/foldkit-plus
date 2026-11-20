@@ -16,7 +16,14 @@ const PositiveUsd = Usd.pipe(Expr.refine($ => Money.gt($, Money.minor('USD', 0))
 
 const Booking = Schema.Struct({
   amount: PositiveUsd,
-  guests: Schema.Int.check(Schema.isGreaterThan(0), Schema.isLessThanOrEqualTo(10)),
+  guests: Schema.Int.check(Schema.isGreaterThan(0), Schema.isLessThan(11)),
+  // Each side bounded twice: the tighter bound stands.
+  seats: Schema.Int.check(
+    Schema.isGreaterThanOrEqualTo(2),
+    Schema.isGreaterThan(0),
+    Schema.isLessThanOrEqualTo(8),
+    Schema.isLessThan(20),
+  ),
   nights: Schema.Int.check(Schema.isBetween({ minimum: 0.5, maximum: 9.5 })),
   share: Schema.Number.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThan(1)),
   arrives: CalendarDay.schema.pipe(
@@ -47,6 +54,7 @@ describe('Constraints from the input Schema', () => {
     // An exclusive bound of a whole key is the next whole value; money shows in whole units.
     ['amount', attributes('number', 'decimal', '0.01', '0.01', undefined)],
     ['guests', attributes('number', 'numeric', '1', '1', '10')],
+    ['seats', attributes('number', 'numeric', '1', '2', '8')],
     // A fractional bound of a whole key rounds inwards.
     ['nights', attributes('number', 'numeric', '1', '1', '9')],
     // HTML has no exclusive bound: a number that is not whole keeps only its inclusive ones.
