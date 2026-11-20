@@ -1,337 +1,168 @@
 /**
- * Server-tier SQL lowering (`metakit/sql`).
+ * SQL text for Postgres and SQLite (`metakit/sql`): a Schema's rules as a
+ * `CHECK`, a boolean expression as a `WHERE` predicate with its parameters,
+ * and a transition as a guarded `UPDATE`.
  *
- * Implements the exhaustive `sqlOps: Record<CoreOpId, SqlLowerer>` table over
- * all 15 v1 primitives. Derived helpers (`min`, `max`, `abs`, `clamp`,
- * `between`, `isNotNull`, `implies`) lower automatically via `CASE WHEN` +
- * the 15 primitives with zero extra rows here.
+ * The lowering itself is `sqlLowering.ts`, which `metakit/drizzle` renders
+ * too; this module renders its pieces as text.
  */
-import { Data, Option, Result } from 'effect'
+import { Result } from 'effect'
 import type { Schema } from 'effect'
-import * as Expr from './expr.js'
-import * as Node from './node.js'
-import { residualizeNode } from './ops/residualize.js'
-import * as Path from './path.js'
-import type { Transition } from './transition.js'
+import type * as Expr from './expr.js'
+import {
+  bound,
+  columnNames,
+  inlineLiteral,
+  lowerCheck,
+  lowerUpdate,
+  lowerWhere,
+  SqlPiece,
+  type Sql,
+  type SqlDialect,
+  type SqlUnsupportedError,
+} from './sqlLowering.js'
+import type { Refused, Transition } from './transition.js'
 
-export type SqlDialect = 'postgres' | 'sqlite'
+export {
+  sqlOps,
+  SqlUnsupportedError,
+  type SqlContext,
+  type SqlDialect,
+  type SqlLowerer,
+} from './sqlLowering.js'
 
 export interface SqlFragment {
   readonly text: string
   readonly params: ReadonlyArray<unknown>
 }
 
-export class SqlUnsupportedError extends Data.TaggedError('SqlUnsupportedError')<{
-  readonly reason: string
-}> {}
+/** How a path under the row becomes SQL for its column; the default quotes its segments joined by `_`. */
+export type ColumnName = (segments: ReadonlyArray<string>) => string
 
 export interface SqlOptions {
   readonly dialect?: SqlDialect
+  /**
+   * The slice of the environment that is the row: a path under it is a
+   * column, any other must be given in `env`. Default `['row']`; `[]` reads
+   * every path as a column.
+   */
   readonly rowPrefix?: ReadonlyArray<string>
-  readonly column?: (segments: ReadonlyArray<string>) => string
+  readonly column?: ColumnName
   readonly env?: Readonly<Record<string, unknown>>
 }
 
 const quoteIdent = (name: string): string => `"${name.replaceAll('"', '""')}"`
 
-const inlineLiteral = (value: unknown): Result.Result<string, SqlUnsupportedError> => {
-  if (value === null) return Result.succeed('NULL')
-  if (typeof value === 'boolean') return Result.succeed(value ? 'TRUE' : 'FALSE')
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      return Result.fail(new SqlUnsupportedError({ reason: `non-finite number literal: ${value}` }))
-    }
-    return Result.succeed(String(value))
-  }
-  if (typeof value === 'string') {
-    return Result.succeed(`'${value.replaceAll("'", "''")}'`)
-  }
-  return Result.fail(
-    new SqlUnsupportedError({ reason: `cannot inline literal of type ${typeof value}` }),
-  )
-}
+const defaultColumn: ColumnName = segments => quoteIdent(segments.join('_'))
 
-export interface SqlContext {
+/** Renders pieces as text. One per statement: its parameters number in the order written. */
+const renderer = (options: {
   readonly dialect: SqlDialect
-  readonly inlineLiterals: boolean
-  readonly rowPrefix: ReadonlyArray<string>
-  readonly column: (segments: ReadonlyArray<string>) => string
-  readonly params: Array<unknown>
-  readonly bind: (value: unknown) => Result.Result<string, SqlUnsupportedError>
-  readonly lower: (node: Node.Node) => Result.Result<string, SqlUnsupportedError>
-}
-
-export type SqlLowerer = (
-  args: ReadonlyArray<Node.Node>,
-  ctx: SqlContext,
-) => Result.Result<string, SqlUnsupportedError>
-
-const lowerBinary =
-  (sqlOp: string): SqlLowerer =>
-  (args, ctx) =>
-    Result.flatMap(ctx.lower(args[0]!), left =>
-      Result.map(ctx.lower(args[1]!), right => `(${left} ${sqlOp} ${right})`),
-    )
-
-/** Exhaustive Tier 1 SQL lowering table over all 15 `CoreOpId` primitives. */
-export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
-  'bool.and': lowerBinary('AND'),
-  'bool.or': lowerBinary('OR'),
-  'bool.not': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(NOT ${inner})`),
-  'eq.is': (args, ctx) => {
-    const op = ctx.dialect === 'postgres' ? 'IS NOT DISTINCT FROM' : 'IS'
-    return lowerBinary(op)(args, ctx)
-  },
-  'eq.isNot': (args, ctx) => {
-    const op = ctx.dialect === 'postgres' ? 'IS DISTINCT FROM' : 'IS NOT'
-    return lowerBinary(op)(args, ctx)
-  },
-  'eq.in': (args, ctx) =>
-    Result.flatMap(ctx.lower(args[0]!), needle => {
-      const list = args[1]!
-      if (!Node.$is('Lit')(list) || !Array.isArray(list.value)) {
-        return Result.fail(
-          new SqlUnsupportedError({
-            reason: 'eq.in requires a literal array of candidates in SQL',
-          }),
-        )
-      }
-      if (list.value.length === 0) return Result.succeed('FALSE')
-      let hasNull = false
-      const items: Array<string> = []
-      for (const item of list.value) {
-        if (item === null) {
-          hasNull = true
-          continue
-        }
-        const bound = ctx.bind(item)
-        if (Result.isFailure(bound)) return bound
-        items.push(bound.success)
-      }
-      if (items.length === 0) return Result.succeed(`(${needle} IS NULL)`)
-      const inClause = `(${needle} IN (${items.join(', ')}))`
-      return Result.succeed(hasNull ? `(${inClause} OR (${needle} IS NULL))` : inClause)
-    }),
-  'null.isNull': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(${inner} IS NULL)`),
-  'ord.lt': lowerBinary('<'),
-  'ord.lte': lowerBinary('<='),
-  'ord.gt': lowerBinary('>'),
-  'ord.gte': lowerBinary('>='),
-  'num.add': lowerBinary('+'),
-  'num.sub': lowerBinary('-'),
-  'num.mul': lowerBinary('*'),
-  'num.neg': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(- ${inner})`),
-  'str.len': (args, ctx) =>
-    Result.map(ctx.lower(args[0]!), s =>
-      ctx.dialect === 'postgres' ? `char_length(${s})` : `length(${s})`,
-    ),
-  'str.startsWith': (args, ctx) =>
-    Result.flatMap(ctx.lower(args[0]!), s =>
-      Result.flatMap(ctx.lower(args[1]!), p1 => {
-        if (ctx.dialect === 'postgres') {
-          return Result.succeed(`(LEFT(${s}, char_length(${p1})) = ${p1})`)
-        }
-        return Result.map(ctx.lower(args[1]!), p2 => `(substr(${s}, 1, length(${p1})) = ${p2})`)
-      }),
-    ),
-  'str.contains': (args, ctx) =>
-    Result.flatMap(ctx.lower(args[0]!), s =>
-      Result.map(ctx.lower(args[1]!), sub =>
-        ctx.dialect === 'postgres' ? `(strpos(${s}, ${sub}) > 0)` : `(instr(${s}, ${sub}) > 0)`,
-      ),
-    ),
-  'arr.count': (args, ctx) =>
-    Result.map(ctx.lower(args[0]!), a =>
-      ctx.dialect === 'postgres'
-        ? `COALESCE(cardinality(${a}), 0)`
-        : `COALESCE(json_array_length(${a}), 0)`,
-    ),
-  'arr.isEmpty': (args, ctx) =>
-    Result.map(ctx.lower(args[0]!), a =>
-      ctx.dialect === 'postgres'
-        ? `(COALESCE(cardinality(${a}), 0) = 0)`
-        : `(COALESCE(json_array_length(${a}), 0) = 0)`,
-    ),
-}
-
-const lowerNodeWith = (
-  node: Node.Node,
-  options: {
-    readonly dialect: SqlDialect
-    readonly inlineLiterals: boolean
-    readonly rowPrefix: ReadonlyArray<string>
-    readonly column: (segments: ReadonlyArray<string>) => string
-    readonly params: Array<unknown>
-  },
-): Result.Result<string, SqlUnsupportedError> => {
-  const bind = (value: unknown): Result.Result<string, SqlUnsupportedError> => {
-    if (options.inlineLiterals) return inlineLiteral(value)
-    if (value === null) return Result.succeed('NULL')
-    options.params.push(value)
-    return Result.succeed(options.dialect === 'postgres' ? `$${options.params.length}` : '?')
-  }
-
-  const ctx: SqlContext = {
-    dialect: options.dialect,
-    inlineLiterals: options.inlineLiterals,
-    rowPrefix: options.rowPrefix,
-    column: options.column,
-    params: options.params,
-    bind,
-    lower: current =>
-      Node.$match(current, {
-        Lit: ({ value }) => bind(value),
-        Path: ({ segments }) => {
-          if (Path.isPrefix(options.rowPrefix, segments)) {
-            const rel = segments.slice(options.rowPrefix.length)
-            if (rel.length === 0) {
-              return Result.fail(
-                new SqlUnsupportedError({
-                  reason: 'cannot lower root path to a single SQL column',
-                }),
-              )
-            }
-            return Result.succeed(options.column(rel))
-          }
-          return Result.fail(
-            new SqlUnsupportedError({
-              reason: `unbound path "${Path.format(segments)}" outside row prefix "${Path.format(options.rowPrefix)}"`,
-            }),
-          )
+  readonly column: ColumnName
+  readonly inline: boolean
+}) => {
+  const params: Array<unknown> = []
+  const column = columnNames(options.column)
+  const render = (sql: Sql): Result.Result<string, SqlUnsupportedError> => {
+    let text = ''
+    for (const piece of sql) {
+      const part = SqlPiece.$match(piece, {
+        Text: ({ text }) => Result.succeed(text),
+        Column: ({ segments }) => column(segments),
+        Value: ({ value }) => {
+          if (options.inline) return inlineLiteral(value)
+          params.push(bound(value, options.dialect))
+          return Result.succeed(options.dialect === 'postgres' ? `$${params.length}` : '?')
         },
-        Call: ({ op, args }) => sqlOps[op.id](args, ctx),
-        If: ({ cond, then, otherwise }) =>
-          Result.flatMap(ctx.lower(cond), c =>
-            Result.flatMap(ctx.lower(then), t =>
-              Result.map(ctx.lower(otherwise), e => `(CASE WHEN ${c} THEN ${t} ELSE ${e} END)`),
-            ),
-          ),
-        Match: ({ on, cases, otherwise }) =>
-          Result.flatMap(ctx.lower(on), target => {
-            const parts: Array<string> = []
-            for (const [val, branch] of cases) {
-              const litRes = bind(val)
-              if (Result.isFailure(litRes)) return litRes
-              const bRes = ctx.lower(branch)
-              if (Result.isFailure(bRes)) return bRes
-              parts.push(`WHEN ${litRes.success} THEN ${bRes.success}`)
-            }
-            const elseRes = Option.match(otherwise, {
-              onNone: () => Result.succeed(''),
-              onSome: fallback => Result.map(ctx.lower(fallback), f => ` ELSE ${f}`),
-            })
-            return Result.map(elseRes, e => `(CASE ${target} ${parts.join(' ')}${e} END)`)
-          }),
-        Opaque: ({ name }) =>
-          Result.fail(
-            new SqlUnsupportedError({ reason: `cannot lower opaque term "${name}" to SQL` }),
-          ),
-      }),
+      })
+      if (Result.isFailure(part)) return part
+      text += part.success
+    }
+    return Result.succeed(text)
   }
-
-  return ctx.lower(node)
+  return { params, column, render }
 }
 
-const defaultColumn = (segments: ReadonlyArray<string>): string => quoteIdent(segments.join('_'))
-
-/** Compile every invariant on `schema` into a SQL `CHECK (...)` clause. */
+/**
+ * Every rule of `schema` as a SQL `CHECK (...)` clause. The check fails where
+ * a rule is unknown of a null, as the Schema refuses that value. Literals are
+ * written into the text, since DDL takes no parameters.
+ */
 export const toCheck = <S extends Schema.Top>(
   schema: S,
-  options?: {
-    readonly dialect?: SqlDialect
-    readonly column?: (segments: ReadonlyArray<string>) => string
-  },
+  options?: { readonly dialect?: SqlDialect; readonly column?: ColumnName },
 ): Result.Result<string, SqlUnsupportedError> => {
-  const refinements = Expr.refinementsOf(schema)
-  if (refinements.length === 0) return Result.succeed('CHECK (TRUE)')
-  const parts: Array<string> = []
-  for (const r of refinements) {
-    const res = lowerNodeWith(r.node, {
-      dialect: options?.dialect ?? 'postgres',
-      inlineLiterals: true,
-      rowPrefix: [],
-      column: options?.column ?? defaultColumn,
-      params: [],
-    })
-    if (Result.isFailure(res)) return res
-    parts.push(res.success)
-  }
-  const combined = parts.length === 1 ? parts[0]! : parts.join(' AND ')
-  return Result.succeed(`CHECK (${combined})`)
+  const dialect = options?.dialect ?? 'postgres'
+  const { render } = renderer({ dialect, column: options?.column ?? defaultColumn, inline: true })
+  return Result.map(Result.flatMap(lowerCheck(schema, dialect), render), text => `CHECK (${text})`)
 }
 
-/** Compile a boolean `Expr` into a parameterized SQL `WHERE` predicate. */
+/** A boolean `Expr` as a parameterized SQL `WHERE` predicate. */
 export const toWhere = <Env>(
   expr: Expr.Expr<Env, boolean>,
   options?: SqlOptions,
 ): Result.Result<SqlFragment, SqlUnsupportedError> => {
-  const simplified =
-    options?.env !== undefined ? residualizeNode(expr.node, options.env) : expr.node
-  const params: Array<unknown> = []
-  const textRes = lowerNodeWith(simplified, {
-    dialect: options?.dialect ?? 'postgres',
-    inlineLiterals: false,
-    rowPrefix: options?.rowPrefix ?? ['row'],
+  const dialect = options?.dialect ?? 'postgres'
+  const { params, render } = renderer({
+    dialect,
     column: options?.column ?? defaultColumn,
-    params,
+    inline: false,
   })
-  return Result.map(textRes, text => ({ text, params }))
+  const lowered = lowerWhere(expr, {
+    dialect,
+    rowPrefix: options?.rowPrefix ?? ['row'],
+    env: options?.env,
+  })
+  return Result.map(Result.flatMap(lowered, render), text => ({ text, params }))
 }
 
-/** Compile a `Transition` + concrete `input` into a guarded parameterized SQL `UPDATE`. */
+/**
+ * A `Transition` and one `input` as a guarded, parameterized SQL `UPDATE` of
+ * `table`: it writes only the rows the guard holds of. `whereId` narrows it
+ * to the row whose key column holds a value. An input the transition's input
+ * Schema refuses is `Refused`.
+ */
 export const toUpdate = <State, Input, Emit>(
   table: string,
   transition: Transition<State, Input, Emit>,
   input: Input,
   options?: {
     readonly dialect?: SqlDialect
-    readonly column?: (segments: ReadonlyArray<string>) => string
-    readonly whereId?: { readonly column: string; readonly value: unknown }
+    readonly column?: ColumnName
+    readonly whereId?: {
+      readonly [K in keyof State & string]: { readonly column: K; readonly value: State[K] }
+    }[keyof State & string]
   },
-): Result.Result<SqlFragment, SqlUnsupportedError> => {
+): Result.Result<SqlFragment, SqlUnsupportedError | Refused> => {
   const dialect = options?.dialect ?? 'postgres'
-  const column = options?.column ?? defaultColumn
-  const params: Array<unknown> = []
-  const partialEnv = { input }
-
-  const setClauses: Array<string> = []
-  if (transition.writes.length === 0) {
-    return Result.fail(
-      new SqlUnsupportedError({ reason: 'cannot lower a transition with no writes to SQL UPDATE' }),
-    )
-  }
-  for (const eq of transition.writes) {
-    const rhs = residualizeNode(eq.value.node, partialEnv)
-    const rhsRes = lowerNodeWith(rhs, {
-      dialect,
-      inlineLiterals: false,
-      rowPrefix: ['state'],
-      column,
-      params,
-    })
-    if (Result.isFailure(rhsRes)) return Result.fail(rhsRes.failure)
-    setClauses.push(`${column(eq.target)} = ${rhsRes.success}`)
-  }
-
-  const whenNode = residualizeNode(transition.when.node, partialEnv)
-  const whenRes = lowerNodeWith(whenNode, {
+  const { params, column, render } = renderer({
     dialect,
-    inlineLiterals: false,
-    rowPrefix: ['state'],
-    column,
-    params,
+    column: options?.column ?? defaultColumn,
+    inline: false,
   })
-  if (Result.isFailure(whenRes)) return Result.fail(whenRes.failure)
-
-  let whereSql = whenRes.success
-  if (options?.whereId !== undefined) {
-    params.push(options.whereId.value)
-    const placeholder = dialect === 'postgres' ? `$${params.length}` : '?'
-    whereSql = `${quoteIdent(options.whereId.column)} = ${placeholder} AND ${whereSql}`
-  }
-
-  return Result.succeed({
-    text: `UPDATE ${quoteIdent(table)} SET ${setClauses.join(', ')} WHERE ${whereSql}`,
-    params,
+  return Result.flatMap(lowerUpdate(transition, input, dialect), ({ sets, when }) => {
+    const assignments: Array<string> = []
+    for (const [target, value] of sets) {
+      const name = column(target)
+      if (Result.isFailure(name)) return Result.fail(name.failure)
+      const rhs = render(value)
+      if (Result.isFailure(rhs)) return Result.fail(rhs.failure)
+      assignments.push(`${name.success} = ${rhs.success}`)
+    }
+    const key = options?.whereId
+    const where: Sql =
+      key === undefined
+        ? when
+        : [
+            SqlPiece.Column({ segments: [key.column] }),
+            SqlPiece.Text({ text: ' = ' }),
+            SqlPiece.Value({ value: key.value }),
+            SqlPiece.Text({ text: ' AND ' }),
+            ...when,
+          ]
+    return Result.map(render(where), predicate => ({
+      text: `UPDATE ${quoteIdent(table)} SET ${assignments.join(', ')} WHERE ${predicate}`,
+      params,
+    }))
   })
 }

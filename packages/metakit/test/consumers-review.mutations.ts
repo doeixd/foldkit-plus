@@ -6,7 +6,11 @@
  */
 const machine = '../src/machine.ts'
 const inspect = '../src/inspect.ts'
+const sql = '../src/sql.ts'
+const drizzle = '../src/drizzle.ts'
+const lowering = '../src/sqlLowering.ts'
 const integrationTests = ['packages/metakit/test/integrations.test.ts']
+const loweringTests = ['packages/metakit/test/sql-lowering.test.ts']
 
 const mutation = (
   name: string,
@@ -44,5 +48,103 @@ export default [
     'present.length === 1 && SchemaAST.isUnion(inner) ? inner.types : present',
     'present',
     integrationTests,
+  ),
+  mutation(
+    'a quote in an identifier is not doubled',
+    sql,
+    `name.replaceAll('"', '""')`,
+    'name',
+    loweringTests,
+  ),
+  mutation(
+    'a quote in an inlined text literal is not doubled',
+    lowering,
+    `value.replaceAll("'", "''")`,
+    'value',
+    loweringTests,
+  ),
+  mutation(
+    'a non-finite number is lowered',
+    lowering,
+    "if (typeof value === 'number' && !Number.isFinite(value)) {",
+    'if (false) {',
+    loweringTests,
+  ),
+  mutation(
+    'a NUL in text is lowered',
+    lowering,
+    "typeof value === 'string' && value.includes('\\u0000')",
+    'false',
+    loweringTests,
+  ),
+  mutation(
+    'an empty candidate list is written IN ()',
+    lowering,
+    'if (candidates.length === 0) return',
+    'if (false) return',
+    loweringTests,
+  ),
+  mutation(
+    'a list of only null is written IN ()',
+    lowering,
+    'if (items.length === 0) return',
+    'if (false) return',
+    loweringTests,
+  ),
+  mutation(
+    'SQLite is handed a boolean to bind',
+    lowering,
+    "dialect === 'sqlite' && typeof value === 'boolean' ? (value ? 1 : 0) : value",
+    'value',
+    loweringTests,
+  ),
+  mutation(
+    'two paths share one column name',
+    lowering,
+    'if (prior !== undefined && prior !== path) {',
+    'if (false) {',
+    loweringTests,
+  ),
+  mutation(
+    'a fraction meets an integer term',
+    lowering,
+    'return mixed(left, right) || mixed(right, left)',
+    'return false',
+    loweringTests,
+  ),
+  mutation(
+    'a fraction is a candidate for an integer term',
+    lowering,
+    'if (isIntegerTerm(args[0]!) && present.some(isFraction)) return',
+    'if (false) return',
+    loweringTests,
+  ),
+  mutation(
+    'an UPDATE is built from an input the input Schema refuses',
+    lowering,
+    '!Schema.is(transition.inputSchema.value)(input)',
+    'false',
+    loweringTests,
+  ),
+  mutation(
+    'a CHECK passes a rule that is unknown of a null',
+    lowering,
+    "q`(${joined(rules, ' AND ')}) IS TRUE`",
+    "q`(${joined(rules, ' AND ')})`",
+    loweringTests,
+  ),
+  mutation(
+    'Drizzle reads a column the table lacks',
+    drizzle,
+    'Object.hasOwn(columns, name)',
+    'true',
+    loweringTests,
+  ),
+  mutation(
+    'Drizzle binds a literal of a CHECK as a parameter',
+    drizzle,
+    'options.inline',
+    'false',
+    loweringTests,
   ),
 ]

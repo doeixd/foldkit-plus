@@ -6,7 +6,7 @@
 const residualize = '../src/ops/residualize.ts'
 const transition = '../src/transition.ts'
 const zone = '../src/abstract/zone.ts'
-const sql = '../src/sql.ts'
+const sql = '../src/sqlLowering.ts'
 const prove = '../src/prove.ts'
 const graph = '../src/graph.ts'
 const check = '../src/abstract/check.ts'
@@ -187,8 +187,8 @@ export default [
     edits: [
       {
         file: sql,
-        find: "const op = ctx.dialect === 'postgres' ? 'IS NOT DISTINCT FROM' : 'IS'",
-        replace: "const op = '='",
+        find: "'eq.is': numeric(byDialect('IS NOT DISTINCT FROM', 'IS')),",
+        replace: "'eq.is': numeric(() => '='),",
       },
     ],
     tests: sqlTests,
@@ -198,8 +198,8 @@ export default [
     edits: [
       {
         file: sql,
-        find: 'new SqlUnsupportedError({ reason: `cannot lower opaque term "${name}" to SQL` })',
-        replace: 'new SqlUnsupportedError({ reason: "wrong" })',
+        find: 'Opaque: ({ name }) => unsupported(`cannot lower opaque term "${name}" to SQL`),',
+        replace: 'Opaque: () => unsupported("wrong"),',
       },
     ],
     tests: sqlTests,
