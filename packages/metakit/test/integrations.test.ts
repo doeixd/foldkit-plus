@@ -180,6 +180,24 @@ describe('Phase 3: metakit/machine (TEA / Sync host)', () => {
     expect(same).toBe(frozen)
     expect(Option.isNone(noEmit)).toBe(true)
   })
+
+  // An agent's tool call names the tag: a member of `Object.prototype` is not a transition.
+  it.each(['constructor', '__proto__', 'toString', 'Nope'])(
+    'refuses the tag %s, which names no transition of its own',
+    tag => {
+      const open: Account = { id: 'u1', balance: 100, reserved: 20, status: 'open' }
+      // The tag is outside the Message union on purpose.
+      const stray = { _tag: tag, input: {} } as unknown as Machine.MessageOf<
+        typeof AccountMachine.transitions
+      >
+      const refused = AccountMachine.dispatch(open, stray)
+      expect(Result.isFailure(refused) && refused.failure.reason).toBe(`unknown message "${tag}"`)
+      expect(AccountMachine.update(open, stray)[0]).toBe(open)
+      expect(Verdict.isFalse(AccountMachine.canDispatch(tag as 'Withdraw', { state: open }))).toBe(
+        true,
+      )
+    },
+  )
 })
 
 describe('Phase 4: metakit/inspect (Forms & Agent JSON Schema)', () => {
@@ -207,11 +225,20 @@ describe('Phase 4: metakit/inspect (Forms & Agent JSON Schema)', () => {
     })
     expect(json.properties['status']!['enum']).toEqual(['draft', 'paid'])
     expect(json.properties['memo']!['type']).toEqual(['string', 'null'])
+  })
 
-    const aff = Inspect.affordances(
-      { Freeze, Unfreeze },
-      { id: 'u1', balance: 100, reserved: 0, status: 'open' },
-    )
-    expect(aff).toEqual({ available: ['Freeze'], disabled: ['Unfreeze'], unknown: [] })
+  it('lists null among a nullable enum, which JSON Schema checks beside its type', () => {
+    const Ticket = Schema.Struct({
+      priority: Schema.NullOr(Schema.Literals(['low', 'high'])),
+      state: Schema.Literals(['open', 'done']),
+    })
+    const json = Inspect.toJsonSchema(Ticket) as {
+      readonly properties: Readonly<Record<string, Readonly<Record<string, unknown>>>>
+    }
+    expect(json.properties['priority']).toEqual({
+      type: ['string', 'null'],
+      enum: ['low', 'high', null],
+    })
+    expect(json.properties['state']).toEqual({ type: 'string', enum: ['open', 'done'] })
   })
 })

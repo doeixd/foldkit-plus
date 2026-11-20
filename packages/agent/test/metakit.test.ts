@@ -228,6 +228,17 @@ describe('calling a tool', () => {
       'AgentAuthorizationError',
     )
   })
+
+  // The model chooses the name: one of `Object.prototype`'s is a failure, never a thrown TypeError.
+  it.each(['constructor', '__proto__', 'toString'])(
+    'refuses a call named %s, which is no tool',
+    async name => {
+      const app = bank(open)
+      const result = await app.call(name, {})
+      expect(result._tag).toBe('Failure')
+      expect(app.dispatched).toEqual([])
+    },
+  )
 })
 
 it('refuses at definition a transition with no input Schema', () => {

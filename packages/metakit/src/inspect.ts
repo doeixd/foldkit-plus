@@ -1,16 +1,14 @@
 /**
- * Non-interpreter Schema & Transition inspector (`metakit/inspect`) for forms,
- * data grids, CMS fields, and AI agent JSON Schemas.
+ * Schema inspector (`metakit/inspect`) for forms, data grids, CMS fields, and
+ * AI agent JSON Schemas.
  *
- * Reads Effect `SchemaAST`, `Expr.refinementsOf`, `Domain.domainOf`, and
- * `Transition.can` directly — no interpreter interface in between.
+ * Reads Effect `SchemaAST`, `Expr.refinementsOf` and `Domain.domainOf`
+ * directly — no interpreter interface in between.
  */
 import { Option, Schema, SchemaAST } from 'effect'
 import { domainOfAst, type DomainMetadata } from './domain/annotation.js'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
-import * as Transition from './transition.js'
-import * as Verdict from './verdict.js'
 
 export interface FieldSpec {
   readonly name: string
@@ -164,10 +162,12 @@ const readField = (
   rules: ReadonlyArray<Node.Node>,
   at: ReadonlyArray<string>,
 ): Field => {
-  const members = SchemaAST.isUnion(ast)
+  const present = SchemaAST.isUnion(ast)
     ? ast.types.filter(t => !SchemaAST.isNull(t) && !SchemaAST.isUndefined(t))
     : [ast]
-  const inner = members.length === 1 ? members[0]! : ast
+  const inner = present.length === 1 ? present[0]! : ast
+  // `NullOr(Literals([...]))` holds its literals in a union of their own.
+  const members = present.length === 1 && SchemaAST.isUnion(inner) ? inner.types : present
   const literals = members.flatMap(member => Option.toArray(scalarLiteral(member)))
   const isEnum = members.length > 0 && literals.length === members.length
   // A check on a `NullOr` or `optional` member sits outside the parent's rules, so read it here.
@@ -240,7 +240,8 @@ const shapeJson = (field: Field, rules: ReadonlyArray<Node.Node>): Record<string
       return {}
     case 'enum': {
       const literals = Option.getOrElse(spec.literals, () => [])
-      return { ...typed(enumType(literals)), enum: literals }
+      // JSON Schema's `enum` is checked beside `type`: without `null` here no null validates.
+      return { ...typed(enumType(literals)), enum: spec.nullable ? [...literals, null] : literals }
     }
     case 'array': {
       // Only a homogeneous array (`Schema.Array`) has one item shape to state.
@@ -291,49 +292,4 @@ export const toJsonSchema = <S extends Schema.Top>(
 ): Readonly<Record<string, unknown>> => {
   const rules = ruleNodes(schema)
   return objectJson(fieldsOf(schema.ast, rules, []), rules)
-}
-
-type TransitionState<T> = T extends {
-  readonly when: Expr.Expr<Transition.TransitionEnv<infer S, never>, boolean>
-}
-  ? S
-  : never
-
-/** Evaluate `Transition.can` across a transition map for UI buttons and agent tool visibility. */
-export const affordances = <
-  Transitions extends Readonly<
-    Record<string, { readonly when: Expr.Expr<Transition.TransitionEnv<never, never>, boolean> }>
-  >,
->(
-  transitions: Transitions,
-  partialState: Expr.PartialEnv<TransitionState<Transitions[keyof Transitions]>>,
-): {
-  readonly available: ReadonlyArray<keyof Transitions & string>
-  readonly disabled: ReadonlyArray<keyof Transitions & string>
-  readonly unknown: ReadonlyArray<keyof Transitions & string>
-} => {
-  const available: Array<keyof Transitions & string> = []
-  const disabled: Array<keyof Transitions & string> = []
-  const unknown: Array<keyof Transitions & string> = []
-  for (const [name, tr] of Object.entries(transitions) as Array<
-    readonly [
-      keyof Transitions & string,
-      { readonly when: Expr.Expr<Transition.TransitionEnv<never, never>, boolean> },
-    ]
-  >) {
-    Verdict.match(
-      Transition.can(
-        tr as Transition.Transition<unknown, unknown, unknown>,
-        {
-          state: partialState,
-        } as never,
-      ),
-      {
-        True: () => available.push(name),
-        False: () => disabled.push(name),
-        Unknown: () => unknown.push(name),
-      },
-    )
-  }
-  return { available, disabled, unknown }
 }

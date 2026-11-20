@@ -76,12 +76,13 @@ void proof
 - `Expr.rulesOf(schema)` lists each `Expr.refine` and Effect numeric bound with the property path it sits on (`at`, `[]` for the schema itself) and its `message` annotation as an `Option`, so a form can show the message beside the field. `Expr.refinementsOf` gives the expressions alone. Neither reads a check inside `Schema.optional` or `Schema.NullOr`.
 - `metakit/domain`: `Money`, `Decimal`, `CalendarDay`, `OrderedEnum`, `Domain`
 - `metakit/aggregates`: `sum`, `count`, `min`, `max`, `every`, `any`
-- `metakit/machine`: `make`, `Machine`, `MessageOf`, `EmitOf`
-- `metakit/inspect`: `fieldSpecs`, `toJsonSchema`, `affordances`. A field spec keeps one bound per side, the tightest whichever order the checks were declared, and says whether the key is `optional`. `toJsonSchema` gives an array its `items` and a nested struct its `properties`, claims no `type` for a field whose shape it cannot read, and lists only non-optional keys in `required`. A `CalendarDay` travels as an integer, so it carries `x-metakit-domain` and no `format`.
+- `metakit/machine`: `make`, `Machine`, `MessageOf`, `EmitOf`. A machine's `affordances(state)` sorts its transitions into `available`, `disabled` and `pending` (the guard still needs its input); `dispatch` and `canDispatch` refuse a tag that names no transition.
+- `metakit/inspect`: `fieldSpecs`, `toJsonSchema`. A nullable enum lists `null` in its `enum`. A field spec keeps one bound per side, the tightest whichever order the checks were declared, and says whether the key is `optional`. `toJsonSchema` gives an array its `items` and a nested struct its `properties`, claims no `type` for a field whose shape it cannot read, and lists only non-optional keys in `required`. A `CalendarDay` travels as an integer, so it carries `x-metakit-domain` and no `format`.
 - `metakit/graph`: `analyze`, `pruneStatic`, `queryReadiness`
 - `metakit/sql`: `toCheck`, `toWhere`, `toUpdate`, `SqlUnsupportedError`
 - `metakit/drizzle`: `toCheck`, `toWhere`, `toUpdate`
-- `metakit/policy`: `make` builds named boolean rules over a row and a principal. `checkConsistent` looks for an unreachable rule and `checkImplication` checks whether one rule implies another.- `metakit/prove`: `invariant`, `transition`, `policy`, `machine`, `policyConsistent`, `policyImplies`. The last two accept policy definitions from `metakit/policy` or `Guards.check` and escalate undecided checks to Z3.
+- `metakit/policy`: `make` builds named boolean rules over a row and a principal. `checkConsistent` looks for an unreachable rule and `checkImplication` checks whether one rule implies another.
+- `metakit/prove`: `invariant`, `transition`, `policy`, `machine`, `policyConsistent`, `policyImplies`. The last two accept policy definitions from `metakit/policy` or `Guards.check` and escalate undecided checks to Z3.
 - `metakit/conformance`: `checkOpSoundness`, `checkResidualizeSoundness`
 
 ## See also

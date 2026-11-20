@@ -104,18 +104,25 @@ export const make = <
     footprints[tag] = Transition.footprint(tr as Transition.Transition<State, never, unknown>)
   }
 
-  const dispatch: Machine<State, Transitions>['dispatch'] = (state, message) => {
-    const tr = config.transitions[message._tag] as
-      | Transition.Transition<State, unknown, unknown>
-      | undefined
-    if (tr === undefined) {
-      return Result.fail(new Transition.Refused({ reason: `unknown message "${message._tag}"` }))
-    }
-    return Transition.step(tr, state, message.input) as Result.Result<
-      { readonly state: State; readonly emit: Option.Option<EmitOf<Transitions>> },
-      Transition.Refused
-    >
-  }
+  // A tag may come from outside the types (an agent's tool call): `constructor`
+  // names a member of `Object.prototype`, not a transition.
+  const transitionOf = (
+    tag: string,
+  ): Option.Option<Transition.Transition<State, unknown, unknown>> =>
+    Object.hasOwn(config.transitions, tag)
+      ? Option.some(config.transitions[tag] as Transition.Transition<State, unknown, unknown>)
+      : Option.none()
+
+  const dispatch: Machine<State, Transitions>['dispatch'] = (state, message) =>
+    Option.match(transitionOf(message._tag), {
+      onNone: () =>
+        Result.fail(new Transition.Refused({ reason: `unknown message "${message._tag}"` })),
+      onSome: tr =>
+        Transition.step(tr, state, message.input) as Result.Result<
+          { readonly state: State; readonly emit: Option.Option<EmitOf<Transitions>> },
+          Transition.Refused
+        >,
+    })
 
   const update: Machine<State, Transitions>['update'] = (state, message) => {
     const res = dispatch(state, message)
@@ -124,10 +131,11 @@ export const make = <
       : ([state, Option.none()] as const)
   }
 
-  const canDispatch: Machine<State, Transitions>['canDispatch'] = (tag, partial) => {
-    const tr = config.transitions[tag] as Transition.Transition<State, unknown, unknown>
-    return Transition.can(tr, partial as never)
-  }
+  const canDispatch: Machine<State, Transitions>['canDispatch'] = (tag, partial) =>
+    Option.match(transitionOf(tag), {
+      onNone: () => Verdict.False(),
+      onSome: tr => Transition.can(tr, partial as never),
+    })
 
   const affordances: Machine<State, Transitions>['affordances'] = state => {
     const available: Array<keyof Transitions & string> = []

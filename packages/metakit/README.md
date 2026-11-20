@@ -125,7 +125,7 @@ REFUTED Withdraw [PIN BROKEN]
 | `metakit/domain` | Browser / server | Currency-safe `Money`, fixed-scale `Decimal` (half-even rounding), timezone-free `CalendarDay`, `OrderedEnum`, and `Domain.domainOf`. |
 | `metakit/aggregates` | Browser / server | `Rows.sum`, `Rows.count` (O(1) group deltas) and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any` (semilattice). |
 | `metakit/machine` | Browser / server | Declarative state machine (`dispatch`, TEA `update`, `canDispatch`, `affordances`, `footprints`). |
-| `metakit/inspect` | Browser / server | Form `fieldSpecs`, enriched `toJsonSchema`, and `affordances` without duplicating an interpreter. |
+| `metakit/inspect` | Browser / server | Form `fieldSpecs` and an enriched `toJsonSchema`, read straight off the Schema. |
 | `metakit/graph` | Build / SSR / planner | Static `Graph.analyze` (`affectedBy`, `deadBindings`), SSR `Graph.pruneStatic`, and `Graph.queryReadiness`. |
 | `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` for Postgres and SQLite with NULL-safe equality. |
 | `metakit/drizzle` | Server (optional `drizzle-orm`) | `Drizzle.toCheck`, `Drizzle.toWhere`, `Drizzle.toUpdate` returning Drizzle `SQL` ASTs. |
