@@ -120,7 +120,7 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'num.add': lowerBinary('+'),
   'num.sub': lowerBinary('-'),
   'num.mul': lowerBinary('*'),
-  'num.neg': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(-${inner})`),
+  'num.neg': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(- ${inner})`),
 }
 
 const lowerNodeWith = (

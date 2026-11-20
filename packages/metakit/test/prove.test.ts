@@ -208,11 +208,19 @@ describe('metakit/prove (Tier 3 Zone -> Tier 4 Z3 escalation)', () => {
     const pinBroken = await Effect.runPromise(
       Prove.machine(OpaqueMachine, {
         pin: ['CustomOpaque'],
-        allowUnknown: { CustomOpaque: 'verified by external ledger' },
+        strict: false,
       }),
     )
     expect(pinBroken.ok).toBe(false)
     expect(pinBroken.entries.find(e => e.tag === 'CustomOpaque')?.pinBroken).toBe(true)
+
+    // Contradictory pin + allowUnknown for the same transition throws immediately
+    expect(() =>
+      Prove.machine(OpaqueMachine, {
+        pin: ['CustomOpaque'],
+        allowUnknown: { CustomOpaque: 'verified by external ledger' },
+      }),
+    ).toThrow(/both pin and allowUnknown/)
 
     // Blank allowUnknown reason throws immediately
     expect(() => Prove.machine(OpaqueMachine, { allowUnknown: { CustomOpaque: '   ' } })).toThrow(

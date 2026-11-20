@@ -168,5 +168,26 @@ describe('metakit/domain', () => {
     // Broken rule over Match is NOT proved True
     const broken = Expr.implies(OrderStatus.gte($.status, 'pending'), Eq.is($.status, 'paid'))
     expect(Verdict.isTrue(Abstract.checkInvariant(Booking, broken))).toBe(false)
+
+    // Soundness: nullable enum MUST NOT drop the `null` branch during Match case-splitting
+    const NullablePlan = Schema.Struct({
+      tier: Schema.NullOr(Schema.Literals(['free', 'pro'])),
+    })
+    const $np = Path.forSchema(NullablePlan)
+    const missingNullArm = Expr.match(
+      $np.tier as unknown as Path.Path<typeof NullablePlan.Type, 'free' | 'pro'>,
+      {
+        free: 0,
+        pro: 29,
+      },
+    )
+    expect(Verdict.isTrue(Abstract.checkInvariant(NullablePlan, Ord.gte(missingNullArm, 0)))).toBe(
+      false,
+    )
+    // With `otherwise`, the null branch IS covered and Tier 3 proves it soundly
+    const coveredNullArm = Expr.matchOrElse($np.tier, { free: 0, pro: 29 }, 10)
+    expect(Verdict.isTrue(Abstract.checkInvariant(NullablePlan, Ord.gte(coveredNullArm, 0)))).toBe(
+      true,
+    )
   }, 30_000)
 })

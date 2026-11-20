@@ -9,10 +9,12 @@ const zone = '../src/abstract/zone.ts'
 const sql = '../src/sql.ts'
 const prove = '../src/prove.ts'
 const graph = '../src/graph.ts'
+const check = '../src/abstract/check.ts'
 const coreTests = ['packages/metakit/test/core.test.ts']
 const sqlTests = ['packages/metakit/test/sql.test.ts']
 const proveTests = ['packages/metakit/test/prove.test.ts']
 const graphTests = ['packages/metakit/test/graph.test.ts']
+const domainTests = ['packages/metakit/test/domain.test.ts']
 
 export default [
   {
@@ -124,5 +126,16 @@ export default [
       },
     ],
     tests: graphTests,
+  },
+  {
+    name: 'AbstractState.matchCandidates drops null branch on nullable enum',
+    edits: [
+      {
+        file: check,
+        find: '[...info.literals.value, null]',
+        replace: 'info.literals.value',
+      },
+    ],
+    tests: domainTests,
   },
 ]

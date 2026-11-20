@@ -1,5 +1,6 @@
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import { Eq, Expr, Num, Path, Transition } from 'metakit'
+import * as Graph from 'metakit/graph'
 import * as Machine from 'metakit/machine'
 import * as Prove from 'metakit/prove'
 
@@ -116,3 +117,39 @@ void Prove.machine(AccountMachine, {
   // @ts-expect-error 'Typo' is not a transition name on AccountMachine
   allowUnknown: { Typo: 'unknown transition' },
 })
+
+// 10. Prove.machine preserves exact literal transition tag union on report.entries
+const reportEffect = Prove.machine(AccountMachine, { pin: ['Deposit'] })
+void Effect.map(reportEffect, report =>
+  report.entries.map(e => {
+    const okTag: 'Deposit' = e.tag
+    // @ts-expect-error 'Typo' is not comparable to 'Deposit'
+    const badCheck = e.tag === 'Typo'
+    return [okTag, badCheck] as const
+  }),
+)
+
+// 11. Graph.pruneStatic preserves Env even when mixed with Expr.lit and types liveBindings as Expr (not Path)
+const $acct = Path.from(Account)
+const pruned = Graph.pruneStatic(
+  {
+    constant: Expr.lit(1),
+    balance: $acct.balance,
+  },
+  {
+    status: 'open',
+  },
+)
+// @ts-expect-error residualized liveBindings are Expr, not Path (no .segments)
+void pruned.liveBindings.balance?.segments
+
+Graph.pruneStatic(
+  {
+    constant: Expr.lit(1),
+    balance: $acct.balance,
+  },
+  {
+    // @ts-expect-error 'typo' is not a field on Account (Expr.lit must not collapse Env to unknown)
+    typo: 123,
+  },
+)

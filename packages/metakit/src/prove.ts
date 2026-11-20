@@ -536,8 +536,8 @@ export interface WitnessReport {
   readonly reproducer: string
 }
 
-export interface MachineProofEntry {
-  readonly tag: string
+export interface MachineProofEntry<Tag extends string = string> {
+  readonly tag: Tag
   readonly status: 'proved' | 'refuted' | 'undecided'
   readonly pinned: boolean
   readonly pinBroken: boolean
@@ -546,9 +546,9 @@ export interface MachineProofEntry {
   readonly witness: Option.Option<WitnessReport>
 }
 
-export interface MachineProofReport {
+export interface MachineProofReport<Tag extends string = string> {
   readonly ok: boolean
-  readonly entries: ReadonlyArray<MachineProofEntry>
+  readonly entries: ReadonlyArray<MachineProofEntry<Tag>>
   /** Human-readable multi-line verification summary. */
   readonly format: () => string
 }
@@ -639,7 +639,8 @@ export const machine = <State, Transitions extends Readonly<Record<string, unkno
     readonly allowUnknown?: Readonly<Partial<Record<keyof Transitions & string, string>>>
     readonly strict?: boolean
   },
-): Effect.Effect<MachineProofReport> => {
+): Effect.Effect<MachineProofReport<keyof Transitions & string>> => {
+  type Tag = keyof Transitions & string
   const tags = new Set(Object.keys(m.transitions))
   const pinnedSet = new Set<string>()
   if (options?.pin !== undefined) {
@@ -659,6 +660,11 @@ export const machine = <State, Transitions extends Readonly<Record<string, unkno
           `[metakit] Prove.machine allowUnknown references unknown transition "${tag}"`,
         )
       }
+      if (pinnedSet.has(tag)) {
+        throw new Error(
+          `[metakit] Prove.machine transition "${tag}" cannot appear in both pin and allowUnknown`,
+        )
+      }
       if (reason.trim().length === 0) {
         throw new Error(
           `[metakit] Prove.machine allowUnknown for "${tag}" requires a non-empty reason`,
@@ -669,15 +675,16 @@ export const machine = <State, Transitions extends Readonly<Record<string, unkno
   }
   const strict = options?.strict ?? true
 
-  return Effect.promise(async () => {
-    const entries: Array<MachineProofEntry> = []
+  return Effect.gen(function* () {
+    const entries: Array<MachineProofEntry<Tag>> = []
     let ok = true
-    for (const [tag, rawTr] of Object.entries(m.transitions)) {
+    for (const [rawTag, rawTr] of Object.entries(m.transitions)) {
+      const tag = rawTag as Tag
       const tr = rawTr as Transition.Transition<State, unknown, unknown>
-      const verdict = await Effect.runPromise(transition(m.stateSchema, tr))
+      const verdict = yield* transition(m.stateSchema, tr)
       const pinned = pinnedSet.has(tag)
       const allowedReason = Option.fromUndefinedOr(allowedMap.get(tag))
-      const status: MachineProofEntry['status'] = Verdict.match(verdict, {
+      const status: MachineProofEntry<Tag>['status'] = Verdict.match(verdict, {
         True: () => 'proved',
         False: () => 'refuted',
         Unknown: () => 'undecided',

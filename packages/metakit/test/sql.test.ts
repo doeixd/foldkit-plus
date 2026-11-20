@@ -209,13 +209,14 @@ describe('metakit/sql against PGlite', () => {
       expect(sqliteWhere.success.text).not.toContain('$1')
     }
 
-    const Named = Schema.Struct({ name: Schema.String }).pipe(
-      Expr.refine($ => Eq.is($.name, "O'Brien")),
+    const Named = Schema.Struct({ name: Schema.String, delta: Schema.Int }).pipe(
+      Expr.refine($ => Expr.all(Eq.is($.name, "O'Brien"), Ord.gte($.delta, Num.neg(-5)))),
     )
     const check = Sql.toCheck(Named)
     expect(Result.isSuccess(check)).toBe(true)
     if (Result.isSuccess(check)) {
       expect(check.success).toContain("'O''Brien'")
+      expect(check.success).not.toContain('--')
     }
   })
 

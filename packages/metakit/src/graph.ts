@@ -13,14 +13,20 @@ import * as Path from './path.js'
 
 type ExprValue<E> = E extends Expr.Expr<never, infer A> ? A : unknown
 type ExprEnvOf<E> = E extends Expr.Expr<infer Env, unknown> ? Env : never
+type NonUnknown<T> = unknown extends T ? never : T
 type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
   k: infer I,
 ) => void
   ? I
   : never
-type BindingsEnv<Bindings extends Readonly<Record<string, unknown>>> = UnionToIntersection<
-  ExprEnvOf<Bindings[keyof Bindings]>
->
+type SpecificEnvs<Bindings extends Readonly<Record<string, unknown>>> = {
+  readonly [K in keyof Bindings]: NonUnknown<ExprEnvOf<Bindings[K]>>
+}[keyof Bindings]
+type BindingsEnv<Bindings extends Readonly<Record<string, unknown>>> = [
+  SpecificEnvs<Bindings>,
+] extends [never]
+  ? Readonly<Record<string, unknown>>
+  : UnionToIntersection<SpecificEnvs<Bindings>>
 
 const pathsOverlap = (a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean =>
   Path.isPrefix(a, b) || Path.isPrefix(b, a)
@@ -150,7 +156,12 @@ export interface PrunedBindings<Bindings extends Readonly<Record<string, unknown
   /** Bindings that folded completely to a literal value (including known `null`). */
   readonly staticValues: { readonly [K in keyof Bindings & string]?: ExprValue<Bindings[K]> }
   /** Residual bindings that still depend on unknown dynamic paths. */
-  readonly liveBindings: { readonly [K in keyof Bindings & string]?: Bindings[K] }
+  readonly liveBindings: {
+    readonly [K in keyof Bindings & string]?: Expr.Expr<
+      ExprEnvOf<Bindings[K]>,
+      ExprValue<Bindings[K]>
+    >
+  }
   /** Minimal `Model` paths still read by `liveBindings` (the exact SSR resume payload). */
   readonly resumePaths: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
 }

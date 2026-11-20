@@ -114,11 +114,11 @@ export const match = <
     }),
   )
 
-/** Partial literal `Match` with an explicit fallback branch. */
+/** Partial literal `Match` with an explicit fallback branch (supports nullable string unions). */
 export const matchOrElse = <
   Env,
-  K extends string,
-  const Cases extends { readonly [P in K]?: ExprInput<never, unknown> },
+  K extends string | null,
+  const Cases extends { readonly [P in Exclude<K, null>]?: ExprInput<never, unknown> },
   const Fallback extends ExprInput<never, unknown>,
 >(
   on: ExprType<Env, K>,

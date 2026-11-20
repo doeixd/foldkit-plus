@@ -159,8 +159,17 @@ const collectFieldsFromAst = (
     return
   }
   if (SchemaAST.isUnion(ast)) {
-    const hasNull = ast.types.some(SchemaAST.isNull)
-    const nonNull = ast.types.filter(t => !SchemaAST.isNull(t))
+    const flatMembers: Array<SchemaAST.AST> = []
+    const collectUnion = (u: SchemaAST.AST): void => {
+      if (SchemaAST.isUnion(u)) {
+        for (const t of u.types) collectUnion(t)
+      } else {
+        flatMembers.push(u)
+      }
+    }
+    collectUnion(ast)
+    const hasNull = flatMembers.some(SchemaAST.isNull)
+    const nonNull = flatMembers.filter(t => !SchemaAST.isNull(t))
     if (hasNull && nonNull.length === 1) {
       const inner = nonNull[0]!
       if (SchemaAST.isNumber(inner)) {
@@ -169,8 +178,10 @@ const collectFieldsFromAst = (
         fields.set(key, innerInfo)
         return
       }
-      fields.set(key, { ...info, nullable: true })
-      return
+      if (SchemaAST.isBoolean(inner)) {
+        fields.set(key, { ...info, nullable: true, literals: Option.some([true, false]) })
+        return
+      }
     }
     const lits: Array<string | number | boolean> = []
     let allLit = true
@@ -471,6 +482,24 @@ export class AbstractState {
     return node.otherwise
   }
 
+  /**
+   * Finite candidate values for a `Path` field, including `null` whenever the
+   * field is nullable (so case-splitting is sound for `Schema.NullOr(Literals)`).
+   */
+  private matchCandidates(
+    pk: string,
+  ): Option.Option<ReadonlyArray<string | number | boolean | null>> {
+    const info = this.fields.get(pk)
+    if (info === undefined || Option.isNone(info.literals)) return Option.none()
+    const excluded = this.neqFacts.get(pk)
+    const domain: ReadonlyArray<string | number | boolean | null> = info.nullable
+      ? [...info.literals.value, null]
+      : info.literals.value
+    const candidates = excluded === undefined ? domain : domain.filter(v => !excluded.has(v))
+    if (candidates.length === 0 || candidates.length > MAX_SPLITS) return Option.none()
+    return Option.some(candidates)
+  }
+
   private evalMatchInterval(node: Node.Match): Interval.Interval {
     if (Node.$is('Lit')(node.on)) {
       return Option.match(this.resolveMatchArm(node, node.on.value), {
@@ -486,16 +515,10 @@ export class AbstractState {
           onSome: arm => this.evalInterval(arm),
         })
       }
-      const info = this.fields.get(pk)
-      if (
-        info !== undefined &&
-        Option.isSome(info.literals) &&
-        info.literals.value.length <= MAX_SPLITS
-      ) {
-        const excluded = this.neqFacts.get(pk)
+      const candidates = this.matchCandidates(pk)
+      if (Option.isSome(candidates)) {
         let acc = Interval.bottom
-        for (const lit of info.literals.value) {
-          if (excluded?.has(lit)) continue
+        for (const lit of candidates.value) {
           const arm = this.resolveMatchArm(node, lit)
           if (Option.isNone(arm)) return Interval.top
           const branch = this.clone()
@@ -537,14 +560,7 @@ export class AbstractState {
       Match: ({ on, cases, otherwise }) => {
         if (Node.$is('Path')(on)) {
           const pk = Path.format(on.segments)
-          const info = this.fields.get(pk)
-          if (
-            !this.eqFacts.has(pk) &&
-            info !== undefined &&
-            Option.isSome(info.literals) &&
-            info.literals.value.length > 0 &&
-            info.literals.value.length <= MAX_SPLITS
-          ) {
+          if (!this.eqFacts.has(pk) && Option.isSome(this.matchCandidates(pk))) {
             return Option.some(pk)
           }
         }
@@ -718,19 +734,17 @@ export class AbstractState {
       const splitPk = this.findSplittableMatchPath(goal)
       if (Option.isSome(splitPk)) {
         const pk = splitPk.value
-        const lits = this.fields.get(pk)!.literals as Option.Some<
-          ReadonlyArray<string | number | boolean>
-        >
-        const excluded = this.neqFacts.get(pk)
-        let acc: Verdict.Verdict<never> = Verdict.True(Option.some(Verdict.Proved('zone')))
-        for (const lit of lits.value) {
-          if (excluded?.has(lit)) continue
-          const branch = this.clone()
-          branch.eqFacts.set(pk, lit)
-          acc = Verdict.and(acc, branch.entails(goal, splitsLeft - 1))
-          if (Verdict.isFalse(acc)) return acc
+        const candidates = this.matchCandidates(pk)
+        if (Option.isSome(candidates)) {
+          let acc: Verdict.Verdict<never> = Verdict.True(Option.some(Verdict.Proved('zone')))
+          for (const lit of candidates.value) {
+            const branch = this.clone()
+            branch.eqFacts.set(pk, lit)
+            acc = Verdict.and(acc, branch.entails(goal, splitsLeft - 1))
+            if (Verdict.isFalse(acc)) return acc
+          }
+          return acc
         }
-        return acc
       }
     }
     return this.pendingOrs.length > 0 ? Verdict.Unknown('disjunction split budget reached') : direct
@@ -769,7 +783,7 @@ export class AbstractState {
       if (Node.$is('Lit')(goal.on)) {
         return Option.match(this.resolveMatchArm(goal, goal.on.value), {
           onNone: () => Verdict.Unknown('match arm missing'),
-          onSome: arm => this.entailsAtomic(arm),
+          onSome: arm => this.entails(arm, 0),
         })
       }
       if (Node.$is('Path')(goal.on)) {
@@ -777,7 +791,7 @@ export class AbstractState {
         if (this.eqFacts.has(pk)) {
           return Option.match(this.resolveMatchArm(goal, this.eqFacts.get(pk)), {
             onNone: () => Verdict.Unknown('match arm missing'),
-            onSome: arm => this.entailsAtomic(arm),
+            onSome: arm => this.entails(arm, 0),
           })
         }
       }

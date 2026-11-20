@@ -40,7 +40,7 @@ const inlineSqlLiteral = (value: unknown): Result.Result<SQL, SqlUnsupportedErro
         }),
       )
     }
-    return Result.succeed(sql.raw(String(value)))
+    return Result.succeed(sql.raw(Object.is(value, -0) ? '0' : String(value)))
   }
   if (typeof value === 'string') {
     return Result.succeed(sql.raw(`'${value.replace(/'/g, "''")}'`))
@@ -103,7 +103,7 @@ export const drizzleOps: Readonly<Record<Node.CoreOpId, DrizzleLowerer>> = {
   'num.add': binary('+'),
   'num.sub': binary('-'),
   'num.mul': binary('*'),
-  'num.neg': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => sql`(-${inner})`),
+  'num.neg': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => sql`(- ${inner})`),
 }
 
 const lowerDrizzleNode = (
