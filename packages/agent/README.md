@@ -297,6 +297,7 @@ const markdownDocs = Agent.toMarkdown(AppAgent)
 - **UI parts:** `Agent.part`, `Agent.parts`, `Agent.Found`
 - **Runtime hosts:** `Agent.host`, `Agent.headless`, `Agent.bind`
 - **Introspection and audit:** `Agent.messages`, `Agent.resources`, `Agent.schema`, `Agent.contextSchema`, `Agent.toManifest`, `Agent.toMarkdown`, `Agent.auditLog`, `Agent.summarize`, `Agent.newInvocationId`
+- **State machines (`foldkit-agent/metakit`):** `machineTools`, which makes a variant for `Agent.expose` from each transition of a metakit `Machine`
 
 ## Why capabilities are Messages and hosts wrap config
 
@@ -306,6 +307,7 @@ const markdownDocs = Agent.toMarkdown(AppAgent)
 
 ## Next
 
+- Rules already written as a metakit state machine? Make each transition a tool, offered only while its guard allows it: [Let an agent call your state machine's transitions](./docs/machine-tools.md)
 - Serve the contract over stdio or HTTP MCP: [`foldkit-agent-mcp`](../agent-mcp)
 - Publish tools in the browser with WebMCP: [`foldkit-agent-webmcp`](../agent-webmcp)
 - Serve A2A tasks or Agent Native actions: [`foldkit-agent-a2a`](../agent-a2a), [`foldkit-agent-native`](../agent-native)
