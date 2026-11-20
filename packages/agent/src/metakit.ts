@@ -71,7 +71,10 @@ export type MachineTools<Transitions, Model, Principal> = {
 /** The keywords metakit adds that Effect's JSON Schema derivation cannot see. */
 const ADDED_KEYWORDS = ['enum', 'format', 'x-metakit-domain'] as const
 
-/** Bounds from both sources are kept at the tighter of the two. */
+/**
+ * Bounds from both sources are kept at the tighter of the two: metakit does
+ * not see every Effect check, such as the safe-integer range of `Schema.Int`.
+ */
 const LOWER_BOUNDS = ['minimum', 'exclusiveMinimum'] as const
 const UPPER_BOUNDS = ['maximum', 'exclusiveMaximum'] as const
 
@@ -80,9 +83,7 @@ const tighter = (
   declared: unknown,
   pick: (a: number, b: number) => number,
 ): unknown =>
-  typeof derived === 'number' && typeof declared === 'number'
-    ? pick(derived, declared)
-    : (declared ?? derived)
+  typeof derived === 'number' && typeof declared === 'number' ? pick(derived, declared) : declared
 
 /** One property's derived schema, with metakit's constraints for the same field added. */
 const constrained = (

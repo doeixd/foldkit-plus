@@ -2,7 +2,9 @@
  * `foldkit-agent/metakit`: a metakit Machine's transitions as capabilities,
  * their schema, availability and refusals all read from the transition.
  */
-import { Effect, Option } from 'effect'
+import { Effect, Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Expr, Num, Transition } from 'metakit'
 import { Money } from 'metakit/domain'
 import * as Machine from 'metakit/machine'
 import { describe, expect, it } from 'vitest'
@@ -100,6 +102,28 @@ describe('the parameter schema', () => {
       additionalProperties: false,
     })
     expect(withdraw.inputJsonSchema['properties']).toHaveProperty('memo')
+  })
+
+  it('keeps each bound at the tighter of Effect and metakit', () => {
+    const Limit = Machine.make({
+      state: Account,
+      transitions: {
+        Limit: Transition.make({
+          state: Account,
+          input: Schema.Struct({
+            count: Schema.Int.pipe(Expr.refine($ => Expr.all(Num.gte($, 1), Num.lte($, 1e20)))),
+          }),
+          apply: () => [],
+        }),
+      },
+    })
+    const tools = machineTools({ agent: BankAgent, machine: Limit, state: model => model.account })
+    const [variant] = BankAgent.expose(defineMessageUnion({ Limit: { count: Schema.Int } }), {
+      Limit: tools.Limit('Set the limit'),
+    }).variants
+    expect(variant!.inputJsonSchema['properties']).toEqual({
+      count: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+    })
   })
 
   it('is what adapters are handed', () => {
