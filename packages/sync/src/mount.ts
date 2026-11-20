@@ -2,7 +2,8 @@
  * `Sync.mount`: runs a Foldkit application over a replica with one reducer.
  *
  * A durable Message is a state-only, deterministic transition of the shared
- * projection. The derived replay enforces that it writes nothing else and the mount, with
+ * projection. A declared transition runs on the projection directly. For other durable
+ * Messages, derived replay enforces that update writes nothing else and the mount, with
  * `Closure.reads`, that it reads nothing else, so the application's own `update` is
  * applied at once and the Message is persisted afterwards in a Command. The
  * shared slice is re-installed from the replica when an exchange changes it or
@@ -469,9 +470,23 @@ export const mount = <
     message: Message & Tagged,
   ): Update.Return<Model, RuntimeMessage, Resources> => {
     notifyEach(messageListeners, message)
-    const result = app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>
-    if (!durable.has(message._tag)) return result
-    const outside = readsOutside(model, message)
+    if (!durable.has(message._tag))
+      return app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>
+    const declared = sync.footprints !== undefined && Object.hasOwn(sync.footprints, message._tag)
+    let result: Update.Return<Model, RuntimeMessage, Resources>
+    if (declared) {
+      const before = sync.projection.get(model)
+      try {
+        const after = sync.replay(before, message)
+        result = { model: after === before ? model : sync.projection.set(model, after) }
+      } catch {
+        // Submit reports the refusal through the ordinary persistence-failure path.
+        result = { model }
+      }
+    } else {
+      result = app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>
+    }
+    const outside = declared ? [] : readsOutside(model, message)
     if (outside.length > 0) {
       // Not applied and not submitted: every other replica and the server replay this Message over
       // the slice alone, so the slice shown here would be one that none of them ever holds.

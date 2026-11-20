@@ -18,7 +18,7 @@ import {
   type Journal as JournalShape,
 } from 'foldkit-durable'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { Arr, Num, Path } from 'metakit'
+import { Arr, Num, Path, Transition } from 'metakit'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   Sync,
@@ -175,6 +175,29 @@ const count = (journal: TodosJournal) =>
   run(journal.load(key)).then(loaded => loaded.snapshot.todos.length)
 
 describe('a law', () => {
+  it('rejects an unreachable transition and a transition that breaks an expression law', () => {
+    const state = Schema.Struct({ model: options.shared.schema })
+    const input = Message.CreatedTodo
+    const rule = { holds: Num.lte(Arr.count(model.todos), 0), message: 'Must stay empty' }
+    const make = (transition: Transition.Transition<typeof state.Type, typeof input.Type>) =>
+      Sync.forApplication(App).make({
+        ...options,
+        laws: { empty: rule },
+        transitions: { CreatedTodo: transition },
+      })
+    expect(() =>
+      make(Transition.make({ state, input, when: () => false, apply: () => [] })),
+    ).toThrow('unreachable guard')
+    expect(() =>
+      make(
+        Transition.make({
+          state,
+          input,
+          apply: ({ state }) => [Transition.set(state.model.todos, [{ id: '1', title: 'one' }])],
+        }),
+      ),
+    ).toThrow('violates a shared-state invariant')
+  })
   it('refuses at 100 every durable Message that grows the list, as Invalid naming the law', async () => {
     const journal = openJournal(Capped)
     await fill(journal, 100)

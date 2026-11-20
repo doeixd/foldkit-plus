@@ -4,8 +4,8 @@
  * into the low-level `defineSync` contract, and exposes a read-only Surface over
  * the same projection.
  */
-import { Equal, Option, Predicate, Schema } from 'effect'
-import { Expr } from 'metakit'
+import { Equal, Option, Predicate, Result, Schema } from 'effect'
+import { Abstract, Bool, Expr, Transition, Verdict } from 'metakit'
 import {
   MessageSet,
   Projection,
@@ -185,8 +185,15 @@ interface BaseOptions<
   readonly documentId: DocumentId
   /** Name for the generated `surface`; defaults to the document id. */
   readonly name?: string
+  /** Per-tag shared-state reducers. A declared transition runs during live updates and replay. */
+  readonly transitions?: {
+    readonly [K in TagOf<Ms[number] | SMs[number]>]?: Transition.Transition<
+      { readonly model: Schema.Struct.Type<NoInfer<Fields>> },
+      Extract<MsgOf<Ms> | ServerMsgOf<SMs>, { readonly _tag: K }>
+    >
+  }
   /**
-   * Replaces the replay derived from the application's `update`. It is a pure
+   * Replaces the replay derived from the application's `update` for tags without a declared transition. It is a pure
    * reducer over the shared subset; only durable and server-only Messages reach
    * it, and it runs during admission, replay, and optimistic projection. It is
    * not guarded: the author owns its agreement with `update`.
@@ -288,7 +295,11 @@ export interface DefinedSync<
 > extends Sync<Message, Schema.Struct.Type<Fields>, MsgOf<Ms>> {
   readonly surface: Surface<AppModel, Schema.Struct.Type<Fields>, MsgOf<Ms>, void>
   readonly projection: WritableProjection<AppModel, Fields>
-  /** The reducer the replica replays durable Messages with: derived from `update`, or `make`'s `replay`. */
+  /** Static paths of the transitions this document executes, keyed by durable or server-only tag. */
+  readonly footprints?: Readonly<
+    Partial<Record<TagOf<Ms[number] | SMs[number]>, ReturnType<typeof Transition.footprint>>>
+  >
+  /** Replays a declared transition, falling back to the custom replay or the application's update. */
   readonly replay: (
     shared: Schema.Struct.Type<Fields>,
     message: Message,
@@ -568,7 +579,7 @@ const build = <
     if (serverOnly !== undefined && serverOnly.owner !== app.owner)
       throw new Error('Sync.make: the server-only subset belongs to a different application')
 
-    const replay: (value: Shared, message: Message) => Shared =
+    const fallbackReplay: (value: Shared, message: Message) => Shared =
       options.replay === undefined
         ? derivedReplay(app, shared)
         : // `durable` has already rejected anything outside the declared subset.
@@ -584,6 +595,59 @@ const build = <
     // `AppScope` does not constrain its schemas' services; a Foldkit Message union
     // and a Struct are pure, so the low-level contract's `never` is satisfied.
     const sharedCodec = shared.schema as unknown as Schema.Codec<Shared, unknown>
+    const transitions = new Map<
+      string,
+      Transition.Transition<{ readonly model: Shared }, Message>
+    >()
+    const footprints: Record<string, ReturnType<typeof Transition.footprint>> = Object.create(null)
+    if (options.transitions !== undefined) {
+      const inputs = new Map(
+        [...durable.constructors, ...(serverOnly?.constructors ?? [])].map(
+          constructor =>
+            [messageTag(constructor), constructor as unknown as Schema.Codec<Message>] as const,
+        ),
+      )
+      const expressions = Object.values(options.laws ?? {})
+        .map(law => law.holds)
+        .filter(
+          (law): law is Expr.Expr<{ readonly model: Shared }, boolean> => typeof law !== 'function',
+        )
+      const state = Schema.Struct({ model: sharedCodec }).pipe(
+        Expr.refine(() => Expr.all(...expressions)),
+      )
+      for (const [tag, transition] of Object.entries(options.transitions) as Array<
+        [string, Transition.Transition<{ readonly model: Shared }, Message>]
+      >) {
+        const input = inputs.get(tag)
+        if (input === undefined) throw new Error(`Sync.make: "${tag}" is not a recorded Message`)
+        if (Option.isSome(transition.emits))
+          throw new Error(`Sync.make: "${tag}" emits a Command; durable transitions are state-only`)
+        const environment = Schema.Struct({ state, input })
+        if (Verdict.isTrue(Abstract.checkInvariant(environment, Bool.not(transition.when)))) {
+          throw new Error(`Sync.make: "${tag}" has an unreachable guard`)
+        }
+        if (
+          Verdict.isFalse(
+            Abstract.checkTransition(state, { ...transition, inputSchema: Option.some(input) }),
+          )
+        ) {
+          throw new Error(`Sync.make: "${tag}" violates a shared-state invariant`)
+        }
+        transitions.set(tag, transition)
+        footprints[tag] = Transition.footprint(transition)
+      }
+    }
+    const replay =
+      transitions.size === 0
+        ? fallbackReplay
+        : (value: Shared, message: Message): Shared => {
+            const tag = tagOf(message)
+            const transition = Option.isSome(tag) ? transitions.get(tag.value) : undefined
+            if (transition === undefined) return fallbackReplay(value, message)
+            const result = Transition.run(transition, { model: value }, message)
+            if (Result.isFailure(result)) throw new Error(result.failure.reason)
+            return result.success.model
+          }
     const stamps = options.stamp as
       | Record<string, (message: Message, commit: CommitStamp) => Message>
       | undefined
@@ -668,6 +732,7 @@ const build = <
       journalContract,
       surface,
       projection: shared,
+      ...(transitions.size === 0 ? {} : { footprints: Object.freeze(footprints) }),
       replay,
       messages: durable.constructors,
       serverOnlyMessages: serverOnly?.constructors ?? [],

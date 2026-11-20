@@ -4,7 +4,8 @@ import { Agent } from 'foldkit-agent'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Command from 'foldkit/command'
 import type * as Update from 'foldkit/update'
-import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { Closure, MessageSet, Projection, Surface } from 'foldkit-surface'
+import { Transition } from 'metakit'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   documentId,
@@ -221,6 +222,46 @@ describe('Sync.mount', () => {
     await vi.waitFor(() => expect(text()).toContain('Selection: a'))
     expect(pending(replica)).toHaveLength(1)
     expect(app.model().selectedTodoId).toBe('a')
+  })
+
+  it('applies a declared transition in the mount and replica without perturbing update', async () => {
+    const shared = Projection.pick(App.model.todos)
+    const replacement = [{ id: 'declared', title: 'From the transition' }]
+    const sync = forApplication(App).make({
+      documentId: documentId('declarative'),
+      shared,
+      durable: MessageSet.make(App, [Message.CreatedTodo]),
+      transitions: {
+        CreatedTodo: Transition.make({
+          state: Schema.Struct({ model: shared.schema }),
+          input: Message.CreatedTodo,
+          apply: ({ state }) => [Transition.set(state.model.todos, replacement)],
+        }),
+      },
+    })
+    const reads = vi.spyOn(Closure, 'reads')
+    try {
+      replica = await Effect.runPromise(
+        sync.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
+      )
+      mounted = mount(App, sync, {
+        replica,
+        container,
+        view: (model, h) => ({
+          title: 'todos',
+          body: h.div([], [model.todos[0]?.title ?? 'empty']),
+        }),
+      })
+      mounted.dispatch(Message.CreatedTodo({ id: 'app', title: 'From update' }))
+      await mounted.settled()
+      await vi.waitFor(() => expect(text()).toContain('From the transition'))
+      expect(Effect.runSync(replica.snapshot).shared.todos).toEqual(replacement)
+      expect(pending(replica)).toHaveLength(1)
+      expect(reads).not.toHaveBeenCalled()
+      expect(sync.footprints?.CreatedTodo?.writes).toEqual([['model', 'todos']])
+    } finally {
+      reads.mockRestore()
+    }
   })
 
   it('dispatches a Message as its type is, though its fields encode otherwise', async () => {

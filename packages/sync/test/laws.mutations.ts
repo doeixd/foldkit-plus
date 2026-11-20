@@ -7,6 +7,35 @@ const tests = ['packages/sync/test/laws.test.ts']
 
 export default [
   {
+    name: 'declared transitions also perturb the app reducer',
+    edits: [
+      {
+        file: '../src/mount.ts',
+        find: 'declared ? [] : readsOutside(model, message)',
+        replace: 'readsOutside(model, message)',
+      },
+    ],
+    tests: ['packages/sync/test/mount.test.ts'],
+  },
+  {
+    name: 'a dead transition is accepted',
+    edits: [
+      {
+        file: '../src/make.ts',
+        find: 'Verdict.isTrue(Abstract.checkInvariant(environment, Bool.not(transition.when)))',
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a transition that breaks an invariant is accepted',
+    edits: [
+      { file: '../src/make.ts', find: 'Verdict.isFalse(', replace: 'false && Verdict.isFalse(' },
+    ],
+    tests,
+  },
+  {
     name: 'an expression law judges the previous snapshot',
     edits: [
       {

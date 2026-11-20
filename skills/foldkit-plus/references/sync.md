@@ -294,6 +294,14 @@ const Capped = forApplication(App).make({
 The expression sees the proposed shared snapshot as `model`. Use a
 `holds({ before, after })` callback when the rule needs the previous snapshot too.
 
+To replay an edit from a single declaration, put a metakit `Transition.make`
+under its Message tag in `make({ transitions })`. Use `Schema.Struct({ model:
+shared.schema })` for its state and the Message variant for its input. The mount
+applies it to the shared projection, and the journal uses it for replay. Tags
+without a declaration follow the existing reducer. At definition time, `make`
+rejects a guard it proves unreachable or a transition it finds violates a
+shared-state invariant. The journal still checks each document law on admission.
+
 The journal judges every operation after `reduce` (`journalContract()` carries
 `judge`), `appendAsServer` and reactions included; a broken law is
 `OperationRejectedError` with `rule`, sent as `Invalid` with the law's id, and

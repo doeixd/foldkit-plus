@@ -5,7 +5,7 @@
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { Eq, Path } from 'metakit'
+import { Eq, Path, Transition } from 'metakit'
 import { documentId, forApplication, type DeclaredLaw } from '../src/index.js'
 import { reaction } from '../src/journal.js'
 
@@ -30,6 +30,16 @@ const Capped = forApplication(App).make({
   },
 })
 const { model } = Path.forEnv({ model: Model })
+const needsCount = Transition.make({
+  state: Schema.Struct({ model: options.shared.schema }),
+  input: Schema.Struct({ count: Schema.Int }),
+  apply: () => [],
+})
+forApplication(App).make({
+  ...options,
+  // @ts-expect-error CreatedTodo carries an id, so a transition cannot require a count
+  transitions: { CreatedTodo: needsCount },
+})
 forApplication(App).make({
   ...options,
   laws: {
