@@ -48,6 +48,11 @@
       "types": "./dist/agent.d.mts",
       "import": "./dist/agent.mjs"
     },
+    "./agent/metakit": {
+      "foldkit-plus:source": "./src/agent/metakit.ts",
+      "types": "./dist/agent/metakit.d.mts",
+      "import": "./dist/agent/metakit.mjs"
+    },
     "./agent-a2a": {
       "foldkit-plus:source": "./src/agent-a2a.ts",
       "types": "./dist/agent-a2a.d.mts",
@@ -173,6 +178,11 @@
       "types": "./dist/form.d.mts",
       "import": "./dist/form.mjs"
     },
+    "./form/metakit": {
+      "foldkit-plus:source": "./src/form/metakit.ts",
+      "types": "./dist/form/metakit.d.mts",
+      "import": "./dist/form/metakit.mjs"
+    },
     "./form-recipes/file": {
       "foldkit-plus:source": "./src/form-recipes/file.ts",
       "types": "./dist/form-recipes/file.d.mts",
@@ -277,6 +287,61 @@
       "foldkit-plus:source": "./src/metadata.ts",
       "types": "./dist/metadata.d.mts",
       "import": "./dist/metadata.mjs"
+    },
+    "./metakit": {
+      "foldkit-plus:source": "./src/metakit.ts",
+      "types": "./dist/metakit.d.mts",
+      "import": "./dist/metakit.mjs"
+    },
+    "./metakit/domain": {
+      "foldkit-plus:source": "./src/metakit/domain.ts",
+      "types": "./dist/metakit/domain.d.mts",
+      "import": "./dist/metakit/domain.mjs"
+    },
+    "./metakit/aggregates": {
+      "foldkit-plus:source": "./src/metakit/aggregates.ts",
+      "types": "./dist/metakit/aggregates.d.mts",
+      "import": "./dist/metakit/aggregates.mjs"
+    },
+    "./metakit/drizzle": {
+      "foldkit-plus:source": "./src/metakit/drizzle.ts",
+      "types": "./dist/metakit/drizzle.d.mts",
+      "import": "./dist/metakit/drizzle.mjs"
+    },
+    "./metakit/machine": {
+      "foldkit-plus:source": "./src/metakit/machine.ts",
+      "types": "./dist/metakit/machine.d.mts",
+      "import": "./dist/metakit/machine.mjs"
+    },
+    "./metakit/inspect": {
+      "foldkit-plus:source": "./src/metakit/inspect.ts",
+      "types": "./dist/metakit/inspect.d.mts",
+      "import": "./dist/metakit/inspect.mjs"
+    },
+    "./metakit/graph": {
+      "foldkit-plus:source": "./src/metakit/graph.ts",
+      "types": "./dist/metakit/graph.d.mts",
+      "import": "./dist/metakit/graph.mjs"
+    },
+    "./metakit/policy": {
+      "foldkit-plus:source": "./src/metakit/policy.ts",
+      "types": "./dist/metakit/policy.d.mts",
+      "import": "./dist/metakit/policy.mjs"
+    },
+    "./metakit/sql": {
+      "foldkit-plus:source": "./src/metakit/sql.ts",
+      "types": "./dist/metakit/sql.d.mts",
+      "import": "./dist/metakit/sql.mjs"
+    },
+    "./metakit/prove": {
+      "foldkit-plus:source": "./src/metakit/prove.ts",
+      "types": "./dist/metakit/prove.d.mts",
+      "import": "./dist/metakit/prove.mjs"
+    },
+    "./metakit/conformance": {
+      "foldkit-plus:source": "./src/metakit/conformance.ts",
+      "types": "./dist/metakit/conformance.d.mts",
+      "import": "./dist/metakit/conformance.mjs"
     },
     "./mirror": {
       "foldkit-plus:source": "./src/mirror.ts",
@@ -729,7 +794,8 @@
     "foldkit-site": "workspace:*",
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
-    "foldkit-sync": "workspace:*"
+    "foldkit-sync": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",
