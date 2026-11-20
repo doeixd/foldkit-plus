@@ -9,7 +9,7 @@
  * - `Expr.eval`, `Expr.residualize`, `Expr.judge`, `Expr.reads`, and
  *   `Expr.lift` operate on any `Expr`.
  */
-import { Option, Predicate, Schema, SchemaAST } from 'effect'
+import { Option, Predicate, Result, Schema, SchemaAST } from 'effect'
 import * as Node from './node.js'
 import * as Bool from './ops/bool.js'
 import {
@@ -18,10 +18,12 @@ import {
   wrap,
   type EnvOfInput,
   type ExprInput,
+  type NullOf,
   type UnionToIntersection,
   type ValueOfInput,
 } from './ops/core.js'
 import { evalNode } from './ops/eval.js'
+import { present } from './ops/kind.js'
 import { gtOp, gteOp, ltOp, lteOp } from './ops/ord.js'
 import { judgeNode, readsOfNode, residualizeNode } from './ops/residualize.js'
 import * as Path from './path.js'
@@ -41,48 +43,55 @@ type TupleEnv<Terms extends ReadonlyArray<ExprInput<never, unknown>>> = Terms ex
   ? unknown
   : UnionToIntersection<EnvOfInput<Terms[number]>>
 
-/** Conjunction of any number of boolean expressions (empty = `true`). */
-export const all = <const Terms extends ReadonlyArray<ExprInput<never, boolean>>>(
-  ...terms: Terms
-): ExprType<TupleEnv<Terms>, boolean> => {
-  if (terms.length === 0) return lit(true) as ExprType<TupleEnv<Terms>, boolean>
-  let acc: ExprType<never, boolean> = isExpr(terms[0]) ? terms[0] : lit(terms[0] as boolean)
-  for (let i = 1; i < terms.length; i++) {
-    acc = Bool.and(acc, terms[i]!) as ExprType<never, boolean>
-  }
-  return acc as unknown as ExprType<TupleEnv<Terms>, boolean>
+/** `terms` joined left to right by `op`, or `empty` when there are none. */
+const joined = (
+  op: Node.Op,
+  empty: boolean,
+  terms: ReadonlyArray<ExprInput<never, boolean | null>>,
+): Node.Node => {
+  const [first, ...rest] = terms.map(toNode)
+  return first === undefined
+    ? Node.Lit({ value: empty })
+    : rest.reduce((acc, term) => Node.Call({ op, args: [acc, term] }), first)
 }
 
-/** Disjunction of any number of boolean expressions (empty = `false`). */
-export const any = <const Terms extends ReadonlyArray<ExprInput<never, boolean>>>(
+/** Conjunction of any number of boolean expressions (empty = `true`). */
+export const all = <const Terms extends ReadonlyArray<ExprInput<never, boolean | null>>>(
   ...terms: Terms
-): ExprType<TupleEnv<Terms>, boolean> => {
-  if (terms.length === 0) return lit(false) as ExprType<TupleEnv<Terms>, boolean>
-  let acc: ExprType<never, boolean> = isExpr(terms[0]) ? terms[0] : lit(terms[0] as boolean)
-  for (let i = 1; i < terms.length; i++) {
-    acc = Bool.or(acc, terms[i]!) as ExprType<never, boolean>
-  }
-  return acc as unknown as ExprType<TupleEnv<Terms>, boolean>
-}
+): ExprType<TupleEnv<Terms>, boolean | NullOf<Terms[number]>> =>
+  wrap(joined(Bool.andOp, true, terms))
+
+/** Disjunction of any number of boolean expressions (empty = `false`). */
+export const any = <const Terms extends ReadonlyArray<ExprInput<never, boolean | null>>>(
+  ...terms: Terms
+): ExprType<TupleEnv<Terms>, boolean | NullOf<Terms[number]>> =>
+  wrap(joined(Bool.orOp, false, terms))
 
 /** Logical negation. */
 export const not = Bool.not
 
 /** Logical implication (`condition => then`, equivalent to `!condition || then`). */
-export const implies = <C extends ExprInput<never, boolean>, T extends ExprInput<never, boolean>>(
+export const implies = <
+  C extends ExprInput<never, boolean | null>,
+  T extends ExprInput<never, boolean | null>,
+>(
   condition: C,
   then: T,
-): ExprType<EnvOfInput<C> & EnvOfInput<T>, boolean> => Bool.or(Bool.not(condition), then)
+): ExprType<EnvOfInput<C> & EnvOfInput<T>, boolean | NullOf<C> | NullOf<T>> =>
+  wrap(Node.Call({ op: Bool.orOp, args: [Bool.not(condition).node, toNode(then)] }))
 
-/** Two-way conditional expression. */
+/** Two-way conditional expression; a null condition gives null. */
 export const when = <
-  C extends ExprInput<never, boolean>,
+  C extends ExprInput<never, boolean | null>,
   const T extends ExprInput<never, unknown>,
   const E extends ExprInput<never, unknown>,
 >(
   cond: C,
   branches: { readonly then: T; readonly else: E },
-): ExprType<EnvOfInput<C> & EnvOfInput<T> & EnvOfInput<E>, ValueOfInput<T> | ValueOfInput<E>> =>
+): ExprType<
+  EnvOfInput<C> & EnvOfInput<T> & EnvOfInput<E>,
+  ValueOfInput<T> | ValueOfInput<E> | NullOf<C>
+> =>
   wrap(
     Node.If({
       cond: toNode(cond),
@@ -91,30 +100,74 @@ export const when = <
     }),
   )
 
-/** Exhaustive literal `Match` over a string union expression. */
+/** The string literals `on` may hold, where it is a path whose Schema is a union of them. */
+const literalsOf = (on: Node.Node): Option.Option<ReadonlyArray<string>> => {
+  if (!Node.$is('Path')(on) || Option.isNone(on.ast)) return Option.none()
+  const literals: Array<string> = []
+  for (const member of present(on.ast.value)) {
+    if (!SchemaAST.isLiteral(member) || typeof member.literal !== 'string') return Option.none()
+    literals.push(member.literal)
+  }
+  return literals.length === 0 ? Option.none() : Option.some(literals)
+}
+
+/** Refuse a case the Schema of `on` cannot hold and, where `exhaustive`, a value with no case. */
+const checkCases = (
+  name: string,
+  on: Node.Node,
+  keys: ReadonlyArray<string>,
+  exhaustive: boolean,
+): void => {
+  const literals = literalsOf(on)
+  if (Option.isNone(literals)) return
+  const quote = (values: ReadonlyArray<string>): string =>
+    values.map(value => JSON.stringify(value)).join(', ')
+  const extra = keys.filter(key => !literals.value.includes(key))
+  if (extra.length > 0) {
+    throw new Error(`[metakit] Expr.${name}: ${quote(extra)} is not a value of ${showNode(on)}`)
+  }
+  const missing = exhaustive ? literals.value.filter(literal => !keys.includes(literal)) : []
+  if (missing.length > 0) {
+    throw new Error(`[metakit] Expr.${name}: no case for ${quote(missing)} of ${showNode(on)}`)
+  }
+}
+
+/**
+ * Exhaustive literal `Match` over a string union expression: one case for
+ * each value and no other, checked by the types and again where the
+ * expression is built. A null `on` gives null.
+ */
 export const match = <
   Env,
   K extends string,
   const Cases extends { readonly [P in K]: ExprInput<never, unknown> },
 >(
   on: ExprType<Env, K>,
-  cases: Cases,
+  cases: Cases & { readonly [P in Exclude<keyof Cases, K>]: never },
 ): ExprType<
   Env & UnionToIntersection<EnvOfInput<Cases[keyof Cases]>>,
   ValueOfInput<Cases[keyof Cases]>
-> =>
-  wrap(
+> => {
+  const entries = Object.entries(cases)
+  checkCases(
+    'match',
+    on.node,
+    entries.map(([value]) => value),
+    true,
+  )
+  return wrap(
     Node.Match({
       on: on.node,
-      cases: Object.entries(cases).map(([value, branch]) => [
-        value,
-        toNode(branch as ExprInput<never, unknown>),
-      ]),
+      cases: entries.map(([value, branch]) => [value, toNode(branch as ExprInput<never, unknown>)]),
       otherwise: Option.none(),
     }),
   )
+}
 
-/** Partial literal `Match` with an explicit fallback branch (supports nullable string unions). */
+/**
+ * Partial literal `Match` with an explicit fallback branch, which takes null
+ * and every value no case names.
+ */
 export const matchOrElse = <
   Env,
   K extends string | null,
@@ -129,16 +182,22 @@ export const matchOrElse = <
     UnionToIntersection<EnvOfInput<Exclude<Cases[keyof Cases], undefined>>> &
     EnvOfInput<Fallback>,
   ValueOfInput<Exclude<Cases[keyof Cases], undefined>> | ValueOfInput<Fallback>
-> =>
-  wrap(
+> => {
+  const entries = Object.entries(cases).filter(([, branch]) => branch !== undefined)
+  checkCases(
+    'matchOrElse',
+    on.node,
+    entries.map(([value]) => value),
+    false,
+  )
+  return wrap(
     Node.Match({
       on: on.node,
-      cases: Object.entries(cases)
-        .filter(([, branch]) => branch !== undefined)
-        .map(([value, branch]) => [value, toNode(branch as ExprInput<never, unknown>)]),
+      cases: entries.map(([value, branch]) => [value, toNode(branch as ExprInput<never, unknown>)]),
       otherwise: Option.some(toNode(otherwise)),
     }),
   )
+}
 
 /**
  * First-class escape hatch for arbitrary JavaScript logic.
@@ -190,7 +249,7 @@ export { inEnv as in }
  */
 export const refine =
   <S extends Schema.Top>(
-    build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], boolean>,
+    build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], boolean | null>,
     options?: { readonly message?: string },
   ) =>
   (schema: S): S['Rebuild'] => {
@@ -202,8 +261,10 @@ export const refine =
       annotations['message'] = options.message
     }
     const filter = Schema.makeFilter<S['Type']>(input => {
-      const ok = Boolean(evalNode(exprNode, input))
-      return ok ? undefined : (options?.message ?? 'Refinement failed')
+      // A rule holds only where it is true: null and a refusal do not pass.
+      return evalNode(exprNode, input) === true
+        ? undefined
+        : (options?.message ?? 'Refinement failed')
     }, annotations as Schema.Annotations.Filter)
     return schema.check(filter) as S['Rebuild']
   }
@@ -324,12 +385,37 @@ export const lift = <Outer, Inner, A>(
   expr: ExprType<Inner, A>,
 ): ExprType<Outer, A> => wrap(Node.prefix(expr.node, path.segments))
 
-/** Evaluate `expr` against a complete environment `env`. */
-export const evaluate = <Env, A>(expr: ExprType<Env, A>, env: Env): A =>
-  evalNode(expr.node, env) as A
+/**
+ * Evaluate `expr` against a complete environment `env`: its value, null where
+ * an operand was null or absent, or the `Node.Refusal` of an integer past
+ * ±(2^53−1), a non-finite number, an ill-typed operand or an unmatched case.
+ */
+export const evalResult = <Env, A>(
+  expr: ExprType<Env, A>,
+  env: Env,
+): Result.Result<A | null, Node.Refusal> => {
+  const value = evalNode(expr.node, env)
+  return Node.isRefusal(value) ? Result.fail(value) : Result.succeed(value as A | null)
+}
+
+/**
+ * `evalResult` for an environment that decodes against the Schemas `expr` was
+ * built from, where no operand is null: it returns the value and throws the
+ * `Node.Refusal`. Evaluation is null-strict, so over a null or absent operand
+ * the result is null whatever `A` says.
+ */
+export const evaluate = <Env, A>(expr: ExprType<Env, A>, env: Env): A => {
+  const value = evalNode(expr.node, env)
+  if (Node.isRefusal(value)) throw value
+  return value as A
+}
 
 /** Alias for `evaluate` matching `Expr.eval(expr, env)`. */
 export { evaluate as eval }
+
+/** Whether the rule `expr` holds of `env`: only where it evaluates to true, never on null or a refusal. */
+export const holds = <Env>(expr: ExprType<Env, boolean | null>, env: Env): boolean =>
+  evalNode(expr.node, env) === true
 
 /** Partially known environment where any top-level slice or nested field may be omitted. */
 export type PartialEnv<Env> =
@@ -352,7 +438,7 @@ export const residualize = <Env, A>(
  * Partially evaluate a boolean `expr` and return its Kleene $K_3$ `Verdict`.
  */
 export const judge = <Env>(
-  expr: ExprType<Env, boolean>,
+  expr: ExprType<Env, boolean | null>,
   partialEnv: PartialEnv<Env>,
 ): Verdict<never> => judgeNode(expr.node, partialEnv)
 

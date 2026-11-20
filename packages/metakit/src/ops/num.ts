@@ -2,73 +2,110 @@
  * Numeric arithmetic primitives (`num.add`, `num.sub`, `num.mul`, `num.neg`)
  * and derived helpers (`min`, `max`, `abs`, `clamp`) built over `If` + `Ord`.
  *
+ * Null-strict: a null operand gives null. A result that is NaN or infinite is
+ * refused, and so is an integer result past ±(2^53−1), where a double no
+ * longer holds every integer and SQL's answer would differ.
+ *
  * `Ord` comparisons (`lt`, `lte`, `gt`, `gte`) are also re-exported here for
  * ergonomic `Num.lte(...)` call sites.
  */
 import * as Node from '../node.js'
 import type { Expr } from '../path.js'
-import { call, toNode, wrap, type EnvOfInput, type ExprInput } from './core.js'
+import { call, toNode, wrap, type EnvOfInput, type NullOf } from './core.js'
 import * as Ord from './ord.js'
 
 export { gt, gte, gtOp, gteOp, lt, lte, ltOp, lteOp } from './ord.js'
 
+const arithmetic =
+  (id: Node.CoreOpId, compute: (a: number, b: number) => number) =>
+  (args: ReadonlyArray<unknown>): unknown => {
+    const other = args.find(arg => typeof arg !== 'number')
+    if (other !== undefined) return Node.illTyped(id, 'a number', other)
+    const result = compute(args[0] as number, args[1] as number)
+    if (!Number.isFinite(result)) {
+      return new Node.Refusal({
+        reason: 'non-finite',
+        at: id,
+        detail: `the result of ${args.join(', ')} is not a finite number`,
+      })
+    }
+    if (args.every(Number.isSafeInteger) && !Number.isSafeInteger(result)) {
+      return new Node.Refusal({
+        reason: 'unsafe-integer',
+        at: id,
+        detail: `the result of ${args.join(', ')} is past ±(2^53−1)`,
+      })
+    }
+    // -0 is a double's accident, not an integer SQL can hold.
+    return result === 0 ? 0 : result
+  }
+
 export const addOp: Node.Op<'num.add'> = {
   id: 'num.add',
-  evaluate: args => (args[0] as number) + (args[1] as number),
+  returns: 'number',
+  nulls: 'strict',
+  evaluate: arithmetic('num.add', (a, b) => a + b),
   laws: {
     identity: { value: 0, side: 'both' },
   },
 }
 
+// No `x - x -> 0`: null minus null is null.
 export const subOp: Node.Op<'num.sub'> = {
   id: 'num.sub',
-  evaluate: args => (args[0] as number) - (args[1] as number),
+  returns: 'number',
+  nulls: 'strict',
+  evaluate: arithmetic('num.sub', (a, b) => a - b),
   laws: {
     identity: { value: 0, side: 'right' },
-    reflexive: { value: 0 },
   },
 }
 
+// No `x * 0 -> 0`: null times zero is null.
 export const mulOp: Node.Op<'num.mul'> = {
   id: 'num.mul',
-  evaluate: args => (args[0] as number) * (args[1] as number),
+  returns: 'number',
+  nulls: 'strict',
+  evaluate: arithmetic('num.mul', (a, b) => a * b),
   laws: {
     identity: { value: 1, side: 'both' },
-    absorbing: { value: 0, result: 0, side: 'both' },
   },
 }
 
 export const negOp: Node.Op<'num.neg'> = {
   id: 'num.neg',
-  evaluate: args => -(args[0] as number),
+  returns: 'number',
+  nulls: 'strict',
+  evaluate: arithmetic('num.neg', a => -a),
   laws: {
     involution: true,
   },
 }
 
-export const add = <L extends ExprInput<never, number>, R extends ExprInput<never, number>>(
+export const add = <L extends Ord.NullableNumber, R extends Ord.NullableNumber>(
   left: L,
   right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, number> => call(addOp, [left, right])
+): Expr<EnvOfInput<L> & EnvOfInput<R>, number | NullOf<L> | NullOf<R>> => call(addOp, [left, right])
 
-export const sub = <L extends ExprInput<never, number>, R extends ExprInput<never, number>>(
+export const sub = <L extends Ord.NullableNumber, R extends Ord.NullableNumber>(
   left: L,
   right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, number> => call(subOp, [left, right])
+): Expr<EnvOfInput<L> & EnvOfInput<R>, number | NullOf<L> | NullOf<R>> => call(subOp, [left, right])
 
-export const mul = <L extends ExprInput<never, number>, R extends ExprInput<never, number>>(
+export const mul = <L extends Ord.NullableNumber, R extends Ord.NullableNumber>(
   left: L,
   right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, number> => call(mulOp, [left, right])
+): Expr<EnvOfInput<L> & EnvOfInput<R>, number | NullOf<L> | NullOf<R>> => call(mulOp, [left, right])
 
-export const neg = <X extends ExprInput<never, number>>(value: X): Expr<EnvOfInput<X>, number> =>
-  call(negOp, [value])
+export const neg = <X extends Ord.NullableNumber>(
+  value: X,
+): Expr<EnvOfInput<X>, number | NullOf<X>> => call(negOp, [value])
 
-/** Derived helper: `if (a <= b) then a else b` — lowers to SQL, Zone, and Z3 automatically. */
-export const min = <L extends ExprInput<never, number>, R extends ExprInput<never, number>>(
+/** Derived helper: `if (a <= b) then a else b`; null when either is null. */
+export const min = <L extends Ord.NullableNumber, R extends Ord.NullableNumber>(
   left: L,
   right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, number> =>
+): Expr<EnvOfInput<L> & EnvOfInput<R>, number | NullOf<L> | NullOf<R>> =>
   wrap(
     Node.If({
       cond: Ord.lte(left, right).node,
@@ -77,11 +114,11 @@ export const min = <L extends ExprInput<never, number>, R extends ExprInput<neve
     }),
   )
 
-/** Derived helper: `if (a >= b) then a else b` — lowers to SQL, Zone, and Z3 automatically. */
-export const max = <L extends ExprInput<never, number>, R extends ExprInput<never, number>>(
+/** Derived helper: `if (a >= b) then a else b`; null when either is null. */
+export const max = <L extends Ord.NullableNumber, R extends Ord.NullableNumber>(
   left: L,
   right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, number> =>
+): Expr<EnvOfInput<L> & EnvOfInput<R>, number | NullOf<L> | NullOf<R>> =>
   wrap(
     Node.If({
       cond: Ord.gte(left, right).node,
@@ -90,8 +127,10 @@ export const max = <L extends ExprInput<never, number>, R extends ExprInput<neve
     }),
   )
 
-/** Derived helper: `if (x < 0) then -x else x` — lowers to SQL, Zone, and Z3 automatically. */
-export const abs = <X extends ExprInput<never, number>>(value: X): Expr<EnvOfInput<X>, number> =>
+/** Derived helper: `if (x < 0) then -x else x`; null for null. */
+export const abs = <X extends Ord.NullableNumber>(
+  value: X,
+): Expr<EnvOfInput<X>, number | NullOf<X>> =>
   wrap(
     Node.If({
       cond: Ord.lt(value, 0).node,
@@ -100,13 +139,16 @@ export const abs = <X extends ExprInput<never, number>>(value: X): Expr<EnvOfInp
     }),
   )
 
-/** Derived helper: `min(hi, max(lo, x))` — lowers to SQL, Zone, and Z3 automatically. */
+/** Derived helper: `min(hi, max(lo, x))`. */
 export const clamp = <
-  X extends ExprInput<never, number>,
-  Lo extends ExprInput<never, number>,
-  Hi extends ExprInput<never, number>,
+  X extends Ord.NullableNumber,
+  Lo extends Ord.NullableNumber,
+  Hi extends Ord.NullableNumber,
 >(
   value: X,
   lo: Lo,
   hi: Hi,
-): Expr<EnvOfInput<X> & EnvOfInput<Lo> & EnvOfInput<Hi>, number> => min(hi, max(lo, value))
+): Expr<
+  EnvOfInput<X> & EnvOfInput<Lo> & EnvOfInput<Hi>,
+  number | NullOf<X> | NullOf<Lo> | NullOf<Hi>
+> => wrap(min(hi, max(lo, value)).node)

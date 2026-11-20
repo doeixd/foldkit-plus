@@ -14,6 +14,9 @@ export type EnvOfInput<T> = T extends Expr<infer E, unknown> ? E : unknown
 /** Extract the output value type of an `ExprInput`. */
 export type ValueOfInput<T> = T extends Expr<never, infer A> ? A : T
 
+/** `null` where the input may be null: what a null-strict operator's result then may be. */
+export type NullOf<T> = null extends ValueOfInput<T> ? null : never
+
 /** Convert a union of environments into their intersection. */
 export type UnionToIntersection<U> = (U extends unknown ? (x: U) => void : never) extends (
   x: infer I,

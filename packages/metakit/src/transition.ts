@@ -89,7 +89,7 @@ export const make = <S extends Schema.Top, I extends Schema.Top, Emit = never>(c
   readonly when?: (env: {
     readonly state: PathAccessor<TransitionEnv<S['Type'], I['Type']>, S['Type']>
     readonly input: PathAccessor<TransitionEnv<S['Type'], I['Type']>, I['Type']>
-  }) => ExprInput<TransitionEnv<S['Type'], I['Type']>, boolean>
+  }) => ExprInput<TransitionEnv<S['Type'], I['Type']>, boolean | null>
   readonly apply: (env: {
     readonly state: PathAccessor<TransitionEnv<S['Type'], I['Type']>, S['Type']>
     readonly input: PathAccessor<TransitionEnv<S['Type'], I['Type']>, I['Type']>
@@ -153,25 +153,35 @@ export const step = <State, Input, Emit>(
   input: Input,
 ): Result.Result<{ readonly state: State; readonly emit: Option.Option<Emit> }, Refused> => {
   const env: TransitionEnv<State, Input> = { state, input }
-  if (!Boolean(evalNode(transition.when.node, env))) {
+  // A guard holds only where it is true: null and a refusal do not fire.
+  if (evalNode(transition.when.node, env) !== true) {
     return Result.fail(new Refused({ reason: 'transition guard evaluated to false' }))
+  }
+  const refusals: Array<Node.Refusal> = []
+  const valueOf = (node: Node.Node): unknown => {
+    const value = evalNode(node, env)
+    if (Node.isRefusal(value)) refusals.push(value)
+    return value
   }
   const computed = transition.writes.map(eq => ({
     target: eq.target,
-    value: evalNode(eq.value.node, env),
+    value: valueOf(eq.value.node),
   }))
-  let nextState = state
-  for (const { target, value } of computed) {
-    nextState = Path.set(Path.make<State, unknown>(target), nextState, value)
-  }
   const emit: Option.Option<Emit> = Option.map(
     transition.emits,
     spec =>
       Match.valueTags(spec, {
-        Single: ({ node }) => evalNode(node, env),
-        Fields: ({ entries }) => Object.fromEntries(entries.map(([k, n]) => [k, evalNode(n, env)])),
+        Single: ({ node }) => valueOf(node),
+        Fields: ({ entries }) => Object.fromEntries(entries.map(([k, n]) => [k, valueOf(n)])),
       }) as Emit,
   )
+  if (refusals.length > 0) {
+    return Result.fail(new Refused({ reason: `evaluation refused: ${refusals[0]!.message}` }))
+  }
+  let nextState = state
+  for (const { target, value } of computed) {
+    nextState = Path.set(Path.make<State, unknown>(target), nextState, value)
+  }
   return Result.succeed({ state: nextState, emit })
 }
 

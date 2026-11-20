@@ -1,14 +1,28 @@
 /**
- * Boolean primitive operators (`bool.and`, `bool.or`, `bool.not`) with
- * declarative size-reducing `laws`.
+ * Boolean primitive operators (`bool.and`, `bool.or`, `bool.not`), three-valued
+ * the way SQL's are: `false AND null` is false, `true AND null` is null.
  */
-import type * as Node from '../node.js'
+import * as Node from '../node.js'
 import type { Expr } from '../path.js'
-import { call, type EnvOfInput, type ExprInput } from './core.js'
+import { call, type EnvOfInput, type ExprInput, type NullOf } from './core.js'
+
+/** `and` when `decided` is false, `or` when it is true: `decided` wins over null and a refusal. */
+const kleene =
+  (id: 'bool.and' | 'bool.or', decided: boolean) =>
+  (args: ReadonlyArray<unknown>): unknown => {
+    if (args.includes(decided)) return decided
+    const refused = args.find(Node.isRefusal)
+    if (refused !== undefined) return refused
+    const other = args.find(arg => arg !== null && typeof arg !== 'boolean')
+    if (other !== undefined) return Node.illTyped(id, 'a boolean', other)
+    return args.includes(null) ? null : !decided
+  }
 
 export const andOp: Node.Op<'bool.and'> = {
   id: 'bool.and',
-  evaluate: args => Boolean(args[0]) && Boolean(args[1]),
+  returns: 'boolean',
+  nulls: 'own',
+  evaluate: kleene('bool.and', false),
   laws: {
     identity: { value: true, side: 'both' },
     absorbing: { value: false, result: false, side: 'both' },
@@ -18,7 +32,9 @@ export const andOp: Node.Op<'bool.and'> = {
 
 export const orOp: Node.Op<'bool.or'> = {
   id: 'bool.or',
-  evaluate: args => Boolean(args[0]) || Boolean(args[1]),
+  returns: 'boolean',
+  nulls: 'own',
+  evaluate: kleene('bool.or', true),
   laws: {
     identity: { value: false, side: 'both' },
     absorbing: { value: true, result: true, side: 'both' },
@@ -28,24 +44,35 @@ export const orOp: Node.Op<'bool.or'> = {
 
 export const notOp: Node.Op<'bool.not'> = {
   id: 'bool.not',
-  evaluate: args => !Boolean(args[0]),
+  returns: 'boolean',
+  nulls: 'strict',
+  evaluate: ([value]) =>
+    typeof value === 'boolean' ? !value : Node.illTyped('bool.not', 'a boolean', value),
   laws: {
     involution: true,
   },
 }
 
 /** Conjunction of two boolean expressions. */
-export const and = <L extends ExprInput<never, boolean>, R extends ExprInput<never, boolean>>(
+export const and = <
+  L extends ExprInput<never, boolean | null>,
+  R extends ExprInput<never, boolean | null>,
+>(
   left: L,
   right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> => call(andOp, [left, right])
+): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean | NullOf<L> | NullOf<R>> =>
+  call(andOp, [left, right])
 
 /** Disjunction of two boolean expressions. */
-export const or = <L extends ExprInput<never, boolean>, R extends ExprInput<never, boolean>>(
+export const or = <
+  L extends ExprInput<never, boolean | null>,
+  R extends ExprInput<never, boolean | null>,
+>(
   left: L,
   right: R,
-): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> => call(orOp, [left, right])
+): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean | NullOf<L> | NullOf<R>> => call(orOp, [left, right])
 
-/** Logical negation of a boolean expression. */
-export const not = <X extends ExprInput<never, boolean>>(value: X): Expr<EnvOfInput<X>, boolean> =>
-  call(notOp, [value])
+/** Logical negation of a boolean expression; the negation of null is null. */
+export const not = <X extends ExprInput<never, boolean | null>>(
+  value: X,
+): Expr<EnvOfInput<X>, boolean | NullOf<X>> => call(notOp, [value])

@@ -76,7 +76,7 @@ describe('Path', () => {
     // Prototype properties are never read as own fields in Path.get or Expr.eval
     const protoPath = Path.make<Record<string, unknown>, unknown>(['constructor'])
     expect(Path.get(protoPath, {})).toEqual(Option.none())
-    expect(Expr.eval(protoPath, {})).toBeUndefined()
+    expect(Expr.eval(protoPath, {})).toBeNull()
   })
 })
 
@@ -236,11 +236,9 @@ describe('Partial evaluation (residualize & judge)', () => {
 
   it('applies declarative op.laws generically in residualize', () => {
     const $ = Path.forSchema(Account)
-    expect(Expr.residualize(Num.sub($.balance, $.balance), {}).node).toEqual({
-      _tag: 'Lit',
-      value: 0,
-    })
-    expect(Expr.residualize(Num.mul(0, $.balance), {}).node).toEqual({ _tag: 'Lit', value: 0 })
+    // Null minus null, and null times zero, are null: neither folds to 0.
+    expect(Expr.residualize(Num.sub($.balance, $.balance), {}).node._tag).toBe('Call')
+    expect(Expr.residualize(Num.mul(0, $.balance), {}).node._tag).toBe('Call')
     expect(Expr.residualize(Num.add($.balance, 0), {}).node).toEqual($.balance.node)
     expect(Expr.residualize(Num.neg(Num.neg($.balance)), {}).node).toEqual($.balance.node)
     expect(Expr.residualize(Expr.not(Expr.not(Eq.is($.status, 'open'))), {}).node).toEqual(

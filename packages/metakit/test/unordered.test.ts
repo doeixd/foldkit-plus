@@ -44,12 +44,13 @@ const names = Object.keys(gauge(Schema.Finite).checks) as ReadonlyArray<
 >
 
 describe('a number that may be NaN', () => {
-  it('is what the proofs would be wrong about', () => {
+  it('is refused by evaluation, so no proof may speak for it', () => {
     const { State, split, Break } = gauge(Schema.Number)
     const held = { level: NaN, count: 0 }
     expect(Schema.is(State)(held)).toBe(true)
-    expect(Expr.eval(split, held)).toBe(false)
-    expect(Result.getOrThrow(Transition.run(Break, held, {})).count).toBe(-1)
+    const answer = Expr.evalResult(split, held)
+    expect(Result.isFailure(answer) && answer.failure.reason).toBe('non-finite')
+    expect(Result.isFailure(Transition.run(Break, held, {}))).toBe(true)
   })
 
   it.each(names)(

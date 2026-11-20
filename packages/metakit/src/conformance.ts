@@ -7,13 +7,43 @@
  *   - Forward:  ∀ x ∈ γ(a), f(x) ∈ γ(f#(a))
  *   - Backward: ∀ x ∈ γ(a), f(x) ∈ γ(target) ==> x ∈ γ(narrow(a, target))
  */
-import { Arbitrary, Effect, Equal, Schema } from 'effect'
+import { Arbitrary, Effect, Equal, Result, Schema } from 'effect'
 import { abstractOps } from './abstract/check.js'
 import * as Interval from './abstract/interval.js'
 import * as Expr from './expr.js'
+import type * as Node from './node.js'
+import * as Arr from './ops/arr.js'
+import * as Bool from './ops/bool.js'
+import * as Eq from './ops/eq.js'
+import * as Null from './ops/null.js'
 import * as Num from './ops/num.js'
 import * as Ord from './ops/ord.js'
+import * as Str from './ops/str.js'
 import * as Verdict from './verdict.js'
+
+/** Every primitive's descriptor: a new `CoreOpId` fails to compile until its operator is here. */
+export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
+  'bool.and': Bool.andOp,
+  'bool.or': Bool.orOp,
+  'bool.not': Bool.notOp,
+  'eq.is': Eq.isOp,
+  'eq.isNot': Eq.isNotOp,
+  'eq.in': Eq.inOp,
+  'null.isNull': Null.isNullOp,
+  'ord.lt': Ord.ltOp,
+  'ord.lte': Ord.lteOp,
+  'ord.gt': Ord.gtOp,
+  'ord.gte': Ord.gteOp,
+  'num.add': Num.addOp,
+  'num.sub': Num.subOp,
+  'num.mul': Num.mulOp,
+  'num.neg': Num.negOp,
+  'str.len': Str.lenOp,
+  'str.startsWith': Str.startsWithOp,
+  'str.contains': Str.containsOp,
+  'arr.count': Arr.countOp,
+  'arr.isEmpty': Arr.isEmptyOp,
+}
 
 export interface GaloisFailure {
   readonly op: string
@@ -297,27 +327,49 @@ export const checkResidualizeSoundness = <S extends Schema.Top, A>(
 ): {
   readonly ok: boolean
   readonly checked: number
-  readonly mismatch?: { readonly env: S['Type']; readonly full: A; readonly residual: A }
+  readonly mismatch?: {
+    readonly env: S['Type']
+    readonly full: Outcome<A>
+    readonly residual: Outcome<A>
+  }
 } => {
   const arb = Arbitrary.schema(schema as unknown as Schema.Codec<S['Type']>)
   const envs = Effect.runSync(Arbitrary.sampleEffect(arb, { count: options?.samples ?? 60 }))
   let checked = 0
   for (const env of envs) {
     const partial = mask(env)
-    const full = Expr.eval(expr, env)
-    const residual = Expr.eval(Expr.residualize(expr, partial), env)
+    const full = Expr.evalResult(expr, env)
+    const residual = Expr.evalResult(Expr.residualize(expr, partial), env)
     checked++
-    if (!Object.is(full, residual) && !Equal.equals(full, residual)) {
+    if (!sameOutcome(full, residual)) {
       return { ok: false, checked, mismatch: { env, full, residual } }
     }
-    if (typeof full === 'boolean') {
-      const v = Expr.judge(expr as unknown as Expr.Expr<S['Type'], boolean>, partial)
-      if ((Verdict.isTrue(v) && !full) || (Verdict.isFalse(v) && full)) {
-        return { ok: false, checked, mismatch: { env, full, residual } }
-      }
+    const v = Expr.judge(expr as unknown as Expr.Expr<S['Type'], boolean>, partial)
+    const holds = Result.isSuccess(full) && full.success === true
+    // `True` says it holds; `False` says it was answered and does not.
+    if (
+      (Verdict.isTrue(v) && !holds) ||
+      (Verdict.isFalse(v) && (holds || Result.isFailure(full)))
+    ) {
+      return { ok: false, checked, mismatch: { env, full, residual } }
     }
   }
   return { ok: true, checked }
+}
+
+/** What evaluation gave: a value, null, or the refusal. */
+export type Outcome<A> = Result.Result<A | null, Node.Refusal>
+
+/** Two outcomes that are one answer: equal values, or refusals for one reason. */
+export const sameOutcome = <A>(left: Outcome<A>, right: Outcome<A>): boolean => {
+  if (Result.isFailure(left) || Result.isFailure(right)) {
+    return (
+      Result.isFailure(left) &&
+      Result.isFailure(right) &&
+      left.failure.reason === right.failure.reason
+    )
+  }
+  return Object.is(left.success, right.success) || Equal.equals(left.success, right.success)
 }
 
 /** Property-test Galois soundness of a binary comparison transformer. */

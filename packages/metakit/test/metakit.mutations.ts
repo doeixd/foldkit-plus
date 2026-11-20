@@ -154,8 +154,8 @@ export default [
     edits: [
       {
         file: transition,
-        find: 'if (!Boolean(evalNode(transition.when.node, env))) {',
-        replace: 'if (false && !Boolean(evalNode(transition.when.node, env))) {',
+        find: 'if (evalNode(transition.when.node, env) !== true) {',
+        replace: 'if (false && evalNode(transition.when.node, env) !== true) {',
       },
     ],
     tests: coreTests,

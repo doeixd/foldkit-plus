@@ -61,10 +61,11 @@ describe('Str and Arr core ops across eval, residualize, SQL/PGlite, Zone, and Z
     expect(Expr.eval(Arr.nonEmpty($.tags), { id: '2', name: 'café', tags: ['hot'] })).toBe(true)
   })
 
-  it('folds absorbing empty-string laws in residualize even when target is Unknown', () => {
+  it('does not fold a search for the empty string over an unknown target, which may be null', () => {
     const $ = Path.from(Item)
-    expect(Verdict.isTrue(Expr.judge(Str.startsWith($.name, ''), {}))).toBe(true)
-    expect(Verdict.isTrue(Expr.judge(Str.contains($.name, ''), {}))).toBe(true)
+    expect(Verdict.isUnknown(Expr.judge(Str.startsWith($.name, ''), {}))).toBe(true)
+    expect(Verdict.isUnknown(Expr.judge(Str.contains($.name, ''), {}))).toBe(true)
+    expect(Verdict.isTrue(Expr.judge(Str.contains($.name, ''), { name: 'x' }))).toBe(true)
   })
 
   it('matches JS Expr.eval row-for-row against Postgres (PGlite) including emoji, LIKE wildcards, and text[]', async () => {
