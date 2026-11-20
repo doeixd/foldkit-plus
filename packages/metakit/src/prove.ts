@@ -14,6 +14,7 @@ import type { Machine } from './machine.js'
 import * as Node from './node.js'
 import * as Str from './ops/str.js'
 import * as Path from './path.js'
+import * as Policy from './policy.js'
 import * as Transition from './transition.js'
 import * as Verdict from './verdict.js'
 
@@ -789,3 +790,71 @@ export const machine = <State, Transitions extends Readonly<Record<string, unkno
     }
   })
 }
+
+/**
+ * Prove that `policy.rules[from]` (plus `row` and `principal` invariants)
+ * entails `policy.rules[to]` (e.g. non-disclosure: `Update => Read`).
+ *
+ * Runs Tier 3 Zone first; escalates to Z3 only on `Unknown` or `False`.
+ * Opaque `principal` checks are modeled soundly as free `Bool`s (returning
+ * `Unknown` rather than a bogus `False` when an opaque term is involved).
+ */
+export const policyImplies = <
+  Row,
+  Principal,
+  Rules extends Readonly<Record<string, Expr.Expr<Policy.PolicyEnv<Row, Principal>, boolean>>>,
+>(
+  pol: Policy.Policy<Row, Principal, Rules>,
+  from: keyof Rules & string,
+  to: keyof Rules & string,
+): Effect.Effect<Verdict.Verdict<Readonly<Record<string, unknown>>>> =>
+  Effect.promise(async () => {
+    const tier3 = Policy.checkImplication(pol, from, to)
+    if (Verdict.isTrue(tier3)) return tier3
+    const fields = new Map<string, FieldSort>()
+    collectFieldSorts(pol.rowSchema.ast, ['row'], fields)
+    collectFieldSorts(pol.principalSchema.ast, ['principal'], fields)
+    const hypotheses: Array<Node.Node> = [
+      ...Expr.refinementsOf(pol.rowSchema).map(r => Node.prefix(r.node, ['row'])),
+      ...Expr.refinementsOf(pol.principalSchema).map(r => Node.prefix(r.node, ['principal'])),
+      pol.rules[from]!.node,
+    ]
+    return solveWithZ3(fields, hypotheses, [pol.rules[to]!.node])
+  })
+
+/**
+ * Prove that `policy.rules[rule]` is satisfiable (not a dead / vacuous allow
+ * rule) under `row` and `principal` schema invariants.
+ *
+ * Returns `Verdict.True` when satisfiable, `Verdict.False` when provably
+ * unsatisfiable (dead rule), or `Verdict.Unknown` when an opaque check
+ * prevents deciding reachability.
+ */
+export const policyConsistent = <
+  Row,
+  Principal,
+  Rules extends Readonly<Record<string, Expr.Expr<Policy.PolicyEnv<Row, Principal>, boolean>>>,
+>(
+  pol: Policy.Policy<Row, Principal, Rules>,
+  rule: keyof Rules & string,
+): Effect.Effect<Verdict.Verdict<Readonly<Record<string, unknown>>>> =>
+  Effect.promise(async () => {
+    const tier3 = Policy.checkConsistent(pol, rule)
+    if (Verdict.isFalse(tier3)) return Verdict.False(Option.none())
+    const fields = new Map<string, FieldSort>()
+    collectFieldSorts(pol.rowSchema.ast, ['row'], fields)
+    collectFieldSorts(pol.principalSchema.ast, ['principal'], fields)
+    const hypotheses: Array<Node.Node> = [
+      ...Expr.refinementsOf(pol.rowSchema).map(r => Node.prefix(r.node, ['row'])),
+      ...Expr.refinementsOf(pol.principalSchema).map(r => Node.prefix(r.node, ['principal'])),
+      pol.rules[rule]!.node,
+    ]
+    const res = await solveWithZ3(fields, hypotheses, [Node.Lit({ value: false })])
+    return Verdict.match(res, {
+      // `hypotheses && NOT(false)` is UNSAT => rule is provably dead/unsatisfiable!
+      True: () => Verdict.False(Option.none()),
+      // `hypotheses && NOT(false)` is SAT (with no opaque terms) => rule is reachable!
+      False: () => Verdict.True(Option.some(Verdict.Proved('z3'))),
+      Unknown: u => u,
+    })
+  })

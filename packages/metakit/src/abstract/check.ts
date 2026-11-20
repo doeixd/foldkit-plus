@@ -42,7 +42,7 @@ export interface AbstractOp {
   readonly addToZone?: (args: ReadonlyArray<Node.Node>, state: AbstractState) => void
 }
 
-interface FieldInfo {
+export interface FieldInfo {
   readonly isInt: boolean
   readonly nullable: boolean
   readonly interval: Interval.Interval
@@ -125,7 +125,7 @@ const extractChecksInterval = (
   return { ...base, isInt, interval: iv }
 }
 
-const collectFieldsFromAst = (
+export const collectFields = (
   ast: SchemaAST.AST,
   prefix: ReadonlyArray<string>,
   fields: Map<string, FieldInfo>,
@@ -133,7 +133,7 @@ const collectFieldsFromAst = (
   if (SchemaAST.isObjects(ast)) {
     for (const prop of ast.propertySignatures) {
       if (typeof prop.name === 'string') {
-        collectFieldsFromAst(prop.type, [...prefix, prop.name], fields)
+        collectFields(prop.type, [...prefix, prop.name], fields)
       }
     }
     return
@@ -1202,7 +1202,7 @@ export const checkInvariant = <S extends Schema.Top>(
   goal: Expr.Expr<S['Type'], boolean>,
 ): Verdict.Verdict<never> => {
   const fields = new Map<string, FieldInfo>()
-  collectFieldsFromAst(schema.ast, [], fields)
+  collectFields(schema.ast, [], fields)
   const invariants = Expr.refinementsOf(schema).map(r => r.node)
   const state = new AbstractState([...invariants, goal.node], fields)
   for (const inv of invariants) state.assume(inv)
@@ -1220,12 +1220,12 @@ export const checkTransition = <S extends Schema.Top, I, Emit>(
   }
 
   const fields = new Map<string, FieldInfo>()
-  collectFieldsFromAst(stateSchema.ast, ['state'], fields)
+  collectFields(stateSchema.ast, ['state'], fields)
 
   const inputInvariants: Array<Node.Node> = []
   if (Option.isSome(transition.inputSchema)) {
     const inputSchema = transition.inputSchema.value
-    collectFieldsFromAst(inputSchema.ast, ['input'], fields)
+    collectFields(inputSchema.ast, ['input'], fields)
     for (const r of Expr.refinementsOf(inputSchema)) {
       inputInvariants.push(Node.prefix(r.node, ['input']))
     }

@@ -62,6 +62,11 @@
       "types": "./dist/graph.d.ts",
       "import": "./dist/graph.js"
     },
+    "./policy": {
+      "foldkit-plus:source": "./src/policy.ts",
+      "types": "./dist/policy.d.ts",
+      "import": "./dist/policy.js"
+    },
     "./sql": {
       "foldkit-plus:source": "./src/sql.ts",
       "types": "./dist/sql.d.ts",
