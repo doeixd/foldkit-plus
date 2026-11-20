@@ -95,6 +95,16 @@ export const make = <S extends Schema.Top, I extends Schema.Top, Emit = never>(c
     ? Expr.lit(true)
     : wrap(toNode(config.when(env)))
   const writes = Object.freeze([...config.apply(env)])
+  const seenTargets = new Set<string>()
+  for (const eq of writes) {
+    const targetKey = JSON.stringify(eq.target)
+    if (seenTargets.has(targetKey)) {
+      throw new Error(
+        `[metakit] Transition.make duplicate write target "${Path.format(eq.target)}"`,
+      )
+    }
+    seenTargets.add(targetKey)
+  }
   const emits =
     config.emits === undefined
       ? Option.none()

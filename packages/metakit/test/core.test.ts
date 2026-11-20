@@ -286,6 +286,17 @@ describe('Transition', () => {
     const res = Transition.run(Swap, { a: 1, b: 2 }, {})
     expect(res).toEqual(Result.succeed({ a: 2, b: 1 }))
   })
+
+  it('refuses duplicate write targets at definition time', () => {
+    const Pair = Schema.Struct({ a: Schema.Int })
+    expect(() =>
+      Transition.make({
+        state: Pair,
+        input: Schema.Struct({}),
+        apply: ({ state }) => [Transition.set(state.a, 1), Transition.set(state.a, 2)],
+      }),
+    ).toThrow(/duplicate write target/)
+  })
 })
 
 describe('Tier 3 synchronous Abstract checker (Interval + Zone)', () => {
