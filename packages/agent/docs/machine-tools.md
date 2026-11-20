@@ -1,14 +1,14 @@
 # Let an agent call your state machine's transitions
 
-Say your account rules are written once, as a state machine: "withdraw" is allowed only while the account is open and only up to the balance, and the amount must be a positive number of cents. Handing those actions to an AI assistant usually means writing them a second time: a parameter schema for each tool, a check for when to offer it, and the same guard again before the action runs. The copies drift, and the assistant is offered a tool that then fails, or sends an amount your rules would refuse.
+Say your account rules are written once, as a state machine: "withdraw" is allowed only while the account is open and only up to the balance, and the amount must be a positive number of cents. An AI assistant acts on your app through tools: named actions it can call, each with a JSON Schema describing its parameters. Handing it those actions usually means writing the rules a second time: a parameter schema for each tool, a check for when to offer it, and the same guard again before the action runs. The copies drift, and the assistant is offered a tool that then fails, or sends an amount your rules would refuse.
 
 `machineTools`, from `foldkit-agent/metakit`, makes each of those tools from the rule itself. A tool's parameters come from the transition's input, it is offered only while the state allows it, and a call the rule refuses is turned down before anything changes.
 
-This guide assumes you have a `foldkit-agent` contract: the list of your app's Messages (the actions your `update` function handles) that an assistant may send, declared with `Agent.expose`. The [package page](../README.md) shows how to write one and connect it to a running app.
+This guide assumes you have a `foldkit-agent` contract: the list of your app's Messages (the actions your `update` function handles) that an assistant may send, declared with `Agent.expose`. The [package page](../README.md) shows how to write one, connect it to a running app, and serve it to an assistant through an adapter (a package that speaks one protocol, such as MCP).
 
 ## Write the rules as a metakit machine
 
-[metakit](https://github.com/doeixd/foldkit-plus/blob/main/packages/metakit/README.md) writes a rule as an expression your code can inspect, rather than a function it can only run. A **transition** is one step from one state to the next. It has an input Schema, a guard (`when`) that says when the step is allowed, and the writes it makes. A **machine** groups the transitions over one state:
+[metakit](https://github.com/doeixd/foldkit-plus/blob/main/packages/metakit/README.md) writes a rule as an expression your code can inspect, rather than a function it can only run. A **transition** is one step from one state to the next. It has an input [Effect Schema](https://effect.website/docs/schema/introduction/), a guard (`when`) that says when the step is allowed, and the writes it makes. A **machine** groups the transitions over one state. Below, `Money.make('USD')` is a Schema for an integer number of cents that remembers its currency, and `Expr.refine` adds a rule (here, "greater than 0") that both decoding and metakit can read:
 
 ```ts
 import { Schema } from 'effect'
@@ -41,8 +41,6 @@ const AccountMachine = Machine.make({
 })
 ```
 
-`Money.make('USD')` is an integer number of cents that remembers its currency, and `Expr.refine` adds a rule to a Schema that both decoding and metakit can read.
-
 ## Turn each transition into a tool
 
 Your app keeps the account in its Model and has one Message per transition. Its `update` applies the transition through the machine, so the rule that runs is the one the tools were made from:
@@ -64,7 +62,7 @@ const update = (model: Model, message: Message): Model => {
 }
 ```
 
-`machineTools` takes your bound agent, the machine, and where the machine's state sits in your Model. It returns one function per transition, named as the machine names them. Call one with a description and put the result under the Message it sends:
+`machineTools` takes your agent builder (`Agent.forModel<Model>()`, which fixes your Model's type for every callback), the machine, and a function that reads the machine's state out of your Model. It returns one function per transition, named as the machine names them. Call one with a description and put the result under the Message it sends:
 
 ```ts
 import { Agent } from 'foldkit-agent'
@@ -85,7 +83,7 @@ const BankContract = BankAgent.make({
 })
 ```
 
-The contract now has two tools, `withdraw` and `freeze`. Their names are the transition keys in snake_case; a misspelled key such as `Tools.Withdrw` does not compile, and neither does a tool placed under a Message whose fields differ from the transition's input.
+The contract now has two tools, `withdraw` and `freeze`. Their names are the transition keys in snake_case; a misspelled key such as `Tools.Withdrw` does not compile. A tool placed under a Message whose fields differ from the transition's input does not compile either, unless you say how to make that Message ([below](#send-a-different-message-or-limit-who-may-call)).
 
 ## What the assistant is shown
 
@@ -108,11 +106,11 @@ Every protocol adapter hands the assistant the same parameter schema. For `withd
 }
 ```
 
-The `exclusiveMinimum` comes from the `Expr.refine` rule and the `x-metakit-domain` entry from `Money`, neither of which Effect's own JSON Schema can see. The rest is what Effect derives from the Schema. Where both give a bound, the tighter one is kept.
+Effect derives the JSON Schema of a Schema on its own, but it cannot read metakit rules. So `exclusiveMinimum` is added from the `Expr.refine` rule, and `x-metakit-domain` from `Money`. The rest is Effect's: `minimum` and `maximum` are the safe-integer range every `Schema.Int` has. When Effect and metakit both give the same keyword, the tighter value is kept.
 
 ## When a tool is hidden, and when a call is refused
 
-Before any input arrives, the guard is checked against the current state alone. That check has three answers: true, false, or unknown when it needs the input or calls code metakit cannot look into. Only false takes the tool away. Each adapter does what its protocol allows:
+Before any input arrives, the guard is checked against the current state alone. The check answers true, false, or unknown. It is unknown when the guard reads the input, as `amount <= balance` does, or calls a function metakit cannot look inside. Only false takes the tool away. Each adapter does what its protocol allows:
 
 | Adapter | A tool whose guard is false |
 | --- | --- |
@@ -121,11 +119,11 @@ Before any input arrives, the guard is checked against the current state alone. 
 | `foldkit-agent-native` | Stays registered, since the registry is fixed at start; a call answers `ok: false` |
 | `foldkit-agent-a2a` | Stays on the agent card, tagged `conditional`; a call is refused |
 
-None of these protocols can mark a tool as disabled but visible, so hiding is the closest each offers.
+MCP and WebMCP have no way to show a tool as disabled, so those adapters hide it.
 
-A tool whose guard is unknown stays offered. When it is called, the guard runs on the state and the decoded input together, which always gives a plain yes or no. With 50 dollars in the account, `withdraw` with `{ "amount": 9000 }` is refused with `CapabilityUnavailableError` and the message `"withdraw" does not allow this input in the current state`; nothing is sent to `update`.
+A tool whose guard is unknown stays offered. When it is called, the guard runs on the state and the decoded input together, which always gives a plain yes or no. With 50 dollars in the account, `withdraw` with `{ "amount": 9000 }` is refused with `CapabilityUnavailableError`, whose message is `"withdraw" does not allow this input in the current state`, and nothing is sent to `update`. The assistant reads that message as a failed tool call: over MCP, a tool result marked `isError: true`.
 
-The state can also change between the moment the assistant lists the tools and the moment it calls one. Every call reads the state again first, so a `withdraw` sent after the account was frozen fails with `Capability "withdraw" is not available right now` and does not run.
+The state can also change after the assistant lists the tools and before it calls one. Each call checks the current state again before anything else. A `withdraw` sent after the account was frozen fails with `Capability "withdraw" is not available right now`, and does not run.
 
 A call is checked in this order, and the first failure is the answer:
 
@@ -138,7 +136,7 @@ The guard runs after `authorize`, so a caller who may not use the tool learns no
 
 ## Send a different Message, or limit who may call
 
-Pass an object instead of a description when the Message your app handles has a different shape from the transition's input, or when only some callers may use the tool:
+Pass an object instead of a description when the Message your app handles has a different shape from the transition's input, or when only some callers may use the tool. Here a `Paid` Message also records where the payment came from, and only a teller allowed to pay may call it; your `update` would apply `Withdraw` for `Paid` as it does above. The second type given to `Agent.forModel` is the caller's type, which your host reports as its `principal` (the [package page](../README.md) shows how):
 
 ```ts
 interface Teller {
@@ -164,7 +162,7 @@ TellerAgent.expose(PayMessage, {
 
 - `name` replaces the default tool name.
 - `toMessage` makes the Message's fields from the decoded input. Without it, the input is sent as the Message's fields unchanged.
-- `authorize` receives the caller your host reports (its `principal`), typed by the agent you passed.
+- `authorize` receives that caller as `principal`, typed as `Teller`, and runs before the guard.
 
 ## Next
 
