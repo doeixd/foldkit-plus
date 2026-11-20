@@ -72,6 +72,7 @@ void proof
 ## Main exports by subpath
 
 - `metakit`: `Path`, `Expr`, `Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr`, `Transition`, `Verdict`, `Abstract`
+- `Expr.rulesOf(schema)` lists each `Expr.refine` and Effect numeric bound with the property path it sits on (`at`, `[]` for the schema itself) and its `message` annotation as an `Option`, so a form can show the message beside the field. `Expr.refinementsOf` gives the expressions alone. Neither reads a check inside `Schema.optional` or `Schema.NullOr`.
 - `metakit/domain`: `Money`, `Decimal`, `CalendarDay`, `OrderedEnum`, `Domain`
 - `metakit/aggregates`: `sum`, `count`, `min`, `max`, `every`, `any`
 - `metakit/machine`: `make`, `Machine`, `MessageOf`, `EmitOf`

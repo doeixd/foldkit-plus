@@ -9,7 +9,7 @@
  * - `Expr.eval`, `Expr.residualize`, `Expr.judge`, `Expr.reads`, and
  *   `Expr.lift` operate on any `Expr`.
  */
-import { Option, Schema, SchemaAST } from 'effect'
+import { Option, Predicate, Schema, SchemaAST } from 'effect'
 import * as Node from './node.js'
 import * as Bool from './ops/bool.js'
 import {
@@ -208,118 +208,112 @@ export const refine =
     return schema.check(filter) as S['Rebuild']
   }
 
+/** One rule `Expr.rulesOf` reads off a Schema. */
+export interface Refinement<A> {
+  /** Property path the check sits on; `[]` is the schema itself. */
+  readonly at: ReadonlyArray<string>
+  /** The rule over the whole schema's value (a property's rule reads through `at`). */
+  readonly expr: ExprType<A, boolean>
+  /** The check's `message` annotation, or its enclosing group's. */
+  readonly message: Option.Option<string>
+}
+
 /**
- * Read every symbolic `Expr` constraint attached to `schema` via `Expr.refine`
- * as well as built-in Effect `Schema` numeric bound checks (`isGreaterThan`,
- * `isGreaterThanOrEqualTo`, `isLessThan`, `isLessThanOrEqualTo`, `isBetween`),
- * including nested struct properties prefixed with their property path.
+ * Read every rule attached to `schema`, with where it sits and its message:
+ * each `Expr.refine` and each built-in Effect numeric bound (`isGreaterThan`,
+ * `isGreaterThanOrEqualTo`, `isLessThan`, `isLessThanOrEqualTo`, and
+ * `isBetween`, which gives one rule per side), on the schema itself and on
+ * nested struct properties. A check on a union member (`Schema.optional`,
+ * `Schema.NullOr`) is not read.
  */
+export const rulesOf = <S extends Schema.Top>(schema: S): ReadonlyArray<Refinement<S['Type']>> =>
+  collectAstRefinements(schema.ast, []).map(rule => ({
+    at: rule.at,
+    expr: wrap<S['Type'], boolean>(rule.node),
+    message: rule.message,
+  }))
+
+/** The expressions of `Expr.rulesOf`, in the same order. */
 export const refinementsOf = <S extends Schema.Top>(
   schema: S,
-): ReadonlyArray<ExprType<S['Type'], boolean>> =>
-  collectAstRefinements(schema.ast, []).map(node => wrap<S['Type'], boolean>(node))
+): ReadonlyArray<ExprType<S['Type'], boolean>> => rulesOf(schema).map(rule => rule.expr)
+
+interface RuleNode {
+  readonly at: ReadonlyArray<string>
+  readonly node: Node.Node
+  readonly message: Option.Option<string>
+}
+
+const boundNodes = (
+  representation: { readonly id: string; readonly payload: Schema.Json },
+  self: Node.Node,
+): ReadonlyArray<Node.Node> => {
+  const { id, payload } = representation
+  const fields: Readonly<Record<string, unknown>> = Predicate.isObject(payload) ? payload : {}
+  const bound = (op: Node.Op, key: string): ReadonlyArray<Node.Node> => {
+    const value = fields[key]
+    return typeof value === 'number' ? [Node.Call({ op, args: [self, Node.Lit({ value })] })] : []
+  }
+  const flag = (key: string): boolean => fields[key] === true
+  switch (id) {
+    case 'effect/schema/isGreaterThanOrEqualTo':
+      return bound(gteOp, 'minimum')
+    case 'effect/schema/isGreaterThan':
+      return bound(gtOp, 'exclusiveMinimum')
+    case 'effect/schema/isLessThanOrEqualTo':
+      return bound(lteOp, 'maximum')
+    case 'effect/schema/isLessThan':
+      return bound(ltOp, 'exclusiveMaximum')
+    case 'effect/schema/isBetween':
+      return [
+        ...bound(flag('exclusiveMinimum') ? gtOp : gteOp, 'minimum'),
+        ...bound(flag('exclusiveMaximum') ? ltOp : lteOp, 'maximum'),
+      ]
+    default:
+      return []
+  }
+}
 
 const collectChecks = (
   checks: ReadonlyArray<SchemaAST.Check<unknown>>,
-  prefix: ReadonlyArray<string>,
-  out: Array<Node.Node>,
+  at: ReadonlyArray<string>,
+  groupMessage: Option.Option<string>,
+  out: Array<RuleNode>,
 ): void => {
-  const selfPath = Node.Path({ segments: prefix, ast: Option.none() })
+  const self = Node.Path({ segments: at, ast: Option.none() })
   for (const check of checks) {
-    const ann = check.annotations as Readonly<Record<string, unknown>> | undefined
+    const ann = check.annotations
+    const message = Option.orElse(Option.fromUndefinedOr(ann?.message), () => groupMessage)
     if (ann !== undefined) {
       if (REFINEMENT_ANNOTATION_KEY in ann) {
-        out.push(Node.prefix(ann[REFINEMENT_ANNOTATION_KEY] as Node.Node, prefix))
+        out.push({
+          at,
+          node: Node.prefix(ann[REFINEMENT_ANNOTATION_KEY] as Node.Node, at),
+          message,
+        })
       }
-      const repr = ann['representation'] as
-        | { readonly id?: string; readonly payload?: Readonly<Record<string, unknown>> | null }
-        | undefined
-      if (repr !== undefined && typeof repr.id === 'string') {
-        switch (repr.id) {
-          case 'effect/schema/isGreaterThanOrEqualTo':
-            if (typeof repr.payload?.['minimum'] === 'number') {
-              out.push(
-                Node.Call({
-                  op: gteOp,
-                  args: [selfPath, Node.Lit({ value: repr.payload['minimum'] })],
-                }),
-              )
-            }
-            break
-          case 'effect/schema/isGreaterThan':
-            if (typeof repr.payload?.['exclusiveMinimum'] === 'number') {
-              out.push(
-                Node.Call({
-                  op: gtOp,
-                  args: [selfPath, Node.Lit({ value: repr.payload['exclusiveMinimum'] })],
-                }),
-              )
-            }
-            break
-          case 'effect/schema/isLessThanOrEqualTo':
-            if (typeof repr.payload?.['maximum'] === 'number') {
-              out.push(
-                Node.Call({
-                  op: lteOp,
-                  args: [selfPath, Node.Lit({ value: repr.payload['maximum'] })],
-                }),
-              )
-            }
-            break
-          case 'effect/schema/isLessThan':
-            if (typeof repr.payload?.['exclusiveMaximum'] === 'number') {
-              out.push(
-                Node.Call({
-                  op: ltOp,
-                  args: [selfPath, Node.Lit({ value: repr.payload['exclusiveMaximum'] })],
-                }),
-              )
-            }
-            break
-          case 'effect/schema/isBetween':
-            if (
-              typeof repr.payload?.['minimum'] === 'number' &&
-              typeof repr.payload?.['maximum'] === 'number'
-            ) {
-              const loOp = repr.payload['exclusiveMinimum'] === true ? gtOp : gteOp
-              const hiOp = repr.payload['exclusiveMaximum'] === true ? ltOp : lteOp
-              out.push(
-                Node.Call({
-                  op: loOp,
-                  args: [selfPath, Node.Lit({ value: repr.payload['minimum'] })],
-                }),
-              )
-              out.push(
-                Node.Call({
-                  op: hiOp,
-                  args: [selfPath, Node.Lit({ value: repr.payload['maximum'] })],
-                }),
-              )
-            }
-            break
-        }
+      if (ann.representation !== undefined) {
+        for (const node of boundNodes(ann.representation, self)) out.push({ at, node, message })
       }
     }
-    if ('checks' in check && Array.isArray(check.checks)) {
-      collectChecks(check.checks, prefix, out)
-    }
+    if (check._tag === 'FilterGroup') collectChecks(check.checks, at, message, out)
   }
 }
 
 const collectAstRefinements = (
   ast: SchemaAST.AST,
-  prefix: ReadonlyArray<string>,
-): ReadonlyArray<Node.Node> => {
-  const out: Array<Node.Node> = []
+  at: ReadonlyArray<string>,
+): ReadonlyArray<RuleNode> => {
+  const out: Array<RuleNode> = []
   if (SchemaAST.isObjects(ast)) {
     for (const prop of ast.propertySignatures) {
       if (typeof prop.name === 'string') {
-        out.push(...collectAstRefinements(prop.type, [...prefix, prop.name]))
+        out.push(...collectAstRefinements(prop.type, [...at, prop.name]))
       }
     }
   }
   if (ast.checks !== undefined) {
-    collectChecks(ast.checks, prefix, out)
+    collectChecks(ast.checks, at, Option.none(), out)
   }
   return out
 }
