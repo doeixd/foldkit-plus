@@ -313,8 +313,34 @@ const solveWithZ3 = async (
       If: ({ cond, then, otherwise }) =>
         z3.If(asBool(ctx.lower(cond)), lowerIsNull(then), lowerIsNull(otherwise)),
       Call: () => z3.Bool.val(false),
-      Match: () => z3.Bool.val(false),
-      Opaque: () => z3.Bool.val(false),
+      Match: ({ on, cases, otherwise }) => {
+        if (cases.length === 0) {
+          return Option.match(otherwise, {
+            onNone: () => z3.Bool.val(true),
+            onSome: lowerIsNull,
+          })
+        }
+        const target = asArith(ctx.lower(on))
+        let acc = Option.match(otherwise, {
+          onNone: () => lowerIsNull(cases[cases.length - 1]![1]),
+          onSome: lowerIsNull,
+        })
+        const start = Option.isSome(otherwise) ? cases.length - 1 : cases.length - 2
+        for (let i = start; i >= 0; i--) {
+          const [val, branch] = cases[i]!
+          acc = z3.If(target.eq(z3.Int.val(encodeString(val))), lowerIsNull(branch), acc)
+        }
+        return acc
+      },
+      Opaque: opaque => {
+        const k = `isNull:${Node.key(opaque)}`
+        let v = opaqueVars.get(k)
+        if (v === undefined) {
+          v = z3.Bool.const(k)
+          opaqueVars.set(k, v)
+        }
+        return asBool(v)
+      },
     })
 
   const ctx: SmtContext = {

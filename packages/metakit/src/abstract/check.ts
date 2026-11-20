@@ -519,6 +519,12 @@ export class AbstractState {
       if (node.value === false) this.markBottom()
       return
     }
+    if (Node.$is('Path')(node)) {
+      const pk = Path.format(node.segments)
+      if (this.eqFacts.get(pk) === false) this.markBottom()
+      else this.eqFacts.set(pk, true)
+      return
+    }
     if (!Node.$is('Call')(node)) return
     const addToZone = abstractOps[node.op.id].addToZone
     if (addToZone !== undefined) {
@@ -617,6 +623,13 @@ export class AbstractState {
         ? Verdict.True(Option.some(Verdict.Proved('concrete')))
         : Verdict.False()
     }
+    if (Node.$is('Path')(goal)) {
+      const pk = Path.format(goal.segments)
+      const known = this.eqFacts.get(pk)
+      if (known === true) return Verdict.True(Option.some(Verdict.Proved('zone')))
+      if (known === false) return Verdict.False()
+      return Verdict.Unknown(`boolean path "${pk}" unknown`)
+    }
     if (Node.$is('Opaque')(goal)) {
       return Verdict.Unknown(
         `opaque term "${goal.name}"`,
@@ -641,8 +654,15 @@ export class AbstractState {
     switch (goal.op.id) {
       case 'bool.and':
         return Verdict.and(this.entailsAtomic(a!), this.entailsAtomic(b!))
-      case 'bool.or':
-        return Verdict.or(this.entailsAtomic(a!), this.entailsAtomic(b!))
+      case 'bool.or': {
+        const directOr = Verdict.or(this.entailsAtomic(a!), this.entailsAtomic(b!))
+        if (Verdict.isTrue(directOr) || Verdict.isFalse(directOr)) return directOr
+        // Classical deduction: Γ ⊢ A ∨ B  <=>  Γ, ¬A ⊢ B
+        const assumedNotA = this.clone()
+        assumedNotA.assume(negateNode(a!))
+        const underNotA = assumedNotA.entails(b!, 1)
+        return Verdict.isTrue(underNotA) ? underNotA : directOr
+      }
       case 'bool.not':
         return Verdict.not(this.entailsAtomic(a!))
       case 'ord.lte':
