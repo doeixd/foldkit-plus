@@ -12,7 +12,15 @@
 import { Option, Schema, SchemaAST } from 'effect'
 import * as Node from './node.js'
 import * as Bool from './ops/bool.js'
-import { isExpr, toNode, wrap, type EnvOfInput, type ExprInput } from './ops/core.js'
+import {
+  isExpr,
+  toNode,
+  wrap,
+  type EnvOfInput,
+  type ExprInput,
+  type UnionToIntersection,
+  type ValueOfInput,
+} from './ops/core.js'
 import { evalNode } from './ops/eval.js'
 import { gtOp, gteOp, ltOp, lteOp } from './ops/num.js'
 import { judgeNode, readsOfNode, residualizeNode } from './ops/residualize.js'
@@ -29,45 +37,52 @@ export const REFINEMENT_ANNOTATION_KEY = 'metakit/expr' as const
 /** Construct a constant expression. */
 export const lit = <const A>(value: A): ExprType<unknown, A> => wrap(Node.Lit({ value }))
 
+type TupleEnv<Terms extends ReadonlyArray<ExprInput<never, unknown>>> = Terms extends readonly []
+  ? unknown
+  : UnionToIntersection<EnvOfInput<Terms[number]>>
+
 /** Conjunction of any number of boolean expressions (empty = `true`). */
-export const all = <Env>(
-  ...terms: ReadonlyArray<ExprInput<Env, boolean>>
-): ExprType<Env, boolean> => {
-  if (terms.length === 0) return lit(true)
-  let acc: ExprType<Env, boolean> = isExpr(terms[0]) ? terms[0] : lit(terms[0] as boolean)
+export const all = <const Terms extends ReadonlyArray<ExprInput<never, boolean>>>(
+  ...terms: Terms
+): ExprType<TupleEnv<Terms>, boolean> => {
+  if (terms.length === 0) return lit(true) as ExprType<TupleEnv<Terms>, boolean>
+  let acc: ExprType<never, boolean> = isExpr(terms[0]) ? terms[0] : lit(terms[0] as boolean)
   for (let i = 1; i < terms.length; i++) {
-    acc = Bool.and(acc, terms[i]!) as ExprType<Env, boolean>
+    acc = Bool.and(acc, terms[i]!) as ExprType<never, boolean>
   }
-  return acc
+  return acc as unknown as ExprType<TupleEnv<Terms>, boolean>
 }
 
 /** Disjunction of any number of boolean expressions (empty = `false`). */
-export const any = <Env>(
-  ...terms: ReadonlyArray<ExprInput<Env, boolean>>
-): ExprType<Env, boolean> => {
-  if (terms.length === 0) return lit(false)
-  let acc: ExprType<Env, boolean> = isExpr(terms[0]) ? terms[0] : lit(terms[0] as boolean)
+export const any = <const Terms extends ReadonlyArray<ExprInput<never, boolean>>>(
+  ...terms: Terms
+): ExprType<TupleEnv<Terms>, boolean> => {
+  if (terms.length === 0) return lit(false) as ExprType<TupleEnv<Terms>, boolean>
+  let acc: ExprType<never, boolean> = isExpr(terms[0]) ? terms[0] : lit(terms[0] as boolean)
   for (let i = 1; i < terms.length; i++) {
-    acc = Bool.or(acc, terms[i]!) as ExprType<Env, boolean>
+    acc = Bool.or(acc, terms[i]!) as ExprType<never, boolean>
   }
-  return acc
+  return acc as unknown as ExprType<TupleEnv<Terms>, boolean>
 }
 
 /** Logical negation. */
 export const not = Bool.not
 
+/** Logical implication (`condition => then`, equivalent to `!condition || then`). */
+export const implies = <C extends ExprInput<never, boolean>, T extends ExprInput<never, boolean>>(
+  condition: C,
+  then: T,
+): ExprType<EnvOfInput<C> & EnvOfInput<T>, boolean> => Bool.or(Bool.not(condition), then)
+
 /** Two-way conditional expression. */
 export const when = <
   C extends ExprInput<never, boolean>,
-  T extends ExprInput<never, unknown>,
-  E extends ExprInput<never, unknown>,
+  const T extends ExprInput<never, unknown>,
+  const E extends ExprInput<never, unknown>,
 >(
   cond: C,
   branches: { readonly then: T; readonly else: E },
-): ExprType<
-  EnvOfInput<C> & EnvOfInput<T> & EnvOfInput<E>,
-  (T extends ExprType<never, infer A> ? A : T) | (E extends ExprType<never, infer B> ? B : E)
-> =>
+): ExprType<EnvOfInput<C> & EnvOfInput<T> & EnvOfInput<E>, ValueOfInput<T> | ValueOfInput<E>> =>
   wrap(
     Node.If({
       cond: toNode(cond),
@@ -76,34 +91,51 @@ export const when = <
     }),
   )
 
-/** Exhaustive literal `Match` over a string union expression (or with an `otherwise` fallback). */
-export const match = <Env, K extends string, A>(
+/** Exhaustive literal `Match` over a string union expression. */
+export const match = <
+  Env,
+  K extends string,
+  const Cases extends { readonly [P in K]: ExprInput<never, unknown> },
+>(
   on: ExprType<Env, K>,
-  cases: { readonly [P in K]: ExprInput<Env, A> },
-): ExprType<Env, A> =>
+  cases: Cases,
+): ExprType<
+  Env & UnionToIntersection<EnvOfInput<Cases[keyof Cases]>>,
+  ValueOfInput<Cases[keyof Cases]>
+> =>
   wrap(
     Node.Match({
       on: on.node,
       cases: Object.entries(cases).map(([value, branch]) => [
         value,
-        toNode(branch as ExprInput<Env, A>),
+        toNode(branch as ExprInput<never, unknown>),
       ]),
       otherwise: Option.none(),
     }),
   )
 
 /** Partial literal `Match` with an explicit fallback branch. */
-export const matchOrElse = <Env, K extends string, A>(
+export const matchOrElse = <
+  Env,
+  K extends string,
+  const Cases extends { readonly [P in K]?: ExprInput<never, unknown> },
+  const Fallback extends ExprInput<never, unknown>,
+>(
   on: ExprType<Env, K>,
-  cases: { readonly [P in K]?: ExprInput<Env, A> },
-  otherwise: ExprInput<Env, A>,
-): ExprType<Env, A> =>
+  cases: Cases,
+  otherwise: Fallback,
+): ExprType<
+  Env &
+    UnionToIntersection<EnvOfInput<Exclude<Cases[keyof Cases], undefined>>> &
+    EnvOfInput<Fallback>,
+  ValueOfInput<Exclude<Cases[keyof Cases], undefined>> | ValueOfInput<Fallback>
+> =>
   wrap(
     Node.Match({
       on: on.node,
       cases: Object.entries(cases)
         .filter(([, branch]) => branch !== undefined)
-        .map(([value, branch]) => [value, toNode(branch as ExprInput<Env, A>)]),
+        .map(([value, branch]) => [value, toNode(branch as ExprInput<never, unknown>)]),
       otherwise: Option.some(toNode(otherwise)),
     }),
   )
@@ -337,3 +369,43 @@ export const judge = <Env>(
 export const reads = <Env, A>(
   expr: ExprType<Env, A>,
 ): Option.Option<ReadonlyArray<ReadonlyArray<string>>> => readsOfNode(expr.node)
+
+const infixSymbols: Readonly<Partial<Record<Node.OpId, string>>> = {
+  and: '&&',
+  or: '||',
+  is: '==',
+  isNot: '!=',
+  lt: '<',
+  lte: '<=',
+  gt: '>',
+  gte: '>=',
+  add: '+',
+  sub: '-',
+  mul: '*',
+}
+
+const showNode = (node: Node.Node): string =>
+  Node.$match(node, {
+    Lit: ({ value }) => (typeof value === 'bigint' ? `${value}n` : JSON.stringify(value)),
+    Path: ({ segments }) => Path.format(segments),
+    Call: ({ op, args }) => {
+      if (op.id === 'not' && args.length === 1) return `!${showNode(args[0]!)}`
+      if (op.id === 'neg' && args.length === 1) return `-${showNode(args[0]!)}`
+      const sym = infixSymbols[op.id]
+      if (sym !== undefined && args.length === 2) {
+        return `(${showNode(args[0]!)} ${sym} ${showNode(args[1]!)})`
+      }
+      return `${op.id}(${args.map(showNode).join(', ')})`
+    },
+    If: ({ cond, then, otherwise }) =>
+      `(if ${showNode(cond)} then ${showNode(then)} else ${showNode(otherwise)})`,
+    Match: ({ on, cases, otherwise }) => {
+      const arms = cases.map(([v, b]) => `${JSON.stringify(v)} => ${showNode(b)}`)
+      if (Option.isSome(otherwise)) arms.push(`_ => ${showNode(otherwise.value)}`)
+      return `match ${showNode(on)} { ${arms.join(', ')} }`
+    },
+    Opaque: ({ name }) => `<opaque:${name}>`,
+  })
+
+/** Format an `Expr` into a readable string for debugging, logs, and diagnostics. */
+export const show = <Env, A>(expr: ExprType<Env, A>): string => showNode(expr.node)

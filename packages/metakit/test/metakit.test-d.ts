@@ -45,3 +45,43 @@ Transition.make({
     Transition.set(Num.sub(state.balance, input.amount), 0),
   ],
 })
+
+// 5. Eq.is and Eq.oneOf constrain right-hand literals by the left-hand type (no widening!)
+Expr.in({ row: Account }, ({ row }) =>
+  Expr.all(
+    Eq.is(row.status, 'open'),
+    // @ts-expect-error 'typo' is not assignable to 'open' | 'frozen'
+    Eq.is(row.status, 'typo'),
+    // @ts-expect-error 'typo' is not assignable to 'open' | 'frozen'
+    Eq.oneOf(row.status, ['open', 'typo']),
+  ),
+)
+
+// 6. Heterogeneous Env intersection in Expr.all without annotations
+const principalOnly = Expr.in({ principal: Principal }, ({ principal }) =>
+  Eq.is(principal.role, 'admin'),
+)
+const combined: Expr.Expr<{ readonly row: Account } & { readonly principal: Principal }, boolean> =
+  Expr.all(rowOnly, principalOnly)
+void combined
+
+// 7. Exact literal-union return type from Expr.match (not widened to string)
+const statusLabel: Expr.Expr<{ readonly row: Account }, 'Active' | 'Locked'> = Expr.in(
+  { row: Account },
+  ({ row }) =>
+    Expr.match(row.status, {
+      open: 'Active',
+      frozen: 'Locked',
+    }),
+)
+void statusLabel
+
+// 8. Path.of<Interface>() works on TypeScript interfaces with zero repeated keys
+interface AppModel {
+  readonly account: Account
+  readonly theme: 'light' | 'dark'
+}
+const appBalance: Path.Path<AppModel, number> = Path.of<AppModel>().account.balance
+const appTheme: Path.Path<AppModel, 'light' | 'dark'> = Path.of<AppModel>().theme
+void appBalance
+void appTheme

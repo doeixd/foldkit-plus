@@ -134,6 +134,17 @@ describe('Expr evaluation, derived ops, and opaque terms', () => {
       ),
     )
     expect(Expr.eval(StrCheck, { model: acct })).toBe(true)
+
+    // Implication and readable formatting
+    const OpenImpliesPositive = Expr.in({ model: Account }, ({ model }) =>
+      Expr.implies(Eq.is(model.status, 'open'), Num.gte(model.balance, 0)),
+    )
+    expect(Expr.eval(OpenImpliesPositive, { model: acct })).toBe(true)
+    expect(
+      Expr.eval(OpenImpliesPositive, { model: { ...acct, status: 'frozen', balance: -1 } }),
+    ).toBe(true)
+    expect(Expr.show(AvailableBalance)).toBe('(model.balance - model.reserved)')
+    expect(Expr.show(CanWithdraw)).toContain('row.status == "open"')
   })
 
   it('tracks reads on opaque terms and degrades soundly to Unknown in judge', () => {
@@ -253,7 +264,7 @@ describe('Transition', () => {
       readonly account: Account
       readonly theme: string
     }
-    const AppWithdraw = Transition.lift(Path.field<AppModel, 'account'>('account'), Withdraw)
+    const AppWithdraw = Transition.lift(Path.of<AppModel>().account, Withdraw)
 
     const fp = Transition.footprint(AppWithdraw)
     expect(fp.writes).toEqual([['account', 'balance']])

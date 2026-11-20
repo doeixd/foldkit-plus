@@ -4,7 +4,7 @@
  */
 import * as Node from '../node.js'
 import type { Expr } from '../path.js'
-import { call, type EnvOfInput, type ExprInput } from './core.js'
+import { call, type EnvOfInput, type ExprInput, type UnionToIntersection } from './core.js'
 
 export const structOp: Node.Op<'struct'> = {
   id: 'struct',
@@ -16,12 +16,6 @@ export const structOp: Node.Op<'struct'> = {
     return out
   },
 }
-
-type UnionToIntersection<U> = (U extends unknown ? (x: U) => void : never) extends (
-  x: infer I,
-) => void
-  ? I
-  : never
 
 type FieldsEnv<Fields extends Readonly<Record<string, ExprInput<never, unknown>>>> =
   UnionToIntersection<EnvOfInput<Fields[keyof Fields]>>

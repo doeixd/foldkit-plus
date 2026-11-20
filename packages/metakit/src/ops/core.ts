@@ -11,6 +11,16 @@ export type ExprInput<Env, A> = Expr<Env, A> | A
 /** Extract the `Env` required by an `ExprInput` (`unknown` for plain literals). */
 export type EnvOfInput<T> = T extends Expr<infer E, unknown> ? E : unknown
 
+/** Extract the output value type of an `ExprInput`. */
+export type ValueOfInput<T> = T extends Expr<never, infer A> ? A : T
+
+/** Convert a union of environments into their intersection. */
+export type UnionToIntersection<U> = (U extends unknown ? (x: U) => void : never) extends (
+  x: infer I,
+) => void
+  ? I
+  : never
+
 /** Wrap a raw `Node` as a typed `Expr<Env, A>`. */
 export const wrap = <Env, A>(node: Node.Node): Expr<Env, A> => ({
   [ExprTypeId]: undefined as never,

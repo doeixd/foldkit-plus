@@ -10,7 +10,7 @@
 import { Equal, Option } from 'effect'
 import * as Node from '../node.js'
 import type { Expr } from '../path.js'
-import { call, type EnvOfInput, type ExprInput } from './core.js'
+import { call, type EnvOfInput, type ExprInput, type ValueOfInput } from './core.js'
 
 const sameValue = (a: unknown, b: unknown): boolean =>
   Object.is(a, b) || (a === 0 && b === 0) || Equal.equals(a, b)
@@ -59,14 +59,24 @@ export const oneOfOp: Node.Op<'oneOf'> = {
   },
 }
 
-/** Equality between two values of the same type `A`. */
-export const is = <A, L extends ExprInput<never, A>, R extends ExprInput<never, A>>(
+/**
+ * Equality between two values of the same type.
+ * The right operand is constrained by the left operand's type so literal unions
+ * get autocomplete and typos (e.g. `Eq.is(row.status, 'typo')`) fail to compile.
+ */
+export const is = <
+  L extends ExprInput<never, unknown>,
+  R extends ExprInput<never, NoInfer<ValueOfInput<L>>>,
+>(
   left: L,
   right: R,
 ): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> => call(isOp, [left, right])
 
-/** Inequality between two values of the same type `A`. */
-export const isNot = <A, L extends ExprInput<never, A>, R extends ExprInput<never, A>>(
+/** Inequality between two values of the same type. */
+export const isNot = <
+  L extends ExprInput<never, unknown>,
+  R extends ExprInput<never, NoInfer<ValueOfInput<L>>>,
+>(
   left: L,
   right: R,
 ): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> => call(isNotOp, [left, right])
@@ -77,7 +87,7 @@ export const isNull = <X extends ExprInput<never, unknown>>(
 ): Expr<EnvOfInput<X>, boolean> => call(isNullOp, [value])
 
 /** True when `value` equals one of the literal `candidates`. */
-export const oneOf = <A, X extends ExprInput<never, A>>(
+export const oneOf = <X extends ExprInput<never, unknown>>(
   value: X,
-  candidates: ReadonlyArray<A>,
+  candidates: ReadonlyArray<NoInfer<ValueOfInput<X>>>,
 ): Expr<EnvOfInput<X>, boolean> => call(oneOfOp, [value, candidates])

@@ -121,14 +121,16 @@ export const format = (segments: ReadonlyArray<string>): string =>
   segments.length === 0 ? '$' : segments.join('.')
 
 /**
- * Recursive typed accessor for an environment value `A`: every plain record
- * property becomes a nested `PathAccessor<Env, A[K]>`, and every level is
- * itself a `Path<Env, A>`.
+ * Recursive typed accessor for an environment value `A`: every plain object
+ * property (including TypeScript `interface`s) becomes a nested
+ * `PathAccessor<Env, A[K]>`, and every level is itself a `Path<Env, A>`.
  */
 export type PathAccessor<Env, A> = Path<Env, A> &
-  ([A] extends [Readonly<Record<string, unknown>>]
-    ? { readonly [K in keyof A & string]: PathAccessor<Env, A[K]> }
-    : unknown)
+  ([A] extends [((...args: never) => unknown) | ReadonlyArray<unknown> | Date]
+    ? unknown
+    : [A] extends [object]
+      ? { readonly [K in keyof A & string]: PathAccessor<Env, A[K]> }
+      : unknown)
 
 const propertyAsts = (ast: Option.Option<SchemaAST.AST>): ReadonlyMap<string, SchemaAST.AST> => {
   const map = new Map<string, SchemaAST.AST>()
@@ -179,9 +181,15 @@ export const accessor = <Env, A>(
   }) as PathAccessor<Env, A>
 }
 
+/** Build a `PathAccessor` for any TypeScript type `Env` (e.g. `Path.of<AppModel>().account`). */
+export const of = <Env>(): PathAccessor<Env, Env> => accessor<Env, Env>([], Option.none())
+
 /** Build a `PathAccessor` for a single Schema's `Type`. */
 export const forSchema = <S extends Schema.Top>(schema: S): PathAccessor<S['Type'], S['Type']> =>
   accessor<S['Type'], S['Type']>([], Option.some(schema.ast))
+
+/** Alias for `forSchema` matching `Path.from(Account).balance`. */
+export { forSchema as from }
 
 /** Map `{ k: Schema }` to `{ readonly [K]: Schema['Type'] }`. */
 export type EnvOf<Shape extends Readonly<Record<string, Schema.Top>>> = {
