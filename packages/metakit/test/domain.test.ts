@@ -1,7 +1,7 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Effect, Option, Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Path, Transition, Verdict } from 'metakit'
+import { Abstract, Eq, Expr, Ord, Path, Transition, Verdict } from 'metakit'
 import { CalendarDay, Domain, Money, OrderedEnum } from 'metakit/domain'
 import * as Prove from 'metakit/prove'
 import * as Sql from 'metakit/sql'
@@ -137,13 +137,36 @@ describe('metakit/domain', () => {
       expect(res.rows.map(r => r.id)).toEqual(['b2'])
     }
 
-    // Z3 proves: if status >= 'paid', then status != 'draft' and status > 'draft'
+    // Tier 3 Match case-splitting proves OrderedEnum monotonicity synchronously without Z3!
     const $ = Path.forSchema(Booking)
     const goal = Expr.implies(
       OrderStatus.gte($.status, 'paid'),
       Expr.all(Eq.isNot($.status, 'draft'), OrderStatus.gt($.status, 'draft')),
     )
-    const z3Verdict = await Effect.runPromise(Prove.invariant(Booking, goal))
-    expect(Verdict.isTrue(z3Verdict)).toBe(true)
+    const tier3Verdict = Abstract.checkInvariant(Booking, goal)
+    expect(Verdict.isTrue(tier3Verdict)).toBe(true)
+    if (Verdict.isTrue(tier3Verdict)) {
+      expect(Option.isSome(tier3Verdict.evidence)).toBe(true)
+      if (Option.isSome(tier3Verdict.evidence)) {
+        expect(['interval', 'zone']).toContain(tier3Verdict.evidence.value.tier)
+      }
+    }
+
+    // Prove.invariant returns the synchronous Tier 3 proof without booting Z3
+    const proveVerdict = await Effect.runPromise(Prove.invariant(Booking, goal))
+    expect(Verdict.isTrue(proveVerdict)).toBe(true)
+    if (Verdict.isTrue(proveVerdict) && Option.isSome(proveVerdict.evidence)) {
+      expect(proveVerdict.evidence.value.tier).not.toBe('z3')
+    }
+
+    // Piecewise pricing table via Match proved synchronously in Tier 3
+    const Plan = Schema.Struct({ tier: Schema.Literals(['free', 'pro', 'enterprise']) })
+    const $p = Path.forSchema(Plan)
+    const Price = Expr.match($p.tier, { free: 0, pro: 29, enterprise: 99 })
+    expect(Verdict.isTrue(Abstract.checkInvariant(Plan, Ord.between(Price, 0, 100)))).toBe(true)
+
+    // Broken rule over Match is NOT proved True
+    const broken = Expr.implies(OrderStatus.gte($.status, 'pending'), Eq.is($.status, 'paid'))
+    expect(Verdict.isTrue(Abstract.checkInvariant(Booking, broken))).toBe(false)
   }, 30_000)
 })

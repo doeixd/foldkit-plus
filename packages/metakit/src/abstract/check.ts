@@ -450,6 +450,9 @@ export class AbstractState {
       const fIv = fBranch.propagate() ? fBranch.evalInterval(node.otherwise) : Interval.bottom
       return Interval.join(tIv, fIv)
     }
+    if (Node.$is('Match')(node)) {
+      return this.evalMatchInterval(node)
+    }
     const v = this.varOf(node)
     const fromZone = Option.isSome(v) ? this.zone.intervalOf(v.value) : Interval.top
     if (Node.$is('Call')(node)) {
@@ -459,6 +462,99 @@ export class AbstractState {
       }
     }
     return fromZone
+  }
+
+  private resolveMatchArm(node: Node.Match, value: unknown): Option.Option<Node.Node> {
+    for (const [k, arm] of node.cases) {
+      if (k === value) return Option.some(arm)
+    }
+    return node.otherwise
+  }
+
+  private evalMatchInterval(node: Node.Match): Interval.Interval {
+    if (Node.$is('Lit')(node.on)) {
+      return Option.match(this.resolveMatchArm(node, node.on.value), {
+        onNone: () => Interval.top,
+        onSome: arm => this.evalInterval(arm),
+      })
+    }
+    if (Node.$is('Path')(node.on)) {
+      const pk = Path.format(node.on.segments)
+      if (this.eqFacts.has(pk)) {
+        return Option.match(this.resolveMatchArm(node, this.eqFacts.get(pk)), {
+          onNone: () => Interval.top,
+          onSome: arm => this.evalInterval(arm),
+        })
+      }
+      const info = this.fields.get(pk)
+      if (
+        info !== undefined &&
+        Option.isSome(info.literals) &&
+        info.literals.value.length <= MAX_SPLITS
+      ) {
+        const excluded = this.neqFacts.get(pk)
+        let acc = Interval.bottom
+        for (const lit of info.literals.value) {
+          if (excluded?.has(lit)) continue
+          const arm = this.resolveMatchArm(node, lit)
+          if (Option.isNone(arm)) return Interval.top
+          const branch = this.clone()
+          branch.eqFacts.set(pk, lit)
+          if (branch.propagate()) {
+            acc = Interval.join(acc, branch.evalInterval(arm.value))
+          }
+        }
+        return acc
+      }
+    }
+    // Unconstrained target: sound hull over all listed arms only if otherwise is present
+    if (Option.isNone(node.otherwise)) return Interval.top
+    let acc = this.evalInterval(node.otherwise.value)
+    for (const [, arm] of node.cases) {
+      acc = Interval.join(acc, this.evalInterval(arm))
+    }
+    return acc
+  }
+
+  private findSplittableMatchPath(node: Node.Node): Option.Option<string> {
+    return Node.$match(node, {
+      Lit: () => Option.none(),
+      Path: () => Option.none(),
+      Opaque: () => Option.none(),
+      Call: ({ args }) => {
+        for (const a of args) {
+          const found = this.findSplittableMatchPath(a)
+          if (Option.isSome(found)) return found
+        }
+        return Option.none()
+      },
+      If: ({ cond, then, otherwise }) =>
+        Option.orElse(this.findSplittableMatchPath(cond), () =>
+          Option.orElse(this.findSplittableMatchPath(then), () =>
+            this.findSplittableMatchPath(otherwise),
+          ),
+        ),
+      Match: ({ on, cases, otherwise }) => {
+        if (Node.$is('Path')(on)) {
+          const pk = Path.format(on.segments)
+          const info = this.fields.get(pk)
+          if (
+            !this.eqFacts.has(pk) &&
+            info !== undefined &&
+            Option.isSome(info.literals) &&
+            info.literals.value.length > 0 &&
+            info.literals.value.length <= MAX_SPLITS
+          ) {
+            return Option.some(pk)
+          }
+        }
+        for (const [, arm] of cases) {
+          const found = this.findSplittableMatchPath(arm)
+          if (Option.isSome(found)) return found
+        }
+        return Option.flatMap(otherwise, arm => this.findSplittableMatchPath(arm))
+      },
+    })
   }
 
   /** Add `left <= right` (or `<` when `strict` is true) into the Zone. */
@@ -617,6 +713,26 @@ export class AbstractState {
       b2.assume(rightOr)
       return Verdict.and(b1.entails(goal, splitsLeft - 1), b2.entails(goal, splitsLeft - 1))
     }
+    // Case-split on any finite-domain enum Path scrutinized by a Match inside goal
+    if (splitsLeft > 0) {
+      const splitPk = this.findSplittableMatchPath(goal)
+      if (Option.isSome(splitPk)) {
+        const pk = splitPk.value
+        const lits = this.fields.get(pk)!.literals as Option.Some<
+          ReadonlyArray<string | number | boolean>
+        >
+        const excluded = this.neqFacts.get(pk)
+        let acc: Verdict.Verdict<never> = Verdict.True(Option.some(Verdict.Proved('zone')))
+        for (const lit of lits.value) {
+          if (excluded?.has(lit)) continue
+          const branch = this.clone()
+          branch.eqFacts.set(pk, lit)
+          acc = Verdict.and(acc, branch.entails(goal, splitsLeft - 1))
+          if (Verdict.isFalse(acc)) return acc
+        }
+        return acc
+      }
+    }
     return this.pendingOrs.length > 0 ? Verdict.Unknown('disjunction split budget reached') : direct
   }
 
@@ -648,6 +764,24 @@ export class AbstractState {
       const b2 = this.clone()
       b2.assume(negateNode(goal.cond))
       return Verdict.and(b1.entails(goal.then, 0), b2.entails(goal.otherwise, 0))
+    }
+    if (Node.$is('Match')(goal)) {
+      if (Node.$is('Lit')(goal.on)) {
+        return Option.match(this.resolveMatchArm(goal, goal.on.value), {
+          onNone: () => Verdict.Unknown('match arm missing'),
+          onSome: arm => this.entailsAtomic(arm),
+        })
+      }
+      if (Node.$is('Path')(goal.on)) {
+        const pk = Path.format(goal.on.segments)
+        if (this.eqFacts.has(pk)) {
+          return Option.match(this.resolveMatchArm(goal, this.eqFacts.get(pk)), {
+            onNone: () => Verdict.Unknown('match arm missing'),
+            onSome: arm => this.entailsAtomic(arm),
+          })
+        }
+      }
+      return Verdict.Unknown('match scrutinee unknown')
     }
     if (!Node.$is('Call')(goal)) {
       return Verdict.Unknown('non-atomic goal')
