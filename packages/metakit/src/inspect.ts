@@ -5,8 +5,7 @@
  * Reads Effect `SchemaAST`, `Expr.refinementsOf`, `Domain.domainOf`, and
  * `Transition.can` directly — no interpreter interface in between.
  */
-import { Option, SchemaAST } from 'effect'
-import type { Schema } from 'effect'
+import { Option, Schema, SchemaAST } from 'effect'
 import { domainOfAst, type DomainMetadata } from './domain/annotation.js'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
@@ -15,8 +14,22 @@ import * as Verdict from './verdict.js'
 
 export interface FieldSpec {
   readonly name: string
-  readonly kind: 'integer' | 'number' | 'string' | 'boolean' | 'enum' | 'unknown'
+  readonly kind:
+    | 'integer'
+    | 'number'
+    | 'string'
+    | 'boolean'
+    | 'enum'
+    | 'array'
+    | 'object'
+    | 'unknown'
+  /** The key may be left out (`Schema.optional`, `Schema.optionalKey`). */
+  readonly optional: boolean
   readonly nullable: boolean
+  /**
+   * The tightest lower and upper bounds: at most one of `min` and
+   * `exclusiveMin` is set, and at most one of `max` and `exclusiveMax`.
+   */
   readonly min: Option.Option<number>
   readonly max: Option.Option<number>
   readonly exclusiveMin: Option.Option<number>
@@ -25,261 +38,259 @@ export interface FieldSpec {
   readonly domain: Option.Option<DomainMetadata>
 }
 
-const extractSingleField = (name: string, rawAst: SchemaAST.AST): FieldSpec => {
-  let ast = rawAst
-  let nullable = false
-  let domain = domainOfAst(ast)
+type Bounds = Pick<FieldSpec, 'min' | 'max' | 'exclusiveMin' | 'exclusiveMax'>
+type BoundOp = 'ord.gte' | 'ord.gt' | 'ord.lte' | 'ord.lt'
 
-  if (SchemaAST.isUnion(ast)) {
-    const hasNull = ast.types.some(SchemaAST.isNull)
-    const nonNull = ast.types.filter(t => !SchemaAST.isNull(t))
-    if (hasNull && nonNull.length === 1) {
-      nullable = true
-      ast = nonNull[0]!
-      if (Option.isNone(domain)) domain = domainOfAst(ast)
-    }
+const unbounded: Bounds = {
+  min: Option.none(),
+  max: Option.none(),
+  exclusiveMin: Option.none(),
+  exclusiveMax: Option.none(),
+}
+
+const tighter = (
+  prev: Option.Option<number>,
+  value: number,
+  pick: (a: number, b: number) => number,
+): Option.Option<number> =>
+  Option.some(Option.match(prev, { onNone: () => value, onSome: p => pick(p, value) }))
+
+const addBound = (bounds: Bounds, op: BoundOp, value: number): Bounds => {
+  switch (op) {
+    case 'ord.gte':
+      return { ...bounds, min: tighter(bounds.min, value, Math.max) }
+    case 'ord.gt':
+      return { ...bounds, exclusiveMin: tighter(bounds.exclusiveMin, value, Math.max) }
+    case 'ord.lte':
+      return { ...bounds, max: tighter(bounds.max, value, Math.min) }
+    case 'ord.lt':
+      return { ...bounds, exclusiveMax: tighter(bounds.exclusiveMax, value, Math.min) }
   }
+}
 
-  let kind: FieldSpec['kind'] = 'unknown'
-  let min: number | undefined
-  let max: number | undefined
-  let exclusiveMin: number | undefined
-  let exclusiveMax: number | undefined
-  let literals: ReadonlyArray<string | number | boolean> | undefined
-
-  if (SchemaAST.isNumber(ast)) {
-    let isInt = false
-    const scanChecks = (checks: ReadonlyArray<SchemaAST.Check<unknown>>) => {
-      for (const c of checks) {
-        const ann = c.annotations as Readonly<Record<string, unknown>> | undefined
-        const repr = ann?.['representation'] as
-          | { readonly id?: string; readonly payload?: Readonly<Record<string, unknown>> | null }
-          | undefined
-        if (repr?.id === 'effect/schema/isInt') isInt = true
-        if (
-          repr?.id === 'effect/schema/isGreaterThanOrEqualTo' &&
-          typeof repr.payload?.['minimum'] === 'number'
-        ) {
-          min = min === undefined ? repr.payload['minimum'] : Math.max(min, repr.payload['minimum'])
-        }
-        if (
-          repr?.id === 'effect/schema/isGreaterThan' &&
-          typeof repr.payload?.['exclusiveMinimum'] === 'number'
-        ) {
-          exclusiveMin = repr.payload['exclusiveMinimum']
-        }
-        if (
-          repr?.id === 'effect/schema/isLessThanOrEqualTo' &&
-          typeof repr.payload?.['maximum'] === 'number'
-        ) {
-          max = max === undefined ? repr.payload['maximum'] : Math.min(max, repr.payload['maximum'])
-        }
-        if (
-          repr?.id === 'effect/schema/isLessThan' &&
-          typeof repr.payload?.['exclusiveMaximum'] === 'number'
-        ) {
-          exclusiveMax = repr.payload['exclusiveMaximum']
-        }
-        if (repr?.id === 'effect/schema/isBetween') {
-          if (typeof repr.payload?.['minimum'] === 'number') {
-            if (repr.payload['exclusiveMinimum'] === true) exclusiveMin = repr.payload['minimum']
-            else
-              min =
-                min === undefined ? repr.payload['minimum'] : Math.max(min, repr.payload['minimum'])
-          }
-          if (typeof repr.payload?.['maximum'] === 'number') {
-            if (repr.payload['exclusiveMaximum'] === true) exclusiveMax = repr.payload['maximum']
-            else
-              max =
-                max === undefined ? repr.payload['maximum'] : Math.min(max, repr.payload['maximum'])
-          }
-        }
-        if ('checks' in c && Array.isArray(c.checks)) scanChecks(c.checks)
-      }
-    }
-    if (ast.checks !== undefined) scanChecks(ast.checks)
-    kind = isInt ? 'integer' : 'number'
-  } else if (SchemaAST.isString(ast)) {
-    kind = 'string'
-  } else if (SchemaAST.isBoolean(ast)) {
-    kind = 'boolean'
-  } else if (SchemaAST.isLiteral(ast)) {
-    const lit = ast.literal
-    if (typeof lit === 'string' || typeof lit === 'number' || typeof lit === 'boolean') {
-      kind = 'enum'
-      literals = [lit]
-    }
-  } else if (SchemaAST.isUnion(ast)) {
-    const nonNull = ast.types.filter(t => !SchemaAST.isNull(t))
-    if (nonNull.length < ast.types.length) nullable = true
-    const lits: Array<string | number | boolean> = []
-    if (nonNull.length > 0 && nonNull.every(SchemaAST.isLiteral)) {
-      for (const m of nonNull) {
-        if (SchemaAST.isLiteral(m)) {
-          const lit = m.literal
-          if (typeof lit === 'string' || typeof lit === 'number' || typeof lit === 'boolean') {
-            lits.push(lit)
-          }
-        }
-      }
-      kind = 'enum'
-      literals = lits
-    }
-  }
-
+/** One bound per side: an exclusive bound at or past the inclusive one implies it, and the reverse. */
+const tightest = ({ min, exclusiveMin, max, exclusiveMax }: Bounds): Bounds => {
+  const lowExclusive = Option.isSome(min) && Option.isSome(exclusiveMin)
+  const keepExclusiveMin = lowExclusive && exclusiveMin.value >= min.value
+  const highExclusive = Option.isSome(max) && Option.isSome(exclusiveMax)
+  const keepExclusiveMax = highExclusive && exclusiveMax.value <= max.value
   return {
-    name,
-    kind,
-    nullable,
-    min: Option.fromUndefinedOr(min),
-    max: Option.fromUndefinedOr(max),
-    exclusiveMin: Option.fromUndefinedOr(exclusiveMin),
-    exclusiveMax: Option.fromUndefinedOr(exclusiveMax),
-    literals: Option.fromUndefinedOr(literals),
-    domain,
+    min: keepExclusiveMin ? Option.none() : min,
+    exclusiveMin: lowExclusive && !keepExclusiveMin ? Option.none() : exclusiveMin,
+    max: keepExclusiveMax ? Option.none() : max,
+    exclusiveMax: highExclusive && !keepExclusiveMax ? Option.none() : exclusiveMax,
   }
 }
 
-/** Extract per-field bounds, nullability, enum literals, and domain metadata from a struct Schema. */
-export const fieldSpecs = <S extends Schema.Top>(schema: S): ReadonlyArray<FieldSpec> => {
-  if (!SchemaAST.isObjects(schema.ast)) {
-    return [extractSingleField('$', schema.ast)]
-  }
-  const specs = new Map<string, FieldSpec>()
-  for (const prop of schema.ast.propertySignatures) {
-    if (typeof prop.name === 'string') {
-      specs.set(prop.name, extractSingleField(prop.name, prop.type))
-    }
-  }
+const flipped: Readonly<Record<BoundOp, BoundOp>> = {
+  'ord.gte': 'ord.lte',
+  'ord.gt': 'ord.lt',
+  'ord.lte': 'ord.gte',
+  'ord.lt': 'ord.gt',
+}
 
-  // Enrich per-field numeric bounds from top-level Expr.refine conjuncts (both `$.x >= 0` and `0 <= $.x`)
-  const applyBound = (
-    fieldName: string,
-    op: 'ord.gte' | 'ord.gt' | 'ord.lte' | 'ord.lt',
-    v: number,
-  ): void => {
-    const prev = specs.get(fieldName)
-    if (prev === undefined) return
-    if (op === 'ord.gte') {
-      specs.set(fieldName, {
-        ...prev,
-        min: Option.some(Option.match(prev.min, { onNone: () => v, onSome: m => Math.max(m, v) })),
-      })
-    } else if (op === 'ord.gt') {
-      specs.set(fieldName, {
-        ...prev,
-        exclusiveMin: Option.some(
-          Option.match(prev.exclusiveMin, { onNone: () => v, onSome: m => Math.max(m, v) }),
-        ),
-      })
-    } else if (op === 'ord.lte') {
-      specs.set(fieldName, {
-        ...prev,
-        max: Option.some(Option.match(prev.max, { onNone: () => v, onSome: m => Math.min(m, v) })),
-      })
-    } else {
-      specs.set(fieldName, {
-        ...prev,
-        exclusiveMax: Option.some(
-          Option.match(prev.exclusiveMax, { onNone: () => v, onSome: m => Math.min(m, v) }),
-        ),
-      })
-    }
-  }
+const isBoundOp = (id: string): id is BoundOp => id in flipped
 
-  const flipOp = (op: 'ord.gte' | 'ord.gt' | 'ord.lte' | 'ord.lt') =>
-    op === 'ord.gte'
-      ? 'ord.lte'
-      : op === 'ord.gt'
-        ? 'ord.lt'
-        : op === 'ord.lte'
-          ? 'ord.gte'
-          : 'ord.gt'
-
-  const visitConjunct = (node: Node.Node): void => {
-    if (!Node.$is('Call')(node)) return
-    if (node.op.id === 'bool.and') {
-      visitConjunct(node.args[0]!)
-      visitConjunct(node.args[1]!)
-      return
-    }
-    if (
-      node.op.id !== 'ord.gte' &&
-      node.op.id !== 'ord.gt' &&
-      node.op.id !== 'ord.lte' &&
-      node.op.id !== 'ord.lt'
-    ) {
-      return
-    }
+/** Add the bounds that conjuncts of `rules` (`$.x >= 0` or `0 <= $.x`) put on the path `at`. */
+const boundsAt = (
+  bounds: Bounds,
+  rules: ReadonlyArray<Node.Node>,
+  at: ReadonlyArray<string>,
+): Bounds => {
+  const isAt = (node: Node.Node) =>
+    Node.$is('Path')(node) &&
+    node.segments.length === at.length &&
+    node.segments.every((segment, i) => segment === at[i])
+  const numberOf = (node: Node.Node): Option.Option<number> =>
+    Node.$is('Lit')(node) && typeof node.value === 'number'
+      ? Option.some(node.value)
+      : Option.none()
+  const visit = (acc: Bounds, node: Node.Node): Bounds => {
+    if (!Node.$is('Call')(node)) return acc
     const [a, b] = node.args
-    if (
-      Node.$is('Path')(a!) &&
-      a!.segments.length === 1 &&
-      Node.$is('Lit')(b!) &&
-      typeof b!.value === 'number'
-    ) {
-      applyBound(a!.segments[0]!, node.op.id, b!.value)
-    } else if (
-      Node.$is('Lit')(a!) &&
-      typeof a!.value === 'number' &&
-      Node.$is('Path')(b!) &&
-      b!.segments.length === 1
-    ) {
-      applyBound(b!.segments[0]!, flipOp(node.op.id), a!.value)
+    if (a === undefined || b === undefined) return acc
+    if (node.op.id === 'bool.and') return visit(visit(acc, a), b)
+    const op = node.op.id
+    if (!isBoundOp(op)) return acc
+    if (isAt(a)) {
+      return Option.match(numberOf(b), { onNone: () => acc, onSome: v => addBound(acc, op, v) })
     }
+    if (isAt(b)) {
+      return Option.match(numberOf(a), {
+        onNone: () => acc,
+        onSome: v => addBound(acc, flipped[op], v),
+      })
+    }
+    return acc
   }
-
-  for (const r of Expr.refinementsOf(schema)) {
-    visitConjunct(r.node)
-  }
-
-  return Array.from(specs.values())
+  return rules.reduce(visit, bounds)
 }
 
-/** Generate a JSON Schema object enriched with `Expr.refine` bounds and `metakit/domain` formats. */
+const ruleNodes = (schema: Schema.Top): ReadonlyArray<Node.Node> =>
+  Expr.refinementsOf(schema).map(r => r.node)
+
+const isIntCheck = (check: SchemaAST.Check<unknown>): boolean =>
+  check.annotations?.representation?.id === 'effect/schema/isInt' ||
+  (check._tag === 'FilterGroup' && check.checks.some(isIntCheck))
+
+const scalarLiteral = (ast: SchemaAST.AST): Option.Option<string | number | boolean> =>
+  SchemaAST.isLiteral(ast) &&
+  (typeof ast.literal === 'string' ||
+    typeof ast.literal === 'number' ||
+    typeof ast.literal === 'boolean')
+    ? Option.some(ast.literal)
+    : Option.none()
+
+const kindOf = (ast: SchemaAST.AST): FieldSpec['kind'] => {
+  if (SchemaAST.isNumber(ast)) return (ast.checks ?? []).some(isIntCheck) ? 'integer' : 'number'
+  if (SchemaAST.isString(ast)) return 'string'
+  if (SchemaAST.isBoolean(ast)) return 'boolean'
+  if (SchemaAST.isArrays(ast)) return 'array'
+  if (SchemaAST.isObjects(ast)) return 'object'
+  return 'unknown'
+}
+
+/** A field's spec, the AST left once `null` and `undefined` are taken out, and its path. */
+interface Field {
+  readonly spec: FieldSpec
+  readonly inner: SchemaAST.AST
+  readonly at: ReadonlyArray<string>
+}
+
+const readField = (
+  name: string,
+  ast: SchemaAST.AST,
+  optional: boolean,
+  rules: ReadonlyArray<Node.Node>,
+  at: ReadonlyArray<string>,
+): Field => {
+  const members = SchemaAST.isUnion(ast)
+    ? ast.types.filter(t => !SchemaAST.isNull(t) && !SchemaAST.isUndefined(t))
+    : [ast]
+  const inner = members.length === 1 ? members[0]! : ast
+  const literals = members.flatMap(member => Option.toArray(scalarLiteral(member)))
+  const isEnum = members.length > 0 && literals.length === members.length
+  // A check on a `NullOr` or `optional` member sits outside the parent's rules, so read it here.
+  const ownRules = ruleNodes(Schema.make<Schema.Top>(inner))
+  const bounds = tightest(boundsAt(boundsAt(unbounded, ownRules, []), rules, at))
+  return {
+    spec: {
+      name,
+      kind: isEnum ? 'enum' : members.length === 1 ? kindOf(inner) : 'unknown',
+      optional,
+      nullable: SchemaAST.isUnion(ast) && ast.types.some(SchemaAST.isNull),
+      ...bounds,
+      literals: isEnum ? Option.some(literals) : Option.none(),
+      domain: Option.orElse(domainOfAst(ast), () => domainOfAst(inner)),
+    },
+    inner,
+    at,
+  }
+}
+
+const fieldsOf = (
+  ast: SchemaAST.AST,
+  rules: ReadonlyArray<Node.Node>,
+  at: ReadonlyArray<string>,
+): ReadonlyArray<Field> =>
+  SchemaAST.isObjects(ast)
+    ? ast.propertySignatures.flatMap(prop =>
+        typeof prop.name === 'string'
+          ? [
+              readField(prop.name, prop.type, SchemaAST.isOptional(prop.type), rules, [
+                ...at,
+                prop.name,
+              ]),
+            ]
+          : [],
+      )
+    : [readField('$', ast, false, rules, at)]
+
+/**
+ * Extract per-field kind, optionality, nullability, tightest bounds, enum
+ * literals, and domain metadata from a struct Schema (a non-struct Schema reads
+ * as one field named `$`).
+ */
+export const fieldSpecs = <S extends Schema.Top>(schema: S): ReadonlyArray<FieldSpec> =>
+  fieldsOf(schema.ast, ruleNodes(schema), []).map(field => field.spec)
+
+const objectJson = (
+  fields: ReadonlyArray<Field>,
+  rules: ReadonlyArray<Node.Node>,
+): Record<string, unknown> => ({
+  type: 'object',
+  properties: Object.fromEntries(fields.map(field => [field.spec.name, fieldJson(field, rules)])),
+  required: fields.filter(field => !field.spec.optional).map(field => field.spec.name),
+  additionalProperties: false,
+})
+
+const enumType = (literals: ReadonlyArray<string | number | boolean>): string =>
+  literals.every(v => typeof v === 'number')
+    ? 'number'
+    : literals.every(v => typeof v === 'boolean')
+      ? 'boolean'
+      : 'string'
+
+/** The field's shape; an unknown kind claims no `type`. */
+const shapeJson = (field: Field, rules: ReadonlyArray<Node.Node>): Record<string, unknown> => {
+  const { spec, inner } = field
+  const typed = (type: string) => ({ type: spec.nullable ? [type, 'null'] : type })
+  switch (spec.kind) {
+    case 'unknown':
+      return {}
+    case 'enum': {
+      const literals = Option.getOrElse(spec.literals, () => [])
+      return { ...typed(enumType(literals)), enum: literals }
+    }
+    case 'array': {
+      // Only a homogeneous array (`Schema.Array`) has one item shape to state.
+      const item =
+        SchemaAST.isArrays(inner) && inner.elements.length === 0 && inner.rest.length === 1
+          ? Option.some(inner.rest[0]!)
+          : Option.none()
+      return Option.match(item, {
+        onNone: () => typed('array'),
+        onSome: ast => ({
+          ...typed('array'),
+          items: fieldJson(readField('', ast, false, [], []), []),
+        }),
+      })
+    }
+    case 'object':
+      // A record's keys are open, so only a struct without index signatures lists its properties.
+      return SchemaAST.isObjects(inner) && inner.indexSignatures.length === 0
+        ? { ...objectJson(fieldsOf(inner, rules, field.at), rules), ...typed('object') }
+        : typed('object')
+    case 'integer':
+    case 'number':
+    case 'string':
+    case 'boolean':
+      return typed(spec.kind)
+  }
+}
+
+const fieldJson = (field: Field, rules: ReadonlyArray<Node.Node>): Record<string, unknown> => {
+  const { spec } = field
+  const json = shapeJson(field, rules)
+  if (Option.isSome(spec.min)) json['minimum'] = spec.min.value
+  if (Option.isSome(spec.max)) json['maximum'] = spec.max.value
+  if (Option.isSome(spec.exclusiveMin)) json['exclusiveMinimum'] = spec.exclusiveMin.value
+  if (Option.isSome(spec.exclusiveMax)) json['exclusiveMaximum'] = spec.exclusiveMax.value
+  if (Option.isSome(spec.domain)) json['x-metakit-domain'] = spec.domain.value
+  return json
+}
+
+/**
+ * Generate a JSON Schema object enriched with `Expr.refine` bounds and
+ * `metakit/domain` metadata (`x-metakit-domain`). Arrays state their item shape
+ * and nested structs their properties; `required` lists only keys that may not
+ * be left out.
+ */
 export const toJsonSchema = <S extends Schema.Top>(
   schema: S,
 ): Readonly<Record<string, unknown>> => {
-  const fields = fieldSpecs(schema)
-  const properties: Record<string, Record<string, unknown>> = {}
-  const required: Array<string> = []
-
-  for (const f of fields) {
-    const prop: Record<string, unknown> = {}
-    let baseType: string = f.kind
-    if (f.kind === 'enum') {
-      const lits = Option.getOrElse(f.literals, () => [])
-      baseType =
-        lits.length > 0 && lits.every(v => typeof v === 'number')
-          ? 'number'
-          : lits.length > 0 && lits.every(v => typeof v === 'boolean')
-            ? 'boolean'
-            : 'string'
-    } else if (f.kind === 'unknown') {
-      baseType = 'string'
-    }
-    prop['type'] = f.nullable ? [baseType, 'null'] : baseType
-    if (Option.isSome(f.min)) prop['minimum'] = f.min.value
-    if (Option.isSome(f.max)) prop['maximum'] = f.max.value
-    if (Option.isSome(f.exclusiveMin)) prop['exclusiveMinimum'] = f.exclusiveMin.value
-    if (Option.isSome(f.exclusiveMax)) prop['exclusiveMaximum'] = f.exclusiveMax.value
-    if (Option.isSome(f.literals)) prop['enum'] = f.literals.value
-    if (Option.isSome(f.domain)) {
-      prop['x-metakit-domain'] = f.domain.value
-      if (f.domain.value.kind === 'calendarDay') {
-        prop['format'] = 'date'
-      }
-    }
-    properties[f.name] = prop
-    required.push(f.name)
-  }
-
-  return {
-    type: 'object',
-    properties,
-    required,
-    additionalProperties: false,
-  }
+  const rules = ruleNodes(schema)
+  return objectJson(fieldsOf(schema.ast, rules, []), rules)
 }
 
 type TransitionState<T> = T extends {

@@ -77,7 +77,7 @@ void proof
 - `metakit/domain`: `Money`, `Decimal`, `CalendarDay`, `OrderedEnum`, `Domain`
 - `metakit/aggregates`: `sum`, `count`, `min`, `max`, `every`, `any`
 - `metakit/machine`: `make`, `Machine`, `MessageOf`, `EmitOf`
-- `metakit/inspect`: `fieldSpecs`, `toJsonSchema`, `affordances`
+- `metakit/inspect`: `fieldSpecs`, `toJsonSchema`, `affordances`. A field spec keeps one bound per side, the tightest whichever order the checks were declared, and says whether the key is `optional`. `toJsonSchema` gives an array its `items` and a nested struct its `properties`, claims no `type` for a field whose shape it cannot read, and lists only non-optional keys in `required`. A `CalendarDay` travels as an integer, so it carries `x-metakit-domain` and no `format`.
 - `metakit/graph`: `analyze`, `pruneStatic`, `queryReadiness`
 - `metakit/sql`: `toCheck`, `toWhere`, `toUpdate`, `SqlUnsupportedError`
 - `metakit/drizzle`: `toCheck`, `toWhere`, `toUpdate`

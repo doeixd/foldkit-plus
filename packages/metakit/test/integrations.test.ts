@@ -201,7 +201,10 @@ describe('Phase 4: metakit/inspect (Forms & Agent JSON Schema)', () => {
       readonly properties: Readonly<Record<string, Readonly<Record<string, unknown>>>>
     }
     expect(json.properties['amount']!['minimum']).toBe(0)
-    expect(json.properties['dueDate']!['format']).toBe('date')
+    expect(json.properties['dueDate']).toEqual({
+      type: 'integer',
+      'x-metakit-domain': { kind: 'calendarDay' },
+    })
     expect(json.properties['status']!['enum']).toEqual(['draft', 'paid'])
     expect(json.properties['memo']!['type']).toEqual(['string', 'null'])
 
