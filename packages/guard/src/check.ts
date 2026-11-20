@@ -23,9 +23,11 @@ const unknownRule = (name: string): Term =>
     throw new Error(`Guard "${name}" needs an enforcement context`)
   })
 
-// Numeric comparisons on encoded, non-nullable row fields have the same truth
-// value in Entity and metakit. Keep a predicate opaque when its SQL semantics
-// (nulls, collations, related rows or custom operators) need another interpreter.
+// Numeric comparisons on encoded row fields that always hold a number have the
+// same truth value in Entity and metakit. Keep a predicate opaque when its SQL
+// semantics (nulls, absent keys, collations, related rows or custom operators)
+// need another interpreter: no comparison holds of an absent value, so neither
+// `x >= 0` nor `x < 0` does, which a prover over numbers takes for impossible.
 const numeric = (
   operand: Operandish,
   prefix: readonly string[],
@@ -39,7 +41,11 @@ const numeric = (
   if (operand._tag === 'Next') return numeric(operand.field, prefix)
   if (operand._tag === 'Field' && !operand.key.includes('.')) {
     const schema = Schema.toEncoded(operand.schema)
-    if (SchemaAST.isNumber(schema.ast) && !Schema.is(schema)(NaN))
+    if (
+      SchemaAST.isNumber(schema.ast) &&
+      !SchemaAST.isOptional(schema.ast) &&
+      !Schema.is(schema)(NaN)
+    )
       return Option.some(Path.make([...prefix, operand.key]))
   }
   return Option.none()
