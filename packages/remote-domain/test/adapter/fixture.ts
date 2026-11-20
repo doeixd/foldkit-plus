@@ -215,7 +215,8 @@ const ProductFields = Entity.define(
   }),
 )
 
-const StaffFields = Entity.define(
+/** `StaffProduct` as declared, before its guards: no descriptor to bind a reply to. */
+export const StaffFields = Entity.define(
   'StaffProduct',
   Schema.Struct({
     id: Schema.String,

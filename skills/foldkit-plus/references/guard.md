@@ -134,7 +134,10 @@ attached rules on every request.
   `GuardSync.document`) throws where it is built when given a descriptor
   without them of a guarded Entity (`Todo carries guards on another descriptor
   of it; pass the one Guards.attach returned`). Rules are still declared over
-  the bare one (`guard.row(TodoFields, …)`).
+  the bare one (`guard.row(TodoFields, …)`). Code of your own that decides
+  from the guards what is safe reads them with `Guards.enforced(Todo)`, which
+  throws the same way; `Guards.attached` answers "none" for the bare one, and
+  `Guards.matrix` prints it as `Todo: guards on another descriptor`.
 - A relation's Read rules are guards over the parent row: where they refuse,
   the relation is withheld, like a member.
 - `Guards.matrix([Todo])` prints every surface; `Guards.guardFields(Todo,

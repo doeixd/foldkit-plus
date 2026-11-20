@@ -60,9 +60,13 @@ const rowGuards = (
     Inherit: () => [],
   })
 
-/** The rules that judge an update of the row and of each member it writes. */
+/**
+ * The rules that judge an update of the row and of each member it writes.
+ * Throws for a write over a descriptor without the guards another descriptor
+ * of its Entity carries: its rules would be missing, not absent.
+ */
 const updateRules = (write: AnyWrite): ReadonlyArray<AnyRule> =>
-  Option.match(Guards.attached(write.input.entity), {
+  Option.match(Guards.enforced(write.input.entity), {
     onNone: () => [],
     onSome: attachment => {
       const written = new Set(Write.writes(write).map(member => member.key))

@@ -181,6 +181,17 @@ export default [
     tests,
   },
   {
+    name: 'written is accepted over a descriptor without the guards its Entity carries',
+    edits: [
+      {
+        file: '../../src/adapter/binding.ts',
+        find: 'const attached = Guards.enforced(entity)',
+        replace: 'const attached = Guards.attached(entity)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'written is accepted where a member has a Read rule of its own',
     edits: [
       {

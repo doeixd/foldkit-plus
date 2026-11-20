@@ -108,6 +108,15 @@ describe('attach', () => {
     )
   })
 
+  it('prints a descriptor without the guards its Entity carries as that, not as unguarded', () => {
+    expect(Guards.matrix([TodoFields, Project])).toBe(
+      [
+        'Todo: guards on another descriptor (pass the one Guards.attach returned)',
+        'Project: no guards',
+      ].join('\n'),
+    )
+  })
+
   it('prints a surface left without guards as the set’s default', () => {
     const Closed = Guards.declare('Closed', User, guard => ({ signedIn: guard.principal() }), {
       key: user => user.id,

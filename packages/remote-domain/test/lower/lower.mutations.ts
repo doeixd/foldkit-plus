@@ -36,6 +36,17 @@ export default [
     tests: [story],
   },
   {
+    name: 'Lower.check reads a write over a bare descriptor as having no rules',
+    edits: [
+      {
+        file: check,
+        find: 'Option.match(Guards.enforced(write.input.entity), {',
+        replace: 'Option.match(Guards.attached(write.input.entity), {',
+      },
+    ],
+    tests: [checks],
+  },
+  {
     name: "Lower.check reads a body's fields, not what it reaches",
     edits: [{ file: check, find: 'reaches.length === 0', replace: 'true' }],
     tests: [checks],
