@@ -3280,6 +3280,24 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/metakit:
+    devDependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.11
+        version: 0.5.11
+      effect:
+        specifier: 4.1.4
+        version: 4.1.4
+      tsdown:
+        specifier: ^0.23.1
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      z3-solver:
+        specifier: 5.4.1
+        version: 5.4.1
+
   packages/mirror:
     dependencies:
       foldkit-surface:
@@ -7185,6 +7203,9 @@ packages:
     resolution: {integrity: sha512-LElXdjswlqjWrPpJFg1Fx4wpkOCxj1TDHlSV4PlaRxHGWko024xICaa97ZkMfs6DRKlCguiAI+rbXv5GWwXIkg==}
     hasBin: true
 
+  async-mutex@0.3.2:
+    resolution: {integrity: sha512-HuTK7E7MT7jZEh1P9GtRW9+aTWiDWWi9InbZ5hjxrnRa39KS4BW04+xLBhYNS2aXhHUIKZSw3gj4Pn1pj+qGAA==}
+
   asynckit@0.4.0:
     resolution: {integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==}
 
@@ -9715,6 +9736,10 @@ packages:
     resolution: {integrity: sha512-XrBh9ZiQK5mJVRxZBAvD6LwRyAYrK3MFtH3+onyuxFL5hFD44EC3QOmIC1FjTj6H2MMwq46/NAI+NZxLZPZgxg==}
     engines: {node: '>=14.18.0'}
 
+  z3-solver@5.4.1:
+    resolution: {integrity: sha512-HyRpufMZ1NuaYfnxzc34qw9tLzwoUipv8ySfRewnCwXaKVuT5LHs313+edFfaWs0MLmk1v9yg4V44QqtdFLtDg==}
+    engines: {node: '>=16'}
+
   zen-observable@0.10.0:
     resolution: {integrity: sha512-iI3lT0iojZhKwT5DaFy2Ce42n3yFcLdFyOh01G7H0flMY60P8MJuVFEoJoNwXlmAyQ45GrjL6AcZmmlv8A5rbw==}
 
@@ -11999,6 +12024,10 @@ snapshots:
   astring@1.9.0:
     optional: true
 
+  async-mutex@0.3.2:
+    dependencies:
+      tslib: 2.8.1
+
   asynckit@0.4.0:
     optional: true
 
@@ -14236,8 +14265,7 @@ snapshots:
       - oxc-resolver
       - vue-tsc
 
-  tslib@2.8.1:
-    optional: true
+  tslib@2.8.1: {}
 
   tsx@4.23.15:
     dependencies:
@@ -14615,6 +14643,10 @@ snapshots:
     dependencies:
       '@yuku-toolchain/types': 0.19.0
       yuku-core: 0.19.0
+
+  z3-solver@5.4.1:
+    dependencies:
+      async-mutex: 0.3.2
 
   zen-observable@0.10.0:
     optional: true

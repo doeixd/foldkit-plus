@@ -7,6 +7,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- `metakit`: new Effect-native, framework-independent package implementing the `Env`-indexed calculus of inspectable expressions (`Path`, `Expr`, `Expr.refine` on Effect `Schema`, `Expr.in`, `Expr.opaque`), single-step transitions (`Transition.make`, `Transition.run`, `Transition.can`, `Transition.lift`, `Transition.footprint`), Kleene three-valued `Verdict` + `residualize` partial evaluation (strictly separated from runtime `null`), Tier 3 Interval + Zone (DBM) synchronous checking, server SQL lowering (`metakit/sql`: `toCheck`, `toWhere`, `toUpdate`), dev-only Z3 proving (`metakit/prove`), and Galois soundness conformance checks (`metakit/conformance`).
+
 ### Fixed
 
 - `examples/chirp`: a chirp that says nothing (empty or only whitespace) is refused by the compose form, the editor and the server, and the table's `CHECK` refuses an empty body.

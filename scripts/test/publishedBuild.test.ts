@@ -43,6 +43,7 @@ const keptFrom = async (
 const cases: ReadonlyArray<readonly [name: string, page: string]> = [
   ['mixins', `import { Behaviors } from 'pkg'\nexport const used = Behaviors.Disclosure`],
   ['metadata', `import { Metadata } from 'pkg'\nexport const used = Metadata.combine`],
+  ['metakit', `import { Transition } from 'pkg'\nexport const used = Transition.run`],
   ['bundle', `import { Resource } from 'pkg'\nexport const used = Resource.lazy`],
   ['media', `import { Icon } from 'pkg'\nexport const used = Icon.draw`],
   ['entity', `import { Collation } from 'pkg'\nexport const used = Collation.binary`],
@@ -223,4 +224,19 @@ test('a page reading only Metadata keeps no Evidence module, built or source', a
   expect(built.some(id => id.endsWith('/dist/index.js'))).toBe(true)
   expect(source.some(id => id.endsWith('/metadata/src/index.ts'))).toBe(true)
   expect([...built, ...source].filter(id => /\/evidence\.(js|ts)$/.test(id))).toEqual([])
+}, 120_000)
+
+test('a page reading only Expr.eval and Num.lte from metakit keeps no sql, prove, conformance, z3, or zone modules', async () => {
+  const root = scratchIn('metakit', 'published-')
+  made.push(root)
+  const page = `import { Expr, Num, Path } from 'pkg'\nexport const used = (row: { balance: number }) => Expr.eval(Num.lte(Path.field('balance'), 100), row)`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('metakit', root))
+  const source = await kept(join(packages, 'metakit', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/ops\/num\.js$/.test(id))).toBe(true)
+  expect(source.some(id => /\/src\/ops\/num\.ts$/.test(id))).toBe(true)
+  const forbidden =
+    /\/(sql|prove|conformance|abstract\/(zone|interval|check)|ops\/(str|struct))\.(js|ts)$|z3-solver/
+  expect([...built, ...source].filter(id => forbidden.test(id))).toEqual([])
 }, 120_000)
