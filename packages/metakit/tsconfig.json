@@ -12,6 +12,7 @@
       "metakit/conformance": ["./src/conformance.ts"],
       "metakit/domain": ["./src/domain.ts"],
       "metakit/drizzle": ["./src/drizzle.ts"],
+      "metakit/graph": ["./src/graph.ts"],
       "metakit/inspect": ["./src/inspect.ts"],
       "metakit/machine": ["./src/machine.ts"],
       "metakit/prove": ["./src/prove.ts"],

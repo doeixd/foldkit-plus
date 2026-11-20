@@ -8,9 +8,11 @@ const transition = '../src/transition.ts'
 const zone = '../src/abstract/zone.ts'
 const sql = '../src/sql.ts'
 const prove = '../src/prove.ts'
+const graph = '../src/graph.ts'
 const coreTests = ['packages/metakit/test/core.test.ts']
 const sqlTests = ['packages/metakit/test/sql.test.ts']
 const proveTests = ['packages/metakit/test/prove.test.ts']
+const graphTests = ['packages/metakit/test/graph.test.ts']
 
 export default [
   {
@@ -111,5 +113,16 @@ export default [
       },
     ],
     tests: proveTests,
+  },
+  {
+    name: 'Graph.analyze drops reverse Path.isPrefix overlap (child write -> parent read)',
+    edits: [
+      {
+        file: graph,
+        find: 'Path.isPrefix(a, b) || Path.isPrefix(b, a)',
+        replace: 'Path.isPrefix(b, a)',
+      },
+    ],
+    tests: graphTests,
   },
 ]

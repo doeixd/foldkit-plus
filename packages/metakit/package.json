@@ -57,6 +57,11 @@
       "types": "./dist/inspect.d.ts",
       "import": "./dist/inspect.js"
     },
+    "./graph": {
+      "foldkit-plus:source": "./src/graph.ts",
+      "types": "./dist/graph.d.ts",
+      "import": "./dist/graph.js"
+    },
     "./sql": {
       "foldkit-plus:source": "./src/sql.ts",
       "types": "./dist/sql.d.ts",
