@@ -7,8 +7,10 @@ const residualize = '../src/ops/residualize.ts'
 const transition = '../src/transition.ts'
 const zone = '../src/abstract/zone.ts'
 const sql = '../src/sql.ts'
+const prove = '../src/prove.ts'
 const coreTests = ['packages/metakit/test/core.test.ts']
 const sqlTests = ['packages/metakit/test/sql.test.ts']
+const proveTests = ['packages/metakit/test/prove.test.ts']
 
 export default [
   {
@@ -29,6 +31,17 @@ export default [
         file: transition,
         find: 'if (!Boolean(evalNode(transition.when.node, env))) {',
         replace: 'if (false && !Boolean(evalNode(transition.when.node, env))) {',
+      },
+    ],
+    tests: coreTests,
+  },
+  {
+    name: 'Transition.make allows duplicate write targets',
+    edits: [
+      {
+        file: transition,
+        find: 'if (seenTargets.has(targetKey)) {',
+        replace: 'if (false && seenTargets.has(targetKey)) {',
       },
     ],
     tests: coreTests,
@@ -65,5 +78,16 @@ export default [
       },
     ],
     tests: sqlTests,
+  },
+  {
+    name: 'Prove returns bogus False instead of Unknown on sat with Opaque term',
+    edits: [
+      {
+        file: prove,
+        find: 'if (opaqueVars.size > 0) {',
+        replace: 'if (false && opaqueVars.size > 0) {',
+      },
+    ],
+    tests: proveTests,
   },
 ]

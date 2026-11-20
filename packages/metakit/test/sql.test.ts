@@ -196,4 +196,26 @@ describe('metakit/sql against PGlite', () => {
       expect(res.failure.reason).toContain('custom')
     }
   })
+
+  it('supports SQLite dialect (? placeholders and IS / IS NOT) and escapes single quotes in CHECK', () => {
+    const sqliteWhere = Sql.toWhere(CanWithdraw, {
+      dialect: 'sqlite',
+      env: { principal: { userId: 'u1', role: 'owner' } },
+    })
+    expect(Result.isSuccess(sqliteWhere)).toBe(true)
+    if (Result.isSuccess(sqliteWhere)) {
+      expect(sqliteWhere.success.text).toContain(' IS ')
+      expect(sqliteWhere.success.text).toContain('?')
+      expect(sqliteWhere.success.text).not.toContain('$1')
+    }
+
+    const Named = Schema.Struct({ name: Schema.String }).pipe(
+      Expr.refine($ => Eq.is($.name, "O'Brien")),
+    )
+    const check = Sql.toCheck(Named)
+    expect(Result.isSuccess(check)).toBe(true)
+    if (Result.isSuccess(check)) {
+      expect(check.success).toContain("'O''Brien'")
+    }
+  })
 })

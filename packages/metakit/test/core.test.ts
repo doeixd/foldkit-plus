@@ -228,6 +228,24 @@ describe('Partial evaluation (residualize & judge)', () => {
     expect(pruned.node._tag).toBe('Lit')
     expect(Expr.reads(pruned)).toEqual(Option.some([]))
   })
+
+  it('applies declarative op.laws generically in residualize', () => {
+    const $ = Path.forSchema(Account)
+    expect(Expr.residualize(Num.sub($.balance, $.balance), {}).node).toEqual({
+      _tag: 'Lit',
+      value: 0,
+    })
+    expect(Expr.residualize(Num.mul(0, $.balance), {}).node).toEqual({ _tag: 'Lit', value: 0 })
+    expect(Expr.residualize(Num.add($.balance, 0), {}).node).toEqual($.balance.node)
+    expect(Expr.residualize(Num.neg(Num.neg($.balance)), {}).node).toEqual($.balance.node)
+    expect(Expr.residualize(Expr.not(Expr.not(Eq.is($.status, 'open'))), {}).node).toEqual(
+      Eq.is($.status, 'open').node,
+    )
+    expect(Expr.residualize(Eq.in($.status, []), {}).node).toEqual({ _tag: 'Lit', value: false })
+    const singleton = Expr.residualize(Eq.in($.status, ['open']), {}).node
+    expect(singleton._tag).toBe('Call')
+    if (singleton._tag === 'Call') expect(singleton.op.id).toBe('eq.is')
+  })
 })
 
 describe('Transition', () => {
@@ -339,5 +357,12 @@ describe('Tier 3 synchronous Abstract checker (Interval + Zone)', () => {
     )
     // Non-nullable Schema field proves Null.isNotNull synchronously
     expect(Verdict.isTrue(Abstract.checkInvariant(Account, Null.isNotNull($.id)))).toBe(true)
+    // Contradictory disjunction (x >= 0 AND (x < 0 || x < -1)) is vacuously True
+    const Unsat = Schema.Struct({ x: Schema.Int }).pipe(
+      Expr.refine(s => Expr.all(Ord.gte(s.x, 0), Expr.any(Ord.lt(s.x, 0), Ord.lt(s.x, -1)))),
+    )
+    expect(Verdict.isTrue(Abstract.checkInvariant(Unsat, Ord.lt(Path.forSchema(Unsat).x, 0)))).toBe(
+      true,
+    )
   })
 })

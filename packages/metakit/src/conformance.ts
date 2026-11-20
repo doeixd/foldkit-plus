@@ -192,6 +192,50 @@ export const galoisNarrowBinary = (
   return { ok: failures.length === 0, checked, failures }
 }
 
+/**
+ * Property-test backward narrowing soundness of a unary numeric transformer:
+ *   ∀ x ∈ a: concrete(x) ∈ target ==> x ∈ a'.
+ */
+export const galoisNarrowUnary = (
+  name: string,
+  concrete: (a: number) => number,
+  narrow: (
+    args: ReadonlyArray<Interval.Interval>,
+    target: Interval.Interval,
+  ) => ReadonlyArray<Interval.Interval>,
+  schema: Schema.Codec<number>,
+  options?: GaloisOptions,
+): GaloisReport => {
+  const count = options?.samples ?? 40
+  const pool = sampleNumbers(schema, count)
+  const ivs = makeIntervals(pool)
+  const failures: Array<GaloisFailure> = []
+  let checked = 0
+
+  for (const a of ivs.slice(0, 10)) {
+    const xs = pickInside(a, pool)
+    for (const target of ivs.slice(0, 10)) {
+      const [na] = narrow([a], target)
+      for (const x of xs) {
+        const val = concrete(x)
+        if (!Number.isFinite(val) || !Interval.contains(target, val)) continue
+        checked++
+        if (!Interval.contains(na!, x)) {
+          failures.push({
+            op: name,
+            inputs: [x],
+            intervals: [a, target],
+            concrete: val,
+            abstract: [na],
+          })
+          if (failures.length >= 5) return { ok: false, checked, failures }
+        }
+      }
+    }
+  }
+  return { ok: failures.length === 0, checked, failures }
+}
+
 /** Property-test Galois soundness of a binary comparison transformer. */
 export const galoisCompare = (
   name: string,
@@ -324,6 +368,16 @@ export const checkAllIntervalTransformers = (
         a => Num.negOp.evaluate([a]) as number,
         a => abstractOps['num.neg'].forward!([a]),
         BoundedNum,
+        options,
+      ),
+    },
+    {
+      op: 'num.neg:narrow',
+      ...galoisNarrowUnary(
+        'num.neg:narrow',
+        a => Num.negOp.evaluate([a]) as number,
+        abstractOps['num.neg'].narrow!,
+        BoundedInt,
         options,
       ),
     },

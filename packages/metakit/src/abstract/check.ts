@@ -600,7 +600,10 @@ export class AbstractState {
       return Verdict.True(Option.some(Verdict.Proved('zone')))
     }
     const direct = this.entailsAtomic(goal)
-    if (Verdict.isTrue(direct) || Verdict.isFalse(direct)) return direct
+    // Short-circuit immediately on True; only short-circuit on False when no
+    // unsplit disjunctions remain (an unsatisfiable pendingOr is vacuously True).
+    if (Verdict.isTrue(direct)) return direct
+    if (Verdict.isFalse(direct) && this.pendingOrs.length === 0) return direct
     if (this.pendingOrs.length > 0 && splitsLeft > 0) {
       const [leftOr, rightOr] = this.pendingOrs[0]!
       const rest = this.pendingOrs.slice(1)
@@ -614,7 +617,7 @@ export class AbstractState {
       b2.assume(rightOr)
       return Verdict.and(b1.entails(goal, splitsLeft - 1), b2.entails(goal, splitsLeft - 1))
     }
-    return direct
+    return this.pendingOrs.length > 0 ? Verdict.Unknown('disjunction split budget reached') : direct
   }
 
   private entailsAtomic(goal: Node.Node): Verdict.Verdict<never> {
