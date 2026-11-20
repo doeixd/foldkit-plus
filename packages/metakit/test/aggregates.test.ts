@@ -3,6 +3,7 @@ import { Effect, Option, Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Eq, Expr, Num, Ord, Transition, Verdict } from 'metakit'
 import * as Rows from 'metakit/aggregates'
+import * as RowsSql from 'metakit/aggregates/sql'
 import * as Prove from 'metakit/prove'
 
 const Entry = Schema.Struct({
@@ -97,12 +98,12 @@ describe('metakit/aggregates (group vs semilattice)', () => {
       ])
     }
 
-    const qSum = TotalAmount.toSql()
-    const qCnt = SettledCount.toSql()
-    const qMin = MinAmount.toSql()
-    const qMax = MaxAmount.toSql()
-    const qEvery = AllSettled.toSql()
-    const qAny = AnyPositive.toSql()
+    const qSum = RowsSql.toSql(TotalAmount)
+    const qCnt = RowsSql.toSql(SettledCount)
+    const qMin = RowsSql.toSql(MinAmount)
+    const qMax = RowsSql.toSql(MaxAmount)
+    const qEvery = RowsSql.toSql(AllSettled)
+    const qAny = RowsSql.toSql(AnyPositive)
     if (
       Result.isFailure(qSum) ||
       Result.isFailure(qCnt) ||

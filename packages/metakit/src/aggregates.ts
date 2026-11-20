@@ -1,139 +1,192 @@
 /**
- * Cross-record Aggregates (`metakit/aggregates`) tagged by algebraic structure:
+ * Cross-record Aggregates (`metakit/aggregates`) tagged by algebraic structure.
+ * This module evaluates in memory and imports no SQL, so a page can use it;
+ * `metakit/aggregates/sql` compiles the same aggregates to SQL.
  *
- * - **Abelian Groups** (`algebra: 'group'` — `Rows.sum`, `Rows.count`):
- *   Invertible, so insert/update/delete yields an exact $O(1)$ delta
- *   ($\Delta = \text{new} - \text{old}$). This unlocks both $O(1)$ incremental
- *   view maintenance (IVM) and **unbounded** static proofs over any number of
- *   child rows via `Rows.delta` + `Prove.transition`.
- * - **Commutative Monoids / Semilattices** (`algebra: 'semilattice'` —
- *   `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any`):
- *   Non-invertible, so inserts are $O(1)$ while deletes/updates of the
- *   extremum require rescanning remaining rows (`requiresRescanOnDelete: true`).
+ * - **Abelian Groups** (`algebra: 'group'`: `Rows.sum`, `Rows.count`):
+ *   invertible, so an insert, update or delete moves the value by an O(1)
+ *   delta (`new - old`). The delta is exact because the contribution must be
+ *   integer-valued (a `Schema.Int`, `Money` or `Decimal` field, or integer
+ *   arithmetic over them): floating-point addition is not invertible
+ *   (`0.1 + 0.2 + 0.3 - 0.2` is `0.4000000000000001`). The symbolic deltas let
+ *   `Prove.transition` prove a rule over any number of rows.
+ * - **Commutative Monoids / Semilattices** (`algebra: 'semilattice'`:
+ *   `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any`): not invertible, so an
+ *   insert is O(1) while deleting or updating the extremum rescans the rows
+ *   (`requiresRescanOnDelete: true`).
+ *
+ * Missing values follow SQL: `sum`, `min` and `max` skip a `null`
+ * contribution, `count` with a predicate and `any` count an unknown predicate
+ * as false, and `every` counts it as failing (`coalesce(p, false)`).
  */
-import { Option, Result } from 'effect'
+import { Option, SchemaAST } from 'effect'
 import type { Schema } from 'effect'
 import * as Expr from './expr.js'
+import * as Node from './node.js'
 import { toNode, wrap, type ExprInput } from './ops/core.js'
 import * as Num from './ops/num.js'
 import * as Path from './path.js'
 import type { PathAccessor } from './path.js'
-import * as Sql from './sql.js'
 
 export type AggregateAlgebra = 'group' | 'semilattice'
 
-export type AggregateKind = 'sum' | 'count' | 'min' | 'max' | 'every' | 'any'
-
-export interface GroupAggregate<Row, A extends number> {
-  readonly _tag: 'Aggregate'
-  readonly kind: 'sum' | 'count'
+interface GroupAggregate<Row, A extends number> {
   readonly algebra: 'group'
   readonly requiresRescanOnDelete: false
   readonly identity: A
   readonly rowSchema: Schema.Codec<Row>
   /** Per-row contribution expression (for `count`, `1` or `if pred then 1 else 0`). */
-  readonly contribution: Expr.Expr<Row, number>
+  readonly contribution: Expr.Expr<Row, A>
   /** Evaluate the aggregate over a concrete array of rows. */
   readonly evaluate: (rows: ReadonlyArray<Row>) => A
-  /** Exact $O(1)$ IVM delta for inserting `row`: `next = prev + insertDelta(row)`. */
-  readonly insertDelta: (row: Row) => number
-  /** Exact $O(1)$ IVM delta for deleting `row`: `next = prev + deleteDelta(row)`. */
-  readonly deleteDelta: (row: Row) => number
-  /** Exact $O(1)$ IVM delta for updating `before` -> `after`: `next = prev + updateDelta(before, after)`. */
-  readonly updateDelta: (before: Row, after: Row) => number
-  /** Symbolic delta expression for `insert(row)` over `{ row }` (for unbounded Zone/Z3 proofs). */
+  /** Exact O(1) delta for inserting `row`: `next = prev + insertDelta(row)`. */
+  readonly insertDelta: (row: Row) => A
+  /** Exact O(1) delta for deleting `row`: `next = prev + deleteDelta(row)`. */
+  readonly deleteDelta: (row: Row) => A
+  /** Exact O(1) delta for updating `before` to `after`: `next = prev + updateDelta(before, after)`. */
+  readonly updateDelta: (before: Row, after: Row) => A
+  /** Symbolic delta of `insert(row)` over `{ row }`, for unbounded Zone and Z3 proofs. */
   readonly symbolicInsertDelta: Expr.Expr<{ readonly row: Row }, number>
-  /** Symbolic delta expression for `update(before -> after)` over `{ before, after }`. */
+  /** Symbolic delta of `update(before -> after)` over `{ before, after }`. */
   readonly symbolicUpdateDelta: Expr.Expr<{ readonly before: Row; readonly after: Row }, number>
-  /** Compile to a SQL aggregate expression (e.g. `COALESCE(SUM("amount"), 0)`). */
-  readonly toSql: (options?: {
-    readonly dialect?: Sql.SqlDialect
-    readonly column?: (segments: ReadonlyArray<string>) => string
-  }) => Result.Result<Sql.SqlFragment, Sql.SqlUnsupportedError>
 }
 
-export interface SemilatticeAggregate<Row, A> {
-  readonly _tag: 'Aggregate'
-  readonly kind: 'min' | 'max' | 'every' | 'any'
+/** `Rows.sum`: the sum of an integer-valued contribution (`0` when empty). */
+export interface Sum<Row, A extends number> extends GroupAggregate<Row, A> {
+  readonly _tag: 'Sum'
+}
+
+/** `Rows.count`: the number of rows, or of rows whose predicate is true. */
+export interface Count<Row> extends GroupAggregate<Row, number> {
+  readonly _tag: 'Count'
+  readonly predicate: Option.Option<Expr.Expr<Row, boolean>>
+}
+
+interface SemilatticeAggregate<Row, A, E> {
   readonly algebra: 'semilattice'
   readonly requiresRescanOnDelete: true
   readonly rowSchema: Schema.Codec<Row>
-  readonly expr: Expr.Expr<Row, unknown>
-  /** Evaluate over a concrete array of rows (`Option.none()` for `min`/`max` on empty). */
+  readonly expr: Expr.Expr<Row, E>
+  /** Evaluate over a concrete array of rows. */
   readonly evaluate: (rows: ReadonlyArray<Row>) => A
-  /** Exact $O(1)$ IVM fold for inserting a new `row` into an existing aggregate value. */
+  /** O(1) fold of a newly inserted `row` into the current value. */
   readonly insertStep: (current: A, row: Row) => A
-  /** Compile to a SQL aggregate expression (`MIN(...)`, `MAX(...)`, `BOOL_AND(...)`, `BOOL_OR(...)`). */
-  readonly toSql: (options?: {
-    readonly dialect?: Sql.SqlDialect
-    readonly column?: (segments: ReadonlyArray<string>) => string
-  }) => Result.Result<Sql.SqlFragment, Sql.SqlUnsupportedError>
 }
 
-export type Aggregate<Row, A> = GroupAggregate<Row, A & number> | SemilatticeAggregate<Row, A>
+/** `Rows.min`: the smallest non-null value (`Option.none()` when there is none). */
+export interface Min<Row> extends SemilatticeAggregate<Row, Option.Option<number>, number> {
+  readonly _tag: 'Min'
+}
 
-const lowerRowExpr = <Row>(
-  expr: Expr.Expr<Row, unknown>,
-  options?: {
-    readonly dialect?: Sql.SqlDialect
-    readonly column?: (segments: ReadonlyArray<string>) => string
-  },
-): Result.Result<Sql.SqlFragment, Sql.SqlUnsupportedError> =>
-  Sql.toWhere(expr as Expr.Expr<Row, boolean>, {
-    rowPrefix: [],
-    ...(options?.dialect !== undefined ? { dialect: options.dialect } : {}),
-    ...(options?.column !== undefined ? { column: options.column } : {}),
+/** `Rows.max`: the largest non-null value (`Option.none()` when there is none). */
+export interface Max<Row> extends SemilatticeAggregate<Row, Option.Option<number>, number> {
+  readonly _tag: 'Max'
+}
+
+/** `Rows.every`: true when no row's predicate is false or unknown (true when empty). */
+export interface Every<Row> extends SemilatticeAggregate<Row, boolean, boolean> {
+  readonly _tag: 'Every'
+}
+
+/** `Rows.any`: true when some row's predicate is true (false when empty). */
+export interface Any<Row> extends SemilatticeAggregate<Row, boolean, boolean> {
+  readonly _tag: 'Any'
+}
+
+export type Aggregate<Row> =
+  | Sum<Row, number>
+  | Count<Row>
+  | Min<Row>
+  | Max<Row>
+  | Every<Row>
+  | Any<Row>
+
+const isIntCheck = (check: SchemaAST.Check<unknown>): boolean =>
+  check.annotations?.representation?.id === 'effect/schema/isInt' ||
+  (check._tag === 'FilterGroup' && check.checks.some(isIntCheck))
+
+const isIntegerAst = (ast: SchemaAST.AST): boolean => {
+  if (SchemaAST.isNumber(ast)) return (ast.checks ?? []).some(isIntCheck)
+  if (SchemaAST.isUnion(ast)) {
+    const present = ast.types.filter(member => !SchemaAST.isNull(member))
+    return present.length > 0 && present.every(isIntegerAst)
+  }
+  return false
+}
+
+const integerOps: ReadonlySet<Node.CoreOpId> = new Set(['num.add', 'num.sub', 'num.mul', 'num.neg'])
+
+/** True when every value `node` can take is a safe integer or null. */
+const isIntegerValued = (node: Node.Node): boolean =>
+  Node.$match(node, {
+    Lit: ({ value }) => value === null || Number.isSafeInteger(value),
+    Path: ({ ast }) => Option.match(ast, { onNone: () => false, onSome: isIntegerAst }),
+    Call: ({ op, args }) =>
+      op.id === 'str.len' ||
+      op.id === 'arr.count' ||
+      (integerOps.has(op.id) && args.every(isIntegerValued)),
+    If: ({ then, otherwise }) => isIntegerValued(then) && isIntegerValued(otherwise),
+    Match: ({ cases, otherwise }) =>
+      cases.every(([, branch]) => isIntegerValued(branch)) &&
+      Option.match(otherwise, { onNone: () => true, onSome: isIntegerValued }),
+    Opaque: () => false,
   })
 
-/** Abelian group aggregate: `sum` of a numeric expression over child rows (`0` when empty). */
-export const sum = <S extends Schema.Top>(
-  rowSchema: S,
-  build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], number>,
-): GroupAggregate<S['Type'], number> => {
-  type Row = S['Type']
-  const contribution = wrap<Row, number>(toNode(build(Path.forSchema(rowSchema))))
-  const symbolicInsertDelta = Expr.lift(
-    Path.field<{ readonly row: Row }, 'row'>('row'),
-    contribution,
-  )
-  const beforeContrib = Expr.lift(
-    Path.field<{ readonly before: Row; readonly after: Row }, 'before'>('before'),
-    contribution,
-  )
-  const afterContrib = Expr.lift(
-    Path.field<{ readonly before: Row; readonly after: Row }, 'after'>('after'),
-    contribution,
-  )
-  const symbolicUpdateDelta = Num.sub(afterContrib, beforeContrib)
+const isMissing = (value: unknown): value is null | undefined =>
+  value === null || value === undefined
 
+const groupAggregate = <Row, A extends number>(
+  rowSchema: Schema.Top,
+  contribution: Expr.Expr<Row, A>,
+): GroupAggregate<Row, A> => {
+  const zero = 0 as A
+  // SQL `SUM` skips a null; a missing contribution moves nothing.
+  const valueOf = (row: Row): A => {
+    const value = Expr.eval(contribution, row)
+    return isMissing(value) ? zero : value
+  }
+  const liftTo = <Key extends string>(key: Key) =>
+    Expr.lift(Path.field<{ readonly [K in Key]: Row }, Key>(key), contribution)
   return {
-    _tag: 'Aggregate',
-    kind: 'sum',
     algebra: 'group',
     requiresRescanOnDelete: false,
-    identity: 0,
+    identity: zero,
     rowSchema: rowSchema as unknown as Schema.Codec<Row>,
     contribution,
-    evaluate: rows => rows.reduce((acc, r) => acc + Expr.eval(contribution, r), 0),
-    insertDelta: row => Expr.eval(contribution, row),
-    deleteDelta: row => -Expr.eval(contribution, row),
-    updateDelta: (before, after) =>
-      Expr.eval(contribution, after) - Expr.eval(contribution, before),
-    symbolicInsertDelta,
-    symbolicUpdateDelta,
-    toSql: options =>
-      Result.map(lowerRowExpr(contribution, options), frag => ({
-        text: `COALESCE(SUM(${frag.text}), 0)`,
-        params: frag.params,
-      })),
+    evaluate: rows => rows.reduce((acc, row) => (acc + valueOf(row)) as A, zero),
+    insertDelta: valueOf,
+    deleteDelta: row => (0 - valueOf(row)) as A,
+    updateDelta: (before, after) => (valueOf(after) - valueOf(before)) as A,
+    symbolicInsertDelta: liftTo('row'),
+    symbolicUpdateDelta: Num.sub(liftTo('after'), liftTo('before')),
   }
 }
 
-/** Abelian group aggregate: `count` of rows (optionally matching a predicate). */
+/**
+ * Abelian group aggregate: the sum of an integer-valued contribution over the
+ * rows (`0` when empty; a `null` contribution adds nothing). The contribution
+ * must read only integer-valued fields (`Schema.Int`, `Money`, `Decimal`) and
+ * integer literals through `+`, `-`, `*`, negation, `if` and `match`; anything
+ * else is refused here, because its deltas would drift.
+ */
+export const sum = <S extends Schema.Top, A extends number>(
+  rowSchema: S,
+  build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], A | null>,
+): Sum<S['Type'], A> => {
+  const contribution = wrap<S['Type'], A>(toNode(build(Path.forSchema(rowSchema))))
+  if (!isIntegerValued(contribution.node)) {
+    throw new Error(
+      `[metakit] Rows.sum needs an integer-valued contribution (a Schema.Int, Money or Decimal field, integer literals, and + - * over them), got ${Expr.show(contribution)}: its O(1) deltas are exact only over integers`,
+    )
+  }
+  return { _tag: 'Sum', ...groupAggregate(rowSchema, contribution) }
+}
+
+/** Abelian group aggregate: the number of rows, or of rows whose predicate is true. */
 export const count = <S extends Schema.Top>(
   rowSchema: S,
-  predicate?: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], boolean>,
-): GroupAggregate<S['Type'], number> => {
+  predicate?: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], boolean | null>,
+): Count<S['Type']> => {
   type Row = S['Type']
   const pred =
     predicate === undefined
@@ -143,180 +196,105 @@ export const count = <S extends Schema.Top>(
     onNone: () => Expr.lit(1),
     onSome: p => Expr.when(p, { then: 1, else: 0 }),
   })
-  const symbolicInsertDelta = Expr.lift(
-    Path.field<{ readonly row: Row }, 'row'>('row'),
-    contribution,
-  )
-  const beforeContrib = Expr.lift(
-    Path.field<{ readonly before: Row; readonly after: Row }, 'before'>('before'),
-    contribution,
-  )
-  const afterContrib = Expr.lift(
-    Path.field<{ readonly before: Row; readonly after: Row }, 'after'>('after'),
-    contribution,
-  )
-  const symbolicUpdateDelta = Num.sub(afterContrib, beforeContrib)
+  return { _tag: 'Count', predicate: pred, ...groupAggregate(rowSchema, contribution) }
+}
 
+/**
+ * Fold one value into an extremum: a `null` is skipped (as SQL `MIN`/`MAX`
+ * skip it) and a `NaN` wins whatever the order, so the answer does not depend
+ * on the order of the rows.
+ */
+const extremumStep =
+  (better: (a: number, b: number) => boolean) =>
+  (current: Option.Option<number>, value: number | null | undefined): Option.Option<number> => {
+    if (isMissing(value)) return current
+    return Option.match(current, {
+      onNone: () => Option.some(value),
+      // Nothing is better than a NaN, so once in it stays.
+      onSome: prev => (Number.isNaN(value) || better(value, prev) ? Option.some(value) : current),
+    })
+  }
+
+const extremum = <Row>(
+  rowSchema: Schema.Top,
+  expr: Expr.Expr<Row, number>,
+  better: (a: number, b: number) => boolean,
+): SemilatticeAggregate<Row, Option.Option<number>, number> => {
+  const step = extremumStep(better)
   return {
-    _tag: 'Aggregate',
-    kind: 'count',
-    algebra: 'group',
-    requiresRescanOnDelete: false,
-    identity: 0,
+    algebra: 'semilattice',
+    requiresRescanOnDelete: true,
     rowSchema: rowSchema as unknown as Schema.Codec<Row>,
-    contribution,
-    evaluate: rows => rows.reduce((acc, r) => acc + Expr.eval(contribution, r), 0),
-    insertDelta: row => Expr.eval(contribution, row),
-    deleteDelta: row => -Expr.eval(contribution, row),
-    updateDelta: (before, after) =>
-      Expr.eval(contribution, after) - Expr.eval(contribution, before),
-    symbolicInsertDelta,
-    symbolicUpdateDelta,
-    toSql: options =>
-      Option.match(pred, {
-        onNone: () =>
-          Result.succeed({
-            text: options?.dialect === 'sqlite' ? 'COUNT(*)' : 'COUNT(*)::INTEGER',
-            params: [],
-          }),
-        onSome: p =>
-          Result.map(lowerRowExpr(p, options), frag => ({
-            text:
-              options?.dialect === 'sqlite'
-                ? `COALESCE(SUM(CASE WHEN ${frag.text} THEN 1 ELSE 0 END), 0)`
-                : `COALESCE(SUM(CASE WHEN ${frag.text} THEN 1 ELSE 0 END), 0)::INTEGER`,
-            params: frag.params,
-          })),
-      }),
+    expr,
+    evaluate: rows =>
+      rows.reduce((acc, row) => step(acc, Expr.eval(expr, row)), Option.none<number>()),
+    insertStep: (current, row) => step(current, Expr.eval(expr, row)),
   }
 }
 
-/** Semilattice aggregate: `min` of a numeric expression (`Option.none()` when empty). */
+/** Semilattice aggregate: the smallest non-null value (`Option.none()` when there is none). */
 export const min = <S extends Schema.Top>(
   rowSchema: S,
-  build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], number>,
-): SemilatticeAggregate<S['Type'], Option.Option<number>> => {
-  type Row = S['Type']
-  const expr = wrap<Row, number>(toNode(build(Path.forSchema(rowSchema))))
-  return {
-    _tag: 'Aggregate',
-    kind: 'min',
-    algebra: 'semilattice',
-    requiresRescanOnDelete: true,
-    rowSchema: rowSchema as unknown as Schema.Codec<Row>,
-    expr,
-    evaluate: rows => {
-      if (rows.length === 0) return Option.none()
-      let best = Expr.eval(expr, rows[0]!)
-      for (let i = 1; i < rows.length; i++) {
-        const v = Expr.eval(expr, rows[i]!)
-        if (v < best) best = v
-      }
-      return Option.some(best)
-    },
-    insertStep: (current, row) => {
-      const v = Expr.eval(expr, row)
-      return Option.match(current, {
-        onNone: () => Option.some(v),
-        onSome: prev => Option.some(v < prev ? v : prev),
-      })
-    },
-    toSql: options =>
-      Result.map(lowerRowExpr(expr, options), frag => ({
-        text: `MIN(${frag.text})`,
-        params: frag.params,
-      })),
-  }
-}
+  build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], number | null>,
+): Min<S['Type']> => ({
+  _tag: 'Min',
+  ...extremum(rowSchema, wrap(toNode(build(Path.forSchema(rowSchema)))), (a, b) => a < b),
+})
 
-/** Semilattice aggregate: `max` of a numeric expression (`Option.none()` when empty). */
+/** Semilattice aggregate: the largest non-null value (`Option.none()` when there is none). */
 export const max = <S extends Schema.Top>(
   rowSchema: S,
-  build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], number>,
-): SemilatticeAggregate<S['Type'], Option.Option<number>> => {
-  type Row = S['Type']
-  const expr = wrap<Row, number>(toNode(build(Path.forSchema(rowSchema))))
+  build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], number | null>,
+): Max<S['Type']> => ({
+  _tag: 'Max',
+  ...extremum(rowSchema, wrap(toNode(build(Path.forSchema(rowSchema)))), (a, b) => a > b),
+})
+
+const predicateAggregate = <Row>(
+  rowSchema: Schema.Top,
+  expr: Expr.Expr<Row, boolean>,
+  fold: (current: boolean, holds: boolean) => boolean,
+  empty: boolean,
+): SemilatticeAggregate<Row, boolean, boolean> => {
+  // Only `true` holds: an unknown predicate counts as false.
+  const holds = (row: Row): boolean => Expr.eval(expr, row) === true
   return {
-    _tag: 'Aggregate',
-    kind: 'max',
     algebra: 'semilattice',
     requiresRescanOnDelete: true,
     rowSchema: rowSchema as unknown as Schema.Codec<Row>,
     expr,
-    evaluate: rows => {
-      if (rows.length === 0) return Option.none()
-      let best = Expr.eval(expr, rows[0]!)
-      for (let i = 1; i < rows.length; i++) {
-        const v = Expr.eval(expr, rows[i]!)
-        if (v > best) best = v
-      }
-      return Option.some(best)
-    },
-    insertStep: (current, row) => {
-      const v = Expr.eval(expr, row)
-      return Option.match(current, {
-        onNone: () => Option.some(v),
-        onSome: prev => Option.some(v > prev ? v : prev),
-      })
-    },
-    toSql: options =>
-      Result.map(lowerRowExpr(expr, options), frag => ({
-        text: `MAX(${frag.text})`,
-        params: frag.params,
-      })),
+    evaluate: rows => rows.reduce((acc, row) => fold(acc, holds(row)), empty),
+    insertStep: (current, row) => fold(current, holds(row)),
   }
 }
 
-/** Semilattice aggregate: `every` (true when every row satisfies the predicate; vacuously true on empty). */
+/**
+ * Semilattice aggregate: true when every row's predicate is true (true when
+ * empty). A row whose predicate is unknown counts as failing.
+ */
 export const every = <S extends Schema.Top>(
   rowSchema: S,
-  build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], boolean>,
-): SemilatticeAggregate<S['Type'], boolean> => {
-  type Row = S['Type']
-  const expr = wrap<Row, boolean>(toNode(build(Path.forSchema(rowSchema))))
-  return {
-    _tag: 'Aggregate',
-    kind: 'every',
-    algebra: 'semilattice',
-    requiresRescanOnDelete: true,
-    rowSchema: rowSchema as unknown as Schema.Codec<Row>,
-    expr,
-    evaluate: rows => rows.every(r => Expr.eval(expr, r)),
-    insertStep: (current, row) => current && Expr.eval(expr, row),
-    toSql: options =>
-      Result.map(lowerRowExpr(expr, options), frag => ({
-        text:
-          options?.dialect === 'sqlite'
-            ? `COALESCE(MIN(CASE WHEN ${frag.text} THEN 1 ELSE 0 END), 1)`
-            : `COALESCE(BOOL_AND(${frag.text}), TRUE)`,
-        params: frag.params,
-      })),
-  }
-}
+  build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], boolean | null>,
+): Every<S['Type']> => ({
+  _tag: 'Every',
+  ...predicateAggregate(
+    rowSchema,
+    wrap(toNode(build(Path.forSchema(rowSchema)))),
+    (acc, h) => acc && h,
+    true,
+  ),
+})
 
-/** Semilattice aggregate: `any` (true when at least one row satisfies the predicate; false on empty). */
+/** Semilattice aggregate: true when some row's predicate is true (false when empty). */
 export const any = <S extends Schema.Top>(
   rowSchema: S,
-  build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], boolean>,
-): SemilatticeAggregate<S['Type'], boolean> => {
-  type Row = S['Type']
-  const expr = wrap<Row, boolean>(toNode(build(Path.forSchema(rowSchema))))
-  return {
-    _tag: 'Aggregate',
-    kind: 'any',
-    algebra: 'semilattice',
-    requiresRescanOnDelete: true,
-    rowSchema: rowSchema as unknown as Schema.Codec<Row>,
-    expr,
-    evaluate: rows => rows.some(r => Expr.eval(expr, r)),
-    insertStep: (current, row) => current || Expr.eval(expr, row),
-    toSql: options =>
-      Result.map(lowerRowExpr(expr, options), frag => ({
-        text:
-          options?.dialect === 'sqlite'
-            ? `COALESCE(MAX(CASE WHEN ${frag.text} THEN 1 ELSE 0 END), 0)`
-            : `COALESCE(BOOL_OR(${frag.text}), FALSE)`,
-        params: frag.params,
-      })),
-  }
-}
+  build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], boolean | null>,
+): Any<S['Type']> => ({
+  _tag: 'Any',
+  ...predicateAggregate(
+    rowSchema,
+    wrap(toNode(build(Path.forSchema(rowSchema)))),
+    (acc, h) => acc || h,
+    false,
+  ),
+})

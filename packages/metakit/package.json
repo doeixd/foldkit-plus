@@ -42,6 +42,11 @@
       "types": "./dist/aggregates.d.ts",
       "import": "./dist/aggregates.js"
     },
+    "./aggregates/sql": {
+      "foldkit-plus:source": "./src/aggregatesSql.ts",
+      "types": "./dist/aggregatesSql.d.ts",
+      "import": "./dist/aggregatesSql.js"
+    },
     "./drizzle": {
       "foldkit-plus:source": "./src/drizzle.ts",
       "types": "./dist/drizzle.d.ts",
