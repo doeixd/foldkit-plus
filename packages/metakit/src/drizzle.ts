@@ -25,7 +25,29 @@ export interface DrizzleOptions {
 
 interface DrizzleCtx {
   readonly dialect: SqlDialect
+  readonly literal: (value: unknown) => Result.Result<SQL, SqlUnsupportedError>
   readonly lower: (node: Node.Node) => Result.Result<SQL, SqlUnsupportedError>
+}
+
+const inlineSqlLiteral = (value: unknown): Result.Result<SQL, SqlUnsupportedError> => {
+  if (value === null) return Result.succeed(sql.raw('NULL'))
+  if (typeof value === 'boolean') return Result.succeed(sql.raw(value ? 'TRUE' : 'FALSE'))
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return Result.fail(
+        new SqlUnsupportedError({
+          reason: `cannot inline non-finite number ${value} in SQL CHECK`,
+        }),
+      )
+    }
+    return Result.succeed(sql.raw(String(value)))
+  }
+  if (typeof value === 'string') {
+    return Result.succeed(sql.raw(`'${value.replace(/'/g, "''")}'`))
+  }
+  return Result.fail(
+    new SqlUnsupportedError({ reason: `unsupported literal type "${typeof value}" in SQL CHECK` }),
+  )
 }
 
 export type DrizzleLowerer = (
@@ -63,10 +85,13 @@ export const drizzleOps: Readonly<Record<Node.CoreOpId, DrizzleLowerer>> = {
       const nonNull = list.value.filter(v => v !== null)
       const hasNull = nonNull.length !== list.value.length
       if (nonNull.length === 0) return Result.succeed(sql`(${needle} IS NULL)`)
-      const vals = sql.join(
-        nonNull.map(v => sql`${v}`),
-        sql`, `,
-      )
+      const litParts: Array<SQL> = []
+      for (const v of nonNull) {
+        const lv = ctx.literal(v)
+        if (Result.isFailure(lv)) return lv
+        litParts.push(lv.success)
+      }
+      const vals = sql.join(litParts, sql`, `)
       const inClause = sql`(${needle} IN (${vals}))`
       return Result.succeed(hasNull ? sql`(${inClause} OR (${needle} IS NULL))` : inClause)
     }),
@@ -84,13 +109,23 @@ export const drizzleOps: Readonly<Record<Node.CoreOpId, DrizzleLowerer>> = {
 const lowerDrizzleNode = (
   node: Node.Node,
   table: DrizzleTableColumns,
-  options: { readonly dialect: SqlDialect; readonly rowPrefix: ReadonlyArray<string> },
+  options: {
+    readonly dialect: SqlDialect
+    readonly rowPrefix: ReadonlyArray<string>
+    readonly inlineLiterals?: boolean
+  },
 ): Result.Result<SQL, SqlUnsupportedError> => {
+  const literal = (value: unknown): Result.Result<SQL, SqlUnsupportedError> =>
+    options.inlineLiterals === true
+      ? inlineSqlLiteral(value)
+      : Result.succeed(value === null ? sql`NULL` : sql`${value}`)
+
   const ctx: DrizzleCtx = {
     dialect: options.dialect,
+    literal,
     lower: current =>
       Node.$match(current, {
-        Lit: ({ value }) => Result.succeed(value === null ? sql`NULL` : sql`${value}`),
+        Lit: ({ value }) => ctx.literal(value),
         Path: ({ segments }) => {
           if (!Path.isPrefix(options.rowPrefix, segments)) {
             return Result.fail(
@@ -127,9 +162,11 @@ const lowerDrizzleNode = (
           Result.flatMap(ctx.lower(on), target => {
             const parts: Array<SQL> = []
             for (const [val, branch] of cases) {
+              const vRes = ctx.literal(val)
+              if (Result.isFailure(vRes)) return vRes
               const bRes = ctx.lower(branch)
               if (Result.isFailure(bRes)) return bRes
-              parts.push(sql`WHEN ${val} THEN ${bRes.success}`)
+              parts.push(sql`WHEN ${vRes.success} THEN ${bRes.success}`)
             }
             const joined = sql.join(parts, sql` `)
             return Option.match(otherwise, {
@@ -162,6 +199,7 @@ export const toCheck = <S extends Schema.Top>(
     const res = lowerDrizzleNode(r.node, table, {
       dialect: options?.dialect ?? 'postgres',
       rowPrefix: [],
+      inlineLiterals: true,
     })
     if (Result.isFailure(res)) return res
     parts.push(res.success)
