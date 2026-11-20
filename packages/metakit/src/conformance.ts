@@ -7,9 +7,10 @@
  *   - Forward:  ∀ x ∈ γ(a), f(x) ∈ γ(f#(a))
  *   - Backward: ∀ x ∈ γ(a), f(x) ∈ γ(target) ==> x ∈ γ(narrow(a, target))
  */
-import { Arbitrary, Effect, Schema } from 'effect'
+import { Arbitrary, Effect, Equal, Schema } from 'effect'
 import { abstractOps } from './abstract/check.js'
 import * as Interval from './abstract/interval.js'
+import * as Expr from './expr.js'
 import * as Num from './ops/num.js'
 import * as Ord from './ops/ord.js'
 import * as Verdict from './verdict.js'
@@ -236,6 +237,89 @@ export const galoisNarrowUnary = (
   return { ok: failures.length === 0, checked, failures }
 }
 
+/**
+ * Property-test backward narrowing soundness of a binary comparison:
+ *   ∀ x ∈ a, y ∈ b: concrete(x, y) === true ==> x ∈ a' ∧ y ∈ b'.
+ */
+export const galoisNarrowCompare = (
+  name: string,
+  concrete: (a: number, b: number) => boolean,
+  narrow: (
+    args: ReadonlyArray<Interval.Interval>,
+    target: Interval.Interval,
+  ) => ReadonlyArray<Interval.Interval>,
+  schema: Schema.Codec<number>,
+  options?: GaloisOptions,
+): GaloisReport => {
+  const count = options?.samples ?? 40
+  const pool = sampleNumbers(schema, count)
+  const ivs = makeIntervals(pool)
+  const failures: Array<GaloisFailure> = []
+  let checked = 0
+
+  for (const a of ivs) {
+    const xs = pickInside(a, pool)
+    for (const b of ivs) {
+      const ys = pickInside(b, pool)
+      const [na, nb] = narrow([a, b], Interval.top)
+      for (const x of xs) {
+        for (const y of ys) {
+          if (!concrete(x, y)) continue
+          checked++
+          if (!Interval.contains(na!, x) || !Interval.contains(nb!, y)) {
+            failures.push({
+              op: name,
+              inputs: [x, y],
+              intervals: [a, b],
+              concrete: true,
+              abstract: [na, nb],
+            })
+            if (failures.length >= 5) return { ok: false, checked, failures }
+          }
+        }
+      }
+    }
+  }
+  return { ok: failures.length === 0, checked, failures }
+}
+
+/**
+ * Property-test Tier 2 partial evaluation soundness against Tier 1 evaluation:
+ *   ∀ env ~ schema:
+ *     eval(residualize(expr, mask(env)), env) === eval(expr, env)
+ * and for boolean expressions, if `judge` returns True/False it matches `eval`.
+ */
+export const checkResidualizeSoundness = <S extends Schema.Top, A>(
+  expr: Expr.Expr<S['Type'], A>,
+  schema: S,
+  mask: (env: S['Type']) => Expr.PartialEnv<S['Type']>,
+  options?: GaloisOptions,
+): {
+  readonly ok: boolean
+  readonly checked: number
+  readonly mismatch?: { readonly env: S['Type']; readonly full: A; readonly residual: A }
+} => {
+  const arb = Arbitrary.schema(schema as unknown as Schema.Codec<S['Type']>)
+  const envs = Effect.runSync(Arbitrary.sampleEffect(arb, { count: options?.samples ?? 60 }))
+  let checked = 0
+  for (const env of envs) {
+    const partial = mask(env)
+    const full = Expr.eval(expr, env)
+    const residual = Expr.eval(Expr.residualize(expr, partial), env)
+    checked++
+    if (!Object.is(full, residual) && !Equal.equals(full, residual)) {
+      return { ok: false, checked, mismatch: { env, full, residual } }
+    }
+    if (typeof full === 'boolean') {
+      const v = Expr.judge(expr as unknown as Expr.Expr<S['Type'], boolean>, partial)
+      if ((Verdict.isTrue(v) && !full) || (Verdict.isFalse(v) && full)) {
+        return { ok: false, checked, mismatch: { env, full, residual } }
+      }
+    }
+  }
+  return { ok: true, checked }
+}
+
 /** Property-test Galois soundness of a binary comparison transformer. */
 export const galoisCompare = (
   name: string,
@@ -385,5 +469,35 @@ export const checkAllIntervalTransformers = (
       op,
       ...galoisCompare(op, c, cmp, BoundedInt, BoundedInt, options),
     })),
+    {
+      op: 'ord.lte:narrow',
+      ...galoisNarrowCompare(
+        'ord.lte:narrow',
+        (a, b) => Ord.lteOp.evaluate([a, b]) as boolean,
+        abstractOps['ord.lte'].narrow!,
+        BoundedInt,
+        options,
+      ),
+    },
+    {
+      op: 'ord.gte:narrow',
+      ...galoisNarrowCompare(
+        'ord.gte:narrow',
+        (a, b) => Ord.gteOp.evaluate([a, b]) as boolean,
+        abstractOps['ord.gte'].narrow!,
+        BoundedInt,
+        options,
+      ),
+    },
+    {
+      op: 'eq.is:narrow',
+      ...galoisNarrowCompare(
+        'eq.is:narrow',
+        (a, b) => a === b,
+        abstractOps['eq.is'].narrow!,
+        BoundedInt,
+        options,
+      ),
+    },
   ]
 }

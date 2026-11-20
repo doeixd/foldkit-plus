@@ -72,6 +72,11 @@ describe('Path', () => {
     expect(updated).not.toBe(model)
     expect(updated.account.balance).toBe(75)
     expect(model.account.balance).toBe(100)
+
+    // Prototype properties are never read as own fields in Path.get or Expr.eval
+    const protoPath = Path.make<Record<string, unknown>, unknown>(['constructor'])
+    expect(Path.get(protoPath, {})).toEqual(Option.none())
+    expect(Expr.eval(protoPath, {})).toBeUndefined()
   })
 })
 

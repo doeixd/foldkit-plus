@@ -10,7 +10,14 @@ import * as Node from '../node.js'
 const readSegments = (env: unknown, segments: ReadonlyArray<string>): unknown => {
   let current: unknown = env
   for (const segment of segments) {
-    if (current === null || typeof current !== 'object') return undefined
+    if (
+      current === null ||
+      current === undefined ||
+      typeof current !== 'object' ||
+      !Object.hasOwn(current, segment)
+    ) {
+      return undefined
+    }
     current = (current as Record<string, unknown>)[segment]
   }
   return current

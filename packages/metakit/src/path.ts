@@ -101,7 +101,9 @@ export const set = <Env, A>(path: Path<Env, A>, env: Env, value: A): Env => {
     const key = path.segments[index]!
     const base =
       current !== null && typeof current === 'object' ? (current as Record<string, unknown>) : {}
-    const nextChild = index === path.segments.length - 1 ? value : updateAt(base[key], index + 1)
+    const existingChild = Object.hasOwn(base, key) ? base[key] : undefined
+    const nextChild =
+      index === path.segments.length - 1 ? value : updateAt(existingChild, index + 1)
     return { ...base, [key]: nextChild }
   }
   return updateAt(env, 0) as Env

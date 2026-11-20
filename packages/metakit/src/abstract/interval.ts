@@ -28,7 +28,7 @@ export const isBottom = (iv: Interval): boolean =>
 export const between = (lo: number, hi: number): Interval => {
   const l = norm(lo)
   const h = norm(hi)
-  return l > h ? bottom : { lo: l, hi: h }
+  return Number.isNaN(l) || Number.isNaN(h) || l > h ? bottom : { lo: l, hi: h }
 }
 
 export const constant = (value: number): Interval => {

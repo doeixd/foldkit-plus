@@ -218,4 +218,49 @@ describe('metakit/sql against PGlite', () => {
       expect(check.success).toContain("'O''Brien'")
     }
   })
+
+  it('maintains 100% row-for-row SQL vs JS Expr.eval parity across diverse rows and expressions', async () => {
+    const rows: ReadonlyArray<Account> = [
+      { id: 'p1', balance: 0, reserved: 0, status: 'open', note: null },
+      { id: 'p2', balance: 50, reserved: 50, status: 'open', note: '' },
+      { id: 'p3', balance: 120, reserved: 20, status: 'frozen', note: "O'Brien" },
+      { id: 'p4', balance: 30, reserved: 10, status: 'open', note: 'vip' },
+      { id: 'p5', balance: 15, reserved: 5, status: 'frozen', note: null },
+    ]
+    for (const r of rows) {
+      await db.query(
+        `INSERT INTO "accounts" ("id", "balance", "reserved", "status", "note") VALUES ($1, $2, $3, $4, $5)`,
+        [r.id, r.balance, r.reserved, r.status, r.note],
+      )
+    }
+
+    const allRows = (await db.query<Account>(`SELECT * FROM "accounts" ORDER BY "id"`)).rows
+    const predicates = [
+      Expr.in({ row: Account }, ({ row }) =>
+        Expr.all(Ord.gte(Num.sub(row.balance, row.reserved), 10), Eq.is(row.status, 'open')),
+      ),
+      Expr.in({ row: Account }, ({ row }) => Eq.in(row.note, ['vip', "O'Brien", null])),
+      Expr.in({ row: Account }, ({ row }) => Ord.between(Num.abs(Num.sub(row.balance, 40)), 0, 30)),
+      Expr.in({ row: Account }, ({ row }) =>
+        Eq.is(Expr.match(row.status, { open: 1, frozen: 0 }), 1),
+      ),
+      Expr.in({ row: Account }, ({ row }) =>
+        Expr.implies(Null.isNull(row.note), Ord.lte(row.reserved, 20)),
+      ),
+    ]
+
+    for (const pred of predicates) {
+      const sqlRes = Sql.toWhere(pred)
+      expect(Result.isSuccess(sqlRes)).toBe(true)
+      if (Result.isFailure(sqlRes)) continue
+      const sqlIds = (
+        await db.query<{ id: string }>(
+          `SELECT "id" FROM "accounts" WHERE ${sqlRes.success.text} ORDER BY "id"`,
+          [...sqlRes.success.params],
+        )
+      ).rows.map(r => r.id)
+      const jsIds = allRows.filter(row => Expr.eval(pred, { row })).map(r => r.id)
+      expect(sqlIds).toEqual(jsIds)
+    }
+  })
 })

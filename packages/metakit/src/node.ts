@@ -177,7 +177,14 @@ export const prefix = (node: Node, segments: ReadonlyArray<string>): Node => {
         run: env => {
           let sub: unknown = env
           for (const seg of segments) {
-            if (sub === null || typeof sub !== 'object') return undefined
+            if (
+              sub === null ||
+              sub === undefined ||
+              typeof sub !== 'object' ||
+              !Object.hasOwn(sub, seg)
+            ) {
+              return undefined
+            }
             sub = (sub as Record<string, unknown>)[seg]
           }
           return run(sub)
