@@ -4,14 +4,14 @@ Using plain `number` for money, `Date` for calendar dates, and plain strings for
 
 `metakit/domain` gives you branded integer-backed Effect Schemas that lower to exact integer arithmetic in JavaScript, SQL, and Z3. `metakit/aggregates` adds row summaries (`sum`, `count`, `min`, `max`, `every`, `any`) with O(1) incremental deltas and SQL lowering.
 
-## Currency-safe money (`Money`)
+## Currency-safe money (`Money`) and fixed-scale decimals (`Decimal`)
 
-`Money.make(currency, options)` creates an integer-backed Effect `Schema` in minor units (cents by default, `scale: 2`). `Money.add` and `Money.sub` require both operands to share the same currency and scale at compile time.
+`Money.make(currency, options)` creates an integer-backed Effect `Schema` in minor units (cents by default, `scale: 2`). `Money.add` and `Money.sub` require both operands to share the same currency and scale at compile time. For dimensionless fixed-scale numbers (tax rates, weights, percentages), use `Decimal.make({ scale })`, `Decimal.parse`, `Decimal.format`, and `Decimal.roundHalfEven` (exact integer half-even rounding with zero float drift).
 
 ```ts
 import { Schema } from 'effect'
 import { Expr, Num } from 'metakit'
-import { Money } from 'metakit/domain'
+import { Decimal, Money } from 'metakit/domain'
 
 const Usd = Money.make('USD')
 const Invoice = Schema.Struct({
@@ -25,6 +25,9 @@ const total = Expr.eval(totalExpr, {
 })
 // total -> 2000 (typed as MoneyValue<'USD', 2>)
 // Money.format(total, 'USD') -> '20.00 USD'
+
+const tax = Decimal.roundHalfEven(150, 100) // 2 (banker's rounding)
+void tax
 ```
 
 Passing a `Money.make('EUR')` field to `Money.sub` alongside a `USD` field is a TypeScript error. Because the runtime representation is an integer, SQL `CHECK`/`WHERE` and Z3 proofs avoid floating-point rounding drift.

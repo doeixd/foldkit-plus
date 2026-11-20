@@ -121,8 +121,8 @@ REFUTED Withdraw [PIN BROKEN]
 
 | Import | Runs in | Purpose |
 | --- | --- | --- |
-| `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 15-op v1 core (`Bool`, `Eq`, `Null`, `Ord`, `Num` + derived helpers), and synchronous Interval + Zone checks (`Abstract`). |
-| `metakit/domain` | Browser / server | Currency-safe `Money`, timezone-free `CalendarDay`, `OrderedEnum`, and `Domain.domainOf`. |
+| `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 20-op core (`Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr` + derived helpers), and synchronous Interval + Zone checks (`Abstract`). |
+| `metakit/domain` | Browser / server | Currency-safe `Money`, fixed-scale `Decimal` (half-even rounding), timezone-free `CalendarDay`, `OrderedEnum`, and `Domain.domainOf`. |
 | `metakit/aggregates` | Browser / server | `Rows.sum`, `Rows.count` (O(1) group deltas) and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any` (semilattice). |
 | `metakit/machine` | Browser / server | Declarative state machine (`dispatch`, TEA `update`, `canDispatch`, `affordances`, `footprints`). |
 | `metakit/inspect` | Browser / server | Form `fieldSpecs`, enriched `toJsonSchema`, and `affordances` without duplicating an interpreter. |

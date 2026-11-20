@@ -71,8 +71,8 @@ void proof
 
 ## Main exports by subpath
 
-- `metakit`: `Path`, `Expr`, `Bool`, `Eq`, `Null`, `Ord`, `Num`, `Transition`, `Verdict`, `Abstract`
-- `metakit/domain`: `Money`, `CalendarDay`, `OrderedEnum`, `Domain`
+- `metakit`: `Path`, `Expr`, `Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr`, `Transition`, `Verdict`, `Abstract`
+- `metakit/domain`: `Money`, `Decimal`, `CalendarDay`, `OrderedEnum`, `Domain`
 - `metakit/aggregates`: `sum`, `count`, `min`, `max`, `every`, `any`
 - `metakit/machine`: `make`, `Machine`, `MessageOf`, `EmitOf`
 - `metakit/inspect`: `fieldSpecs`, `toJsonSchema`, `affordances`
