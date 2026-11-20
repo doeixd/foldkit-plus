@@ -152,7 +152,7 @@ const addDeclaredConstraints =
  * transition when that Message arrives (`machine.update`).
  *
  * ```ts
- * const Tools = machineTools({ agent: BankAgent, machine: Account, state: model => model.account })
+ * const Tools = machineTools({ agent: BankAgent, machine: AccountMachine, state: model => model.account })
  * BankAgent.expose(Message, { Withdraw: Tools.Withdraw('Withdraw from the account') })
  * ```
  */
