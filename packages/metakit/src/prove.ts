@@ -6,8 +6,7 @@
  * all 15 v1 primitives — including `null.isNull` via companion Z3 boolean
  * nullability flags — with zero unsupported primitives.
  */
-import { Effect, Option, Result, SchemaAST } from 'effect'
-import type { Schema } from 'effect'
+import { Effect, Option, Result, Schema, SchemaAST } from 'effect'
 import * as AbstractCheck from './abstract/check.js'
 import * as Expr from './expr.js'
 import type { Machine } from './machine.js'
@@ -276,6 +275,10 @@ const solveWithZ3 = async (
   }
 
   for (const [name, sort] of fields) {
+    if (sort.literals?.some(value => typeof value !== typeof sort.literals![0])) {
+      // Text codes and numeric literals share the SMT integer sort.
+      return Verdict.Unknown(`mixed literal types at ${name} require a tagged solver sort`)
+    }
     const nf = z3.Bool.const(`isNull:${name}`)
     nullFlags.set(name, nf)
     if (!sort.nullable) {
@@ -520,13 +523,24 @@ const solveWithZ3 = async (
         witness[name] = null
         continue
       }
-      const evaluated = model.eval(v, true).toString()
+      const value = model.eval(v, true)
+      const evaluated = value.toString()
       const sort = fields.get(name)
       if (sort?.kind === 'bool') {
         witness[name] = evaluated === 'true'
-      } else if (sort?.kind === 'enum') {
-        const num = Number(evaluated)
-        witness[name] = codeToEnum.get(num) ?? evaluated
+      } else if (
+        sort?.kind === 'string' ||
+        (sort?.kind === 'enum' && sort.literals?.every(lit => typeof lit === 'string'))
+      ) {
+        const code = Number(evaluated)
+        let fresh = `model-string:${evaluated}`
+        while (enumCodes.has(fresh)) fresh += '_'
+        witness[name] = codeToEnum.get(code) ?? fresh
+      } else if (z3.isIntVal(value)) {
+        const num = Number(value.value())
+        witness[name] = typeof sort?.literals?.[0] === 'boolean' ? num === 1 : num
+      } else if (z3.isRealVal(value)) {
+        witness[name] = value.asNumber()
       } else {
         const num = Number(evaluated)
         witness[name] = Number.isNaN(num) ? evaluated : num
@@ -804,22 +818,23 @@ export const policyImplies = <
   Principal,
   Rules extends Readonly<Record<string, Expr.Expr<Policy.PolicyEnv<Row, Principal>, boolean>>>,
 >(
-  pol: Policy.Policy<Row, Principal, Rules>,
+  pol: Policy.Definition<Row, Principal, Rules>,
   from: keyof Rules & string,
   to: keyof Rules & string,
 ): Effect.Effect<Verdict.Verdict<Readonly<Record<string, unknown>>>> =>
-  Effect.promise(async () => {
+  Effect.gen(function* () {
     const tier3 = Policy.checkImplication(pol, from, to)
     if (Verdict.isTrue(tier3)) return tier3
-    const fields = new Map<string, FieldSort>()
-    collectFieldSorts(pol.rowSchema.ast, ['row'], fields)
-    collectFieldSorts(pol.principalSchema.ast, ['principal'], fields)
-    const hypotheses: Array<Node.Node> = [
-      ...Expr.refinementsOf(pol.rowSchema).map(r => Node.prefix(r.node, ['row'])),
-      ...Expr.refinementsOf(pol.principalSchema).map(r => Node.prefix(r.node, ['principal'])),
-      pol.rules[from]!.node,
-    ]
-    return solveWithZ3(fields, hypotheses, [pol.rules[to]!.node])
+    const result = yield* policy(
+      { row: pol.rowSchema, principal: pol.principalSchema },
+      pol.rules[to]!,
+      { hypotheses: [pol.rules[from]!] },
+    )
+    return validatePolicyWitness(
+      pol,
+      result,
+      env => Expr.eval(pol.rules[from]!, env) && !Expr.eval(pol.rules[to]!, env),
+    )
   })
 
 /**
@@ -835,21 +850,18 @@ export const policyConsistent = <
   Principal,
   Rules extends Readonly<Record<string, Expr.Expr<Policy.PolicyEnv<Row, Principal>, boolean>>>,
 >(
-  pol: Policy.Policy<Row, Principal, Rules>,
+  pol: Policy.Definition<Row, Principal, Rules>,
   rule: keyof Rules & string,
 ): Effect.Effect<Verdict.Verdict<Readonly<Record<string, unknown>>>> =>
-  Effect.promise(async () => {
+  Effect.gen(function* () {
     const tier3 = Policy.checkConsistent(pol, rule)
     if (Verdict.isFalse(tier3)) return Verdict.False(Option.none())
-    const fields = new Map<string, FieldSort>()
-    collectFieldSorts(pol.rowSchema.ast, ['row'], fields)
-    collectFieldSorts(pol.principalSchema.ast, ['principal'], fields)
-    const hypotheses: Array<Node.Node> = [
-      ...Expr.refinementsOf(pol.rowSchema).map(r => Node.prefix(r.node, ['row'])),
-      ...Expr.refinementsOf(pol.principalSchema).map(r => Node.prefix(r.node, ['principal'])),
-      pol.rules[rule]!.node,
-    ]
-    const res = await solveWithZ3(fields, hypotheses, [Node.Lit({ value: false })])
+    const result = yield* policy(
+      { row: pol.rowSchema, principal: pol.principalSchema },
+      Expr.lit(false),
+      { hypotheses: [pol.rules[rule]!] },
+    )
+    const res = validatePolicyWitness(pol, result, env => Expr.eval(pol.rules[rule]!, env))
     return Verdict.match(res, {
       // `hypotheses && NOT(false)` is UNSAT => rule is provably dead/unsatisfiable!
       True: () => Verdict.False(Option.none()),
@@ -858,3 +870,29 @@ export const policyConsistent = <
       Unknown: u => u,
     })
   })
+
+// A satisfying assignment in the numeric abstraction can violate a schema check
+// or an operation that was only bounded. Only a replayable assignment is a witness.
+const validatePolicyWitness = <
+  Row,
+  Principal,
+  Rules extends Readonly<Record<string, Expr.Expr<Policy.PolicyEnv<Row, Principal>, boolean>>>,
+>(
+  pol: Policy.Definition<Row, Principal, Rules>,
+  result: Verdict.Verdict<Readonly<Record<string, unknown>>>,
+  holds: (env: Policy.PolicyEnv<Row, Principal>) => boolean,
+) => {
+  if (!Verdict.isFalse(result) || Option.isNone(result.witness)) return result
+  let env: { row: unknown; principal: unknown } = { row: {}, principal: {} }
+  for (const [path, value] of Object.entries(result.witness.value))
+    env = Path.set(Path.make(path.split('.')), env, value)
+  if (
+    Schema.is(pol.rowSchema)(env.row) &&
+    Schema.is(pol.principalSchema)(env.principal) &&
+    holds({ row: env.row, principal: env.principal })
+  )
+    return result
+  return Verdict.Unknown(
+    'the solver assignment could not be reproduced on a valid policy environment',
+  )
+}

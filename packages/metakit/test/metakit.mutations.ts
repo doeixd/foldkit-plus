@@ -20,6 +20,35 @@ const strArrTests = ['packages/metakit/test/str-arr.test.ts']
 
 export default [
   {
+    name: 'mixed literal sorts silently alias text with numbers',
+    edits: [
+      { file: prove, find: 'if (sort.literals?.some', replace: 'if (false && sort.literals?.some' },
+    ],
+    tests: ['packages/metakit/test/policy.test.ts'],
+  },
+  {
+    name: 'a policy implication is refuted without showing the update is reachable',
+    edits: [
+      {
+        file: '../src/policy.ts',
+        find: 'return Verdict.isFalse(verdict)',
+        replace: 'return false',
+      },
+    ],
+    tests: ['packages/metakit/test/policy.test.ts'],
+  },
+  {
+    name: 'a satisfiable policy model skips concrete validation',
+    edits: [
+      {
+        file: prove,
+        find: 'const res = validatePolicyWitness(pol, result, env => Expr.eval(pol.rules[rule]!, env))',
+        replace: 'const res = result',
+      },
+    ],
+    tests: ['packages/metakit/test/policy.test.ts'],
+  },
+  {
     name: 'lookupPartial conflates null with missing (Unknown)',
     edits: [
       {

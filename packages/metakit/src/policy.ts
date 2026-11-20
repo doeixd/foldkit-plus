@@ -23,7 +23,8 @@ export interface PolicyEnv<Row, Principal> {
   readonly principal: Principal
 }
 
-export interface Policy<
+/** The facts a checker consumes. Only the policy evaluator needs concrete principal decisions. */
+export interface Definition<
   Row,
   Principal,
   Rules extends Readonly<Record<string, Expr.Expr<PolicyEnv<Row, Principal>, boolean>>>,
@@ -31,6 +32,13 @@ export interface Policy<
   readonly rowSchema: Schema.Codec<Row>
   readonly principalSchema: Schema.Codec<Principal>
   readonly rules: Rules
+}
+
+export interface Policy<
+  Row,
+  Principal,
+  Rules extends Readonly<Record<string, Expr.Expr<PolicyEnv<Row, Principal>, boolean>>>,
+> extends Definition<Row, Principal, Rules> {
   /** Evaluate a named policy rule against a concrete `{ row, principal }`. */
   readonly allow: <K extends keyof Rules & string>(
     rule: K,
@@ -103,7 +111,7 @@ export const checkImplication = <
   Principal,
   Rules extends Readonly<Record<string, Expr.Expr<PolicyEnv<Row, Principal>, boolean>>>,
 >(
-  policy: Policy<Row, Principal, Rules>,
+  policy: Definition<Row, Principal, Rules>,
   from: keyof Rules & string,
   to: keyof Rules & string,
 ): Verdict.Verdict<never> => {
@@ -115,7 +123,6 @@ export const checkImplication = <
   }
   const fromRule = policy.rules[from]!
   const toRule = policy.rules[to]!
-  const goal = Expr.implies(fromRule, toRule)
   const fields = new Map<string, AbstractCheck.FieldInfo>()
   AbstractCheck.collectFields(policy.rowSchema.ast, ['row'], fields)
   AbstractCheck.collectFields(policy.principalSchema.ast, ['principal'], fields)
@@ -124,9 +131,13 @@ export const checkImplication = <
     ...Expr.refinementsOf(policy.principalSchema).map(r => Node.prefix(r.node, ['principal'])),
     fromRule.node,
   ]
-  const state = new AbstractCheck.AbstractState([...hypotheses, toRule.node, goal.node], fields)
+  const state = new AbstractCheck.AbstractState([...hypotheses, toRule.node], fields)
   for (const h of hypotheses) state.assume(h)
-  return state.entails(toRule.node)
+  const verdict = state.entails(toRule.node)
+  // Refuting a consequent under assumed facts does not establish a reachable antecedent.
+  return Verdict.isFalse(verdict)
+    ? Verdict.Unknown('a counterexample requires a reachable allow rule')
+    : verdict
 }
 
 /**
@@ -142,7 +153,7 @@ export const checkConsistent = <
   Principal,
   Rules extends Readonly<Record<string, Expr.Expr<PolicyEnv<Row, Principal>, boolean>>>,
 >(
-  policy: Policy<Row, Principal, Rules>,
+  policy: Definition<Row, Principal, Rules>,
   rule: keyof Rules & string,
 ): Verdict.Verdict<never> => {
   if (!Object.hasOwn(policy.rules, rule)) {

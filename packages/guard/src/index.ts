@@ -8,7 +8,9 @@
  * which the SQL compiler and `evaluate` both run. See `guard-DESIGN.md`.
  */
 import { Context, Effect, Match, Option, Schema } from 'effect'
-import { Attaching, attached, type InteractionKey } from './attach.js'
+import { Attaching, enforced, type InteractionKey } from './attach.js'
+import { check } from './check.js'
+export type { PolicyCheck } from './check.js'
 import {
   deciding,
   readsPrincipal,
@@ -347,6 +349,7 @@ export {
 
 export const Guards = {
   ...Attaching,
+  check,
   /**
    * Adds the `may` member, the server's answer to what a principal may do
    * with a row, after its guards are attached:
@@ -536,7 +539,7 @@ export const Guards = {
         principal: Option.Option<User>,
         interaction: string,
       ) => {
-        Option.map(attached(entity), ({ set }) => {
+        Option.map(enforced(entity), ({ set }) => {
           if (set !== name) {
             throw new Error(`[foldkit-guard] ${name}: ${entity.name} carries the guards of ${set}`)
           }

@@ -103,6 +103,21 @@ export const Todo = TodoFields.pipe(
 
 ## Attaching
 
+To check whether someone allowed to update a row can also read a particular
+member, call `Guards.check(Todo, 'ownerId')` on the Entity returned by
+`Guards.attach`. The `consistent` verdict is false for a provably unreachable
+Update. An unknown `consistent` verdict leaves reachability open. A true
+`implication` means every allowed Update on a valid row also
+passes the row and member Read rules. Check both verdicts because an
+unreachable Update implies any Read.
+
+For an undecided implication, pass the report's `definition`, then
+`'Update'` and `'Read'`, to `policyImplies` from `metakit/prove` in a test.
+The checker understands numeric row comparisons and state invariants. It can
+leave a result unknown when it depends on a server-only check, a related row,
+or an expression it cannot translate. Runtime authorization still uses the
+attached rules on every request.
+
 - Default refusals: a row Read is not found, a member or relation Read is
   omitted, a write is forbidden. `Guards.on(guards, Guards.redact(value))` and
   `Guards.explain(reason)` choose another.

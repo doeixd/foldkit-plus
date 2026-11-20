@@ -35,6 +35,11 @@ const G = Guards.declare(
   { key: user => user.id, unguarded: 'allow' },
 )
 
+const proof = Guards.check(TodoFields, 'rank')
+expectTypeOf(proof.definition.rowSchema.Type).toEqualTypeOf<typeof TodoFields.schema.Encoded>()
+// @ts-expect-error a member Read check names a member of the given Entity
+Guards.check(TodoFields, 'missing')
+
 expectTypeOf(G.isAdmin).toEqualTypeOf<PrincipalGuard<User, 'Todos'>>()
 expectTypeOf(G.isOwner).toEqualTypeOf<RowGuard<User, typeof TodoFields, 'Todos'>>()
 

@@ -17,6 +17,35 @@ const Principal = Schema.Struct({
 })
 
 describe('metakit/policy (consistency, non-disclosure, opaque principal soundness)', () => {
+  it('keeps a text code distinct from the same integer in a mixed enumeration', async () => {
+    const policy = Policy.make({
+      row: Schema.Struct({ code: Schema.Literals(['a', 1]) }),
+      principal: Principal,
+      rules: ({ row }) => ({ Update: Eq.is(row.code, 'a'), Read: Eq.is(row.code, 1) }),
+    })
+    expect(
+      Verdict.isUnknown(await Effect.runPromise(Prove.policyImplies(policy, 'Update', 'Read'))),
+    ).toBe(true)
+  })
+  it('requires a reachable antecedent to refute an implication', () => {
+    const policy = Policy.make({
+      row: Document,
+      principal: Principal,
+      rules: () => ({ Update: Expr.opaque({ name: 'staff' }, () => false), Read: Expr.lit(false) }),
+    })
+    expect(Verdict.isUnknown(Policy.checkImplication(policy, 'Update', 'Read'))).toBe(true)
+  })
+
+  it('validates a satisfying assignment against checks outside the solver theory', async () => {
+    const policy = Policy.make({
+      row: Schema.Struct({ code: Schema.String.check(Schema.isMinLength(4)) }),
+      principal: Principal,
+      rules: ({ row }) => ({ Update: Eq.is(row.code, 'a') }),
+    })
+    expect(
+      Verdict.isUnknown(await Effect.runPromise(Prove.policyConsistent(policy, 'Update'))),
+    ).toBe(true)
+  })
   it('evaluates runtime allow() and partial-evaluation can() hints before row or principal arrives', () => {
     const DocPolicy = Policy.make({
       row: Document,

@@ -3200,6 +3200,9 @@ importers:
       foldkit-metadata:
         specifier: workspace:*
         version: link:../metadata
+      metakit:
+        specifier: workspace:*
+        version: link:../metakit
     devDependencies:
       '@electric-sql/pglite':
         specifier: 0.5.11
