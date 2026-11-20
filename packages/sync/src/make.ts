@@ -5,6 +5,7 @@
  * the same projection.
  */
 import { Equal, Option, Predicate, Schema } from 'effect'
+import { Expr } from 'metakit'
 import {
   MessageSet,
   Projection,
@@ -114,6 +115,10 @@ export interface Law<Shared, Key extends string> {
   readonly path?: ReadonlyArray<Key>
 }
 
+type DocumentLaw<Shared, Key extends string> = Omit<Law<Shared, Key>, 'holds'> & {
+  readonly holds: Law<Shared, Key>['holds'] | Expr.Expr<{ readonly model: Shared }, boolean>
+}
+
 /** `make`'s laws, keyed by id: each over the shared fields, and nothing else of the Model. */
 export interface LawsOption<Fields extends Schema.Struct.Fields, LawIds extends string> {
   /**
@@ -123,7 +128,7 @@ export interface LawsOption<Fields extends Schema.Struct.Fields, LawIds extends 
    * as `rule`; the first broken law in the record's order is named.
    */
   readonly laws?: {
-    readonly [Id in LawIds]: Law<Schema.Struct.Type<Fields>, keyof Fields & string>
+    readonly [Id in LawIds]: DocumentLaw<Schema.Struct.Type<Fields>, keyof Fields & string>
   }
 }
 
@@ -466,7 +471,7 @@ const derivedReplay = <
  * be sent; `make` throws rather than let one fail every exchange.
  */
 const lawsOf = <Shared>(
-  declared: Record<string, Law<Shared, string>>,
+  declared: Record<string, DocumentLaw<Shared, string>>,
 ): {
   readonly laws: Record<string, DeclaredLaw>
   readonly judge: (before: Shared, after: Shared) => Option.Option<DeclaredLaw>
@@ -482,7 +487,12 @@ const lawsOf = <Shared>(
       throw new Error(
         `Sync.make: the law "${fitWords(id)}" does not fit a refusal: an id, a message or a field over 500 characters, or a path over 16 fields`,
       )
-    return [{ id, message: law.message, path }, law.holds] as const
+    const predicate = law.holds
+    const holds: Law<Shared, string>['holds'] =
+      typeof predicate === 'function'
+        ? predicate
+        : ({ after }) => Expr.eval(predicate, { model: after })
+    return [{ id, message: law.message, path }, holds] as const
   })
   return {
     laws: Object.fromEntries(entries.map(([law]) => [law.id, law])),

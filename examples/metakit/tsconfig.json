@@ -15,6 +15,7 @@
       "metakit/graph": ["../../packages/metakit/src/graph.ts"],
       "metakit/inspect": ["../../packages/metakit/src/inspect.ts"],
       "metakit/machine": ["../../packages/metakit/src/machine.ts"],
+      "metakit/policy": ["../../packages/metakit/src/policy.ts"],
       "metakit/prove": ["../../packages/metakit/src/prove.ts"],
       "metakit/sql": ["../../packages/metakit/src/sql.ts"]
     }

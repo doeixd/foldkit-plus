@@ -7,6 +7,17 @@ const tests = ['packages/sync/test/laws.test.ts']
 
 export default [
   {
+    name: 'an expression law judges the previous snapshot',
+    edits: [
+      {
+        file: '../src/make.ts',
+        find: '({ after }) => Expr.eval(predicate, { model: after })',
+        replace: '({ before }) => Expr.eval(predicate, { model: before })',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the refusal is mapped without its rule',
     edits: [
       {

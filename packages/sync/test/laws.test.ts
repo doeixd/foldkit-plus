@@ -18,6 +18,7 @@ import {
   type Journal as JournalShape,
 } from 'foldkit-durable'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { Arr, Num, Path } from 'metakit'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   Sync,
@@ -76,13 +77,14 @@ const options = {
 }
 
 /** The guide's cap, as a law: no rule of `authorize` names it. */
+const { model } = Path.forEnv({ model: options.shared.schema })
 const Capped = Sync.forApplication(App)
   .withPrincipal<string>()
   .make({
     ...options,
     laws: {
       atMost100Todos: {
-        holds: ({ after }) => after.todos.length <= 100,
+        holds: Num.lte(Arr.count(model.todos), 100),
         message: 'A list holds 100 todos',
         path: ['todos'],
       },

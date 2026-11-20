@@ -273,19 +273,26 @@ What the document must always be, whoever changes it, is a **law**, not an
 `authorize` rule: a predicate over the snapshot an operation leaves.
 
 ```ts
+import { Arr, Num, Path } from 'metakit'
+
+const shared = Projection.pick(App.model.todos)
+const { model } = Path.forEnv({ model: shared.schema })
 const Capped = forApplication(App).make({
   documentId: DocumentId.make('capped'),
-  shared: Projection.pick(App.model.todos),
+  shared,
   durable: MessageSet.make(App, [Message.CreatedTodo]),
   laws: {
     atMost100Todos: {
-      holds: ({ after }) => after.todos.length <= 100, // `before` too; shared fields only
+      holds: Num.lte(Arr.count(model.todos), 100),
       message: 'A list holds 100 todos',
       path: ['todos'],
     },
   },
 })
 ```
+
+The expression sees the proposed shared snapshot as `model`. Use a
+`holds({ before, after })` callback when the rule needs the previous snapshot too.
 
 The journal judges every operation after `reduce` (`journalContract()` carries
 `judge`), `appendAsServer` and reactions included; a broken law is

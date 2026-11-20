@@ -5,6 +5,7 @@
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { Eq, Path } from 'metakit'
 import { documentId, forApplication, type DeclaredLaw } from '../src/index.js'
 import { reaction } from '../src/journal.js'
 
@@ -26,6 +27,14 @@ const Capped = forApplication(App).make({
       message: 'A list holds 100 todos',
       path: ['todos'],
     },
+  },
+})
+const { model } = Path.forEnv({ model: Model })
+forApplication(App).make({
+  ...options,
+  laws: {
+    // @ts-expect-error a law reading the local filter cannot run over the shared snapshot
+    local: { holds: Eq.is(model.filter, ''), message: 'm' },
   },
 })
 const _law: DeclaredLaw<'atMost100'> = Capped.laws.atMost100
