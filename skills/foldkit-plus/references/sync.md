@@ -298,7 +298,9 @@ To replay an edit from a single declaration, put a metakit `Transition.make`
 under its Message tag in `make({ transitions })`. Use `Schema.Struct({ model:
 shared.schema })` for its state and the variant constructor, such as
 `Message.CreatedTodo`, for its input. The mount
-applies it to the shared projection, and the journal uses it for replay. Tags
+applies it to the shared projection in place of your `update`, and the journal
+uses it for replay. A Message whose guard (`when`) is false is refused: the
+replica's `submit` fails and the journal rejects the operation. Tags
 without a declaration follow the existing reducer. At definition time, `make`
 rejects a guard it proves unreachable or a transition it finds violates a
 shared-state invariant. An undecided check lets the declaration proceed. The

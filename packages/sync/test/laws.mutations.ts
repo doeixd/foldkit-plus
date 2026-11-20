@@ -29,6 +29,29 @@ export default [
     tests,
   },
   {
+    name: 'the reachability of a guard is judged without the laws',
+    edits: [
+      {
+        file: '../src/make.ts',
+        find: 'const environment = Schema.Struct({ state, input })',
+        replace:
+          'const environment = Schema.Struct({ state: Schema.Struct({ model: sharedCodec }), input })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a Message whose guard is false is replayed as a no-op',
+    edits: [
+      {
+        file: '../src/make.ts',
+        find: 'if (Result.isFailure(result)) throw new Error(result.failure.reason)',
+        replace: 'if (Result.isFailure(result)) return value',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a transition that breaks an invariant is accepted',
     edits: [
       { file: '../src/make.ts', find: 'Verdict.isFalse(', replace: 'false && Verdict.isFalse(' },

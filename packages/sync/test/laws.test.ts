@@ -188,6 +188,17 @@ describe('a law', () => {
     expect(() =>
       make(Transition.make({ state, input, when: () => false, apply: () => [] })),
     ).toThrow('unreachable guard')
+    // Reachable on its own, and never under the law.
+    expect(() =>
+      make(
+        Transition.make({
+          state,
+          input,
+          when: ({ state }) => Num.gt(Arr.count(state.model.todos), 0),
+          apply: () => [],
+        }),
+      ),
+    ).toThrow('unreachable guard')
     expect(() =>
       make(
         Transition.make({
@@ -197,6 +208,38 @@ describe('a law', () => {
         }),
       ),
     ).toThrow('violates a shared-state invariant')
+  })
+
+  it('refuses a Message whose transition guard is false, in the replica and in the journal', async () => {
+    const only = [{ id: 'only', title: 'The one todo' }]
+    const Single = Sync.forApplication(App)
+      .withPrincipal<string>()
+      .make({
+        ...options,
+        transitions: {
+          CreatedTodo: Transition.make({
+            state: Schema.Struct({ model: options.shared.schema }),
+            input: Message.CreatedTodo,
+            when: ({ state }) => Num.lt(Arr.count(state.model.todos), 1),
+            apply: ({ state }) => [Transition.set(state.model.todos, only)],
+          }),
+        },
+      })
+    const journal = openJournal(Single)
+    const reply = (await journalExchange({ sync: Single, journal, principal: 'ada' }).exchange(
+      sequence(0),
+      [1, 2].map(n => entry(Message.CreatedTodo({ id: `t${n}`, title: 'x' }), 'tab', n)),
+    )) as Reply
+    expect([reply.acknowledged, reply.rejected]).toEqual([['tab:1'], ['tab:2']])
+    expect((await run(journal.load(key))).snapshot.todos).toEqual(only)
+
+    const replica = await run(Single.openReplica(memoryStorage(), { replicaId: replicaId('r') }))
+    const submit = (id: string) =>
+      run(Effect.exit(replica.submit(Message.CreatedTodo({ id, title: 'x' }))))
+    expect(Exit.isSuccess(await submit('a'))).toBe(true)
+    expect(Exit.isFailure(await submit('b'))).toBe(true)
+    expect((await run(replica.shared)).todos).toEqual(only)
+    expect((await run(replica.status)).pending).toBe(1)
   })
   it('refuses at 100 every durable Message that grows the list, as Invalid naming the law', async () => {
     const journal = openJournal(Capped)
