@@ -1,5 +1,5 @@
 import { Option, Result, Schema } from 'effect'
-import { Eq, Expr, Null, Num, Path, Transition } from 'metakit'
+import { Eq, Expr, Null, Num, Ord, Path, Transition } from 'metakit'
 import * as Graph from 'metakit/graph'
 import * as Machine from 'metakit/machine'
 import * as Sql from 'metakit/sql'
@@ -226,5 +226,58 @@ describe('metakit/graph', () => {
     if (!rOpaque.ready) {
       expect(Option.isNone(rOpaque.missing)).toBe(true)
     }
+  })
+
+  describe('Graph.queryReadiness and what SQL can lower', () => {
+    const Row = Schema.Struct({ id: Schema.String, rank: Schema.Int })
+    const Params = Schema.Struct({ floor: Schema.Finite })
+
+    it('is not ready for an opaque term over the row, which has nothing missing and no SQL', () => {
+      const custom = Expr.in({ row: Row }, ({ row }) =>
+        Expr.opaque({ name: 'custom', reads: [row.id] }, () => true),
+      )
+      const readiness = Graph.queryReadiness(custom, {})
+      expect(readiness).toEqual({
+        ready: false,
+        missing: Option.some([]),
+        unsupported: Option.some('cannot lower opaque term "custom" to SQL'),
+        residual: readiness.residual,
+      })
+      expect(Result.isFailure(Sql.toWhere(custom))).toBe(true)
+    })
+
+    it('is not ready where a bound parameter makes the predicate one SQL refuses', () => {
+      const above = Expr.in({ row: Row, params: Params }, ({ row, params }) =>
+        Ord.gt(row.rank, params.floor),
+      )
+      const whole = Graph.queryReadiness(above, { params: { floor: 2 } })
+      expect(whole.ready).toBe(true)
+      const fraction = Graph.queryReadiness(above, { params: { floor: 2.5 } })
+      expect(!fraction.ready && fraction.unsupported).toEqual(
+        Option.some(
+          'a fraction beside an integer column: declare the column a non-integer number, or scale the constant to an integer',
+        ),
+      )
+      expect(Result.isFailure(Sql.toWhere(above, { env: { params: { floor: 2.5 } } }))).toBe(true)
+    })
+
+    it('reads every path as a column under an empty row prefix, as the SQL lowering does', () => {
+      const bare = Ord.gt(Path.from(Row).rank, 1)
+      expect(Graph.queryReadiness(bare, {}, { rowPrefix: [] }).ready).toBe(true)
+      expect(Result.getOrThrow(Sql.toWhere(bare, { rowPrefix: [] })).text).toBe('("rank" > $1)')
+    })
+
+    it('names what is missing, and nothing unsupported, while a parameter is unbound', () => {
+      const above = Expr.in({ row: Row, params: Params }, ({ row, params }) =>
+        Ord.gt(row.rank, params.floor),
+      )
+      const readiness = Graph.queryReadiness(above, {})
+      expect(readiness).toEqual({
+        ready: false,
+        missing: Option.some([['params', 'floor']]),
+        unsupported: Option.none(),
+        residual: readiness.residual,
+      })
+    })
   })
 })

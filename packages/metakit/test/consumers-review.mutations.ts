@@ -9,6 +9,8 @@ const inspect = '../src/inspect.ts'
 const sql = '../src/sql.ts'
 const drizzle = '../src/drizzle.ts'
 const lowering = '../src/sqlLowering.ts'
+const graph = '../src/graph.ts'
+const graphTests = ['packages/metakit/test/graph.test.ts']
 const integrationTests = ['packages/metakit/test/integrations.test.ts']
 const loweringTests = ['packages/metakit/test/sql-lowering.test.ts']
 
@@ -48,6 +50,20 @@ export default [
     'present.length === 1 && SchemaAST.isUnion(inner) ? inner.types : present',
     'present',
     integrationTests,
+  ),
+  mutation(
+    'a query is ready although SQL cannot lower it',
+    graph,
+    'onFailure: ({ reason }) => ({',
+    'onFailure: ({ reason }): QueryReadiness<Env, A> => ({ ready: true, residual }) ?? ({',
+    graphTests,
+  ),
+  mutation(
+    'an empty row prefix reads every path as a missing parameter',
+    graph,
+    'segs => !Path.isPrefix(rowPrefix, segs)',
+    'segs => rowPrefix.length === 0 || !Path.isPrefix(rowPrefix, segs)',
+    graphTests,
   ),
   mutation(
     'a quote in an identifier is not doubled',

@@ -5,11 +5,12 @@
  * Pure compile-time / SSR / planner analysis over `Machine` transitions and
  * named `Expr` bindings — zero runtime framework dependency.
  */
-import { Option } from 'effect'
+import { Option, Result } from 'effect'
 import * as Expr from './expr.js'
 import type { Machine } from './machine.js'
 import * as Node from './node.js'
 import * as Path from './path.js'
+import { lowerNode } from './sqlLowering.js'
 
 type ExprValue<E> = E extends Expr.Expr<never, infer A> ? A : unknown
 type ExprEnvOf<E> = E extends Expr.Expr<infer Env, unknown> ? Env : never
@@ -213,18 +214,23 @@ export type QueryReadiness<Env, A> =
     }
   | {
       readonly ready: false
+      /** The parameter paths still unbound; none when an opaque term declares no reads. */
       readonly missing: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
+      /** Why the predicate cannot be lowered to SQL although every parameter is bound. */
+      readonly unsupported: Option.Option<string>
       readonly residual: Expr.Expr<Env, A>
     }
 
 /**
- * Check whether a query/filter `Expr` has all upstream parameter paths bound
- * in `partialEnv` so it can be lowered to SQL/Drizzle or executed.
+ * Whether a query's filter can be lowered to SQL yet: every parameter path it
+ * still reads is bound in `partialEnv`, and what is left lowers
+ * (`Sql.toWhere`, `Drizzle.toWhere`). An opaque term over the row alone has
+ * nothing missing and is still not ready: `unsupported` says so.
  *
- * Paths under `options.rowPrefix` (default `['row']`) represent the table row
- * being queried and do not block readiness. Short-circuited branches (e.g.
- * `params.all === true || row.countryId === params.countryId`) automatically
- * drop unused parameter dependencies via `Expr.residualize`.
+ * Paths under `options.rowPrefix` (default `['row']`) are the row's columns
+ * and do not block readiness; `[]` reads every path as a column, as the SQL
+ * lowering does. A branch partial evaluation decides (`params.all === true ||
+ * row.countryId === params.countryId`) drops the parameters it no longer reads.
  */
 export const queryReadiness = <Env, A>(
   expr: Expr.Expr<Env, A>,
@@ -237,14 +243,20 @@ export const queryReadiness = <Env, A>(
   const residual = Expr.residualize(expr, partialEnv)
   const reads = Expr.reads(residual)
   if (Option.isNone(reads)) {
-    return { ready: false, missing: Option.none(), residual }
+    return { ready: false, missing: Option.none(), unsupported: Option.none(), residual }
   }
-  const unresolved = reads.value.filter(
-    segs => rowPrefix.length === 0 || !Path.isPrefix(rowPrefix, segs),
-  )
-  const missing = minimizePaths(unresolved)
-  if (missing.length === 0) {
-    return { ready: true, residual }
+  const missing = minimizePaths(reads.value.filter(segs => !Path.isPrefix(rowPrefix, segs)))
+  if (missing.length > 0) {
+    return { ready: false, missing: Option.some(missing), unsupported: Option.none(), residual }
   }
-  return { ready: false, missing: Option.some(missing), residual }
+  // No refusal of the lowering depends on the dialect.
+  return Result.match(lowerNode(residual.node, { dialect: 'postgres', rowPrefix }), {
+    onSuccess: (): QueryReadiness<Env, A> => ({ ready: true, residual }),
+    onFailure: ({ reason }) => ({
+      ready: false,
+      missing: Option.some([]),
+      unsupported: Option.some(reason),
+      residual,
+    }),
+  })
 }
