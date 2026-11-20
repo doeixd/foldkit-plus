@@ -10,7 +10,7 @@
  */
 import { Data, Option, type SchemaAST } from 'effect'
 
-/** The closed 15-op v1 primitive set. */
+/** The closed 20-op primitive set (`CoreOpId`). */
 export type CoreOpId =
   | 'bool.and'
   | 'bool.or'
@@ -27,6 +27,11 @@ export type CoreOpId =
   | 'num.sub'
   | 'num.mul'
   | 'num.neg'
+  | 'str.len'
+  | 'str.startsWith'
+  | 'str.contains'
+  | 'arr.count'
+  | 'arr.isEmpty'
 
 export type OpId = CoreOpId
 

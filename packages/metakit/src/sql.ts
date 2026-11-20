@@ -121,6 +121,37 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'num.sub': lowerBinary('-'),
   'num.mul': lowerBinary('*'),
   'num.neg': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(- ${inner})`),
+  'str.len': (args, ctx) =>
+    Result.map(ctx.lower(args[0]!), s =>
+      ctx.dialect === 'postgres' ? `char_length(${s})` : `length(${s})`,
+    ),
+  'str.startsWith': (args, ctx) =>
+    Result.flatMap(ctx.lower(args[0]!), s =>
+      Result.flatMap(ctx.lower(args[1]!), p1 => {
+        if (ctx.dialect === 'postgres') {
+          return Result.succeed(`(LEFT(${s}, char_length(${p1})) = ${p1})`)
+        }
+        return Result.map(ctx.lower(args[1]!), p2 => `(substr(${s}, 1, length(${p1})) = ${p2})`)
+      }),
+    ),
+  'str.contains': (args, ctx) =>
+    Result.flatMap(ctx.lower(args[0]!), s =>
+      Result.map(ctx.lower(args[1]!), sub =>
+        ctx.dialect === 'postgres' ? `(strpos(${s}, ${sub}) > 0)` : `(instr(${s}, ${sub}) > 0)`,
+      ),
+    ),
+  'arr.count': (args, ctx) =>
+    Result.map(ctx.lower(args[0]!), a =>
+      ctx.dialect === 'postgres'
+        ? `COALESCE(cardinality(${a}), 0)`
+        : `COALESCE(json_array_length(${a}), 0)`,
+    ),
+  'arr.isEmpty': (args, ctx) =>
+    Result.map(ctx.lower(args[0]!), a =>
+      ctx.dialect === 'postgres'
+        ? `(COALESCE(cardinality(${a}), 0) = 0)`
+        : `(COALESCE(json_array_length(${a}), 0) = 0)`,
+    ),
 }
 
 const lowerNodeWith = (

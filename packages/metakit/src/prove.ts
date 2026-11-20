@@ -12,6 +12,7 @@ import * as AbstractCheck from './abstract/check.js'
 import * as Expr from './expr.js'
 import type { Machine } from './machine.js'
 import * as Node from './node.js'
+import * as Str from './ops/str.js'
 import * as Path from './path.js'
 import * as Transition from './transition.js'
 import * as Verdict from './verdict.js'
@@ -180,6 +181,13 @@ interface SmtContext {
   readonly lower: (node: Node.Node) => Z3Expr
   readonly lowerIsNull: (node: Node.Node) => ReturnType<Z3Context['Bool']['const']>
   readonly encodeString: (s: string) => number
+  readonly lengthOf: (node: Node.Node) => ReturnType<Z3Context['Int']['const']>
+  readonly countOf: (node: Node.Node) => ReturnType<Z3Context['Int']['const']>
+  readonly stringPred: (
+    kind: 'str.startsWith' | 'str.contains',
+    haystack: Node.Node,
+    needle: Node.Node,
+  ) => ReturnType<Z3Context['Bool']['const']>
 }
 
 export type SmtLowerer = (args: ReadonlyArray<Node.Node>, ctx: SmtContext) => Z3Expr
@@ -229,6 +237,11 @@ export const smtOps: Readonly<Record<Node.CoreOpId, SmtLowerer>> = {
   'num.sub': (args, ctx) => asArith(ctx.lower(args[0]!)).sub(asArith(ctx.lower(args[1]!))),
   'num.mul': (args, ctx) => asArith(ctx.lower(args[0]!)).mul(asArith(ctx.lower(args[1]!))),
   'num.neg': (args, ctx) => asArith(ctx.lower(args[0]!)).neg(),
+  'str.len': (args, ctx) => ctx.lengthOf(args[0]!),
+  'str.startsWith': (args, ctx) => ctx.stringPred('str.startsWith', args[0]!, args[1]!),
+  'str.contains': (args, ctx) => ctx.stringPred('str.contains', args[0]!, args[1]!),
+  'arr.count': (args, ctx) => ctx.countOf(args[0]!),
+  'arr.isEmpty': (args, ctx) => ctx.countOf(args[0]!).eq(0),
 }
 
 const substituteWrites = (node: Node.Node, writes: ReadonlyMap<string, Node.Node>): Node.Node =>
@@ -344,6 +357,67 @@ const solveWithZ3 = async (
       },
     })
 
+  const strLenVars = new Map<string, ReturnType<Z3Context['Int']['const']>>()
+  const arrCountVars = new Map<string, ReturnType<Z3Context['Int']['const']>>()
+
+  const lengthOf = (node: Node.Node): ReturnType<Z3Context['Int']['const']> => {
+    if (Node.$is('Lit')(node) && typeof node.value === 'string') {
+      return z3.Int.val(Str.codePointLength(node.value))
+    }
+    const k = `strLen:${Node.key(node)}`
+    let v = strLenVars.get(k)
+    if (v === undefined) {
+      v = z3.Int.const(k)
+      strLenVars.set(k, v)
+      solver.add(v.ge(0))
+    }
+    return v
+  }
+
+  const countOf = (node: Node.Node): ReturnType<Z3Context['Int']['const']> => {
+    if (Node.$is('Lit')(node) && Array.isArray(node.value)) {
+      return z3.Int.val(node.value.length)
+    }
+    const k = `arrCount:${Node.key(node)}`
+    let v = arrCountVars.get(k)
+    if (v === undefined) {
+      v = z3.Int.const(k)
+      arrCountVars.set(k, v)
+      solver.add(v.ge(0))
+    }
+    return v
+  }
+
+  const stringPred = (
+    kind: 'str.startsWith' | 'str.contains',
+    haystack: Node.Node,
+    needle: Node.Node,
+  ): ReturnType<Z3Context['Bool']['const']> => {
+    if (Node.$is('Lit')(needle) && needle.value === '') {
+      return z3.Bool.val(true)
+    }
+    if (
+      Node.$is('Lit')(haystack) &&
+      Node.$is('Lit')(needle) &&
+      typeof haystack.value === 'string' &&
+      typeof needle.value === 'string'
+    ) {
+      return z3.Bool.val(
+        kind === 'str.startsWith'
+          ? haystack.value.startsWith(needle.value)
+          : haystack.value.includes(needle.value),
+      )
+    }
+    const k = `${kind}:${Node.key(haystack)}:${Node.key(needle)}`
+    let v = opaqueVars.get(k) as ReturnType<Z3Context['Bool']['const']> | undefined
+    if (v === undefined) {
+      v = z3.Bool.const(`opaque:${k}`)
+      opaqueVars.set(k, v)
+      solver.add(z3.Implies(v, lengthOf(haystack).ge(lengthOf(needle))))
+    }
+    return v
+  }
+
   const ctx: SmtContext = {
     z3,
     vars,
@@ -353,6 +427,9 @@ const solveWithZ3 = async (
     opaqueVars,
     encodeString,
     lowerIsNull,
+    lengthOf,
+    countOf,
+    stringPred,
     lower: node =>
       Node.$match(node, {
         Lit: ({ value }) => {

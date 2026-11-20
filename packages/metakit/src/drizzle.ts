@@ -104,6 +104,38 @@ export const drizzleOps: Readonly<Record<Node.CoreOpId, DrizzleLowerer>> = {
   'num.sub': binary('-'),
   'num.mul': binary('*'),
   'num.neg': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => sql`(- ${inner})`),
+  'str.len': (args, ctx) =>
+    Result.map(ctx.lower(args[0]!), s =>
+      ctx.dialect === 'postgres' ? sql`char_length(${s})` : sql`length(${s})`,
+    ),
+  'str.startsWith': (args, ctx) =>
+    Result.flatMap(ctx.lower(args[0]!), s =>
+      Result.map(ctx.lower(args[1]!), p =>
+        ctx.dialect === 'postgres'
+          ? sql`(LEFT(${s}, char_length(${p})) = ${p})`
+          : sql`(substr(${s}, 1, length(${p})) = ${p})`,
+      ),
+    ),
+  'str.contains': (args, ctx) =>
+    Result.flatMap(ctx.lower(args[0]!), s =>
+      Result.map(ctx.lower(args[1]!), sub =>
+        ctx.dialect === 'postgres'
+          ? sql`(strpos(${s}, ${sub}) > 0)`
+          : sql`(instr(${s}, ${sub}) > 0)`,
+      ),
+    ),
+  'arr.count': (args, ctx) =>
+    Result.map(ctx.lower(args[0]!), a =>
+      ctx.dialect === 'postgres'
+        ? sql`COALESCE(cardinality(${a}), 0)`
+        : sql`COALESCE(json_array_length(${a}), 0)`,
+    ),
+  'arr.isEmpty': (args, ctx) =>
+    Result.map(ctx.lower(args[0]!), a =>
+      ctx.dialect === 'postgres'
+        ? sql`(COALESCE(cardinality(${a}), 0) = 0)`
+        : sql`(COALESCE(json_array_length(${a}), 0) = 0)`,
+    ),
 }
 
 const lowerDrizzleNode = (

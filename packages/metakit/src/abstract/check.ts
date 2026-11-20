@@ -13,9 +13,11 @@ import { Option, SchemaAST } from 'effect'
 import type { Schema } from 'effect'
 import * as Expr from '../expr.js'
 import * as Node from '../node.js'
+import * as Arr from '../ops/arr.js'
 import * as Bool from '../ops/bool.js'
 import * as Eq from '../ops/eq.js'
 import * as Ord from '../ops/ord.js'
+import * as Str from '../ops/str.js'
 import * as Path from '../path.js'
 import type { Transition } from '../transition.js'
 import * as Verdict from '../verdict.js'
@@ -336,6 +338,11 @@ export class AbstractState {
         if (Number.isFinite(info.interval.hi)) this.zone.constrainUpper(id, info.interval.hi)
       }
     }
+    for (const [id, term] of this.termNodes) {
+      if (Node.$is('Call')(term) && (term.op.id === 'str.len' || term.op.id === 'arr.count')) {
+        this.zone.constrainLower(id, 0)
+      }
+    }
   }
 
   clone(): AbstractState {
@@ -376,6 +383,9 @@ export class AbstractState {
       return info?.isInt ?? false
     }
     if (Node.$is('Call')(node)) {
+      if (node.op.id === 'str.len' || node.op.id === 'arr.count') {
+        return true
+      }
       if (
         node.op.id === 'num.add' ||
         node.op.id === 'num.sub' ||
@@ -411,9 +421,22 @@ export class AbstractState {
           const id = this.registerKey(Node.key(node), this.isIntNode(node))
           this.termNodes.set(id, node)
           this.addTerms.push({ id, left: args[0]!, right: args[1]! })
-        } else if (op.id === 'num.mul' || op.id === 'num.neg') {
+        } else if (
+          op.id === 'num.mul' ||
+          op.id === 'num.neg' ||
+          op.id === 'str.len' ||
+          op.id === 'arr.count'
+        ) {
           const id = this.registerKey(Node.key(node), this.isIntNode(node))
           this.termNodes.set(id, node)
+        } else if (op.id === 'str.startsWith' || op.id === 'str.contains') {
+          const lenNode = Node.Call({ op: Str.lenOp, args: [args[0]!] })
+          const id = this.registerKey(Node.key(lenNode), true)
+          this.termNodes.set(id, lenNode)
+        } else if (op.id === 'arr.isEmpty') {
+          const countNode = Node.Call({ op: Arr.countOp, args: [args[0]!] })
+          const id = this.registerKey(Node.key(countNode), true)
+          this.termNodes.set(id, countNode)
         }
       },
       If: ({ cond, then, otherwise }) => {
@@ -467,6 +490,20 @@ export class AbstractState {
     const v = this.varOf(node)
     const fromZone = Option.isSome(v) ? this.zone.intervalOf(v.value) : Interval.top
     if (Node.$is('Call')(node)) {
+      if (node.op.id === 'str.len') {
+        const arg = node.args[0]!
+        if (Node.$is('Lit')(arg) && typeof arg.value === 'string') {
+          return Interval.constant(Str.codePointLength(arg.value))
+        }
+        return Interval.meet(fromZone, Interval.between(0, Infinity))
+      }
+      if (node.op.id === 'arr.count') {
+        const arg = node.args[0]!
+        if (Node.$is('Lit')(arg) && Array.isArray(arg.value)) {
+          return Interval.constant(arg.value.length)
+        }
+        return Interval.meet(fromZone, Interval.between(0, Infinity))
+      }
       const forward = abstractOps[node.op.id].forward
       if (forward !== undefined) {
         return Interval.meet(fromZone, forward(node.args.map(a => this.evalInterval(a))))
@@ -859,6 +896,32 @@ export class AbstractState {
       }
       case 'eq.isNot':
         return Verdict.not(this.entailsAtomic(Node.Call({ op: Eq.isOp, args: [a!, b!] })))
+      case 'arr.isEmpty': {
+        const countNode = Node.Call({ op: Arr.countOp, args: [a!] })
+        const iv = this.evalInterval(countNode)
+        if (iv.hi <= 0) return Verdict.True(Option.some(Verdict.Proved('zone')))
+        if (iv.lo >= 1) return Verdict.False()
+        return Verdict.Unknown('array emptiness unknown')
+      }
+      case 'str.startsWith':
+      case 'str.contains': {
+        if (Node.$is('Lit')(b!) && b!.value === '') {
+          return Verdict.True(Option.some(Verdict.Proved('concrete')))
+        }
+        if (
+          Node.$is('Lit')(a!) &&
+          Node.$is('Lit')(b!) &&
+          typeof a!.value === 'string' &&
+          typeof b!.value === 'string'
+        ) {
+          const holds =
+            goal.op.id === 'str.startsWith'
+              ? a!.value.startsWith(b!.value)
+              : a!.value.includes(b!.value)
+          return holds ? Verdict.True(Option.some(Verdict.Proved('concrete'))) : Verdict.False()
+        }
+        return Verdict.Unknown(`${goal.op.id} unknown`)
+      }
       case 'eq.in': {
         if (Node.$is('Lit')(b!) && Array.isArray(b!.value) && Node.$is('Path')(a!)) {
           const pk = Path.format(a!.segments)
@@ -956,6 +1019,12 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
         } else {
           state.nullFacts.set(pk, false)
         }
+        return
+      }
+      if (Node.$is('Call')(inner) && inner.op.id === 'arr.isEmpty') {
+        const countNode = Node.Call({ op: Arr.countOp, args: [inner.args[0]!] })
+        const cv = state.varOf(countNode)
+        if (Option.isSome(cv)) state.zone.constrainLower(cv.value, 1)
         return
       }
       const negated = negateNode(inner)
@@ -1085,6 +1154,35 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   'num.neg': {
     forward: args => Interval.neg(args[0]!),
     narrow: (args, target) => Interval.narrowNeg(args[0]!, target),
+  },
+  'str.len': {},
+  'str.startsWith': {
+    addToZone: (args, state) => {
+      if (Node.$is('Lit')(args[1]!) && typeof args[1]!.value === 'string') {
+        const minLen = Str.codePointLength(args[1]!.value)
+        const lenNode = Node.Call({ op: Str.lenOp, args: [args[0]!] })
+        const lv = state.varOf(lenNode)
+        if (Option.isSome(lv)) state.zone.constrainLower(lv.value, minLen)
+      }
+    },
+  },
+  'str.contains': {
+    addToZone: (args, state) => {
+      if (Node.$is('Lit')(args[1]!) && typeof args[1]!.value === 'string') {
+        const minLen = Str.codePointLength(args[1]!.value)
+        const lenNode = Node.Call({ op: Str.lenOp, args: [args[0]!] })
+        const lv = state.varOf(lenNode)
+        if (Option.isSome(lv)) state.zone.constrainLower(lv.value, minLen)
+      }
+    },
+  },
+  'arr.count': {},
+  'arr.isEmpty': {
+    addToZone: (args, state) => {
+      const countNode = Node.Call({ op: Arr.countOp, args: [args[0]!] })
+      const cv = state.varOf(countNode)
+      if (Option.isSome(cv)) state.zone.constrainEq(cv.value, ZERO, 0)
+    },
   },
 }
 
