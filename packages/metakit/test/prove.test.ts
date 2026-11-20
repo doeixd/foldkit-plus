@@ -1,6 +1,6 @@
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Eq, Expr, Num, Path, Transition, Verdict } from 'metakit'
+import { Eq, Expr, Null, Num, Ord, Path, Transition, Verdict } from 'metakit'
 import * as Prove from 'metakit/prove'
 
 const Account = Schema.Struct({
@@ -126,5 +126,24 @@ describe('metakit/prove (Tier 3 Zone -> Tier 4 Z3 escalation)', () => {
     })
     const verdict = await Effect.runPromise(Prove.transition(Counter, DecrementUnchecked))
     expect(Verdict.isFalse(verdict)).toBe(true)
+  }, 30_000)
+
+  it('proves null.isNull / Null.isNotNull and derived Num.clamp in Z3', async () => {
+    const Modal = Schema.Struct({
+      open: Schema.Boolean,
+      editingId: Schema.NullOr(Schema.String),
+      score: Schema.Int,
+    }).pipe(Expr.refine($ => Expr.implies($.open, Null.isNotNull($.editingId))))
+    const $ = Path.forSchema(Modal)
+    // If editingId is null, modal cannot be open
+    const v1 = await Effect.runPromise(
+      Prove.invariant(Modal, Expr.implies(Null.isNull($.editingId), Expr.not($.open))),
+    )
+    expect(Verdict.isTrue(v1)).toBe(true)
+    // Derived Num.clamp(score, 0, 100) is always between 0 and 100
+    const v2 = await Effect.runPromise(
+      Prove.invariant(Modal, Ord.between(Num.clamp($.score, 0, 100), 0, 100)),
+    )
+    expect(Verdict.isTrue(v2)).toBe(true)
   }, 30_000)
 })

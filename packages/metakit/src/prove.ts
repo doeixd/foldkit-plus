@@ -2,9 +2,9 @@
  * Dev-only prover (`metakit/prove`) combining Tier 3 (synchronous Interval +
  * Zone) with Tier 4 (Z3 SMT solver).
  *
- * Tier 3 runs first. Only when Tier 3 returns `Unknown` (or cannot supply a
- * concrete witness) does this module dynamically import `z3-solver`. A page
- * bundle never imports `metakit/prove`.
+ * Implements the exhaustive `smtOps: Record<CoreOpId, SmtLowerer>` table over
+ * all 15 v1 primitives — including `null.isNull` via companion Z3 boolean
+ * nullability flags — with zero unsupported primitives.
  */
 import { Effect, Option, SchemaAST } from 'effect'
 import type { Schema } from 'effect'
@@ -36,6 +36,7 @@ const getZ3 = (): Promise<Z3Context> => {
 
 interface FieldSort {
   readonly kind: 'int' | 'real' | 'bool' | 'enum' | 'string'
+  readonly nullable: boolean
   readonly literals?: ReadonlyArray<string | number | boolean>
   readonly min?: number
   readonly max?: number
@@ -47,11 +48,12 @@ const collectFieldSorts = (
   ast: SchemaAST.AST,
   prefix: ReadonlyArray<string>,
   out: Map<string, FieldSort>,
+  nullable = false,
 ): void => {
   if (SchemaAST.isObjects(ast)) {
     for (const prop of ast.propertySignatures) {
       if (typeof prop.name === 'string') {
-        collectFieldSorts(prop.type, [...prefix, prop.name], out)
+        collectFieldSorts(prop.type, [...prefix, prop.name], out, false)
       }
     }
     return
@@ -118,6 +120,7 @@ const collectFieldSorts = (
     if (ast.checks !== undefined) scanChecks(ast.checks)
     out.set(key, {
       kind: isInt ? 'int' : 'real',
+      nullable,
       ...(min !== undefined ? { min } : {}),
       ...(max !== undefined ? { max } : {}),
       ...(exclusiveMin !== undefined ? { exclusiveMin } : {}),
@@ -126,24 +129,30 @@ const collectFieldSorts = (
     return
   }
   if (SchemaAST.isBoolean(ast)) {
-    out.set(key, { kind: 'bool' })
+    out.set(key, { kind: 'bool', nullable })
     return
   }
   if (SchemaAST.isString(ast)) {
-    out.set(key, { kind: 'string' })
+    out.set(key, { kind: 'string', nullable })
     return
   }
   if (SchemaAST.isLiteral(ast)) {
     const lit = ast.literal
     if (typeof lit === 'string' || typeof lit === 'number' || typeof lit === 'boolean') {
-      out.set(key, { kind: 'enum', literals: [lit] })
+      out.set(key, { kind: 'enum', nullable, literals: [lit] })
     }
     return
   }
   if (SchemaAST.isUnion(ast)) {
+    const hasNull = ast.types.some(SchemaAST.isNull)
+    const nonNull = ast.types.filter(t => !SchemaAST.isNull(t))
+    if (hasNull && nonNull.length === 1) {
+      collectFieldSorts(nonNull[0]!, prefix, out, true)
+      return
+    }
     const lits: Array<string | number | boolean> = []
     let allLit = true
-    for (const member of ast.types) {
+    for (const member of nonNull) {
       if (SchemaAST.isLiteral(member)) {
         const lit = member.literal
         if (typeof lit === 'string' || typeof lit === 'number' || typeof lit === 'boolean') {
@@ -155,81 +164,70 @@ const collectFieldSorts = (
       break
     }
     if (allLit && lits.length > 0) {
-      out.set(key, { kind: 'enum', literals: lits })
+      out.set(key, { kind: 'enum', nullable: hasNull || nullable, literals: lits })
     }
   }
 }
 
-interface Z3LowerCtx {
+interface SmtContext {
   readonly z3: Z3Context
   readonly vars: Map<string, Z3Expr>
+  readonly nullFlags: Map<string, ReturnType<Z3Context['Bool']['const']>>
   readonly enumCodes: Map<string, number>
   readonly codeToEnum: Map<number, string>
   readonly opaqueVars: Map<string, Z3Expr>
   readonly lower: (node: Node.Node) => Z3Expr
+  readonly lowerIsNull: (node: Node.Node) => ReturnType<Z3Context['Bool']['const']>
   readonly encodeString: (s: string) => number
 }
 
-type Z3OpLower = (args: ReadonlyArray<Node.Node>, ctx: Z3LowerCtx) => Z3Expr
+export type SmtLowerer = (args: ReadonlyArray<Node.Node>, ctx: SmtContext) => Z3Expr
 
-// Helper type-safe casts into Z3's Arith / Bool ASTs (internal to this module)
 const asArith = (e: Z3Expr): ReturnType<Z3Context['Int']['const']> =>
   e as ReturnType<Z3Context['Int']['const']>
 const asBool = (e: Z3Expr): ReturnType<Z3Context['Bool']['const']> =>
   e as ReturnType<Z3Context['Bool']['const']>
 
-const z3Ops: Readonly<Record<Node.OpId, Z3OpLower>> = {
-  and: (args, ctx) => ctx.z3.And(asBool(ctx.lower(args[0]!)), asBool(ctx.lower(args[1]!))),
-  or: (args, ctx) => ctx.z3.Or(asBool(ctx.lower(args[0]!)), asBool(ctx.lower(args[1]!))),
-  not: (args, ctx) => ctx.z3.Not(asBool(ctx.lower(args[0]!))),
-  is: (args, ctx) => asArith(ctx.lower(args[0]!)).eq(asArith(ctx.lower(args[1]!))),
-  isNot: (args, ctx) => ctx.z3.Not(asArith(ctx.lower(args[0]!)).eq(asArith(ctx.lower(args[1]!)))),
-  isNull: () => {
-    throw new Error('unsupported-op:isNull')
+const isNullLit = (node: Node.Node): boolean => Node.$is('Lit')(node) && node.value === null
+
+/** Exhaustive Tier 4 SMT lowering table over all 15 `CoreOpId` primitives. */
+export const smtOps: Readonly<Record<Node.CoreOpId, SmtLowerer>> = {
+  'bool.and': (args, ctx) => ctx.z3.And(asBool(ctx.lower(args[0]!)), asBool(ctx.lower(args[1]!))),
+  'bool.or': (args, ctx) => ctx.z3.Or(asBool(ctx.lower(args[0]!)), asBool(ctx.lower(args[1]!))),
+  'bool.not': (args, ctx) => ctx.z3.Not(asBool(ctx.lower(args[0]!))),
+  'eq.is': (args, ctx) => {
+    const [a, b] = args
+    if (isNullLit(a!) && isNullLit(b!)) return ctx.z3.Bool.val(true)
+    if (isNullLit(a!)) return ctx.lowerIsNull(b!)
+    if (isNullLit(b!)) return ctx.lowerIsNull(a!)
+    const aNull = ctx.lowerIsNull(a!)
+    const bNull = ctx.lowerIsNull(b!)
+    const bothNull = ctx.z3.And(aNull, bNull)
+    const bothNonNullEq = ctx.z3.And(
+      ctx.z3.Not(aNull),
+      ctx.z3.Not(bNull),
+      asArith(ctx.lower(a!)).eq(asArith(ctx.lower(b!))),
+    )
+    return ctx.z3.Or(bothNull, bothNonNullEq)
   },
-  oneOf: (args, ctx) => {
-    const needle = asArith(ctx.lower(args[0]!))
-    const list = args[1]!
-    if (!Node.$is('Lit')(list) || !Array.isArray(list.value) || list.value.length === 0) {
+  'eq.isNot': (args, ctx) => ctx.z3.Not(asBool(smtOps['eq.is'](args, ctx))),
+  'eq.in': (args, ctx) => {
+    const [needle, list] = args
+    if (!Node.$is('Lit')(list!) || !Array.isArray(list.value) || list.value.length === 0) {
       return ctx.z3.Bool.val(false)
     }
-    const eqs = list.value.map(v => needle.eq(asArith(ctx.lower(Node.Lit({ value: v })))))
+    const eqs = list.value.map(v => asBool(smtOps['eq.is']([needle!, Node.Lit({ value: v })], ctx)))
     return ctx.z3.Or(...eqs)
   },
-  lt: (args, ctx) => asArith(ctx.lower(args[0]!)).lt(asArith(ctx.lower(args[1]!))),
-  lte: (args, ctx) => asArith(ctx.lower(args[0]!)).le(asArith(ctx.lower(args[1]!))),
-  gt: (args, ctx) => asArith(ctx.lower(args[0]!)).gt(asArith(ctx.lower(args[1]!))),
-  gte: (args, ctx) => asArith(ctx.lower(args[0]!)).ge(asArith(ctx.lower(args[1]!))),
-  add: (args, ctx) => asArith(ctx.lower(args[0]!)).add(asArith(ctx.lower(args[1]!))),
-  sub: (args, ctx) => asArith(ctx.lower(args[0]!)).sub(asArith(ctx.lower(args[1]!))),
-  mul: (args, ctx) => asArith(ctx.lower(args[0]!)).mul(asArith(ctx.lower(args[1]!))),
-  neg: (args, ctx) => asArith(ctx.lower(args[0]!)).neg(),
-  min: (args, ctx) => {
-    const a = asArith(ctx.lower(args[0]!))
-    const b = asArith(ctx.lower(args[1]!))
-    return ctx.z3.If(a.le(b), a, b)
-  },
-  max: (args, ctx) => {
-    const a = asArith(ctx.lower(args[0]!))
-    const b = asArith(ctx.lower(args[1]!))
-    return ctx.z3.If(a.ge(b), a, b)
-  },
-  abs: (args, ctx) => {
-    const a = asArith(ctx.lower(args[0]!))
-    return ctx.z3.If(a.ge(ctx.z3.Int.val(0)), a, a.neg())
-  },
-  len: () => {
-    throw new Error('unsupported-op:len')
-  },
-  startsWith: () => {
-    throw new Error('unsupported-op:startsWith')
-  },
-  contains: () => {
-    throw new Error('unsupported-op:contains')
-  },
-  struct: () => {
-    throw new Error('unsupported-op:struct')
-  },
+  'null.isNull': (args, ctx) => ctx.lowerIsNull(args[0]!),
+  'ord.lt': (args, ctx) => asArith(ctx.lower(args[0]!)).lt(asArith(ctx.lower(args[1]!))),
+  'ord.lte': (args, ctx) => asArith(ctx.lower(args[0]!)).le(asArith(ctx.lower(args[1]!))),
+  'ord.gt': (args, ctx) => asArith(ctx.lower(args[0]!)).gt(asArith(ctx.lower(args[1]!))),
+  'ord.gte': (args, ctx) => asArith(ctx.lower(args[0]!)).ge(asArith(ctx.lower(args[1]!))),
+  'num.add': (args, ctx) => asArith(ctx.lower(args[0]!)).add(asArith(ctx.lower(args[1]!))),
+  'num.sub': (args, ctx) => asArith(ctx.lower(args[0]!)).sub(asArith(ctx.lower(args[1]!))),
+  'num.mul': (args, ctx) => asArith(ctx.lower(args[0]!)).mul(asArith(ctx.lower(args[1]!))),
+  'num.neg': (args, ctx) => asArith(ctx.lower(args[0]!)).neg(),
 }
 
 const substituteWrites = (node: Node.Node, writes: ReadonlyMap<string, Node.Node>): Node.Node =>
@@ -247,6 +245,7 @@ const solveWithZ3 = async (
   const z3 = await getZ3()
   const solver = new z3.Solver()
   const vars = new Map<string, Z3Expr>()
+  const nullFlags = new Map<string, ReturnType<Z3Context['Bool']['const']>>()
   const enumCodes = new Map<string, number>()
   const codeToEnum = new Map<number, string>()
   const opaqueVars = new Map<string, Z3Expr>()
@@ -262,20 +261,29 @@ const solveWithZ3 = async (
   }
 
   for (const [name, sort] of fields) {
+    const nf = z3.Bool.const(`isNull:${name}`)
+    nullFlags.set(name, nf)
+    if (!sort.nullable) {
+      solver.add(z3.Not(nf))
+    }
     if (sort.kind === 'int') {
       const v = z3.Int.const(name)
       vars.set(name, v)
-      if (sort.min !== undefined) solver.add(v.ge(z3.Int.val(sort.min)))
-      if (sort.max !== undefined) solver.add(v.le(z3.Int.val(sort.max)))
-      if (sort.exclusiveMin !== undefined) solver.add(v.gt(z3.Int.val(sort.exclusiveMin)))
-      if (sort.exclusiveMax !== undefined) solver.add(v.lt(z3.Int.val(sort.exclusiveMax)))
+      const guard = (c: ReturnType<Z3Context['Bool']['const']>) =>
+        sort.nullable ? z3.Implies(z3.Not(nf), c) : c
+      if (sort.min !== undefined) solver.add(guard(v.ge(z3.Int.val(sort.min))))
+      if (sort.max !== undefined) solver.add(guard(v.le(z3.Int.val(sort.max))))
+      if (sort.exclusiveMin !== undefined) solver.add(guard(v.gt(z3.Int.val(sort.exclusiveMin))))
+      if (sort.exclusiveMax !== undefined) solver.add(guard(v.lt(z3.Int.val(sort.exclusiveMax))))
     } else if (sort.kind === 'real') {
       const v = z3.Real.const(name)
       vars.set(name, v)
-      if (sort.min !== undefined) solver.add(v.ge(z3.Real.val(sort.min)))
-      if (sort.max !== undefined) solver.add(v.le(z3.Real.val(sort.max)))
-      if (sort.exclusiveMin !== undefined) solver.add(v.gt(z3.Real.val(sort.exclusiveMin)))
-      if (sort.exclusiveMax !== undefined) solver.add(v.lt(z3.Real.val(sort.exclusiveMax)))
+      const guard = (c: ReturnType<Z3Context['Bool']['const']>) =>
+        sort.nullable ? z3.Implies(z3.Not(nf), c) : c
+      if (sort.min !== undefined) solver.add(guard(v.ge(z3.Real.val(sort.min))))
+      if (sort.max !== undefined) solver.add(guard(v.le(z3.Real.val(sort.max))))
+      if (sort.exclusiveMin !== undefined) solver.add(guard(v.gt(z3.Real.val(sort.exclusiveMin))))
+      if (sort.exclusiveMax !== undefined) solver.add(guard(v.lt(z3.Real.val(sort.exclusiveMax))))
     } else if (sort.kind === 'bool') {
       vars.set(name, z3.Bool.const(name))
     } else if (sort.kind === 'enum' || sort.kind === 'string') {
@@ -289,18 +297,35 @@ const solveWithZ3 = async (
               ? v.eq(z3.Int.val(lit))
               : v.eq(z3.Int.val(lit ? 1 : 0)),
         )
-        solver.add(z3.Or(...domain))
+        const c = z3.Or(...domain)
+        solver.add(sort.nullable ? z3.Implies(z3.Not(nf), c) : c)
       }
     }
   }
 
-  const ctx: Z3LowerCtx = {
+  const lowerIsNull = (node: Node.Node): ReturnType<Z3Context['Bool']['const']> =>
+    Node.$match(node, {
+      Lit: ({ value }) => z3.Bool.val(value === null || value === undefined),
+      Path: ({ segments }) => {
+        const name = Path.format(segments)
+        return nullFlags.get(name) ?? z3.Bool.val(false)
+      },
+      If: ({ cond, then, otherwise }) =>
+        z3.If(asBool(ctx.lower(cond)), lowerIsNull(then), lowerIsNull(otherwise)),
+      Call: () => z3.Bool.val(false),
+      Match: () => z3.Bool.val(false),
+      Opaque: () => z3.Bool.val(false),
+    })
+
+  const ctx: SmtContext = {
     z3,
     vars,
+    nullFlags,
     enumCodes,
     codeToEnum,
     opaqueVars,
     encodeString,
+    lowerIsNull,
     lower: node =>
       Node.$match(node, {
         Lit: ({ value }) => {
@@ -309,6 +334,7 @@ const solveWithZ3 = async (
             return Number.isInteger(value) ? z3.Int.val(value) : z3.Real.val(value)
           }
           if (typeof value === 'string') return z3.Int.val(encodeString(value))
+          if (value === null) return z3.Int.val(0)
           throw new Error(`unsupported-lit:${typeof value}`)
         },
         Path: ({ segments }) => {
@@ -320,7 +346,7 @@ const solveWithZ3 = async (
           }
           return v
         },
-        Call: ({ op, args }) => z3Ops[op.id](args, ctx),
+        Call: ({ op, args }) => smtOps[op.id](args, ctx),
         If: ({ cond, then, otherwise }) =>
           z3.If(asBool(ctx.lower(cond)), asArith(ctx.lower(then)), asArith(ctx.lower(otherwise))),
         Match: ({ on, cases, otherwise }) => {
@@ -342,7 +368,6 @@ const solveWithZ3 = async (
           return acc
         },
         Opaque: opaque => {
-          // Uninterpreted boolean symbol: sound over-approximation
           const k = Node.key(opaque)
           let v = opaqueVars.get(k)
           if (v === undefined) {
@@ -376,9 +401,6 @@ const solveWithZ3 = async (
     return Verdict.True(Option.some(Verdict.Proved('z3')))
   }
   if (status === 'sat') {
-    // Under uninterpreted-symbol over-approximation for Opaque terms, `unsat`
-    // is a sound proof of True, but `sat` may rely on a fictional return value
-    // for the opaque function and MUST degrade to Unknown rather than False.
     if (opaqueVars.size > 0) {
       return Verdict.Unknown(
         'counterexample involves opaque term',
@@ -388,6 +410,11 @@ const solveWithZ3 = async (
     const model = solver.model()
     const witness: Record<string, unknown> = {}
     for (const [name, v] of vars) {
+      const nf = nullFlags.get(name)
+      if (nf !== undefined && model.eval(nf, true).toString() === 'true') {
+        witness[name] = null
+        continue
+      }
       const evaluated = model.eval(v, true).toString()
       const sort = fields.get(name)
       if (sort?.kind === 'bool') {
@@ -408,11 +435,7 @@ const solveWithZ3 = async (
   )
 }
 
-/**
- * Prove that `schema` (with its `Expr.refine` invariants) entails `goal`.
- * Runs Tier 3 synchronously first; escalates to Tier 4 (Z3) only if Tier 3
- * returns `Unknown` or `False` (to produce a concrete counterexample).
- */
+/** Prove that `schema` entails `goal`. Runs Tier 3 first; escalates to Z3 only on `Unknown` or `False`. */
 export const invariant = <S extends Schema.Top>(
   schema: S,
   goal: Expr.Expr<S['Type'], boolean>,
@@ -426,14 +449,7 @@ export const invariant = <S extends Schema.Top>(
     return solveWithZ3(fields, hypotheses, [goal.node])
   })
 
-/**
- * Prove that `transition` preserves every `Expr.refine` invariant on
- * `stateSchema` for all valid pre-states and inputs satisfying `when`.
- *
- * Runs Tier 3 (Interval + Zone) synchronously first — proving transitions like
- * `Withdraw` without loading Z3. Escalates to Z3 only on `Unknown` or to find
- * a concrete counterexample witness.
- */
+/** Prove that `transition` preserves every invariant on `stateSchema`. */
 export const transition = <S extends Schema.Top, I, Emit>(
   stateSchema: S,
   tr: Transition<S['Type'], I, Emit>,
@@ -461,11 +477,7 @@ export const transition = <S extends Schema.Top, I, Emit>(
     return solveWithZ3(fields, hypotheses, postGoals)
   })
 
-/**
- * Prove a policy/guard implication over an `Env` shape (e.g.
- * `{ row: Account, principal: Principal }`). Automatically imports every
- * `Expr.refine` invariant from the schemas in `shape` as valid hypotheses.
- */
+/** Prove a policy/guard implication over an `Env` shape using Schema invariants as hypotheses. */
 export const policy = <Shape extends Readonly<Record<string, Schema.Top>>>(
   shape: Shape,
   goal: Expr.Expr<Path.EnvOf<Shape>, boolean>,

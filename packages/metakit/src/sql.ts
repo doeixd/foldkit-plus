@@ -1,14 +1,10 @@
 /**
  * Server-tier SQL lowering (`metakit/sql`).
  *
- * Lowers `Schema` refinements (`Sql.toCheck`), `Expr` predicates
- * (`Sql.toWhere`), and guarded `Transition`s (`Sql.toUpdate`) through an
- * exhaustive `Record<Node.OpId, ...>` table. Adding an `OpId` fails to compile
- * here until SQL lowering implements it or refuses it by name.
- *
- * Equality lowers to `IS NOT DISTINCT FROM` (Postgres) / `IS` (SQLite) so
- * nullable columns match `Expr.eval` and `Expr.residualize` without SQL's
- * `NULL = NULL -> UNKNOWN` divergence.
+ * Implements the exhaustive `sqlOps: Record<CoreOpId, SqlLowerer>` table over
+ * all 15 v1 primitives. Derived helpers (`min`, `max`, `abs`, `clamp`,
+ * `between`, `isNotNull`, `implies`) lower automatically via `CASE WHEN` +
+ * the 15 primitives with zero extra rows here.
  */
 import { Data, Option, Result } from 'effect'
 import type { Schema } from 'effect'
@@ -20,7 +16,6 @@ import type { Transition } from './transition.js'
 
 export type SqlDialect = 'postgres' | 'sqlite'
 
-/** A parameterized SQL fragment. */
 export interface SqlFragment {
   readonly text: string
   readonly params: ReadonlyArray<unknown>
@@ -32,14 +27,8 @@ export class SqlUnsupportedError extends Data.TaggedError('SqlUnsupportedError')
 
 export interface SqlOptions {
   readonly dialect?: SqlDialect
-  /**
-   * Prefix segments that refer to table columns (e.g. `['row']` for
-   * `Expr<{ row, principal }, boolean>`, or `[]` for `Expr<Account, boolean>`).
-   */
   readonly rowPrefix?: ReadonlyArray<string>
-  /** Custom column identifier mapping (defaults to quoting the last segment). */
   readonly column?: (segments: ReadonlyArray<string>) => string
-  /** Optional known non-row environment slices (e.g. `{ principal, params }`) to bind as SQL parameters. */
   readonly env?: Readonly<Record<string, unknown>>
 }
 
@@ -62,7 +51,7 @@ const inlineLiteral = (value: unknown): Result.Result<string, SqlUnsupportedErro
   )
 }
 
-interface LowerCtx {
+export interface SqlContext {
   readonly dialect: SqlDialect
   readonly inlineLiterals: boolean
   readonly rowPrefix: ReadonlyArray<string>
@@ -72,38 +61,38 @@ interface LowerCtx {
   readonly lower: (node: Node.Node) => Result.Result<string, SqlUnsupportedError>
 }
 
-type OpLower = (
+export type SqlLowerer = (
   args: ReadonlyArray<Node.Node>,
-  ctx: LowerCtx,
+  ctx: SqlContext,
 ) => Result.Result<string, SqlUnsupportedError>
 
 const lowerBinary =
-  (sqlOp: string): OpLower =>
+  (sqlOp: string): SqlLowerer =>
   (args, ctx) =>
     Result.flatMap(ctx.lower(args[0]!), left =>
       Result.map(ctx.lower(args[1]!), right => `(${left} ${sqlOp} ${right})`),
     )
 
-const sqlOps: Readonly<Record<Node.OpId, OpLower>> = {
-  and: lowerBinary('AND'),
-  or: lowerBinary('OR'),
-  not: (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(NOT ${inner})`),
-  is: (args, ctx) => {
+/** Exhaustive Tier 1 SQL lowering table over all 15 `CoreOpId` primitives. */
+export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
+  'bool.and': lowerBinary('AND'),
+  'bool.or': lowerBinary('OR'),
+  'bool.not': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(NOT ${inner})`),
+  'eq.is': (args, ctx) => {
     const op = ctx.dialect === 'postgres' ? 'IS NOT DISTINCT FROM' : 'IS'
     return lowerBinary(op)(args, ctx)
   },
-  isNot: (args, ctx) => {
+  'eq.isNot': (args, ctx) => {
     const op = ctx.dialect === 'postgres' ? 'IS DISTINCT FROM' : 'IS NOT'
     return lowerBinary(op)(args, ctx)
   },
-  isNull: (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(${inner} IS NULL)`),
-  oneOf: (args, ctx) =>
+  'eq.in': (args, ctx) =>
     Result.flatMap(ctx.lower(args[0]!), needle => {
       const list = args[1]!
       if (!Node.$is('Lit')(list) || !Array.isArray(list.value)) {
         return Result.fail(
           new SqlUnsupportedError({
-            reason: 'oneOf requires a literal array of candidates in SQL',
+            reason: 'eq.in requires a literal array of candidates in SQL',
           }),
         )
       }
@@ -123,51 +112,15 @@ const sqlOps: Readonly<Record<Node.OpId, OpLower>> = {
       const inClause = `(${needle} IN (${items.join(', ')}))`
       return Result.succeed(hasNull ? `(${inClause} OR (${needle} IS NULL))` : inClause)
     }),
-  lt: lowerBinary('<'),
-  lte: lowerBinary('<='),
-  gt: lowerBinary('>'),
-  gte: lowerBinary('>='),
-  add: lowerBinary('+'),
-  sub: lowerBinary('-'),
-  mul: lowerBinary('*'),
-  neg: (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(-${inner})`),
-  min: (args, ctx) =>
-    Result.flatMap(ctx.lower(args[0]!), left =>
-      Result.map(ctx.lower(args[1]!), right =>
-        ctx.dialect === 'postgres' ? `LEAST(${left}, ${right})` : `MIN(${left}, ${right})`,
-      ),
-    ),
-  max: (args, ctx) =>
-    Result.flatMap(ctx.lower(args[0]!), left =>
-      Result.map(ctx.lower(args[1]!), right =>
-        ctx.dialect === 'postgres' ? `GREATEST(${left}, ${right})` : `MAX(${left}, ${right})`,
-      ),
-    ),
-  abs: (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `ABS(${inner})`),
-  len: (args, ctx) =>
-    Result.map(ctx.lower(args[0]!), inner =>
-      ctx.dialect === 'postgres' ? `CHAR_LENGTH(${inner})` : `LENGTH(${inner})`,
-    ),
-  startsWith: (args, ctx) =>
-    Result.flatMap(ctx.lower(args[0]!), str =>
-      Result.map(ctx.lower(args[1]!), prefix =>
-        ctx.dialect === 'postgres'
-          ? `(LEFT(${str}, CHAR_LENGTH(${prefix})) = ${prefix})`
-          : `(SUBSTR(${str}, 1, LENGTH(${prefix})) = ${prefix})`,
-      ),
-    ),
-  contains: (args, ctx) =>
-    Result.flatMap(ctx.lower(args[0]!), str =>
-      Result.map(ctx.lower(args[1]!), needle =>
-        ctx.dialect === 'postgres'
-          ? `(STRPOS(${str}, ${needle}) > 0)`
-          : `(INSTR(${str}, ${needle}) > 0)`,
-      ),
-    ),
-  struct: () =>
-    Result.fail(
-      new SqlUnsupportedError({ reason: 'struct construction is not a scalar SQL expression' }),
-    ),
+  'null.isNull': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(${inner} IS NULL)`),
+  'ord.lt': lowerBinary('<'),
+  'ord.lte': lowerBinary('<='),
+  'ord.gt': lowerBinary('>'),
+  'ord.gte': lowerBinary('>='),
+  'num.add': lowerBinary('+'),
+  'num.sub': lowerBinary('-'),
+  'num.mul': lowerBinary('*'),
+  'num.neg': (args, ctx) => Result.map(ctx.lower(args[0]!), inner => `(-${inner})`),
 }
 
 const lowerNodeWith = (
@@ -187,7 +140,7 @@ const lowerNodeWith = (
     return Result.succeed(options.dialect === 'postgres' ? `$${options.params.length}` : '?')
   }
 
-  const ctx: LowerCtx = {
+  const ctx: SqlContext = {
     dialect: options.dialect,
     inlineLiterals: options.inlineLiterals,
     rowPrefix: options.rowPrefix,
@@ -250,10 +203,7 @@ const lowerNodeWith = (
 
 const defaultColumn = (segments: ReadonlyArray<string>): string => quoteIdent(segments.join('_'))
 
-/**
- * Compile every `Expr.refine` invariant on `schema` into a SQL `CHECK (...)`
- * constraint clause (with inline literals).
- */
+/** Compile every invariant on `schema` into a SQL `CHECK (...)` clause. */
 export const toCheck = <S extends Schema.Top>(
   schema: S,
   options?: {
@@ -279,12 +229,7 @@ export const toCheck = <S extends Schema.Top>(
   return Result.succeed(`CHECK (${combined})`)
 }
 
-/**
- * Compile a boolean `Expr` into a parameterized SQL `WHERE` predicate.
- *
- * When `options.env` provides non-row slices (such as `{ principal }`), they
- * are partially evaluated first so known values become SQL parameters.
- */
+/** Compile a boolean `Expr` into a parameterized SQL `WHERE` predicate. */
 export const toWhere = <Env>(
   expr: Expr.Expr<Env, boolean>,
   options?: SqlOptions,
@@ -302,10 +247,7 @@ export const toWhere = <Env>(
   return Result.map(textRes, text => ({ text, params }))
 }
 
-/**
- * Compile a `Transition` + concrete `input` into a guarded parameterized SQL
- * `UPDATE <table> SET ... WHERE ...` statement.
- */
+/** Compile a `Transition` + concrete `input` into a guarded parameterized SQL `UPDATE`. */
 export const toUpdate = <State, Input, Emit>(
   table: string,
   transition: Transition<State, Input, Emit>,
@@ -313,7 +255,6 @@ export const toUpdate = <State, Input, Emit>(
   options?: {
     readonly dialect?: SqlDialect
     readonly column?: (segments: ReadonlyArray<string>) => string
-    /** Extra WHERE predicate (e.g. primary key match `{ column: 'id', value: 'acct_1' }`). */
     readonly whereId?: { readonly column: string; readonly value: unknown }
   },
 ): Result.Result<SqlFragment, SqlUnsupportedError> => {

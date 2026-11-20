@@ -234,9 +234,9 @@ test('a page reading only Expr.eval and Num.lte from metakit keeps no sql, prove
     (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
   const built = await kept(await buildPublished('metakit', root))
   const source = await kept(join(packages, 'metakit', 'src', 'index.ts'))
-  expect(built.some(id => /\/dist\/ops\/num\.js$/.test(id))).toBe(true)
-  expect(source.some(id => /\/src\/ops\/num\.ts$/.test(id))).toBe(true)
+  expect(built.some(id => /\/dist\/ops\/ord\.js$/.test(id))).toBe(true)
+  expect(source.some(id => /\/src\/ops\/ord\.ts$/.test(id))).toBe(true)
   const forbidden =
-    /\/(sql|prove|conformance|abstract\/(zone|interval|check)|ops\/(str|struct))\.(js|ts)$|z3-solver/
+    /\/(sql|prove|conformance|abstract\/(zone|interval|check)|ops\/(num|null|eq))\.(js|ts)$|z3-solver/
   expect([...built, ...source].filter(id => forbidden.test(id))).toEqual([])
 }, 120_000)

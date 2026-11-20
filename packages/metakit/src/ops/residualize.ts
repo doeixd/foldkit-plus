@@ -2,6 +2,10 @@
  * Partial evaluation (`residualizeNode`) and Kleene $K_3$ judgement
  * (`judgeNode`) over a partially known environment.
  *
+ * Tier 2 simplification is driven generically by each operator's declarative
+ * `op.laws` (identity, absorbing, idempotent, reflexive, involution) + concrete
+ * `op.evaluate` when all arguments are `Lit`. Zero per-op switch statements.
+ *
  * Strictly separates epistemic `Unknown` (a missing environment slice or
  * opaque term) from object-level `null` (a known runtime value): `{ row: { x: null } }`
  * folds `row.x` to `Lit(null)`, never to `Unknown`.
@@ -11,11 +15,6 @@ import * as Node from '../node.js'
 import * as Path from '../path.js'
 import * as Verdict from '../verdict.js'
 
-/**
- * Look up `segments` in a partial environment. Returns `Option.some(value)`
- * whenever every segment is an own property (including when `value` is `null`),
- * and `Option.none()` when any segment is absent or `undefined`.
- */
 const lookupPartial = (
   partial: unknown,
   segments: ReadonlyArray<string>,
@@ -40,9 +39,60 @@ const lookupPartial = (
   return Option.some(current)
 }
 
+const isLitEqual = (node: Node.Node, expected: unknown): boolean =>
+  Node.$is('Lit')(node) && (Object.is(node.value, expected) || (node.value === 0 && expected === 0))
+
+/** Generic size-reducing law engine driven purely by `op.laws`. */
+const applyLaws = (op: Node.Op, args: ReadonlyArray<Node.Node>): Option.Option<Node.Node> => {
+  const laws = op.laws
+  if (laws === undefined) return Option.none()
+
+  if (args.length === 1 && laws.involution === true) {
+    const inner = args[0]!
+    if (Node.$is('Call')(inner) && inner.op.id === op.id && inner.args.length === 1) {
+      return Option.some(inner.args[0]!)
+    }
+  }
+
+  if (args.length === 2) {
+    const left = args[0]!
+    const right = args[1]!
+
+    if (laws.absorbing !== undefined) {
+      const { value, result, side } = laws.absorbing
+      if ((side === 'left' || side === 'both') && isLitEqual(left, value)) {
+        return Option.some(Node.Lit({ value: result }))
+      }
+      if ((side === 'right' || side === 'both') && isLitEqual(right, value)) {
+        return Option.some(Node.Lit({ value: result }))
+      }
+    }
+
+    if (laws.identity !== undefined) {
+      const { value, side } = laws.identity
+      if ((side === 'left' || side === 'both') && isLitEqual(left, value)) {
+        return Option.some(right)
+      }
+      if ((side === 'right' || side === 'both') && isLitEqual(right, value)) {
+        return Option.some(left)
+      }
+    }
+
+    if (laws.idempotent === true && Node.key(left) === Node.key(right)) {
+      return Option.some(left)
+    }
+
+    if (laws.reflexive !== undefined && Node.key(left) === Node.key(right)) {
+      return Option.some(Node.Lit({ value: laws.reflexive.value }))
+    }
+  }
+
+  return Option.none()
+}
+
 /**
  * Partially evaluate `node` against `partialEnv`, substituting known paths and
- * applying size-reducing operator folds.
+ * applying declarative size-reducing operator laws.
  */
 export const residualizeNode = (node: Node.Node, partialEnv: unknown): Node.Node =>
   Node.$match(node, {
@@ -57,6 +107,8 @@ export const residualizeNode = (node: Node.Node, partialEnv: unknown): Node.Node
       if (nextArgs.every(Node.$is('Lit'))) {
         return Node.Lit({ value: op.evaluate(nextArgs.map(arg => arg.value)) })
       }
+      const byLaw = applyLaws(op, nextArgs)
+      if (Option.isSome(byLaw)) return byLaw.value
       if (op.fold !== undefined) {
         const folded = op.fold(nextArgs)
         if (Option.isSome(folded)) return folded.value
@@ -161,9 +213,7 @@ const hasOpaque = (node: Node.Node): boolean =>
     Opaque: () => true,
   })
 
-/**
- * Partially evaluate a boolean `Node` and return its Kleene $K_3$ `Verdict`.
- */
+/** Partially evaluate a boolean `Node` and return its Kleene $K_3$ `Verdict`. */
 export const judgeNode = (node: Node.Node, partialEnv: unknown): Verdict.Verdict<never> => {
   const residual = residualizeNode(node, partialEnv)
   if (Node.$is('Lit')(residual)) {

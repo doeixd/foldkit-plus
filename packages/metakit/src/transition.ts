@@ -9,11 +9,11 @@
  * affordances (`Transition.can`), child lifting (`Transition.lift`), SQL
  * guarded `UPDATE`, Tier 3 Zone checks, and Tier 4 Z3 proofs.
  */
-import { Data, Option, Result } from 'effect'
+import { Data, Match, Option, Result } from 'effect'
 import type { Schema } from 'effect'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
-import { toNode, wrap, type ExprInput } from './ops/core.js'
+import { isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
 import { evalNode } from './ops/eval.js'
 import { judgeNode, readsOfNode } from './ops/residualize.js'
 import * as Path from './path.js'
@@ -40,6 +40,17 @@ export interface WriteEquation<State, Input, V = unknown> {
   readonly value: ExprType<TransitionEnv<State, Input>, V>
 }
 
+/** A declarative command payload: either an `Expr` or a plain record of `ExprInput`s. */
+export type EmitTemplate<Env, Emit> =
+  | ExprInput<Env, Emit>
+  | (Emit extends Readonly<Record<string, unknown>>
+      ? { readonly [K in keyof Emit]: ExprInput<Env, Emit[K]> }
+      : never)
+
+type EmitSpec =
+  | { readonly _tag: 'Single'; readonly node: Node.Node }
+  | { readonly _tag: 'Fields'; readonly entries: ReadonlyArray<readonly [string, Node.Node]> }
+
 /** A guarded, single-step transition over `State` and `Input`. */
 export interface Transition<State, Input, Emit = never> {
   readonly _tag: 'Transition'
@@ -47,7 +58,8 @@ export interface Transition<State, Input, Emit = never> {
   readonly inputSchema: Option.Option<Schema.Codec<Input>>
   readonly when: ExprType<TransitionEnv<State, Input>, boolean>
   readonly writes: ReadonlyArray<WriteEquation<State, Input, unknown>>
-  readonly emits: Option.Option<ExprType<TransitionEnv<State, Input>, Emit>>
+  readonly emits: Option.Option<EmitSpec>
+  readonly _emit?: () => Emit
 }
 
 /**
@@ -85,7 +97,7 @@ export const make = <S extends Schema.Top, I extends Schema.Top, Emit = never>(c
   readonly emits?: (env: {
     readonly state: PathAccessor<TransitionEnv<S['Type'], I['Type']>, S['Type']>
     readonly input: PathAccessor<TransitionEnv<S['Type'], I['Type']>, I['Type']>
-  }) => ExprInput<TransitionEnv<S['Type'], I['Type']>, Emit>
+  }) => EmitTemplate<TransitionEnv<S['Type'], I['Type']>, Emit>
 }): Transition<S['Type'], I['Type'], Emit> => {
   const env = Path.forEnv({ state: config.state, input: config.input }) as {
     readonly state: PathAccessor<TransitionEnv<S['Type'], I['Type']>, S['Type']>
@@ -105,10 +117,19 @@ export const make = <S extends Schema.Top, I extends Schema.Top, Emit = never>(c
     }
     seenTargets.add(targetKey)
   }
-  const emits =
+  const emits: Option.Option<EmitSpec> =
     config.emits === undefined
       ? Option.none()
-      : Option.some(wrap<TransitionEnv<S['Type'], I['Type']>, Emit>(toNode(config.emits(env))))
+      : (() => {
+          const raw = config.emits(env)
+          if (isExpr(raw) || raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+            return Option.some({ _tag: 'Single' as const, node: toNode(raw) })
+          }
+          const entries = Object.entries(raw as Record<string, unknown>).map(
+            ([k, v]) => [k, toNode(v)] as const,
+          )
+          return Option.some({ _tag: 'Fields' as const, entries })
+        })()
   return {
     _tag: 'Transition',
     stateSchema: Option.some(config.state as unknown as Schema.Codec<S['Type']>),
@@ -143,7 +164,14 @@ export const step = <State, Input, Emit>(
   for (const { target, value } of computed) {
     nextState = Path.set(Path.make<State, unknown>(target), nextState, value)
   }
-  const emit = Option.map(transition.emits, expr => evalNode(expr.node, env) as Emit)
+  const emit: Option.Option<Emit> = Option.map(
+    transition.emits,
+    spec =>
+      Match.valueTags(spec, {
+        Single: ({ node }) => evalNode(node, env),
+        Fields: ({ entries }) => Object.fromEntries(entries.map(([k, n]) => [k, evalNode(n, env)])),
+      }) as Emit,
+  )
   return Result.succeed({ state: nextState, emit })
 }
 
@@ -230,8 +258,17 @@ export const lift = <Outer, Inner, Input, Emit>(
       ),
     })),
   ),
-  emits: Option.map(transition.emits, expr =>
-    wrap<TransitionEnv<Outer, Input>, Emit>(rewriteStatePrefix(expr.node, path.segments)),
+  emits: Option.map(transition.emits, spec =>
+    Match.valueTags(spec, {
+      Single: ({ node }): EmitSpec => ({
+        _tag: 'Single',
+        node: rewriteStatePrefix(node, path.segments),
+      }),
+      Fields: ({ entries }): EmitSpec => ({
+        _tag: 'Fields',
+        entries: entries.map(([k, n]) => [k, rewriteStatePrefix(n, path.segments)] as const),
+      }),
+    }),
   ),
 })
 
@@ -247,7 +284,14 @@ export const footprint = <State, Input, Emit>(
     ...transition.writes.map(eq => eq.value.node),
   ]
   if (Option.isSome(transition.emits)) {
-    nodes.push(transition.emits.value.node)
+    Match.valueTags(transition.emits.value, {
+      Single: ({ node }) => {
+        nodes.push(node)
+      },
+      Fields: ({ entries }) => {
+        for (const [, n] of entries) nodes.push(n)
+      },
+    })
   }
   const seen = new Map<string, ReadonlyArray<string>>()
   let unbounded = false

@@ -22,7 +22,7 @@ import {
   type ValueOfInput,
 } from './ops/core.js'
 import { evalNode } from './ops/eval.js'
-import { gtOp, gteOp, ltOp, lteOp } from './ops/num.js'
+import { gtOp, gteOp, ltOp, lteOp } from './ops/ord.js'
 import { judgeNode, readsOfNode, residualizeNode } from './ops/residualize.js'
 import * as Path from './path.js'
 import type { Expr as ExprType, Path as PathType, PathAccessor } from './path.js'
@@ -370,18 +370,18 @@ export const reads = <Env, A>(
   expr: ExprType<Env, A>,
 ): Option.Option<ReadonlyArray<ReadonlyArray<string>>> => readsOfNode(expr.node)
 
-const infixSymbols: Readonly<Partial<Record<Node.OpId, string>>> = {
-  and: '&&',
-  or: '||',
-  is: '==',
-  isNot: '!=',
-  lt: '<',
-  lte: '<=',
-  gt: '>',
-  gte: '>=',
-  add: '+',
-  sub: '-',
-  mul: '*',
+const infixSymbols: Readonly<Partial<Record<Node.CoreOpId, string>>> = {
+  'bool.and': '&&',
+  'bool.or': '||',
+  'eq.is': '==',
+  'eq.isNot': '!=',
+  'ord.lt': '<',
+  'ord.lte': '<=',
+  'ord.gt': '>',
+  'ord.gte': '>=',
+  'num.add': '+',
+  'num.sub': '-',
+  'num.mul': '*',
 }
 
 const showNode = (node: Node.Node): string =>
@@ -389,8 +389,8 @@ const showNode = (node: Node.Node): string =>
     Lit: ({ value }) => (typeof value === 'bigint' ? `${value}n` : JSON.stringify(value)),
     Path: ({ segments }) => Path.format(segments),
     Call: ({ op, args }) => {
-      if (op.id === 'not' && args.length === 1) return `!${showNode(args[0]!)}`
-      if (op.id === 'neg' && args.length === 1) return `-${showNode(args[0]!)}`
+      if (op.id === 'bool.not' && args.length === 1) return `!${showNode(args[0]!)}`
+      if (op.id === 'num.neg' && args.length === 1) return `-${showNode(args[0]!)}`
       const sym = infixSymbols[op.id]
       if (sym !== undefined && args.length === 2) {
         return `(${showNode(args[0]!)} ${sym} ${showNode(args[1]!)})`

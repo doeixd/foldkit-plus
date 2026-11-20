@@ -1,6 +1,6 @@
 import { Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Num, Path, Str, Struct, Transition, Verdict } from 'metakit'
+import { Abstract, Eq, Expr, Null, Num, Ord, Path, Transition, Verdict } from 'metakit'
 
 const Account = Schema.Struct({
   id: Schema.String,
@@ -45,12 +45,11 @@ const Withdraw = Transition.make({
   apply: ({ state, input }) => [
     Transition.set(state.balance, Num.sub(state.balance, input.amount)),
   ],
-  emits: ({ state, input }) =>
-    Struct.struct({
-      _tag: 'AccountDebited',
-      accountId: state.id,
-      amount: input.amount,
-    }),
+  emits: ({ state, input }) => ({
+    _tag: 'AccountDebited' as const,
+    accountId: state.id,
+    amount: input.amount,
+  }),
 })
 
 describe('Path', () => {
@@ -126,14 +125,16 @@ describe('Expr evaluation, derived ops, and opaque terms', () => {
     expect(Expr.eval(Label, { model: acct })).toBe('Active')
     expect(Expr.eval(Label, { model: { ...acct, status: 'frozen' } })).toBe('Locked')
 
-    const StrCheck = Expr.in({ model: Account }, ({ model }) =>
+    // Derived helpers (min, max, abs, clamp, between, isNotNull) over If + 15 primitives
+    const Derived = Expr.in({ model: Account }, ({ model }) =>
       Expr.all(
-        Str.startsWith(model.id, 'u'),
-        Str.contains(model.id, '1'),
-        Num.gte(Str.len(model.id), 2),
+        Ord.between(Num.clamp(model.balance, 0, 50), 0, 50),
+        Eq.is(Num.abs(Num.neg(model.reserved)), model.reserved),
+        Eq.is(Num.min(model.balance, model.reserved), model.reserved),
+        Null.isNotNull(model.id),
       ),
     )
-    expect(Expr.eval(StrCheck, { model: acct })).toBe(true)
+    expect(Expr.eval(Derived, { model: acct })).toBe(true)
 
     // Implication and readable formatting
     const OpenImpliesPositive = Expr.in({ model: Account }, ({ model }) =>
@@ -197,7 +198,7 @@ describe('Partial evaluation (residualize & judge)', () => {
       ownerId: Schema.NullOr(Schema.String),
       label: Schema.NullOr(Schema.String),
     })
-    const HasNoOwner = Expr.in({ row: NullableRow }, ({ row }) => Eq.isNull(row.ownerId))
+    const HasNoOwner = Expr.in({ row: NullableRow }, ({ row }) => Null.isNull(row.ownerId))
     const OwnerIsNull = Expr.in({ row: NullableRow }, ({ row }) => Eq.is(row.ownerId, null))
 
     // Known null is NOT Unknown: both fold to True
@@ -319,11 +320,24 @@ describe('Tier 3 synchronous Abstract checker (Interval + Zone)', () => {
     }
   })
 
-  it('proves derived invariant balance - reserved >= 0 from Account schema', () => {
+  it('proves derived invariant balance - reserved >= 0, abs >= 0, and bool.or case-splitting in Tier 3', () => {
     const $ = Path.forSchema(Account)
     expect(Verdict.isTrue(Abstract.checkInvariant(Account, Num.gte($.balance, 0)))).toBe(true)
     expect(
       Verdict.isTrue(Abstract.checkInvariant(Account, Num.gte(Num.sub($.balance, $.reserved), 0))),
     ).toBe(true)
+    // Derived abs(x) over If: Tier 3 narrows both branches to prove abs(x) >= 0!
+    const AnyInt = Schema.Struct({ x: Schema.Int })
+    const $x = Path.forSchema(AnyInt)
+    expect(Verdict.isTrue(Abstract.checkInvariant(AnyInt, Ord.gte(Num.abs($x.x), 0)))).toBe(true)
+    // Disjunction case-splitting: (x >= 10 || x >= 5) => x >= 5
+    const Disj = Schema.Struct({ x: Schema.Int }).pipe(
+      Expr.refine(s => Expr.any(Ord.gte(s.x, 10), Ord.gte(s.x, 5))),
+    )
+    expect(Verdict.isTrue(Abstract.checkInvariant(Disj, Ord.gte(Path.forSchema(Disj).x, 5)))).toBe(
+      true,
+    )
+    // Non-nullable Schema field proves Null.isNotNull synchronously
+    expect(Verdict.isTrue(Abstract.checkInvariant(Account, Null.isNotNull($.id)))).toBe(true)
   })
 })

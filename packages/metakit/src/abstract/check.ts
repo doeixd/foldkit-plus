@@ -1,7 +1,11 @@
 /**
  * Tier 3 synchronous static checker combining:
- *   - Effect `Schema` numeric/literal domain extraction,
+ *   - Exhaustive `abstractOps: Record<CoreOpId, AbstractOp>` (`forward`,
+ *     `narrow`, `addToZone`),
+ *   - Effect `Schema` numeric/literal/nullable domain extraction,
  *   - Interval + Zone (DBM) relational propagation,
+ *   - `bool.or` and `If` branch case-splitting,
+ *   - Nullable bit tracking (`null.isNull`),
  *   - Deterministic bounded fixed-point loop (max 16 rounds), degrading
  *     soundly to `Verdict.Unknown` + `Obligation` for Tier 4 (Z3).
  */
@@ -10,6 +14,8 @@ import type { Schema } from 'effect'
 import * as Expr from '../expr.js'
 import * as Node from '../node.js'
 import * as Bool from '../ops/bool.js'
+import * as Eq from '../ops/eq.js'
+import * as Ord from '../ops/ord.js'
 import * as Path from '../path.js'
 import type { Transition } from '../transition.js'
 import * as Verdict from '../verdict.js'
@@ -17,19 +23,33 @@ import * as Interval from './interval.js'
 import { Zone, ZERO } from './zone.js'
 
 const MAX_ROUNDS = 16
+const MAX_SPLITS = 8
+
+/** Per-operator Tier 3 contract: every `CoreOpId` fills one row. */
+export interface AbstractOp {
+  /** Forward interval transformer for numeric operators. */
+  readonly forward?: (args: ReadonlyArray<Interval.Interval>) => Interval.Interval
+  /** Backward interval narrowing given `op(args) ∈ target`. */
+  readonly narrow?: (
+    args: ReadonlyArray<Interval.Interval>,
+    target: Interval.Interval,
+  ) => ReadonlyArray<Interval.Interval>
+  /** Comparison verdict over intervals for relational/equality operators. */
+  readonly compare?: (args: ReadonlyArray<Interval.Interval>) => Verdict.Verdict<never>
+  /** Push a boolean operator constraint into the abstract Zone state. */
+  readonly addToZone?: (args: ReadonlyArray<Node.Node>, state: AbstractState) => void
+}
 
 interface FieldInfo {
   readonly isInt: boolean
+  readonly nullable: boolean
   readonly interval: Interval.Interval
   readonly literals: Option.Option<ReadonlyArray<string | number | boolean>>
 }
 
-interface EnvModel {
-  readonly fields: Map<string, FieldInfo>
-}
-
 const emptyField = (): FieldInfo => ({
   isInt: false,
+  nullable: false,
   interval: Interval.top,
   literals: Option.none(),
 })
@@ -92,15 +112,15 @@ const extractChecksInterval = (
     }
     if ('checks' in check && Array.isArray(check.checks)) {
       const next = extractChecksInterval(check.checks, {
+        ...base,
         isInt,
         interval: iv,
-        literals: base.literals,
       })
       isInt = next.isInt
       iv = next.interval
     }
   }
-  return { isInt, interval: iv, literals: base.literals }
+  return { ...base, isInt, interval: iv }
 }
 
 const collectFieldsFromAst = (
@@ -119,14 +139,16 @@ const collectFieldsFromAst = (
   const key = Path.format(prefix)
   let info = emptyField()
   if (SchemaAST.isNumber(ast)) {
-    if (ast.checks !== undefined) {
-      info = extractChecksInterval(ast.checks, info)
-    }
+    if (ast.checks !== undefined) info = extractChecksInterval(ast.checks, info)
     fields.set(key, info)
     return
   }
   if (SchemaAST.isBoolean(ast)) {
     fields.set(key, { ...info, literals: Option.some([true, false]) })
+    return
+  }
+  if (SchemaAST.isString(ast)) {
+    fields.set(key, info)
     return
   }
   if (SchemaAST.isLiteral(ast)) {
@@ -137,9 +159,22 @@ const collectFieldsFromAst = (
     return
   }
   if (SchemaAST.isUnion(ast)) {
+    const hasNull = ast.types.some(SchemaAST.isNull)
+    const nonNull = ast.types.filter(t => !SchemaAST.isNull(t))
+    if (hasNull && nonNull.length === 1) {
+      const inner = nonNull[0]!
+      if (SchemaAST.isNumber(inner)) {
+        let innerInfo = { ...info, nullable: true }
+        if (inner.checks !== undefined) innerInfo = extractChecksInterval(inner.checks, innerInfo)
+        fields.set(key, innerInfo)
+        return
+      }
+      fields.set(key, { ...info, nullable: true })
+      return
+    }
     const lits: Array<string | number | boolean> = []
     let allLit = true
-    for (const member of ast.types) {
+    for (const member of nonNull) {
       if (SchemaAST.isLiteral(member)) {
         const lit = member.literal
         if (typeof lit === 'string' || typeof lit === 'number' || typeof lit === 'boolean') {
@@ -151,22 +186,16 @@ const collectFieldsFromAst = (
       break
     }
     if (allLit && lits.length > 0) {
-      fields.set(key, { ...info, literals: Option.some(lits) })
+      fields.set(key, { ...info, nullable: hasNull, literals: Option.some(lits) })
+      return
+    }
+    if (hasNull) {
+      fields.set(key, { ...info, nullable: true })
     }
   }
 }
 
-/** Flatten top-level `and` conjunctions into a list of conjuncts. */
-const flattenAnd = (node: Node.Node, out: Array<Node.Node>): void => {
-  if (Node.$is('Call')(node) && node.op.id === 'and' && node.args.length === 2) {
-    flattenAnd(node.args[0]!, out)
-    flattenAnd(node.args[1]!, out)
-    return
-  }
-  out.push(node)
-}
-
-/** Negate a boolean `Node` (pushing `not` through comparisons where possible). */
+/** Negate an atomic boolean `Node`, pushing `bool.not` through comparisons. */
 const negateNode = (node: Node.Node): Node.Node => {
   if (Node.$is('Lit')(node) && typeof node.value === 'boolean') {
     return Node.Lit({ value: !node.value })
@@ -174,69 +203,109 @@ const negateNode = (node: Node.Node): Node.Node => {
   if (Node.$is('Call')(node)) {
     const [a, b] = node.args
     switch (node.op.id) {
-      case 'not':
+      case 'bool.not':
         return a!
-      case 'lt':
-        return Node.Call({
-          op: { id: 'gte', evaluate: args => (args[0] as number) >= (args[1] as number) },
-          args: [a!, b!],
-        })
-      case 'lte':
-        return Node.Call({
-          op: { id: 'gt', evaluate: args => (args[0] as number) > (args[1] as number) },
-          args: [a!, b!],
-        })
-      case 'gt':
-        return Node.Call({
-          op: { id: 'lte', evaluate: args => (args[0] as number) <= (args[1] as number) },
-          args: [a!, b!],
-        })
-      case 'gte':
-        return Node.Call({
-          op: { id: 'lt', evaluate: args => (args[0] as number) < (args[1] as number) },
-          args: [a!, b!],
-        })
-      case 'is':
-        return Node.Call({
-          op: { id: 'isNot', evaluate: args => args[0] !== args[1] },
-          args: [a!, b!],
-        })
-      case 'isNot':
-        return Node.Call({
-          op: { id: 'is', evaluate: args => args[0] === args[1] },
-          args: [a!, b!],
-        })
+      case 'bool.and':
+        return Node.Call({ op: Bool.orOp, args: [negateNode(a!), negateNode(b!)] })
+      case 'bool.or':
+        return Node.Call({ op: Bool.andOp, args: [negateNode(a!), negateNode(b!)] })
+      case 'ord.lt':
+        return Node.Call({ op: Ord.gteOp, args: [a!, b!] })
+      case 'ord.lte':
+        return Node.Call({ op: Ord.gtOp, args: [a!, b!] })
+      case 'ord.gt':
+        return Node.Call({ op: Ord.lteOp, args: [a!, b!] })
+      case 'ord.gte':
+        return Node.Call({ op: Ord.ltOp, args: [a!, b!] })
+      case 'eq.is':
+        return Node.Call({ op: Eq.isNotOp, args: [a!, b!] })
+      case 'eq.isNot':
+        return Node.Call({ op: Eq.isOp, args: [a!, b!] })
     }
   }
   return Node.Call({ op: Bool.notOp, args: [node] })
 }
 
 /**
- * Relational abstract state: maps numeric terms (`Node.key`) to Zone variable
- * indices, tracks integer-ness, and holds equality constraints on non-numeric
- * terms (such as literal status enums).
+ * Relational abstract state: Zone DBM + equality/inequality facts + nullable
+ * bit tracking + disjunction queue for sound branch case-splitting.
  */
-class AbstractState {
-  readonly varIndex = new Map<string, number>()
-  readonly intVars = new Set<number>()
-  readonly termNodes = new Map<number, Node.Node>()
+export class AbstractState {
+  readonly fields: ReadonlyMap<string, FieldInfo>
+  readonly varIndex: Map<string, number>
+  readonly intVars: Set<number>
+  readonly termNodes: Map<number, Node.Node>
   readonly subTerms: Array<{
     readonly id: number
     readonly left: Node.Node
     readonly right: Node.Node
-  }> = []
+  }>
   readonly addTerms: Array<{
     readonly id: number
     readonly left: Node.Node
     readonly right: Node.Node
-  }> = []
-  readonly eqFacts = new Map<string, unknown>()
-  readonly neqFacts = new Map<string, Set<unknown>>()
+  }>
+  readonly eqFacts: Map<string, unknown>
+  readonly neqFacts: Map<string, Set<unknown>>
+  /** Tracks proven nullability per path: `true` = definitely null, `false` = definitely non-null. */
+  readonly nullFacts: Map<string, boolean>
+  readonly pendingOrs: Array<readonly [Node.Node, Node.Node]>
   zone: Zone
 
-  constructor(nodes: ReadonlyArray<Node.Node>, env: EnvModel) {
-    // 1. Register every numeric field from Schema
-    for (const [fieldKey, info] of env.fields) {
+  constructor(
+    nodes: ReadonlyArray<Node.Node>,
+    fields: ReadonlyMap<string, FieldInfo>,
+    fromClone?: {
+      readonly varIndex: Map<string, number>
+      readonly intVars: Set<number>
+      readonly termNodes: Map<number, Node.Node>
+      readonly subTerms: Array<{
+        readonly id: number
+        readonly left: Node.Node
+        readonly right: Node.Node
+      }>
+      readonly addTerms: Array<{
+        readonly id: number
+        readonly left: Node.Node
+        readonly right: Node.Node
+      }>
+      readonly eqFacts: Map<string, unknown>
+      readonly neqFacts: Map<string, Set<unknown>>
+      readonly nullFacts: Map<string, boolean>
+      readonly pendingOrs: Array<readonly [Node.Node, Node.Node]>
+      readonly zone: Zone
+    },
+  ) {
+    this.fields = fields
+    if (fromClone !== undefined) {
+      this.varIndex = fromClone.varIndex
+      this.intVars = fromClone.intVars
+      this.termNodes = fromClone.termNodes
+      this.subTerms = fromClone.subTerms
+      this.addTerms = fromClone.addTerms
+      this.eqFacts = new Map(fromClone.eqFacts)
+      this.neqFacts = new Map(
+        Array.from(fromClone.neqFacts.entries()).map(([k, s]) => [k, new Set(s)]),
+      )
+      this.nullFacts = new Map(fromClone.nullFacts)
+      this.pendingOrs = [...fromClone.pendingOrs]
+      this.zone = fromClone.zone.clone()
+      return
+    }
+    this.varIndex = new Map()
+    this.intVars = new Set()
+    this.termNodes = new Map()
+    this.subTerms = []
+    this.addTerms = []
+    this.eqFacts = new Map()
+    this.neqFacts = new Map()
+    this.nullFacts = new Map()
+    this.pendingOrs = []
+
+    for (const [fieldKey, info] of fields) {
+      if (!info.nullable) {
+        this.nullFacts.set(fieldKey, false)
+      }
       if (Option.isNone(info.literals)) {
         const id = this.registerKey(fieldKey, info.isInt)
         this.termNodes.set(
@@ -245,19 +314,36 @@ class AbstractState {
         )
       }
     }
-    // 2. Register every numeric sub-expression appearing in the nodes
     for (const node of nodes) {
-      this.collectTerms(node, env)
+      this.collectTerms(node)
     }
     this.zone = Zone.make(this.varIndex.size)
-    // 3. Seed schema bounds
-    for (const [fieldKey, info] of env.fields) {
+    for (const [fieldKey, info] of fields) {
       const id = this.varIndex.get(fieldKey)
       if (id !== undefined) {
         if (Number.isFinite(info.interval.lo)) this.zone.constrainLower(id, info.interval.lo)
         if (Number.isFinite(info.interval.hi)) this.zone.constrainUpper(id, info.interval.hi)
       }
     }
+  }
+
+  clone(): AbstractState {
+    return new AbstractState([], this.fields, {
+      varIndex: this.varIndex,
+      intVars: this.intVars,
+      termNodes: this.termNodes,
+      subTerms: this.subTerms,
+      addTerms: this.addTerms,
+      eqFacts: this.eqFacts,
+      neqFacts: this.neqFacts,
+      nullFacts: this.nullFacts,
+      pendingOrs: this.pendingOrs,
+      zone: this.zone,
+    })
+  }
+
+  markBottom(): void {
+    this.zone.constrainDiff(ZERO, ZERO, -1)
   }
 
   private registerKey(k: string, isInt: boolean): number {
@@ -272,70 +358,62 @@ class AbstractState {
     return id
   }
 
-  private isIntNode(node: Node.Node, env: EnvModel): boolean {
+  private isIntNode(node: Node.Node): boolean {
     if (Node.$is('Lit')(node)) return typeof node.value === 'number' && Number.isInteger(node.value)
     if (Node.$is('Path')(node)) {
-      const info = env.fields.get(Path.format(node.segments))
+      const info = this.fields.get(Path.format(node.segments))
       return info?.isInt ?? false
     }
     if (Node.$is('Call')(node)) {
       if (
-        node.op.id === 'add' ||
-        node.op.id === 'sub' ||
-        node.op.id === 'mul' ||
-        node.op.id === 'neg' ||
-        node.op.id === 'min' ||
-        node.op.id === 'max' ||
-        node.op.id === 'abs'
+        node.op.id === 'num.add' ||
+        node.op.id === 'num.sub' ||
+        node.op.id === 'num.mul' ||
+        node.op.id === 'num.neg'
       ) {
-        return node.args.every(a => this.isIntNode(a, env))
+        return node.args.every(a => this.isIntNode(a))
       }
-      if (node.op.id === 'len') return true
+    }
+    if (Node.$is('If')(node)) {
+      return this.isIntNode(node.then) && this.isIntNode(node.otherwise)
     }
     return false
   }
 
-  private collectTerms(node: Node.Node, env: EnvModel): void {
+  private collectTerms(node: Node.Node): void {
     Node.$match(node, {
       Lit: () => {},
       Path: ({ segments }) => {
         const fk = Path.format(segments)
-        const info = env.fields.get(fk)
+        const info = this.fields.get(fk)
         if (info !== undefined && Option.isNone(info.literals)) {
           this.registerKey(fk, info.isInt)
         }
       },
       Call: ({ op, args }) => {
-        for (const a of args) this.collectTerms(a, env)
-        if (op.id === 'sub' && args.length === 2) {
-          const id = this.registerKey(Node.key(node), this.isIntNode(node, env))
+        for (const a of args) this.collectTerms(a)
+        if (op.id === 'num.sub' && args.length === 2) {
+          const id = this.registerKey(Node.key(node), this.isIntNode(node))
           this.termNodes.set(id, node)
           this.subTerms.push({ id, left: args[0]!, right: args[1]! })
-        } else if (op.id === 'add' && args.length === 2) {
-          const id = this.registerKey(Node.key(node), this.isIntNode(node, env))
+        } else if (op.id === 'num.add' && args.length === 2) {
+          const id = this.registerKey(Node.key(node), this.isIntNode(node))
           this.termNodes.set(id, node)
           this.addTerms.push({ id, left: args[0]!, right: args[1]! })
-        } else if (
-          op.id === 'mul' ||
-          op.id === 'neg' ||
-          op.id === 'min' ||
-          op.id === 'max' ||
-          op.id === 'abs' ||
-          op.id === 'len'
-        ) {
-          const id = this.registerKey(Node.key(node), this.isIntNode(node, env))
+        } else if (op.id === 'num.mul' || op.id === 'num.neg') {
+          const id = this.registerKey(Node.key(node), this.isIntNode(node))
           this.termNodes.set(id, node)
         }
       },
       If: ({ cond, then, otherwise }) => {
-        this.collectTerms(cond, env)
-        this.collectTerms(then, env)
-        this.collectTerms(otherwise, env)
+        this.collectTerms(cond)
+        this.collectTerms(then)
+        this.collectTerms(otherwise)
       },
       Match: ({ on, cases, otherwise }) => {
-        this.collectTerms(on, env)
-        for (const [, b] of cases) this.collectTerms(b, env)
-        if (Option.isSome(otherwise)) this.collectTerms(otherwise.value, env)
+        this.collectTerms(on)
+        for (const [, b] of cases) this.collectTerms(b)
+        if (Option.isSome(otherwise)) this.collectTerms(otherwise.value)
       },
       Opaque: () => {},
     })
@@ -348,49 +426,46 @@ class AbstractState {
     return Option.fromUndefinedOr(this.varIndex.get(Node.key(node)))
   }
 
-  /** Interval of any numeric node from the current Zone. */
+  isIntRef(node: Node.Node): boolean {
+    if (Node.$is('Lit')(node)) return typeof node.value === 'number' && Number.isInteger(node.value)
+    const v = this.varOf(node)
+    return Option.isSome(v) && this.intVars.has(v.value)
+  }
+
+  /** Interval of any numeric node (including `If` branches such as `min`/`max`/`abs`/`clamp`). */
   evalInterval(node: Node.Node): Interval.Interval {
     if (Node.$is('Lit')(node) && typeof node.value === 'number') {
       return Interval.constant(node.value)
     }
+    if (Node.$is('If')(node)) {
+      const condV = this.entailsAtomic(node.cond)
+      if (Verdict.isTrue(condV)) return this.evalInterval(node.then)
+      if (Verdict.isFalse(condV)) return this.evalInterval(node.otherwise)
+      // Narrow each branch with its guard for tighter bounds (e.g. abs(x) >= 0!)
+      const tBranch = this.clone()
+      tBranch.assume(node.cond)
+      const fBranch = this.clone()
+      fBranch.assume(negateNode(node.cond))
+      const tIv = tBranch.propagate() ? tBranch.evalInterval(node.then) : Interval.bottom
+      const fIv = fBranch.propagate() ? fBranch.evalInterval(node.otherwise) : Interval.bottom
+      return Interval.join(tIv, fIv)
+    }
     const v = this.varOf(node)
     const fromZone = Option.isSome(v) ? this.zone.intervalOf(v.value) : Interval.top
     if (Node.$is('Call')(node)) {
-      const [a, b] = node.args
-      switch (node.op.id) {
-        case 'add':
-          return Interval.meet(fromZone, Interval.add(this.evalInterval(a!), this.evalInterval(b!)))
-        case 'sub':
-          return Interval.meet(fromZone, Interval.sub(this.evalInterval(a!), this.evalInterval(b!)))
-        case 'mul':
-          return Interval.meet(fromZone, Interval.mul(this.evalInterval(a!), this.evalInterval(b!)))
-        case 'neg':
-          return Interval.meet(fromZone, Interval.neg(this.evalInterval(a!)))
-        case 'min':
-          return Interval.meet(fromZone, Interval.min(this.evalInterval(a!), this.evalInterval(b!)))
-        case 'max':
-          return Interval.meet(fromZone, Interval.max(this.evalInterval(a!), this.evalInterval(b!)))
-        case 'abs':
-          return Interval.meet(fromZone, Interval.abs(this.evalInterval(a!)))
-        case 'len':
-          return Interval.meet(fromZone, Interval.between(0, Infinity))
+      const forward = abstractOps[node.op.id].forward
+      if (forward !== undefined) {
+        return Interval.meet(fromZone, forward(node.args.map(a => this.evalInterval(a))))
       }
     }
     return fromZone
   }
 
-  /**
-   * Add a linear comparison `left <= right` (or `<` when `strict` is true).
-   * Handles:
-   *   - `var <= const`, `const <= var`, `var1 <= var2`
-   *   - `y <= x - z` <=> `z <= x - y` (so `amount <= balance - reserved`
-   *     directly links `reserved <= balance - amount` in the Zone!)
-   */
+  /** Add `left <= right` (or `<` when `strict` is true) into the Zone. */
   assumeLeq(left: Node.Node, right: Node.Node, strict: boolean): void {
     const bothInt = this.isIntRef(left) && this.isIntRef(right)
     const delta = strict ? (bothInt ? -1 : 0) : 0
 
-    // Direct var / const cases
     const lv = this.varOf(left)
     const rv = this.varOf(right)
     const lConst = Node.$is('Lit')(left) && typeof left.value === 'number' ? left.value : undefined
@@ -405,8 +480,8 @@ class AbstractState {
       this.zone.constrainDiff(lv.value, rv.value, delta)
     }
 
-    // Algebraic swap: y <= x - z  ==>  z <= x - y (for any registered sub(x, y))
-    if (Node.$is('Call')(right) && right.op.id === 'sub' && right.args.length === 2) {
+    // Algebraic swap: y <= x - z  ==>  z <= x - y
+    if (Node.$is('Call')(right) && right.op.id === 'num.sub' && right.args.length === 2) {
       const [x, z] = right.args
       const swappedKey = Node.key(Node.Call({ op: right.op, args: [x!, left] }))
       const swappedVar = this.varIndex.get(swappedKey)
@@ -414,8 +489,6 @@ class AbstractState {
       if (swappedVar !== undefined && Option.isSome(zv)) {
         this.zone.constrainDiff(zv.value, swappedVar, delta)
       }
-      // Also if x is constant c: y <= c - z => ...
-      // And if z is constant c: y - x <= -c + delta
       const xv = this.varOf(x!)
       const zConst = Node.$is('Lit')(z!) && typeof z!.value === 'number' ? z!.value : undefined
       if (Option.isSome(lv) && Option.isSome(xv) && zConst !== undefined) {
@@ -424,7 +497,7 @@ class AbstractState {
     }
 
     // Algebraic swap: x - z <= y  ==>  x - y <= z
-    if (Node.$is('Call')(left) && left.op.id === 'sub' && left.args.length === 2) {
+    if (Node.$is('Call')(left) && left.op.id === 'num.sub' && left.args.length === 2) {
       const [x, z] = left.args
       const swappedKey = Node.key(Node.Call({ op: left.op, args: [x!, right] }))
       const swappedVar = this.varIndex.get(swappedKey)
@@ -440,91 +513,20 @@ class AbstractState {
     }
   }
 
-  private isIntRef(node: Node.Node): boolean {
-    if (Node.$is('Lit')(node)) return typeof node.value === 'number' && Number.isInteger(node.value)
-    const v = this.varOf(node)
-    return Option.isSome(v) && this.intVars.has(v.value)
-  }
-
   /** Assume a boolean constraint holds in this abstract state. */
   assume(node: Node.Node): void {
-    const conjuncts: Array<Node.Node> = []
-    flattenAnd(node, conjuncts)
-    for (const c of conjuncts) {
-      if (Node.$is('Lit')(c)) {
-        if (c.value === false) this.zone.constrainDiff(ZERO, ZERO, -1)
-        continue
-      }
-      if (!Node.$is('Call')(c)) continue
-      const [a, b] = c.args
-      switch (c.op.id) {
-        case 'lte':
-          this.assumeLeq(a!, b!, false)
-          break
-        case 'lt':
-          this.assumeLeq(a!, b!, true)
-          break
-        case 'gte':
-          this.assumeLeq(b!, a!, false)
-          break
-        case 'gt':
-          this.assumeLeq(b!, a!, true)
-          break
-        case 'is': {
-          const av = this.varOf(a!)
-          const bv = this.varOf(b!)
-          const aLit = Node.$is('Lit')(a!) ? Option.some(a!.value) : Option.none()
-          const bLit = Node.$is('Lit')(b!) ? Option.some(b!.value) : Option.none()
-          if (Option.isSome(av) && Option.isSome(bv)) {
-            this.zone.constrainEq(av.value, bv.value, 0)
-          } else if (Option.isSome(av) && Option.isSome(bLit) && typeof bLit.value === 'number') {
-            this.zone.constrainEq(av.value, ZERO, bLit.value)
-          } else if (Option.isSome(bv) && Option.isSome(aLit) && typeof aLit.value === 'number') {
-            this.zone.constrainEq(bv.value, ZERO, aLit.value)
-          } else if (Node.$is('Path')(a!) && Option.isSome(bLit)) {
-            const pk = Path.format(a!.segments)
-            const prev = this.eqFacts.get(pk)
-            if (prev !== undefined && prev !== bLit.value) {
-              this.zone.constrainDiff(ZERO, ZERO, -1)
-            } else {
-              this.eqFacts.set(pk, bLit.value)
-            }
-          } else if (Node.$is('Path')(b!) && Option.isSome(aLit)) {
-            const pk = Path.format(b!.segments)
-            const prev = this.eqFacts.get(pk)
-            if (prev !== undefined && prev !== aLit.value) {
-              this.zone.constrainDiff(ZERO, ZERO, -1)
-            } else {
-              this.eqFacts.set(pk, aLit.value)
-            }
-          }
-          break
-        }
-        case 'isNot': {
-          const pathNode = Node.$is('Path')(a!) ? a! : Node.$is('Path')(b!) ? b! : undefined
-          const litNode = Node.$is('Lit')(a!) ? a! : Node.$is('Lit')(b!) ? b! : undefined
-          if (pathNode !== undefined && litNode !== undefined) {
-            const pk = Path.format(pathNode.segments)
-            if (this.eqFacts.get(pk) === litNode.value) {
-              this.zone.constrainDiff(ZERO, ZERO, -1)
-            }
-            const set = this.neqFacts.get(pk) ?? new Set()
-            set.add(litNode.value)
-            this.neqFacts.set(pk, set)
-          }
-          break
-        }
-        case 'not':
-          this.assume(negateNode(a!))
-          break
-      }
+    if (Node.$is('Lit')(node)) {
+      if (node.value === false) this.markBottom()
+      return
+    }
+    if (!Node.$is('Call')(node)) return
+    const addToZone = abstractOps[node.op.id].addToZone
+    if (addToZone !== undefined) {
+      addToZone(node.args, this)
     }
   }
 
-  /**
-   * Bounded fixed-point propagation of `add`/`sub` relationships and interval
-   * bounds into the Zone (capped at `MAX_ROUNDS` to guarantee termination).
-   */
+  /** Bounded fixed-point propagation (max `MAX_ROUNDS` rounds). */
   propagate(): boolean {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       if (!this.zone.close()) return false
@@ -539,7 +541,6 @@ class AbstractState {
         }
       }
 
-      // Propagate sub(x, y): t = x - y
       for (const { id, left, right } of this.subTerms) {
         const iv = Interval.sub(this.evalInterval(left), this.evalInterval(right))
         tighten(id, ZERO, iv.hi)
@@ -548,20 +549,15 @@ class AbstractState {
         const rv = this.varOf(right)
         const riv = this.evalInterval(right)
         if (Option.isSome(lv)) {
-          // t - x = -y => t - x <= -y.lo and x - t <= y.hi
           if (Number.isFinite(riv.lo)) tighten(id, lv.value, -riv.lo)
           if (Number.isFinite(riv.hi)) tighten(lv.value, id, riv.hi)
         }
-        // Relational Zone bounds on t = x - y:
-        // x - y <= diffBound(x, y)  ==>  t <= diffBound(x, y)
-        // y - x <= diffBound(y, x)  ==>  -t <= diffBound(y, x)  ==>  0 - t <= diffBound(y, x)
         if (Option.isSome(lv) && Option.isSome(rv)) {
           tighten(id, ZERO, this.zone.rawBound(lv.value, rv.value))
           tighten(ZERO, id, this.zone.rawBound(rv.value, lv.value))
         }
       }
 
-      // Propagate add(x, y): t = x + y
       for (const { id, left, right } of this.addTerms) {
         const iv = Interval.add(this.evalInterval(left), this.evalInterval(right))
         tighten(id, ZERO, iv.hi)
@@ -580,7 +576,6 @@ class AbstractState {
         }
       }
 
-      // Propagate general interval bounds for other ops (mul, min, max, abs, neg, len)
       for (const [id, term] of this.termNodes) {
         if (!Node.$is('Call')(term)) continue
         const iv = this.evalInterval(term)
@@ -593,11 +588,30 @@ class AbstractState {
     return this.zone.close()
   }
 
-  /** Check whether `goal` is entailed (`True`), refuted (`False`), or `Unknown`. */
-  entails(goal: Node.Node): Verdict.Verdict<never> {
+  /** Entailment check with bounded `bool.or` case-splitting. */
+  entails(goal: Node.Node, splitsLeft = MAX_SPLITS): Verdict.Verdict<never> {
     if (!this.propagate()) {
       return Verdict.True(Option.some(Verdict.Proved('zone')))
     }
+    const direct = this.entailsAtomic(goal)
+    if (Verdict.isTrue(direct) || Verdict.isFalse(direct)) return direct
+    if (this.pendingOrs.length > 0 && splitsLeft > 0) {
+      const [leftOr, rightOr] = this.pendingOrs[0]!
+      const rest = this.pendingOrs.slice(1)
+      const b1 = this.clone()
+      b1.pendingOrs.length = 0
+      b1.pendingOrs.push(...rest)
+      b1.assume(leftOr)
+      const b2 = this.clone()
+      b2.pendingOrs.length = 0
+      b2.pendingOrs.push(...rest)
+      b2.assume(rightOr)
+      return Verdict.and(b1.entails(goal, splitsLeft - 1), b2.entails(goal, splitsLeft - 1))
+    }
+    return direct
+  }
+
+  private entailsAtomic(goal: Node.Node): Verdict.Verdict<never> {
     if (Node.$is('Lit')(goal)) {
       return Boolean(goal.value)
         ? Verdict.True(Option.some(Verdict.Proved('concrete')))
@@ -609,27 +623,46 @@ class AbstractState {
         Option.some({ kind: 'opaque', detail: goal.name }),
       )
     }
+    if (Node.$is('If')(goal)) {
+      const cv = this.entailsAtomic(goal.cond)
+      if (Verdict.isTrue(cv)) return this.entailsAtomic(goal.then)
+      if (Verdict.isFalse(cv)) return this.entailsAtomic(goal.otherwise)
+      const b1 = this.clone()
+      b1.assume(goal.cond)
+      const b2 = this.clone()
+      b2.assume(negateNode(goal.cond))
+      return Verdict.and(b1.entails(goal.then, 0), b2.entails(goal.otherwise, 0))
+    }
     if (!Node.$is('Call')(goal)) {
       return Verdict.Unknown('non-atomic goal')
     }
 
     const [a, b] = goal.args
     switch (goal.op.id) {
-      case 'and':
-        return Verdict.and(this.entails(a!), this.entails(b!))
-      case 'or':
-        return Verdict.or(this.entails(a!), this.entails(b!))
-      case 'not':
-        return Verdict.not(this.entails(a!))
-      case 'lte':
+      case 'bool.and':
+        return Verdict.and(this.entailsAtomic(a!), this.entailsAtomic(b!))
+      case 'bool.or':
+        return Verdict.or(this.entailsAtomic(a!), this.entailsAtomic(b!))
+      case 'bool.not':
+        return Verdict.not(this.entailsAtomic(a!))
+      case 'ord.lte':
         return this.entailsLeq(a!, b!, false)
-      case 'lt':
+      case 'ord.lt':
         return this.entailsLeq(a!, b!, true)
-      case 'gte':
+      case 'ord.gte':
         return this.entailsLeq(b!, a!, false)
-      case 'gt':
+      case 'ord.gt':
         return this.entailsLeq(b!, a!, true)
-      case 'is': {
+      case 'null.isNull': {
+        if (Node.$is('Path')(a!)) {
+          const pk = Path.format(a!.segments)
+          const known = this.nullFacts.get(pk)
+          if (known === true) return Verdict.True(Option.some(Verdict.Proved('zone')))
+          if (known === false) return Verdict.False()
+        }
+        return Verdict.Unknown('nullability unknown')
+      }
+      case 'eq.is': {
         if (Node.key(a!) === Node.key(b!)) {
           return Verdict.True(Option.some(Verdict.Proved('concrete')))
         }
@@ -637,6 +670,11 @@ class AbstractState {
         const litNode = Node.$is('Lit')(a!) ? a! : Node.$is('Lit')(b!) ? b! : undefined
         if (pathNode !== undefined && litNode !== undefined) {
           const pk = Path.format(pathNode.segments)
+          if (litNode.value === null) {
+            const knownNull = this.nullFacts.get(pk)
+            if (knownNull === true) return Verdict.True(Option.some(Verdict.Proved('zone')))
+            if (knownNull === false) return Verdict.False()
+          }
           if (this.eqFacts.has(pk)) {
             return this.eqFacts.get(pk) === litNode.value
               ? Verdict.True(Option.some(Verdict.Proved('zone')))
@@ -648,17 +686,21 @@ class AbstractState {
         }
         return Interval.is(this.evalInterval(a!), this.evalInterval(b!))
       }
-      case 'isNot':
-        return Verdict.not(
-          this.entails(
-            Node.Call({ op: { id: 'is', evaluate: args => args[0] === args[1] }, args: [a!, b!] }),
-          ),
-        )
+      case 'eq.isNot':
+        return Verdict.not(this.entailsAtomic(Node.Call({ op: Eq.isOp, args: [a!, b!] })))
+      case 'eq.in': {
+        if (Node.$is('Lit')(b!) && Array.isArray(b!.value) && Node.$is('Path')(a!)) {
+          const pk = Path.format(a!.segments)
+          if (this.eqFacts.has(pk)) {
+            return b!.value.includes(this.eqFacts.get(pk))
+              ? Verdict.True(Option.some(Verdict.Proved('zone')))
+              : Verdict.False()
+          }
+        }
+        return Verdict.Unknown('membership undecided in Tier 3')
+      }
       default:
-        return Verdict.Unknown(
-          `operator "${goal.op.id}" requires higher-tier solver`,
-          Option.some({ kind: 'unsupported', detail: goal.op.id }),
-        )
+        return Verdict.Unknown('undecided in Tier 3')
     }
   }
 
@@ -671,7 +713,6 @@ class AbstractState {
     const bothInt = this.isIntRef(left) && this.isIntRef(right)
     const reqBound = strict ? (bothInt ? -1 : -Number.EPSILON) : 0
 
-    // Direct Zone entailment check
     if (Option.isSome(lv) && Option.isSome(rv)) {
       if (strict && !bothInt) {
         if (this.zone.diffBound(lv.value, rv.value) < 0) {
@@ -680,7 +721,6 @@ class AbstractState {
       } else if (this.zone.impliesDiff(lv.value, rv.value, reqBound)) {
         return Verdict.True(Option.some(Verdict.Proved('zone')))
       }
-      // Refutation: if Zone implies left > right (or >= for strict)
       if (strict) {
         if (this.zone.impliesDiff(rv.value, lv.value, 0)) return Verdict.False()
       } else if (bothInt && this.zone.impliesDiff(rv.value, lv.value, -1)) {
@@ -706,14 +746,177 @@ class AbstractState {
       }
     }
 
-    // Fallback to Interval comparison
     const liv = this.evalInterval(left)
     const riv = this.evalInterval(right)
     return strict ? Interval.lt(liv, riv) : Interval.lte(liv, riv)
   }
 }
 
-/** Substitute post-state write equations into a state invariant `Node`. */
+/** Exhaustive Tier 3 table over all 15 `CoreOpId` primitives. */
+export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
+  'bool.and': {
+    addToZone: (args, state) => {
+      state.assume(args[0]!)
+      state.assume(args[1]!)
+    },
+  },
+  'bool.or': {
+    addToZone: (args, state) => {
+      state.pendingOrs.push([args[0]!, args[1]!])
+    },
+  },
+  'bool.not': {
+    addToZone: (args, state) => {
+      const inner = args[0]!
+      if (Node.$is('Path')(inner)) {
+        const pk = Path.format(inner.segments)
+        if (state.eqFacts.get(pk) === true) state.markBottom()
+        else state.eqFacts.set(pk, false)
+        return
+      }
+      if (
+        Node.$is('Call')(inner) &&
+        inner.op.id === 'null.isNull' &&
+        Node.$is('Path')(inner.args[0]!)
+      ) {
+        const pk = Path.format(inner.args[0]!.segments)
+        if (state.nullFacts.get(pk) === true) {
+          state.markBottom()
+        } else {
+          state.nullFacts.set(pk, false)
+        }
+        return
+      }
+      const negated = negateNode(inner)
+      if (Node.$is('Call')(negated) && negated.op.id === 'bool.not') return
+      state.assume(negated)
+    },
+  },
+  'eq.is': {
+    compare: args => Interval.is(args[0]!, args[1]!),
+    narrow: args => Interval.narrowEq(args[0]!, args[1]!),
+    addToZone: (args, state) => {
+      const [a, b] = args
+      const av = state.varOf(a!)
+      const bv = state.varOf(b!)
+      const aLit = Node.$is('Lit')(a!) ? Option.some(a!.value) : Option.none()
+      const bLit = Node.$is('Lit')(b!) ? Option.some(b!.value) : Option.none()
+      if (Option.isSome(av) && Option.isSome(bv)) {
+        state.zone.constrainEq(av.value, bv.value, 0)
+      } else if (Option.isSome(av) && Option.isSome(bLit) && typeof bLit.value === 'number') {
+        state.zone.constrainEq(av.value, ZERO, bLit.value)
+      } else if (Option.isSome(bv) && Option.isSome(aLit) && typeof aLit.value === 'number') {
+        state.zone.constrainEq(bv.value, ZERO, aLit.value)
+      } else {
+        const pathNode = Node.$is('Path')(a!) ? a! : Node.$is('Path')(b!) ? b! : undefined
+        const litNode = Node.$is('Lit')(a!) ? a! : Node.$is('Lit')(b!) ? b! : undefined
+        if (pathNode !== undefined && litNode !== undefined) {
+          const pk = Path.format(pathNode.segments)
+          if (litNode.value === null) {
+            if (state.nullFacts.get(pk) === false) state.markBottom()
+            else state.nullFacts.set(pk, true)
+            return
+          }
+          if (state.nullFacts.get(pk) === true) {
+            state.markBottom()
+            return
+          }
+          state.nullFacts.set(pk, false)
+          const prev = state.eqFacts.get(pk)
+          if (prev !== undefined && prev !== litNode.value) {
+            state.markBottom()
+          } else {
+            state.eqFacts.set(pk, litNode.value)
+          }
+        }
+      }
+    },
+  },
+  'eq.isNot': {
+    compare: args => Interval.isNot(args[0]!, args[1]!),
+    addToZone: (args, state) => {
+      const [a, b] = args
+      const pathNode = Node.$is('Path')(a!) ? a! : Node.$is('Path')(b!) ? b! : undefined
+      const litNode = Node.$is('Lit')(a!) ? a! : Node.$is('Lit')(b!) ? b! : undefined
+      if (pathNode !== undefined && litNode !== undefined) {
+        const pk = Path.format(pathNode.segments)
+        if (litNode.value === null) {
+          if (state.nullFacts.get(pk) === true) state.markBottom()
+          else state.nullFacts.set(pk, false)
+          return
+        }
+        if (state.eqFacts.get(pk) === litNode.value) {
+          state.markBottom()
+        }
+        const set = state.neqFacts.get(pk) ?? new Set()
+        set.add(litNode.value)
+        state.neqFacts.set(pk, set)
+      }
+    },
+  },
+  'eq.in': {
+    addToZone: (args, state) => {
+      const [a, b] = args
+      if (!Node.$is('Lit')(b!) || !Array.isArray(b!.value)) return
+      const values = b!.value
+      if (values.length === 0) {
+        state.markBottom()
+        return
+      }
+      const nums = values.filter((v): v is number => typeof v === 'number')
+      const av = state.varOf(a!)
+      if (Option.isSome(av) && nums.length === values.length) {
+        state.zone.constrainLower(av.value, Math.min(...nums))
+        state.zone.constrainUpper(av.value, Math.max(...nums))
+      }
+    },
+  },
+  'null.isNull': {
+    addToZone: (args, state) => {
+      const target = args[0]!
+      if (Node.$is('Path')(target)) {
+        const pk = Path.format(target.segments)
+        if (state.nullFacts.get(pk) === false) state.markBottom()
+        else state.nullFacts.set(pk, true)
+      }
+    },
+  },
+  'ord.lt': {
+    compare: args => Interval.lt(args[0]!, args[1]!),
+    addToZone: (args, state) => state.assumeLeq(args[0]!, args[1]!, true),
+  },
+  'ord.lte': {
+    compare: args => Interval.lte(args[0]!, args[1]!),
+    narrow: args => Interval.narrowLte(args[0]!, args[1]!),
+    addToZone: (args, state) => state.assumeLeq(args[0]!, args[1]!, false),
+  },
+  'ord.gt': {
+    compare: args => Interval.gt(args[0]!, args[1]!),
+    addToZone: (args, state) => state.assumeLeq(args[1]!, args[0]!, true),
+  },
+  'ord.gte': {
+    compare: args => Interval.gte(args[0]!, args[1]!),
+    narrow: args => Interval.narrowGte(args[0]!, args[1]!),
+    addToZone: (args, state) => state.assumeLeq(args[1]!, args[0]!, false),
+  },
+  'num.add': {
+    forward: args => Interval.add(args[0]!, args[1]!),
+    narrow: (args, target) => Interval.narrowAdd(args[0]!, args[1]!, target),
+  },
+  'num.sub': {
+    forward: args => Interval.sub(args[0]!, args[1]!),
+    narrow: (args, target) => Interval.narrowSub(args[0]!, args[1]!, target),
+  },
+  'num.mul': {
+    forward: args => Interval.mul(args[0]!, args[1]!),
+    narrow: (args, target) => Interval.narrowMul(args[0]!, args[1]!, target),
+  },
+  'num.neg': {
+    forward: args => Interval.neg(args[0]!),
+    narrow: (args, target) => Interval.narrowNeg(args[0]!, target),
+  },
+}
+
 const substituteStateWrites = (
   node: Node.Node,
   writes: ReadonlyMap<string, Node.Node>,
@@ -724,10 +927,7 @@ const substituteStateWrites = (
       : Option.none(),
   )
 
-/**
- * Tier 3 synchronous check: does `schema` (including its `Expr.refine`
- * invariants) entail `goal`?
- */
+/** Tier 3 synchronous check: does `schema` entail `goal`? */
 export const checkInvariant = <S extends Schema.Top>(
   schema: S,
   goal: Expr.Expr<S['Type'], boolean>,
@@ -735,16 +935,12 @@ export const checkInvariant = <S extends Schema.Top>(
   const fields = new Map<string, FieldInfo>()
   collectFieldsFromAst(schema.ast, [], fields)
   const invariants = Expr.refinementsOf(schema).map(r => r.node)
-  const state = new AbstractState([...invariants, goal.node], { fields })
+  const state = new AbstractState([...invariants, goal.node], fields)
   for (const inv of invariants) state.assume(inv)
   return state.entails(goal.node)
 }
 
-/**
- * Tier 3 synchronous check: does `transition` preserve every invariant on
- * `stateSchema` for every valid pre-state and input satisfying
- * `transition.when`?
- */
+/** Tier 3 synchronous check: does `transition` preserve every invariant on `stateSchema`? */
 export const checkTransition = <S extends Schema.Top, I, Emit>(
   stateSchema: S,
   transition: Transition<S['Type'], I, Emit>,
@@ -773,7 +969,7 @@ export const checkTransition = <S extends Schema.Top, I, Emit>(
   const postGoals = preInvariants.map(inv => substituteStateWrites(inv, writeMap))
 
   const allHypotheses = [...preInvariants, ...inputInvariants, transition.when.node]
-  const state = new AbstractState([...allHypotheses, ...postGoals], { fields })
+  const state = new AbstractState([...allHypotheses, ...postGoals], fields)
   for (const hyp of allHypotheses) state.assume(hyp)
 
   let overall: Verdict.Verdict<never> = Verdict.True(Option.some(Verdict.Proved('zone')))

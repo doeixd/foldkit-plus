@@ -1,54 +1,68 @@
 /**
- * The six kinds of node every MetaKit expression is made of. The set is
- * closed: new behaviour arrives as an operator (`Op`), never as a new node.
+ * The six kinds of node every MetaKit expression is made of, and the closed
+ * 15-operator v1 primitive set (`CoreOpId`).
  *
- * Readers that are not interpreters (a form, a database constraint, an agent's
- * tool schema) read these nodes directly: branch with `Node.$match`.
+ * Every tier (`sqlOps`, `abstractOps`, `smtOps`) is typed
+ * `Record<CoreOpId, ...>`, so adding a primitive fails to compile until every
+ * tier implements it. Derived helpers (`min`, `max`, `abs`, `clamp`, `between`,
+ * `isNotNull`, `implies`) are plain TypeScript functions over `If` + these 15
+ * primitives and need zero tier boilerplate.
  */
 import { Data, Option, type SchemaAST } from 'effect'
 
-/**
- * Every operator any reader must understand. Each reader's table is typed
- * `{ readonly [K in OpId]: … }`, so adding an id fails to compile until every
- * reader implements it or refuses it by name.
- */
-export type OpId =
-  | 'and'
-  | 'or'
-  | 'not'
-  | 'is'
-  | 'isNot'
-  | 'isNull'
-  | 'oneOf'
-  | 'lt'
-  | 'lte'
-  | 'gt'
-  | 'gte'
-  | 'add'
-  | 'sub'
-  | 'mul'
-  | 'neg'
-  | 'min'
-  | 'max'
-  | 'abs'
-  | 'len'
-  | 'startsWith'
-  | 'contains'
-  | 'struct'
+/** The closed 15-op v1 primitive set. */
+export type CoreOpId =
+  | 'bool.and'
+  | 'bool.or'
+  | 'bool.not'
+  | 'eq.is'
+  | 'eq.isNot'
+  | 'eq.in'
+  | 'null.isNull'
+  | 'ord.lt'
+  | 'ord.lte'
+  | 'ord.gt'
+  | 'ord.gte'
+  | 'num.add'
+  | 'num.sub'
+  | 'num.mul'
+  | 'num.neg'
+
+export type OpId = CoreOpId
 
 /**
- * An operator's descriptor: its id and its in-memory meaning. A `Call` holds
- * the descriptor itself, so a page that builds `Num.lte` keeps `lte`'s
- * evaluator and no other operator's.
+ * Declarative, size-reducing algebraic laws consumed generically by Tier 2
+ * `residualize` without per-op switch statements.
  */
-export interface Op<Id extends OpId = OpId> {
+export interface OpLaws {
+  /** Identity element: `op(x, id) -> x` (and/or `op(id, x) -> x`). */
+  readonly identity?: { readonly value: unknown; readonly side: 'left' | 'right' | 'both' }
+  /** Absorbing element: `op(x, abs) -> result` (and/or `op(abs, x) -> result`). */
+  readonly absorbing?: {
+    readonly value: unknown
+    readonly result: unknown
+    readonly side: 'left' | 'right' | 'both'
+  }
+  /** Idempotence: `op(x, x) -> x`. */
+  readonly idempotent?: boolean
+  /** Reflexive constant: `op(x, x) -> value` (e.g. `sub(x, x) -> 0`, `lte(x, x) -> true`). */
+  readonly reflexive?: { readonly value: unknown }
+  /** Involution: `op(op(x)) -> x` (e.g. `not(not(x)) -> x`, `neg(neg(x)) -> x`). */
+  readonly involution?: boolean
+}
+
+/**
+ * An operator's descriptor: its id, its total in-memory evaluator, and its
+ * declarative laws. A `Call` holds the descriptor itself, so a page that uses
+ * one operator ships only that operator's evaluator.
+ */
+export interface Op<Id extends CoreOpId = CoreOpId> {
   readonly id: Id
   /** The operator on concrete argument values. Total: it never throws. */
   readonly evaluate: (args: ReadonlyArray<unknown>) => unknown
-  /**
-   * A size-reducing simplification over partly known arguments (`x && true`
-   * to `x`), applied by partial evaluation. Never grows the term.
-   */
+  /** Declarative size-reducing laws applied generically by `residualize`. */
+  readonly laws?: OpLaws
+  /** Optional specialized size-reducing fold (e.g. `eq.in` on 0- or 1-element sets). */
   readonly fold?: (args: ReadonlyArray<Node>) => Option.Option<Node>
 }
 

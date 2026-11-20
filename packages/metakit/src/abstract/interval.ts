@@ -140,3 +140,53 @@ export const is = (a: Interval, b: Interval): Verdict.Verdict<never> => {
 }
 
 export const isNot = (a: Interval, b: Interval): Verdict.Verdict<never> => Verdict.not(is(a, b))
+
+// --- Backward narrowing transformers ---
+// Given `f(a, b) ∈ target`, return tightened `[a', b']` such that
+// ∀ x ∈ a, y ∈ b: f(x, y) ∈ target ==> x ∈ a' ∧ y ∈ b'.
+
+export const narrowAdd = (
+  a: Interval,
+  b: Interval,
+  target: Interval,
+): readonly [Interval, Interval] => [meet(a, sub(target, b)), meet(b, sub(target, a))]
+
+export const narrowSub = (
+  a: Interval,
+  b: Interval,
+  target: Interval,
+): readonly [Interval, Interval] => [meet(a, add(target, b)), meet(b, sub(a, target))]
+
+export const narrowNeg = (a: Interval, target: Interval): readonly [Interval] => [
+  meet(a, neg(target)),
+]
+
+const divSafe = (num: Interval, den: Interval): Interval => {
+  if (isBottom(num) || isBottom(den)) return bottom
+  // If divisor spans 0, division can produce any real number
+  if (den.lo <= 0 && den.hi >= 0) return top
+  const corners = [num.lo / den.lo, num.lo / den.hi, num.hi / den.lo, num.hi / den.hi]
+  if (corners.some(Number.isNaN)) return top
+  return between(Math.min(...corners), Math.max(...corners))
+}
+
+export const narrowMul = (
+  a: Interval,
+  b: Interval,
+  target: Interval,
+): readonly [Interval, Interval] => [meet(a, divSafe(target, b)), meet(b, divSafe(target, a))]
+
+export const narrowLte = (a: Interval, b: Interval): readonly [Interval, Interval] => [
+  meet(a, between(-Infinity, b.hi)),
+  meet(b, between(a.lo, Infinity)),
+]
+
+export const narrowGte = (a: Interval, b: Interval): readonly [Interval, Interval] => {
+  const [nb, na] = narrowLte(b, a)
+  return [na, nb]
+}
+
+export const narrowEq = (a: Interval, b: Interval): readonly [Interval, Interval] => {
+  const m = meet(a, b)
+  return [m, m]
+}

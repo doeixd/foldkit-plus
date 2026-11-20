@@ -1,11 +1,9 @@
 /**
- * Equality, null-check and set-membership operators (`is`, `isNot`, `isNull`,
- * `oneOf`).
+ * Equality and set-membership primitive operators (`eq.is`, `eq.isNot`, `eq.in`).
  *
- * Equality uses strict value equality where `null` is a regular runtime value
- * (`is(null, null)` is `true`, `isNull(null)` is `true`). SQL lowering maps
- * this to `IS NOT DISTINCT FROM` / `IS NULL` so runtime and SQL agree on
- * nullable columns.
+ * Uses Effect `Equal.equals` (with `Object.is` / `±0` normalization) where
+ * `null` is a regular runtime value. SQL lowering emits `IS NOT DISTINCT FROM`
+ * / `IS` on nullable columns so JS and SQL never diverge.
  */
 import { Equal, Option } from 'effect'
 import * as Node from '../node.js'
@@ -15,35 +13,24 @@ import { call, type EnvOfInput, type ExprInput, type ValueOfInput } from './core
 const sameValue = (a: unknown, b: unknown): boolean =>
   Object.is(a, b) || (a === 0 && b === 0) || Equal.equals(a, b)
 
-export const isOp: Node.Op<'is'> = {
-  id: 'is',
+export const isOp: Node.Op<'eq.is'> = {
+  id: 'eq.is',
   evaluate: args => sameValue(args[0], args[1]),
-  fold: args => {
-    const left = args[0]!
-    const right = args[1]!
-    if (Node.key(left) === Node.key(right)) return Option.some(Node.Lit({ value: true }))
-    return Option.none()
+  laws: {
+    reflexive: { value: true },
   },
 }
 
-export const isNotOp: Node.Op<'isNot'> = {
-  id: 'isNot',
+export const isNotOp: Node.Op<'eq.isNot'> = {
+  id: 'eq.isNot',
   evaluate: args => !sameValue(args[0], args[1]),
-  fold: args => {
-    const left = args[0]!
-    const right = args[1]!
-    if (Node.key(left) === Node.key(right)) return Option.some(Node.Lit({ value: false }))
-    return Option.none()
+  laws: {
+    reflexive: { value: false },
   },
 }
 
-export const isNullOp: Node.Op<'isNull'> = {
-  id: 'isNull',
-  evaluate: args => args[0] === null || args[0] === undefined,
-}
-
-export const oneOfOp: Node.Op<'oneOf'> = {
-  id: 'oneOf',
+export const inOp: Node.Op<'eq.in'> = {
+  id: 'eq.in',
   evaluate: args => {
     const needle = args[0]
     const haystack = args[1]
@@ -52,8 +39,12 @@ export const oneOfOp: Node.Op<'oneOf'> = {
   },
   fold: args => {
     const haystack = args[1]!
-    if (Node.$is('Lit')(haystack) && Array.isArray(haystack.value) && haystack.value.length === 0) {
-      return Option.some(Node.Lit({ value: false }))
+    if (!Node.$is('Lit')(haystack) || !Array.isArray(haystack.value)) return Option.none()
+    if (haystack.value.length === 0) return Option.some(Node.Lit({ value: false }))
+    if (haystack.value.length === 1) {
+      return Option.some(
+        Node.Call({ op: isOp, args: [args[0]!, Node.Lit({ value: haystack.value[0] })] }),
+      )
     }
     return Option.none()
   },
@@ -81,13 +72,10 @@ export const isNot = <
   right: R,
 ): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> => call(isNotOp, [left, right])
 
-/** True when `value` is `null` (or `undefined` at an optional boundary). */
-export const isNull = <X extends ExprInput<never, unknown>>(
-  value: X,
-): Expr<EnvOfInput<X>, boolean> => call(isNullOp, [value])
-
 /** True when `value` equals one of the literal `candidates`. */
-export const oneOf = <X extends ExprInput<never, unknown>>(
+export const inSet = <X extends ExprInput<never, unknown>>(
   value: X,
   candidates: ReadonlyArray<NoInfer<ValueOfInput<X>>>,
-): Expr<EnvOfInput<X>, boolean> => call(oneOfOp, [value, candidates])
+): Expr<EnvOfInput<X>, boolean> => call(inOp, [value, candidates])
+
+export { inSet as in, inSet as oneOf }

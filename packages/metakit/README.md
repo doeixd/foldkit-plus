@@ -68,7 +68,7 @@ What you get from those two declarations:
 
 | Import | Runs in | Purpose |
 | --- | --- | --- |
-| `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, tree-shakeable operators (`Bool`, `Eq`, `Num`, `Str`, `Struct`), and Tier 3 Interval + Zone checks (`Abstract`). |
+| `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 15-op v1 primitive set (`Bool`, `Eq`, `Null`, `Ord`, `Num` + derived `min`, `max`, `abs`, `clamp`, `between`, `isNotNull`, `implies`), and Tier 3 Interval + Zone checks (`Abstract`). |
 | `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` (parameterized Postgres/SQLite lowering with `IS NOT DISTINCT FROM` / `IS` null safety). |
 | `metakit/prove` | Dev / CI only | `Prove.invariant`, `Prove.transition`, `Prove.policy` — runs Tier 3 Zone first, dynamically imports `z3-solver` only when Tier 3 returns `Unknown` or needs a concrete counterexample witness. |
 | `metakit/conformance` | Dev / CI only | Property tests verifying Galois soundness of Tier 3 Interval transformers via Effect's `Arbitrary.schema`. |

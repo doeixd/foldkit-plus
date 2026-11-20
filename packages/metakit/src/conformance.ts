@@ -2,13 +2,16 @@
  * Conformance & Galois soundness property testing (`metakit/conformance`).
  *
  * Uses Effect's `Arbitrary.schema` to sample concrete inputs inside abstract
- * intervals and verify Galois soundness:
- *   ∀ x ∈ γ(a), f(x) ∈ γ(f#(a))
- * for every Tier 3 numeric and comparison transformer.
+ * intervals and verify Galois soundness for BOTH `forward` AND `narrow`
+ * transformers in `abstractOps`:
+ *   - Forward:  ∀ x ∈ γ(a), f(x) ∈ γ(f#(a))
+ *   - Backward: ∀ x ∈ γ(a), f(x) ∈ γ(target) ==> x ∈ γ(narrow(a, target))
  */
 import { Arbitrary, Effect, Schema } from 'effect'
+import { abstractOps } from './abstract/check.js'
 import * as Interval from './abstract/interval.js'
 import * as Num from './ops/num.js'
+import * as Ord from './ops/ord.js'
 import * as Verdict from './verdict.js'
 
 export interface GaloisFailure {
@@ -60,10 +63,7 @@ const pickInside = (iv: Interval.Interval, pool: ReadonlyArray<number>): Readonl
   return points
 }
 
-/**
- * Property-test Galois soundness of a binary numeric transformer:
- *   ∀ x ∈ a, y ∈ b => concrete(x, y) ∈ abstract(a, b).
- */
+/** Property-test forward Galois soundness of a binary numeric transformer. */
 export const galoisBinary = (
   name: string,
   concrete: (a: number, b: number) => number,
@@ -107,10 +107,7 @@ export const galoisBinary = (
   return { ok: failures.length === 0, checked, failures }
 }
 
-/**
- * Property-test Galois soundness of a unary numeric transformer:
- *   ∀ x ∈ a => concrete(x) ∈ abstract(a).
- */
+/** Property-test forward Galois soundness of a unary numeric transformer. */
 export const galoisUnary = (
   name: string,
   concrete: (a: number) => number,
@@ -147,11 +144,55 @@ export const galoisUnary = (
 }
 
 /**
- * Property-test Galois soundness of a binary comparison transformer returning
- * a Kleene $K_3$ `Verdict`:
- *   - if `abstract(a, b)` is `True`, every `(x, y) ∈ a × b` MUST yield `true`;
- *   - if `abstract(a, b)` is `False`, every `(x, y) ∈ a × b` MUST yield `false`.
+ * Property-test backward narrowing soundness of a binary numeric transformer:
+ *   ∀ x ∈ a, y ∈ b: concrete(x, y) ∈ target ==> x ∈ a' ∧ y ∈ b'.
  */
+export const galoisNarrowBinary = (
+  name: string,
+  concrete: (a: number, b: number) => number,
+  narrow: (
+    args: ReadonlyArray<Interval.Interval>,
+    target: Interval.Interval,
+  ) => ReadonlyArray<Interval.Interval>,
+  schema: Schema.Codec<number>,
+  options?: GaloisOptions,
+): GaloisReport => {
+  const count = options?.samples ?? 30
+  const pool = sampleNumbers(schema, count)
+  const ivs = makeIntervals(pool)
+  const failures: Array<GaloisFailure> = []
+  let checked = 0
+
+  for (const a of ivs.slice(0, 6)) {
+    const xs = pickInside(a, pool)
+    for (const b of ivs.slice(0, 6)) {
+      const ys = pickInside(b, pool)
+      for (const target of ivs.slice(0, 6)) {
+        const [na, nb] = narrow([a, b], target)
+        for (const x of xs) {
+          for (const y of ys) {
+            const val = concrete(x, y)
+            if (!Number.isFinite(val) || !Interval.contains(target, val)) continue
+            checked++
+            if (!Interval.contains(na!, x) || !Interval.contains(nb!, y)) {
+              failures.push({
+                op: name,
+                inputs: [x, y],
+                intervals: [a, b, target],
+                concrete: val,
+                abstract: [na, nb],
+              })
+              if (failures.length >= 5) return { ok: false, checked, failures }
+            }
+          }
+        }
+      }
+    }
+  }
+  return { ok: failures.length === 0, checked, failures }
+}
+
+/** Property-test Galois soundness of a binary comparison transformer. */
 export const galoisCompare = (
   name: string,
   concrete: (a: number, b: number) => boolean,
@@ -177,7 +218,7 @@ export const galoisCompare = (
         for (const y of ys) {
           const val = concrete(x, y)
           checked++
-          if (Verdict.isTrue(verdict) && !val) {
+          if ((Verdict.isTrue(verdict) && !val) || (Verdict.isFalse(verdict) && val)) {
             failures.push({
               op: name,
               inputs: [x, y],
@@ -185,16 +226,8 @@ export const galoisCompare = (
               concrete: val,
               abstract: verdict,
             })
-          } else if (Verdict.isFalse(verdict) && val) {
-            failures.push({
-              op: name,
-              inputs: [x, y],
-              intervals: [a, b],
-              concrete: val,
-              abstract: verdict,
-            })
+            if (failures.length >= 5) return { ok: false, checked, failures }
           }
-          if (failures.length >= 5) return { ok: false, checked, failures }
         }
       }
     }
@@ -202,32 +235,42 @@ export const galoisCompare = (
   return { ok: failures.length === 0, checked, failures }
 }
 
-/** Run Galois soundness checks over every built-in Tier 3 Interval transformer. */
+/** Run forward + backward Galois soundness checks over every Tier 3 primitive in `abstractOps`. */
 export const checkAllIntervalTransformers = (
   options?: GaloisOptions,
 ): ReadonlyArray<GaloisReport & { readonly op: string }> => {
-  const BoundedInt = Schema.Int.check(Schema.isBetween({ minimum: -1000, maximum: 1000 }))
-  const BoundedNum = Schema.Finite.check(Schema.isBetween({ minimum: -1000, maximum: 1000 }))
+  const BoundedInt = Schema.Int.check(Schema.isBetween({ minimum: -500, maximum: 500 }))
+  const BoundedNum = Schema.Finite.check(Schema.isBetween({ minimum: -500, maximum: 500 }))
 
   const binaryOps: ReadonlyArray<
     readonly [
       string,
       (a: number, b: number) => number,
       (a: Interval.Interval, b: Interval.Interval) => Interval.Interval,
+      (
+        args: ReadonlyArray<Interval.Interval>,
+        target: Interval.Interval,
+      ) => ReadonlyArray<Interval.Interval>,
     ]
   > = [
-    ['add', (a, b) => Num.addOp.evaluate([a, b]) as number, Interval.add],
-    ['sub', (a, b) => Num.subOp.evaluate([a, b]) as number, Interval.sub],
-    ['mul', (a, b) => Num.mulOp.evaluate([a, b]) as number, Interval.mul],
-    ['min', (a, b) => Num.minOp.evaluate([a, b]) as number, Interval.min],
-    ['max', (a, b) => Num.maxOp.evaluate([a, b]) as number, Interval.max],
-  ]
-
-  const unaryOps: ReadonlyArray<
-    readonly [string, (a: number) => number, (a: Interval.Interval) => Interval.Interval]
-  > = [
-    ['neg', a => Num.negOp.evaluate([a]) as number, Interval.neg],
-    ['abs', a => Num.absOp.evaluate([a]) as number, Interval.abs],
+    [
+      'num.add',
+      (a, b) => Num.addOp.evaluate([a, b]) as number,
+      (a, b) => abstractOps['num.add'].forward!([a, b]),
+      abstractOps['num.add'].narrow!,
+    ],
+    [
+      'num.sub',
+      (a, b) => Num.subOp.evaluate([a, b]) as number,
+      (a, b) => abstractOps['num.sub'].forward!([a, b]),
+      abstractOps['num.sub'].narrow!,
+    ],
+    [
+      'num.mul',
+      (a, b) => Num.mulOp.evaluate([a, b]) as number,
+      (a, b) => abstractOps['num.mul'].forward!([a, b]),
+      abstractOps['num.mul'].narrow!,
+    ],
   ]
 
   const cmpOps: ReadonlyArray<
@@ -237,27 +280,56 @@ export const checkAllIntervalTransformers = (
       (a: Interval.Interval, b: Interval.Interval) => Verdict.Verdict<never>,
     ]
   > = [
-    ['lt', (a, b) => Num.ltOp.evaluate([a, b]) as boolean, Interval.lt],
-    ['lte', (a, b) => Num.lteOp.evaluate([a, b]) as boolean, Interval.lte],
-    ['gt', (a, b) => Num.gtOp.evaluate([a, b]) as boolean, Interval.gt],
-    ['gte', (a, b) => Num.gteOp.evaluate([a, b]) as boolean, Interval.gte],
-    ['is', (a, b) => a === b, Interval.is],
-    ['isNot', (a, b) => a !== b, Interval.isNot],
+    [
+      'ord.lt',
+      (a, b) => Ord.ltOp.evaluate([a, b]) as boolean,
+      (a, b) => abstractOps['ord.lt'].compare!([a, b]),
+    ],
+    [
+      'ord.lte',
+      (a, b) => Ord.lteOp.evaluate([a, b]) as boolean,
+      (a, b) => abstractOps['ord.lte'].compare!([a, b]),
+    ],
+    [
+      'ord.gt',
+      (a, b) => Ord.gtOp.evaluate([a, b]) as boolean,
+      (a, b) => abstractOps['ord.gt'].compare!([a, b]),
+    ],
+    [
+      'ord.gte',
+      (a, b) => Ord.gteOp.evaluate([a, b]) as boolean,
+      (a, b) => abstractOps['ord.gte'].compare!([a, b]),
+    ],
+    ['eq.is', (a, b) => a === b, (a, b) => abstractOps['eq.is'].compare!([a, b])],
+    ['eq.isNot', (a, b) => a !== b, (a, b) => abstractOps['eq.isNot'].compare!([a, b])],
   ]
 
   return [
-    ...binaryOps.map(([op, c, a]) => ({
-      op,
-      ...galoisBinary(op, c, a, BoundedInt, BoundedInt, options),
+    ...binaryOps.map(([op, c, f]) => ({
+      op: `${op}:forward:int`,
+      ...galoisBinary(`${op}:forward:int`, c, f, BoundedInt, BoundedInt, options),
     })),
-    ...binaryOps.map(([op, c, a]) => ({
-      op: `${op}:finite`,
-      ...galoisBinary(`${op}:finite`, c, a, BoundedNum, BoundedNum, options),
+    ...binaryOps.map(([op, c, f]) => ({
+      op: `${op}:forward:finite`,
+      ...galoisBinary(`${op}:forward:finite`, c, f, BoundedNum, BoundedNum, options),
     })),
-    ...unaryOps.map(([op, c, a]) => ({ op, ...galoisUnary(op, c, a, BoundedNum, options) })),
-    ...cmpOps.map(([op, c, a]) => ({
+    ...binaryOps.map(([op, c, , n]) => ({
+      op: `${op}:narrow:int`,
+      ...galoisNarrowBinary(`${op}:narrow:int`, c, n, BoundedInt, options),
+    })),
+    {
+      op: 'num.neg:forward',
+      ...galoisUnary(
+        'num.neg:forward',
+        a => Num.negOp.evaluate([a]) as number,
+        a => abstractOps['num.neg'].forward!([a]),
+        BoundedNum,
+        options,
+      ),
+    },
+    ...cmpOps.map(([op, c, cmp]) => ({
       op,
-      ...galoisCompare(op, c, a, BoundedInt, BoundedInt, options),
+      ...galoisCompare(op, c, cmp, BoundedInt, BoundedInt, options),
     })),
   ]
 }

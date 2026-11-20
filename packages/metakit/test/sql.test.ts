@@ -1,7 +1,7 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Eq, Expr, Num, Str, Transition } from 'metakit'
+import { Eq, Expr, Null, Num, Ord, Transition } from 'metakit'
 import * as Sql from 'metakit/sql'
 
 const Account = Schema.Struct({
@@ -136,18 +136,18 @@ describe('metakit/sql against PGlite', () => {
       expect(inRows.rows.map(r => r.id)).toEqual(['u1', 'u2'])
     }
 
-    // String ops in SQL
-    const IdPrefix = Expr.in({ row: Account }, ({ row }) =>
-      Expr.all(Str.startsWith(row.id, 'u'), Str.contains(row.id, '2')),
+    // Derived helpers (clamp, abs, between, isNotNull) lower automatically to SQL CASE WHEN
+    const DerivedWhere = Expr.in({ row: Account }, ({ row }) =>
+      Expr.all(Null.isNotNull(row.note), Ord.between(Num.clamp(row.balance, 0, 100), 10, 100)),
     )
-    const whereStr = Sql.toWhere(IdPrefix)
-    expect(Result.isSuccess(whereStr)).toBe(true)
-    if (Result.isSuccess(whereStr)) {
-      const strRows = await db.query<{ id: string }>(
-        `SELECT "id" FROM "accounts" WHERE ${whereStr.success.text}`,
-        [...whereStr.success.params],
+    const whereDerived = Sql.toWhere(DerivedWhere)
+    expect(Result.isSuccess(whereDerived)).toBe(true)
+    if (Result.isSuccess(whereDerived)) {
+      const derivedRows = await db.query<{ id: string }>(
+        `SELECT "id" FROM "accounts" WHERE ${whereDerived.success.text}`,
+        [...whereDerived.success.params],
       )
-      expect(strRows.rows.map(r => r.id)).toEqual(['u2'])
+      expect(derivedRows.rows.map(r => r.id)).toEqual(['u2'])
     }
   })
 
