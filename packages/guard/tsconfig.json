@@ -8,6 +8,7 @@
     "noEmit": false,
     "paths": {
       "foldkit-agent": ["../agent/src/index.ts"],
+      "foldkit-agent/metakit": ["../agent/src/metakit.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-guard": ["./src/index.ts"],

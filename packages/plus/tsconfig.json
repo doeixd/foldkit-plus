@@ -13,6 +13,7 @@
       "foldkit-agent-mcp": ["../agent-mcp/src/index.ts"],
       "foldkit-agent-native": ["../agent-native/src/index.ts"],
       "foldkit-agent-webmcp": ["../agent-webmcp/src/index.ts"],
+      "foldkit-agent/metakit": ["../agent/src/metakit.ts"],
       "foldkit-auth": ["../auth/src/index.ts"],
       "foldkit-auth/server": ["../auth/src/server.ts"],
       "foldkit-builder": ["../builder/src/index.ts"],

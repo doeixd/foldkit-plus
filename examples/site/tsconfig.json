@@ -8,6 +8,7 @@
     "types": ["node", "vite/client"],
     "paths": {
       "foldkit-agent": ["../../packages/agent/src/index.ts"],
+      "foldkit-agent/metakit": ["../../packages/agent/src/metakit.ts"],
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],

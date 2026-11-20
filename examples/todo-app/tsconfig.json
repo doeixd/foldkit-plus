@@ -10,6 +10,7 @@
     "paths": {
       "foldkit-agent": ["../../packages/agent/src/index.ts"],
       "foldkit-agent-webmcp": ["../../packages/agent-webmcp/src/index.ts"],
+      "foldkit-agent/metakit": ["../../packages/agent/src/metakit.ts"],
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-durable": ["../../packages/durable/src/index.ts"],
       "foldkit-durable/core": ["../../packages/durable/src/core.ts"],

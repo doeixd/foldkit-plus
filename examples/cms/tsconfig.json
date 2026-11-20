@@ -9,6 +9,7 @@
     "types": ["node"],
     "paths": {
       "foldkit-agent": ["../../packages/agent/src/index.ts"],
+      "foldkit-agent/metakit": ["../../packages/agent/src/metakit.ts"],
       "foldkit-builder": ["../../packages/builder/src/index.ts"],
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-cms": ["../../packages/cms/src/index.ts"],
