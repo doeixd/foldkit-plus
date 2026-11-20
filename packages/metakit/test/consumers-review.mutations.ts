@@ -11,6 +11,7 @@ const drizzle = '../src/drizzle.ts'
 const lowering = '../src/sqlLowering.ts'
 const graph = '../src/graph.ts'
 const graphTests = ['packages/metakit/test/graph.test.ts']
+const parityTests = ['packages/metakit/test/sql-parity.test.ts']
 const integrationTests = ['packages/metakit/test/integrations.test.ts']
 const loweringTests = ['packages/metakit/test/sql-lowering.test.ts']
 
@@ -64,6 +65,41 @@ export default [
     'segs => !Path.isPrefix(rowPrefix, segs)',
     'segs => rowPrefix.length === 0 || !Path.isPrefix(rowPrefix, segs)',
     graphTests,
+  ),
+  mutation(
+    'SQL takes the second branch of a choice whose condition is null',
+    lowering,
+    'e => q`(CASE WHEN ${c} THEN ${t} WHEN NOT ${c} THEN ${e} END)`',
+    'e => q`(CASE WHEN ${c} THEN ${t} ELSE ${e} END)`',
+    parityTests,
+  ),
+  mutation(
+    'SQL leaves a null needle unknown among candidates that are not null',
+    lowering,
+    ': q`((${needle} IS NOT NULL) AND ${among})`',
+    ': among',
+    parityTests,
+  ),
+  mutation(
+    'SQL counts a null array as empty',
+    lowering,
+    'a => q`(${arrayLength(ctx.dialect)}(${a}) = 0)`',
+    'a => q`(COALESCE(${arrayLength(ctx.dialect)}(${a}), 0) = 0)`',
+    parityTests,
+  ),
+  mutation(
+    'SQL equality is unknown of a null',
+    lowering,
+    "'eq.isNot': numeric(byDialect('IS DISTINCT FROM', 'IS NOT')),",
+    "'eq.isNot': numeric(() => '<>'),",
+    parityTests,
+  ),
+  mutation(
+    'SQLite takes a prefix by the length of the text, not of the prefix',
+    lowering,
+    ': q`(substr(${s}, 1, length(${prefix})) = ${prefix})`',
+    ': q`(substr(${s}, 1, length(${s})) = ${prefix})`',
+    parityTests,
   ),
   mutation(
     'a quote in an identifier is not doubled',
