@@ -189,7 +189,7 @@ const scaledAttributes = (spec: FieldSpec, scale: number): InputAttributes =>
 /**
  * The controls a Schema's domain types call for, by key: `Declared.CalendarDay`
  * for a `CalendarDay`, `Declared.Decimal` for `Money` and `Decimal`. Give them
- * to `Form.make` under `inputs`; a control named after them for the same key
+ * to `Form.make` under `inputs`; a control given for the same key after them
  * replaces the derived one.
  */
 const inputs = <Fields extends Schema.Struct.Fields>(

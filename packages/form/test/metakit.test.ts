@@ -154,7 +154,7 @@ describe('Whether a transition would go through now', () => {
     ['a draft that does not read', typed('lots'), open, 'Unknown'],
     // Refused whatever the amount: False however the unknown part turns out.
     ['a frozen account, nothing entered', WithdrawForm.initial, { ...open, frozen: true }, 'False'],
-  ] as const)('%s is %s', (_, model, state, verdict) => {
+  ] as const)('%s gives the verdict in the table', (_, model, state, verdict) => {
     expect(can(model, Withdraw, state)._tag).toBe(verdict)
   })
 
