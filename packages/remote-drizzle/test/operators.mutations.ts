@@ -10,12 +10,14 @@ const sqlLowering = '../../metakit/src/sqlLowering.ts'
 const index = '../src/index.ts'
 const operators = '../src/operators.ts'
 
+const render = '../src/render.ts'
+
 export default [
   {
     name: 'a numeric literal input is left untyped (#323)',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: "SchemaAST.isNumber(ast) || (SchemaAST.isLiteral(ast) && typeof ast.literal === 'number')",
         replace: 'SchemaAST.isNumber(ast)',
       },
@@ -26,7 +28,7 @@ export default [
     name: 'an integer literal input is cast as a real number (#323)',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: 'SchemaAST.isLiteral(ast) ? Number.isInteger(ast.literal) : SchemaShape.holdsIntegers(ast)',
         replace: 'SchemaShape.holdsIntegers(ast)',
       },
@@ -48,7 +50,7 @@ export default [
     name: 'SQLite casts its parameters too',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: "if (dialectOf(frame.target) === 'sqlite' || schema === undefined)",
         replace: 'if (schema === undefined)',
       },
@@ -59,7 +61,7 @@ export default [
     name: 'every number is cast as a real number',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: "if (!present.every(holdsIntegers)) return Option.some(sql.raw('double precision'))",
         replace: "return Option.some(sql.raw('double precision'))",
       },
@@ -70,7 +72,7 @@ export default [
     name: 'a boolean is not cast',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: 'present.length > 0 && present.every(SchemaAST.isBoolean)',
         replace: 'false',
       },

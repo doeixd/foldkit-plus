@@ -25,7 +25,7 @@ export default [
     name: 'an exists finds a row its reader may not see',
     edits: [
       {
-        file: '../src/lowering.ts',
+        file: '../src/render.ts',
         find: '        onSome: rule => sql`${own} and (${rule})`,',
         replace: '        onSome: () => own,',
       },

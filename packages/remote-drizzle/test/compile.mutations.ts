@@ -43,7 +43,7 @@ export default [
     name: 'what metakit refuses of a literal is written anyway',
     edits: [
       {
-        file: '../src/lowering.ts',
+        file: '../src/render.ts',
         find: 'if (Result.isFailure(result)) {\n    throw new QueryCompileError(`${subject}',
         replace: 'if (false) {\n    throw new QueryCompileError(`${subject}',
       },

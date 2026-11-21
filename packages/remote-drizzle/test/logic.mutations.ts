@@ -13,6 +13,8 @@ const tests = [
   'packages/remote-drizzle/test/lowering.test.ts',
 ]
 
+const rewrites = '../src/rewrites.ts'
+
 export default [
   {
     name: 'a decisive operand does not decide the whole',
@@ -38,14 +40,14 @@ export default [
   },
   {
     name: 'a field written second keeps its operator',
-    edits: [{ file: lowering, find: "'ord.gt': 'ord.lt',", replace: "'ord.gt': 'ord.gt'," }],
+    edits: [{ file: rewrites, find: "'ord.gt': 'ord.lt',", replace: "'ord.gt': 'ord.gt'," }],
     tests,
   },
   {
     name: 'a comparison ignores its collation',
     edits: [
       {
-        file: lowering,
+        file: rewrites,
         find: '  if (column === undefined) return node\n',
         replace: '  return node\n',
       },

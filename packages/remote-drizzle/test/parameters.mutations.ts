@@ -7,7 +7,7 @@ export default [
     name: 'an integer is cast to 32 bits on Postgres',
     edits: [
       {
-        file: '../src/lowering.ts',
+        file: '../src/render.ts',
         find: "fits ? sql.raw('integer') : sql.raw('bigint')",
         replace: "sql.raw('integer')",
       },
@@ -58,7 +58,7 @@ export default [
     name: 'every integer is cast to 64 bits on Postgres',
     edits: [
       {
-        file: '../src/lowering.ts',
+        file: '../src/render.ts',
         find: "fits ? sql.raw('integer') : sql.raw('bigint')",
         replace: "sql.raw('bigint')",
       },

@@ -10,6 +10,9 @@ const tests = [
   'packages/remote-drizzle/test/lowering.differential.test.ts',
 ]
 
+const render = '../src/render.ts'
+const rewrites = '../src/rewrites.ts'
+
 export default [
   {
     name: 'a strict operator with a null operand is sent to the database',
@@ -37,7 +40,7 @@ export default [
     name: 'a fraction given to arithmetic is left untyped on Postgres',
     edits: [
       {
-        file: lowering,
+        file: rewrites,
         find: "(typeof arg.value === 'number' && !Number.isInteger(arg.value))",
         replace: 'false',
       },
@@ -46,14 +49,14 @@ export default [
   },
   {
     name: 'a null given to arithmetic is left untyped on Postgres',
-    edits: [{ file: lowering, find: '(arg.value === null ||', replace: '(false ||' }],
+    edits: [{ file: rewrites, find: '(arg.value === null ||', replace: '(false ||' }],
     tests: ['packages/remote-drizzle/test/operatorConformance.test.ts'],
   },
   {
     name: 'a fraction beside an integer column is typed away before metakit refuses it',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: '      unwrap(lowerNode(read, options), frame.subject)\n',
         replace: '',
       },
@@ -64,7 +67,7 @@ export default [
     name: 'a comparison with its value first is written value first',
     edits: [
       {
-        file: lowering,
+        file: rewrites,
         find: "  if (node.op.id === 'eq.equals') return Node.Call({ op: node.op, args: [right, left] })",
         replace: '  if (node.op.id === "eq.equals") return node',
       },
@@ -75,7 +78,7 @@ export default [
     name: 'a condition alone keeps the parentheses metakit writes',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: '  return render(isConnective(wrote) ? pieces : unparenthesized(pieces), frame)',
         replace: '  return render(pieces, frame)',
       },
@@ -89,7 +92,7 @@ export default [
     name: 'an or alone loses the parentheses that group it beside another condition',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: '  return render(isConnective(wrote) ? pieces : unparenthesized(pieces), frame)',
         replace: '  return render(unparenthesized(pieces), frame)',
       },
@@ -100,7 +103,7 @@ export default [
     name: 'a text comparison of a column is lowered by metakit, which no index serves',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: '  const read = rewrite(rewrite(pastRow(node), columnFirst), collated)',
         replace: '  const read = rewrite(pastRow(node), columnFirst)',
       },
@@ -114,7 +117,7 @@ export default [
     name: 'a column and a value are compared under the collation of the other side',
     edits: [
       {
-        file: lowering,
+        file: rewrites,
         find: "    collation: fold === 'binary' ? Collation.binary : Collation.asciiFold,",
         replace: '    collation: Collation.binary,',
       },
@@ -164,7 +167,7 @@ export default [
     name: 'a computation casts no number',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: 'return frame.castNumbers && typeof value',
         replace: 'return false && typeof value',
       },
@@ -175,7 +178,7 @@ export default [
     name: 'a hop goes through the relation of the wrong Entity',
     edits: [
       {
-        file: lowering,
+        file: render,
         find: '    at = relation.target()\n',
         replace: '',
       },

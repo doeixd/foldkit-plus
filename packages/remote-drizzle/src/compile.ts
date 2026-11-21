@@ -45,7 +45,8 @@ import type { OrderTerm } from './cursor.js'
 import { isKernelOperator } from './kernel.js'
 import { isPostgresColumn } from './dialect.js'
 import { callOperator, lower } from 'foldkit-entity/lowering'
-import { bindNode, decided, envFor, frameOf, toSql, translated } from './lowering.js'
+import { bindNode, decided, envFor, translated } from './lowering.js'
+import { frameOf, toSql } from './render.js'
 import {
   QueryCompileError,
   columnFor,

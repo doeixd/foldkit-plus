@@ -42,7 +42,7 @@ export default [
     name: 'the path follows none of its relations from the viewer',
     edits: [
       {
-        file: '../src/lowering.ts',
+        file: '../src/render.ts',
         find: 'hopsFrom(entity, path.slice(0, -1), query),',
         replace: '[],',
       },
