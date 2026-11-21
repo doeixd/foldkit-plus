@@ -267,8 +267,8 @@ export default [
     edits: [
       {
         file: str,
-        find: "typeof text === 'string' ? codePointLength(text)",
-        replace: "typeof text === 'string' ? text.length",
+        find: "textual('str.len', ([text]) => codePointLength(text!))",
+        replace: "textual('str.len', ([text]) => text!.length)",
       },
     ],
     tests: strArrTests,
