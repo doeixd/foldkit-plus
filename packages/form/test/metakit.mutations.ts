@@ -16,12 +16,12 @@ const edit = (
 export default [
   edit(
     'a refused evaluation is left undecided',
-    "Option.exists(verdict.obligation, ({ kind }) => kind === 'unsupported')",
+    "Option.exists(verdict.obligation, ({ kind }) => kind === 'refused')",
     'false',
   ),
   edit(
     'a value not entered yet is taken as refused',
-    "Option.exists(verdict.obligation, ({ kind }) => kind === 'unsupported')",
+    "Option.exists(verdict.obligation, ({ kind }) => kind === 'refused')",
     'true',
   ),
   edit(

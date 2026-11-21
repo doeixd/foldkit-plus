@@ -248,13 +248,12 @@ const controlFor = (domain: Domain.DomainMetadata): Option.Option<Control> =>
 /**
  * A verdict with a refused evaluation made `False`. metakit refuses to
  * evaluate some known values (an integer result past ±(2^53−1)) and judges
- * that `Unknown`, with an `unsupported` obligation; a value not known yet is
+ * that `Unknown`, with a `refused` obligation; a value not known yet is
  * `Unknown` with another. The first is decided: the Schema's rule and
  * `Transition.step` reject those values, whatever is entered later.
  */
 const refusedIsFalse = (verdict: Verdict.Verdict<never>): Verdict.Verdict<never> =>
-  Verdict.isUnknown(verdict) &&
-  Option.exists(verdict.obligation, ({ kind }) => kind === 'unsupported')
+  Verdict.isUnknown(verdict) && Option.exists(verdict.obligation, ({ kind }) => kind === 'refused')
     ? Verdict.False()
     : verdict
 

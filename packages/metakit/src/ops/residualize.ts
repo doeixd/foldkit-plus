@@ -275,7 +275,7 @@ export const judgeNode = (node: Node.Node, partialEnv: unknown): Verdict.Verdict
     if (!Node.isRefusal(residual.value)) return Verdict.False()
     return Verdict.Unknown(
       `evaluation refused: ${residual.value.message}`,
-      Option.some({ kind: 'unsupported', detail: residual.value.message }),
+      Option.some({ kind: 'refused', detail: residual.value.message }),
     )
   }
   if (hasOpaque(residual)) {

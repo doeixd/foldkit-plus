@@ -371,6 +371,13 @@ export default [
   ),
   mutation(
     nullStrict,
+    'a refused evaluation is judged with the kind of an unsupported operation',
+    residualize,
+    "Option.some({ kind: 'refused', detail: residual.value.message }),",
+    "Option.some({ kind: 'unsupported', detail: residual.value.message }),",
+  ),
+  mutation(
+    nullStrict,
     'a known null is judged unknown',
     residualize,
     'if (!Node.isRefusal(residual.value)) return Verdict.False()',

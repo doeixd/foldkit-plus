@@ -24,7 +24,14 @@ export const Proved = (tier: ProofTier): ProofEvidence => ({ _tag: 'Proved', tie
  * (`metakit/temporal`).
  */
 export interface Obligation {
-  readonly kind: 'missing-env' | 'opaque' | 'nonlinear' | 'budget' | 'unsupported' | 'walk'
+  readonly kind:
+    | 'missing-env'
+    | 'opaque'
+    | 'nonlinear'
+    | 'budget'
+    | 'unsupported'
+    | 'refused'
+    | 'walk'
   readonly detail: string
 }
 

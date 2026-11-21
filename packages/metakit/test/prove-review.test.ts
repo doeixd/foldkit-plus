@@ -112,8 +112,10 @@ describe('what the lowering leaves undecided', () => {
     const $ = Path.forSchema(Named)
     const open = Eq.is(Expr.match($.name, { a: 1 }), 1)
     expect(Result.isFailure(Expr.evalResult(open, { name: 'z', plan: 'free' }))).toBe(true)
-    expect(reasonOf(await run(Prove.invariant(Named, open)))).toContain(
-      'a match that may meet a value none of its cases names',
+    const undecided = await run(Prove.invariant(Named, open))
+    expect(reasonOf(undecided)).toContain('a match that may meet a value none of its cases names')
+    expect(Verdict.isUnknown(undecided) && undecided.obligation).toEqual(
+      Option.some({ kind: 'unsupported', detail: expect.any(String) }),
     )
     const closed = Ord.gte(Expr.match($.plan, { free: 0, pro: 9 }), 0)
     expect(

@@ -283,6 +283,10 @@ describe('partial evaluation keeps the answer of evaluation', () => {
     expect(Verdict.isFalse(Expr.judge(Ord.gt($.n, 0), JSON.parse('{"n":null}')))).toBe(true)
     const refused = Expr.judge(Ord.gt(Num.add($.n, 2), 0), { n: 2 ** 53 - 1 })
     expect(Verdict.isUnknown(refused) && refused.reason).toContain('evaluation refused')
+    // Its own kind, so a reader can tell a refusal from a solver that cannot lower an operation.
+    expect(Verdict.isUnknown(refused) && refused.obligation).toEqual(
+      Option.some({ kind: 'refused', detail: expect.any(String) }),
+    )
     expect(Verdict.isUnknown(Expr.judge(Ord.lte($.n, $.n), {}))).toBe(true)
   })
 
