@@ -3,10 +3,11 @@
  * Machines lifted along paths. Each claim is checked against the child run
  * alone on the child's state.
  */
-import { Option, Result, Schema } from 'effect'
+import { Effect, Option, Result, Schema } from 'effect'
 import { Expr, Num, Path, Transition, Verdict } from 'metakit'
 import * as Graph from 'metakit/graph'
 import * as Machine from 'metakit/machine'
+import * as Prove from 'metakit/prove'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 const Counter = Schema.Struct({ count: Schema.Int, label: Schema.String })
@@ -319,5 +320,49 @@ describe('names', () => {
     expect(
       Opaque.update({ ...start, spare: counter(3) }, { _tag: 'SpareCleared', input: {} })[0].spare,
     ).toEqual(counter(0))
+  })
+})
+
+describe('a composed Machine is proved against the parent Schema', () => {
+  const Capped = Schema.Struct({
+    count: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 10 })),
+  })
+  const Holder = Schema.Struct({ left: Capped, spare: Schema.NullOr(Capped) })
+  /** Adds one while the count is under `limit`: the field takes at most 10. */
+  const composed = (limit: number) => {
+    const child = Machine.make({
+      state: Capped,
+      transitions: {
+        Added: Transition.make({
+          state: Capped,
+          input: Schema.Struct({}),
+          when: ({ state }) => Num.lt(state.count, limit),
+          apply: ({ state }) => [Transition.set(state.count, Num.add(state.count, 1))],
+        }),
+      },
+    })
+    return Machine.compose({
+      state: Holder,
+      transitions: {},
+      children: {
+        Left: Machine.lift(Path.from(Holder).left, child),
+        Spare: Machine.lift(Path.from(Holder).spare, child),
+      },
+    })
+  }
+
+  it("proves a child's transitions where they keep the child's bounds", async () => {
+    const report = await Effect.runPromise(Prove.machine(composed(10)))
+    expect(report.ok).toBe(true)
+    expect(report.entries.map(entry => entry.status)).toEqual(['proved', 'proved'])
+  })
+
+  it('refutes them, at the path of the child, where they do not', async () => {
+    const report = await Effect.runPromise(Prove.machine(composed(11)))
+    expect(report.ok).toBe(false)
+    expect(report.format()).toContain(
+      'repro:    Transition.run(LeftAdded, {"left":{"count":10},"spare":null}, {})',
+    )
+    expect(report.format()).toContain('REFUTED SpareAdded')
   })
 })
