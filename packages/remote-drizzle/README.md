@@ -1081,10 +1081,14 @@ const Db = bind(
 )
 ```
 
-An implementation is given its arguments compiled, the dialect, the call's
-collation and `collate`, which writes text under it as the comparisons above
-do. It must agree with the memory implementation, nulls included. The
-compiler adds what SQL cannot say for itself:
+An implementation is given its arguments compiled and the dialect. An operator
+that compares text itself (`collation: 'required'`) is given its text arguments
+folded under the call's collation (`asciiFold` lowers ASCII letters, `binary`
+leaves them), so none comes beside them. It must agree with the memory
+implementation, nulls included. `Text.startsWith`, `Expr.add` and `Expr.sub`
+are metakit's own operations, which carry their SQL: `DrizzleOperators.kernel`
+holds none, and an implementation of one is refused. The compiler adds what SQL
+cannot say for itself:
 
 - On Postgres, a literal or input argument the operator takes as a number or a
   boolean is cast (`cast($1 as integer)` while the value fits one, so a function

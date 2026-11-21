@@ -14,8 +14,9 @@ export default defineConfig({
   deps: {
     neverBundle: [
       /^\.\.?\//,
+      /^metakit(\/.*)?$/,
       'effect',
-      'foldkit-entity',
+      /^foldkit-entity(\/.*)?$/,
       'foldkit-remote',
       'foldkit-remote-server',
       'foldkit-surface',

@@ -5,33 +5,27 @@
  * compiles and what it judges in memory are the same operators. See
  * `docs/design/expr-operations-DESIGN.md` §5.4.
  */
-import { sql, type SQL } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import { Option } from 'effect'
 import {
-  Expr,
   Law,
   Operators,
-  Text,
-  type Collation,
   type Evidence,
   type MemoryOperators,
   type OperatorDescriptor,
   type OperatorTable,
 } from 'foldkit-entity'
+import { isKernelOperator } from './kernel.js'
 
 /** What an implementation is handed to build its SQL. */
 export interface SqlContext {
-  /** Each argument, compiled: a column, a parameter (cast on Postgres where its type needs one), or a call's SQL. */
+  /**
+   * Each argument, compiled: a column, a parameter (cast on Postgres where its type needs one), or a call's SQL.
+   * An operator that compares text itself (`collation: 'required'`) is given its text folded under the call's
+   * collation, so none is passed beside.
+   */
   readonly args: ReadonlyArray<SQL>
   readonly dialect: 'sqlite' | 'postgres'
-  /** The collation the call compares text under, from its operator's `collation` rule. */
-  readonly collation: Option.Option<Collation>
-  /**
-   * Text under the call's collation, as this dialect writes it: `binary` as
-   * `collate binary` (SQLite) or `collate "C"` (Postgres), `asciiFold` as
-   * `collate nocase` or `lower(… collate "C")`. Text unchanged without one.
-   */
-  readonly collate: (text: SQL) => SQL
 }
 
 /** One operator's SQL implementation. */
@@ -95,35 +89,6 @@ const table = (
   })
 }
 
-/**
- * `startsWith` as SQL: the text's first `length(prefix)` characters equal the
- * prefix under the call's collation. `substr` on SQLite and `left` on Postgres
- * both count characters, as JavaScript's `startsWith` does over valid text; not
- * `like`, which would read `%` and `_` as wildcards and folds case on SQLite.
- */
-const startsWith: SqlImplementation = Object.freeze({
-  operator: Text.startsWith.descriptor,
-  build: ({ args: [text, prefix], dialect, collate }: SqlContext) =>
-    dialect === 'postgres'
-      ? sql`${collate(sql`left(${text}, length(${prefix}))`)} = ${collate(prefix!)}`
-      : sql`${collate(sql`substr(${text}, 1, length(${prefix}))`)} = ${collate(prefix!)}`,
-})
-
-/**
- * `Expr.add` and `Expr.sub` as SQL's `+` and `-`, parenthesised so a call
- * nested in another keeps its grouping. A parameter arrives cast to `double
- * precision` on Postgres by the operator's number input, which `+` needs to
- * resolve; two integer columns add as integers there.
- */
-const add: SqlImplementation = Object.freeze({
-  operator: Expr.add.descriptor,
-  build: ({ args: [left, right] }: SqlContext) => sql`(${left} + ${right})`,
-})
-const sub: SqlImplementation = Object.freeze({
-  operator: Expr.sub.descriptor,
-  build: ({ args: [left, right] }: SqlContext) => sql`(${left} - ${right})`,
-})
-
 export const DrizzleOperators = {
   /**
    * An SQL implementation: built from the call's arguments, compiled, and its
@@ -139,6 +104,11 @@ export const DrizzleOperators = {
     operator: { readonly descriptor: OperatorDescriptor },
     build: (context: SqlContext) => SQL,
   ): SqlImplementation => {
+    if (isKernelOperator(operator.descriptor)) {
+      fail(
+        `${nameOf(operator.descriptor)} is a kernel operator, whose SQL is metakit's own; it takes no implementation`,
+      )
+    }
     // Memory runs what a defined operator means; SQL must too.
     if (Option.isSome(operator.descriptor.definedAs)) {
       fail(
@@ -217,8 +187,11 @@ export const DrizzleOperators = {
     return table(base.implementations, [...base.evidence, ...evidence])
   },
 
-  /** The kernel's own operators (`Text.startsWith`, `Expr.add`, `Expr.sub`): every binding's default. */
-  kernel: table([startsWith, add, sub], []),
+  /**
+   * Every binding's default. Empty: the kernel's operators (`Text.startsWith`,
+   * `Expr.add`, `Expr.sub`) are metakit's own operations, which carry their SQL.
+   */
+  kernel: table([], []),
 }
 
 /** Both kernels: what a binding runs by when it is given no table. */

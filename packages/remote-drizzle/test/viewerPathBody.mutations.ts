@@ -12,11 +12,17 @@ const edit = (name: string, find: string, replace: string) => ({
 })
 
 export default [
-  edit(
-    "the viewer's row is read whoever may see it",
-    '    onSome: rule => sql`${at} and (${rule})`,\n  })\n  const read = atRow(',
-    '    onSome: () => at,\n  })\n  const read = atRow(',
-  ),
+  {
+    name: "the viewer's row is read whoever may see it",
+    edits: [
+      {
+        file: '../src/target.ts',
+        find: "const where = visibleRows(target, owner, eq(columnFor(start, 'id', query), id), query)",
+        replace: "const where = eq(columnFor(start, 'id', query), id)",
+      },
+    ],
+    tests,
+  },
   edit(
     'the path starts at the judged row',
     '    at = reachedTable(target, reached.viewer.entity, query)\n    meet(at, reached.viewer.entity)\n',
@@ -32,9 +38,15 @@ export default [
     'ViewerPath: ({ viewer }) => [viewer.entity, ...through],',
     'ViewerPath: () => through,',
   ),
-  edit(
-    'the path follows none of its relations from the viewer',
-    '    onward(target, start),\n    node.via,\n',
-    '    onward(target, start),\n    [],\n',
-  ),
+  {
+    name: 'the path follows none of its relations from the viewer',
+    edits: [
+      {
+        file: '../src/lowering.ts',
+        find: 'hopsFrom(entity, path.slice(0, -1), query),',
+        replace: '[],',
+      },
+    ],
+    tests,
+  },
 ]

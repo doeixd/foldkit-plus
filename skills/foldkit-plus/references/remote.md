@@ -1455,8 +1455,9 @@ Source's `filter`.
 (or `entity(name, table, { operators })`) gives every binding the tables its
 bodies' primitive operators run by, each its kernel (`Text.startsWith`) when not
 given: `sql` from `DrizzleOperators.make(DrizzleOperators.implement(op, ({ args,
-dialect, collate }) => …))`, whose function returns Drizzle `SQL` (`merge`,
-`override`, `kernel`), `memory` from `Operators`. A literal or input argument taken as a number or boolean is cast on
+dialect }) => …))`, whose function returns Drizzle `SQL` (`merge`, `override`,
+`kernel`, which is empty: the kernel's three operators are metakit's own and take no
+implementation), `memory` from `Operators`. A literal or input argument taken as a number or boolean is cast on
 Postgres (`cast($1 as integer)` while the value fits one, `bigint` past 32 bits); SQLite takes none, and binds a boolean as 1 or 0. A query, an invariant or a
 write's `when` calling one either table lacks is refused where it is registered
 or the writer built; `GuardDrizzle.visible(Policy, entities, { operators })`

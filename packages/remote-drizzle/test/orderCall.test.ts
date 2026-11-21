@@ -287,7 +287,7 @@ describe('A call order compiled', () => {
     )
     const [first] = orderByTerms(terms, 'forward')
     expect(new PgDialect().sqlToQuery(first!).sql).toBe(
-      'lower(("parts"."code" || $1) collate "C") asc nulls last',
+      'lower(("parts"."code" || $1) COLLATE "C") asc nulls last',
     )
   })
 

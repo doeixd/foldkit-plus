@@ -3,7 +3,7 @@
  * `pnpm mutate packages/remote-drizzle/test/link.mutations.ts`.
  */
 const tests = ['packages/remote-drizzle/test/link.test.ts']
-const compile = '../src/compile.ts'
+const compile = '../src/target.ts'
 const server = '../../remote-server/src/index.ts'
 
 export default [

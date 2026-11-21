@@ -7,7 +7,7 @@ export default [
     name: 'an integer is cast to 32 bits on Postgres',
     edits: [
       {
-        file: '../src/compile.ts',
+        file: '../src/lowering.ts',
         find: "fits ? sql.raw('integer') : sql.raw('bigint')",
         replace: "sql.raw('integer')",
       },
@@ -18,23 +18,12 @@ export default [
     name: 'a boolean is bound as is on SQLite',
     edits: [
       {
-        file: '../src/compile.ts',
+        file: '../src/target.ts',
         find: "typeof value === 'boolean' && dialectOf(target) === 'sqlite' ? Number(value) : value",
         replace: 'value',
       },
     ],
     tests: ['packages/remote-drizzle/test/operators.test.ts'],
-  },
-  {
-    name: 'a computed Next is collated as a column',
-    edits: [
-      {
-        file: '../src/compile.ts',
-        find: '!is(left, Column) || (isColumn(second)',
-        replace: 'false || (isColumn(second)',
-      },
-    ],
-    tests: ['packages/remote-drizzle/test/compute.test.ts'],
   },
   {
     name: 'a Postgres column that is not text is folded',
@@ -69,23 +58,12 @@ export default [
     name: 'every integer is cast to 64 bits on Postgres',
     edits: [
       {
-        file: '../src/compile.ts',
+        file: '../src/lowering.ts',
         find: "fits ? sql.raw('integer') : sql.raw('bigint')",
         replace: "sql.raw('bigint')",
       },
     ],
     tests: ['packages/remote-drizzle/test/operators.test.ts'],
-  },
-  {
-    name: 'a computed value second is collated as a column',
-    edits: [
-      {
-        file: '../src/compile.ts',
-        find: '(isColumn(second) && !is(right, Column))',
-        replace: 'false',
-      },
-    ],
-    tests: ['packages/remote-drizzle/test/compute.test.ts'],
   },
   {
     name: 'an order SQLite cannot compile is refused per request only',

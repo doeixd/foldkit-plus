@@ -3,10 +3,11 @@
  * `pnpm mutate packages/remote-drizzle/test/whenGiven.mutations.ts` checks that a
  * test fails for every one.
  */
-const compiler = '../src/compile.ts'
+const compiler = '../src/lowering.ts'
 const evaluate = '../../entity/src/evaluate.ts'
 const tests = [
   'packages/remote-drizzle/test/whenGiven.test.ts',
+  'packages/remote-drizzle/test/lowering.test.ts',
   'packages/remote-drizzle/test/conformance.test.ts',
   'packages/remote-server/test/conformance.test.ts',
 ]
@@ -17,8 +18,8 @@ export default [
     edits: [
       {
         file: compiler,
-        find: 'if (among === null || among === undefined) return sql`null`',
-        replace: '',
+        find: "(node.op.id === 'eq.among' && isNull(node.args[1]))",
+        replace: 'false',
       },
     ],
     tests,

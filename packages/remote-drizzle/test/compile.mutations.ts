@@ -21,44 +21,33 @@ export default [
     name: 'Postgres folds text by its collation',
     edits: [
       {
-        file: '../src/compile.ts',
-        find: 'return isPostgresTable(target.table)',
-        replace: 'return false',
+        file: '../../metakit/src/sqlLowering.ts',
+        find: 'one(args, ctx, s => (ctx.dialect === \'postgres\' ? q`lower(${s} COLLATE "C")` : q`lower(${s})`)),',
+        replace: 'one(args, ctx, s => q`lower(${s})`),',
       },
     ],
     tests: ['packages/remote-drizzle/test/conformance.test.ts'],
   },
   {
-    name: 'a search holding NUL is answered',
+    name: 'a refusal of the request’s values is bound as a value',
     edits: [
       {
-        file: '../src/compile.ts',
-        find: '      if (holdsNul(search)) {',
-        replace: '      if (false) {',
+        file: '../src/lowering.ts',
+        find: "if (Node.$is('Lit')(each) && Node.isRefusal(each.value)) return each.value",
+        replace: 'if (false) return each.value',
       },
     ],
-    tests: ['packages/remote-drizzle/test/conformance.test.ts'],
+    tests: ['packages/remote-drizzle/test/conformance.test.ts', ...tests],
   },
   {
-    name: 'an equality compiles text holding NUL',
+    name: 'what metakit refuses of a literal is written anyway',
     edits: [
       {
-        file: '../src/compile.ts',
-        find: '      if (holdsNul(left) || holdsNul(right)) {',
-        replace: '      if (false) {',
+        file: '../src/lowering.ts',
+        find: 'if (Result.isFailure(result)) {\n    throw new QueryCompileError(`${subject}',
+        replace: 'if (false) {\n    throw new QueryCompileError(`${subject}',
       },
     ],
-    tests,
-  },
-  {
-    name: 'a membership test compiles text holding NUL',
-    edits: [
-      {
-        file: '../src/compile.ts',
-        find: 'if (holdsNul(value) || among.some(holdsNul)) {',
-        replace: 'if (false) {',
-      },
-    ],
-    tests,
+    tests: ['packages/remote-drizzle/test/conformance.test.ts', ...tests],
   },
 ]

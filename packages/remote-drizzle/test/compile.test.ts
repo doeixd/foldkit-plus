@@ -479,7 +479,7 @@ describe('A defined operator', () => {
     )
     expect(called.map(rendered)).toEqual(written.map(rendered))
     expect(rendered(called[0])).toEqual({
-      sql: '(("posts"."archived_at" is not null) and "posts"."slug" = $1)',
+      sql: '((NOT ("posts"."archived_at" IS NULL)) AND ("posts"."slug" = $1))',
       params: ['hello'],
     })
   })
@@ -546,11 +546,10 @@ describe('And, or and not', () => {
         Query.orderBy(Order.asc(Post.fields.id)),
       ),
     )
-    // Drizzle wraps each fragment it embeds in parentheses: the same SQL, spelled safely.
     expect(
       (await compiled(query(Either, { entity: PostBinding }), { slug: 'hello' })).where,
     ).toEqual({
-      sql: '((("posts"."slug" = $1 or ("posts"."archived_at" is null))) and (not ("posts"."slug" = $2)))',
+      sql: '(((("posts\".\"slug\" = $1) OR (\"posts\".\"archived_at\" IS NULL))) and ((NOT (\"posts\".\"slug\" = $2))))',
       params: ['hello', 'draft'],
     })
   })

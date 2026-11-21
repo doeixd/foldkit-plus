@@ -25,9 +25,9 @@ export default [
     name: 'binary text takes the database collation',
     edits: [
       {
-        file: '../src/compile.ts',
-        find: 'sql`(${text} collate "C")`',
-        replace: 'sql`(${text})`',
+        file: '../../metakit/src/sqlLowering.ts',
+        find: '? q`(${left} ${operator} ${right} COLLATE "C")`',
+        replace: '? q`(${left} ${operator} ${right})`',
       },
     ],
     tests: [
@@ -53,9 +53,9 @@ export default [
     name: 'asciiFold text lowers by the database collation',
     edits: [
       {
-        file: '../src/compile.ts',
-        find: '? sql`lower(${text} collate "C")`',
-        replace: '? sql`lower(${text})`',
+        file: '../../metakit/src/sqlLowering.ts',
+        find: 'q`lower(${s} COLLATE "C")`',
+        replace: 'q`lower(${s})`',
       },
     ],
     tests: [

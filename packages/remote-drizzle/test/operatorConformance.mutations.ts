@@ -12,15 +12,21 @@ export default [
     edits: [
       {
         file: compile,
-        find: "call._tag === 'Test' ||",
-        replace: 'false ||',
+        find: "call._tag !== 'Test' && call._tag !== 'Call'",
+        replace: "call._tag !== 'Call'",
       },
     ],
     tests,
   },
   {
     name: 'a scalar call is refused',
-    edits: [{ file: compile, find: "|| call._tag === 'Call'", replace: '|| false' }],
+    edits: [
+      {
+        file: compile,
+        find: "call._tag !== 'Test' && call._tag !== 'Call'",
+        replace: "call._tag !== 'Test'",
+      },
+    ],
     tests,
   },
   {
@@ -31,13 +37,6 @@ export default [
         find: '  throw new QueryCompileError(`${query}: only a call of an operator compiles alone`)',
         replace: '  return sql`null`',
       },
-    ],
-    tests,
-  },
-  {
-    name: 'no sample text holds a like wildcard',
-    edits: [
-      { file: '../../entity/src/conformance/operator.ts', find: "  '%',\n  '_',\n", replace: '' },
     ],
     tests,
   },
