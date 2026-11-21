@@ -80,21 +80,33 @@ describe('metakit/prove (Tier 3 Zone -> Tier 4 Z3 escalation)', () => {
   }, 30_000)
 
   it('escalates to Z3 for multi-variable linear invariants beyond Zone', async () => {
-    const Ledger = Schema.Struct({
-      a: Schema.Int,
-      b: Schema.Int,
-      c: Schema.Int,
-    }).pipe(
-      Expr.refine($ => Expr.all(Num.gte($.a, 0), Num.gte($.b, 0), Num.lte(Num.add($.a, $.b), $.c))),
-    )
-    const $ = Path.forSchema(Ledger)
+    const ledger = (ceiling: number) =>
+      Schema.Struct({ a: Schema.Int, b: Schema.Int, c: Schema.Int }).pipe(
+        Expr.refine($ =>
+          Expr.all(
+            Num.gte($.a, 0),
+            Num.gte($.b, 0),
+            Num.lte(Num.add($.a, $.b), $.c),
+            Num.lte($.c, ceiling),
+          ),
+        ),
+      )
     // 2*a + 2*b <= 2*c: needs Z3 linear arithmetic
-    const goal = Num.lte(Num.add(Num.mul(2, $.a), Num.mul(2, $.b)), Num.mul(2, $.c))
-    const verdict = await Effect.runPromise(Prove.invariant(Ledger, goal))
-    expect(Verdict.isTrue(verdict)).toBe(true)
-    if (Verdict.isTrue(verdict)) {
-      expect(verdict.evidence).toEqual(Option.some(Verdict.Proved('z3')))
+    const doubled = (Ledger: ReturnType<typeof ledger>) => {
+      const $ = Path.forSchema(Ledger)
+      return Num.lte(Num.add(Num.mul(2, $.a), Num.mul(2, $.b)), Num.mul(2, $.c))
     }
+    const Bounded = ledger(1_000_000)
+    expect(await Effect.runPromise(Prove.invariant(Bounded, doubled(Bounded)))).toEqual(
+      Verdict.True(Option.some(Verdict.Proved('z3'))),
+    )
+
+    // With no ceiling `2 * c` can pass 2^53 - 1, where evaluation refuses and the goal does not hold.
+    const Open = ledger(Number.MAX_SAFE_INTEGER)
+    const refuted = await Effect.runPromise(Prove.invariant(Open, doubled(Open)))
+    const witness = Verdict.isFalse(refuted) ? Option.getOrThrow(refuted.witness) : {}
+    expect(Schema.is(Open)(witness)).toBe(true)
+    expect(Result.isFailure(Expr.evalResult(doubled(Open), witness as typeof Open.Type))).toBe(true)
   }, 30_000)
 
   it('proves policy implications using Schema invariants as hypotheses automatically', async () => {

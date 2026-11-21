@@ -46,8 +46,8 @@ export default [
   policy(
     'the solver proves a policy goal over a number that may be NaN',
     prove,
-    'return ordered(solved, slices, [...given, goal.node])',
-    'return solved',
+    "if (nanReads.size > 0 && status === 'unsat') {",
+    'if (false) {',
   ),
   unordered(
     'the Zone proves an invariant over a number that may be NaN',
@@ -64,14 +64,14 @@ export default [
   unordered(
     'the solver proves an invariant over a number that may be NaN',
     prove,
-    'return ordered(solved, [[[], schema]], [goal.node])',
-    'return solved',
+    "if (nanReads.size > 0 && status === 'unsat') {",
+    'if (false) {',
   ),
   unordered(
     'the solver proves a transition over a number that may be NaN',
     prove,
-    'return ordered(solved, slices, [tr.when.node, ...postGoals])',
-    'return solved',
+    "if (nanReads.size > 0 && status === 'unsat') {",
+    'if (false) {',
   ),
   unordered(
     'a counterexample over a number that may be NaN is thrown away',
@@ -106,13 +106,17 @@ export default [
   policy(
     'a path of no known sort is an integer to the solver',
     prove,
-    'const unsorted = z3.Real.const(name)',
-    'const unsorted = z3.Int.const(name)',
+    "return info('real', { nan: Schema.is(Schema.make<Schema.Top>(ast))(Number.NaN) })",
+    "return info('int', { nan: Schema.is(Schema.make<Schema.Top>(ast))(Number.NaN) })",
   ),
   {
     name: 'mixed literal sorts silently alias text with numbers',
     edits: [
-      { file: prove, find: 'if (sort.literals?.some', replace: 'if (false && sort.literals?.some' },
+      {
+        file: prove,
+        find: "if (info.sort === 'other' && info.literals.length > 0) {",
+        replace: 'if (false) {',
+      },
     ],
     tests: ['packages/metakit/test/policy.test.ts'],
   },
@@ -132,8 +136,8 @@ export default [
     edits: [
       {
         file: prove,
-        find: 'const res = validatePolicyWitness(pol, result, env => Expr.eval(pol.rules[rule]!, env))',
-        replace: 'const res = result',
+        find: 'valid(slices, env) && given.every(rule => holdsOf(rule, env)) && reproduces(env)',
+        replace: 'true',
       },
     ],
     tests: ['packages/metakit/test/policy.test.ts'],
@@ -209,8 +213,8 @@ export default [
     edits: [
       {
         file: prove,
-        find: 'if (opaqueVars.size > 0) {',
-        replace: 'if (false && opaqueVars.size > 0) {',
+        find: 'if (opaque.size > 0) {',
+        replace: 'if (false) {',
       },
     ],
     tests: proveTests,

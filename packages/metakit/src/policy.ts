@@ -10,7 +10,7 @@
  * For Tier 4 Z3 escalation and counterexample witnesses, pass a `Policy` to
  * `Prove.policyImplies` or `Prove.policyConsistent` in `metakit/prove`.
  */
-import { Option, type Schema } from 'effect'
+import { Option, Result, type Schema } from 'effect'
 import * as AbstractCheck from './abstract/check.js'
 import { ordered, type Slice } from './abstract/unordered.js'
 import * as Expr from './expr.js'
@@ -94,7 +94,12 @@ export const make = <
     rowSchema: config.row as unknown as Schema.Codec<Row>,
     principalSchema: config.principal as unknown as Schema.Codec<Principal>,
     rules,
-    allow: (rule, env) => Expr.eval(getRule(rule), env),
+    // A rule allows only where it is true: not where it is null, and not where it is refused.
+    allow: (rule, env) =>
+      Result.match(Expr.evalResult(getRule(rule), env), {
+        onSuccess: value => value === true,
+        onFailure: () => false,
+      }),
     can: (rule, partial) => Expr.judge(getRule(rule), partial),
   }
 }

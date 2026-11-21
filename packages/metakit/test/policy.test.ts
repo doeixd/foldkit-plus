@@ -28,7 +28,7 @@ describe('metakit/policy (consistency, non-disclosure, opaque principal soundnes
     ).toBe(true)
   })
   // Every row may be updated, and is read where `x` is above zero or not above it. NaN is
-  // neither, and is `Neither`: not at least one and not at most two, which no number is.
+  // neither: evaluation refuses to order it, so a rule that compares it allows nothing.
   const split = (x: typeof Schema.Number) =>
     Policy.make({
       row: Schema.Struct({ x }),
@@ -46,7 +46,7 @@ describe('metakit/policy (consistency, non-disclosure, opaque principal soundnes
     expect((['Update', 'Read', 'Neither'] as const).map(rule => policy.allow(rule, env))).toEqual([
       true,
       false,
-      true,
+      false,
     ])
     const sync = [
       Policy.checkImplication(policy, 'Update', 'Read'),
@@ -59,7 +59,9 @@ describe('metakit/policy (consistency, non-disclosure, opaque principal soundnes
       ]),
     )
     expect([...sync, ...proved].map(verdict => verdict._tag)).toEqual(Array(4).fill('Unknown'))
-    expect(Verdict.isUnknown(sync[0]!) && sync[0].reason).toContain('"row.x" may hold NaN')
+    // Each names the path; the synchronous check and the solver word the reason differently.
+    expect(Verdict.isUnknown(sync[0]!) && sync[0].reason).toContain('"row.x" may ')
+    expect(Verdict.isUnknown(proved[0]!) && proved[0].reason).toContain('"row.x" may hold NaN')
   }, 30_000)
 
   it('orders a number that is always finite', async () => {
@@ -89,10 +91,10 @@ describe('metakit/policy (consistency, non-disclosure, opaque principal soundnes
     expect(Verdict.isUnknown(Policy.checkImplication(policy, 'Update', 'Read'))).toBe(true)
   })
 
-  it('proves nothing of a null that a rule compares, and decides where none does', () => {
+  it('takes a comparison of a null for one that does not hold', async () => {
     const row = Schema.Struct({ x: Schema.NullOr(Schema.Int) })
     type Env = Policy.PolicyEnv<typeof row.Type, typeof Principal.Type>
-    // Evaluation compares null as zero, so null is "between zero and zero" and is not zero.
+    // A comparison of null is null, so a null `x` is not "between zero and zero".
     const compared = Path.make<Env, number>(['row', 'x'])
     const policy = Policy.make({
       row,
@@ -104,11 +106,27 @@ describe('metakit/policy (consistency, non-disclosure, opaque principal soundnes
       }),
     })
     const env = { row: { x: null }, principal: { userId: 'u', role: 'guest' as const } }
-    expect([policy.allow('Zeroed', env), policy.allow('Zero', env)]).toEqual([true, false])
-    const undecided = Policy.checkImplication(policy, 'Zeroed', 'Zero')
-    expect(Verdict.isUnknown(undecided) && undecided.reason).toContain('"row.x" may hold NaN')
+    expect((['Zeroed', 'Zero', 'Empty'] as const).map(rule => policy.allow(rule, env))).toEqual([
+      false,
+      false,
+      true,
+    ])
+    // The synchronous check may leave it undecided; it may not refute it.
+    expect(Verdict.isFalse(Policy.checkImplication(policy, 'Zeroed', 'Zero'))).toBe(false)
     expect(Verdict.isTrue(Policy.checkImplication(policy, 'Empty', 'Empty'))).toBe(true)
-  })
+    // The solver holds null apart from zero: where `Zeroed` holds, `x` is zero and not null.
+    const run = Effect.runPromise
+    expect(Verdict.isTrue(await run(Prove.policyImplies(policy, 'Zeroed', 'Zero')))).toBe(true)
+    // `Empty` holds of a null `x`, where `Zeroed` does not: a replayed counterexample.
+    const refuted = await run(Prove.policyImplies(policy, 'Empty', 'Zeroed'))
+    expect(Verdict.isFalse(refuted) && refuted.witness).toEqual(
+      Option.some({
+        'row.x': null,
+        'principal.userId': expect.any(String),
+        'principal.role': expect.any(String),
+      }),
+    )
+  }, 30_000)
 
   it('takes a number of no single schema for one that may hold a fraction', async () => {
     const policy = Policy.make({
