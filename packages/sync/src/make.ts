@@ -4,8 +4,7 @@
  * into the low-level `defineSync` contract, and exposes a read-only Surface over
  * the same projection.
  */
-import { Equal, Option, Predicate, Result, Schema } from 'effect'
-import { Abstract, Bool, Expr, Transition, Verdict } from 'metakit'
+import { Equal, Option, Predicate, Schema } from 'effect'
 import {
   MessageSet,
   Projection,
@@ -115,8 +114,31 @@ export interface Law<Shared, Key extends string> {
   readonly path?: ReadonlyArray<Key>
 }
 
-type DocumentLaw<Shared, Key extends string> = Omit<Law<Shared, Key>, 'holds'> & {
-  readonly holds: Law<Shared, Key>['holds'] | Expr.Expr<{ readonly model: Shared }, boolean>
+/** The static paths a declared transition reads and writes. */
+export interface Footprint {
+  /** Every read, from the root of `{ state, input }`; none when one is opaque. */
+  readonly reads: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
+  /** The reads of the state, from the state as `writes` are. */
+  readonly stateReads: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
+  /** Every write, from the state. */
+  readonly writes: ReadonlyArray<ReadonlyArray<string>>
+}
+
+/**
+ * A durable Message's replay declared apart from the application's `update`,
+ * as `foldkit-sync/metakit`'s `Declared.transition` builds it. `replay` throws
+ * to refuse the Message. `check` runs once in `make`, given the shared and
+ * input Schemas and the laws' `holds`, and answers why the declaration is
+ * unsound, or none.
+ */
+export interface DeclaredTransition<Shared, Message> {
+  readonly replay: (shared: Shared, message: Message) => Shared
+  readonly footprint: Footprint
+  readonly check: (document: {
+    readonly shared: Schema.Codec<Shared, unknown>
+    readonly input: Schema.Codec<Message>
+    readonly laws: ReadonlyArray<Law<Shared, string>['holds']>
+  }) => Option.Option<string>
 }
 
 /** `make`'s laws, keyed by id: each over the shared fields, and nothing else of the Model. */
@@ -128,7 +150,7 @@ export interface LawsOption<Fields extends Schema.Struct.Fields, LawIds extends 
    * as `rule`; the first broken law in the record's order is named.
    */
   readonly laws?: {
-    readonly [Id in LawIds]: DocumentLaw<Schema.Struct.Type<Fields>, keyof Fields & string>
+    readonly [Id in LawIds]: Law<Schema.Struct.Type<Fields>, keyof Fields & string>
   }
 }
 
@@ -187,8 +209,8 @@ interface BaseOptions<
   readonly name?: string
   /** Per-tag shared-state reducers. A declared transition runs during live updates and replay. */
   readonly transitions?: {
-    readonly [K in TagOf<Ms[number] | SMs[number]>]?: Transition.Transition<
-      { readonly model: Schema.Struct.Type<NoInfer<Fields>> },
+    readonly [K in TagOf<Ms[number] | SMs[number]>]?: DeclaredTransition<
+      Schema.Struct.Type<NoInfer<Fields>>,
       Extract<MsgOf<Ms> | ServerMsgOf<SMs>, { readonly _tag: K }>
     >
   }
@@ -296,9 +318,7 @@ export interface DefinedSync<
   readonly surface: Surface<AppModel, Schema.Struct.Type<Fields>, MsgOf<Ms>, void>
   readonly projection: WritableProjection<AppModel, Fields>
   /** Static paths of the transitions this document executes, keyed by durable or server-only tag. */
-  readonly footprints?: Readonly<
-    Partial<Record<TagOf<Ms[number] | SMs[number]>, ReturnType<typeof Transition.footprint>>>
-  >
+  readonly footprints?: Readonly<Partial<Record<TagOf<Ms[number] | SMs[number]>, Footprint>>>
   /** Replays a declared transition, falling back to the custom replay or the application's update. */
   readonly replay: (
     shared: Schema.Struct.Type<Fields>,
@@ -482,7 +502,7 @@ const derivedReplay = <
  * be sent; `make` throws rather than let one fail every exchange.
  */
 const lawsOf = <Shared>(
-  declared: Record<string, DocumentLaw<Shared, string>>,
+  declared: Record<string, Law<Shared, string>>,
 ): {
   readonly laws: Record<string, DeclaredLaw>
   readonly judge: (before: Shared, after: Shared) => Option.Option<DeclaredLaw>
@@ -498,12 +518,7 @@ const lawsOf = <Shared>(
       throw new Error(
         `Sync.make: the law "${fitWords(id)}" does not fit a refusal: an id, a message or a field over 500 characters, or a path over 16 fields`,
       )
-    const predicate = law.holds
-    const holds: Law<Shared, string>['holds'] =
-      typeof predicate === 'function'
-        ? predicate
-        : ({ after }) => Expr.eval(predicate, { model: after })
-    return [{ id, message: law.message, path }, holds] as const
+    return [{ id, message: law.message, path }, law.holds] as const
   })
   return {
     laws: Object.fromEntries(entries.map(([law]) => [law.id, law])),
@@ -595,11 +610,8 @@ const build = <
     // `AppScope` does not constrain its schemas' services; a Foldkit Message union
     // and a Struct are pure, so the low-level contract's `never` is satisfied.
     const sharedCodec = shared.schema as unknown as Schema.Codec<Shared, unknown>
-    const transitions = new Map<
-      string,
-      Transition.Transition<{ readonly model: Shared }, Message>
-    >()
-    const footprints: Record<string, ReturnType<typeof Transition.footprint>> = Object.create(null)
+    const transitions = new Map<string, DeclaredTransition<Shared, Message>>()
+    const footprints: Record<string, Footprint> = Object.create(null)
     if (options.transitions !== undefined) {
       const inputs = new Map(
         [...durable.constructors, ...(serverOnly?.constructors ?? [])].map(
@@ -607,34 +619,16 @@ const build = <
             [messageTag(constructor), constructor as unknown as Schema.Codec<Message>] as const,
         ),
       )
-      const expressions = Object.values(options.laws ?? {})
-        .map(law => law.holds)
-        .filter(
-          (law): law is Expr.Expr<{ readonly model: Shared }, boolean> => typeof law !== 'function',
-        )
-      const state = Schema.Struct({ model: sharedCodec }).pipe(
-        Expr.refine(() => Expr.all(...expressions)),
-      )
+      const laws = Object.values(options.laws ?? {}).map(law => law.holds)
       for (const [tag, transition] of Object.entries(options.transitions) as Array<
-        [string, Transition.Transition<{ readonly model: Shared }, Message>]
+        [string, DeclaredTransition<Shared, Message>]
       >) {
         const input = inputs.get(tag)
         if (input === undefined) throw new Error(`Sync.make: "${tag}" is not a recorded Message`)
-        if (Option.isSome(transition.emits))
-          throw new Error(`Sync.make: "${tag}" emits a Command; durable transitions are state-only`)
-        const environment = Schema.Struct({ state, input })
-        if (Verdict.isTrue(Abstract.checkInvariant(environment, Bool.not(transition.when)))) {
-          throw new Error(`Sync.make: "${tag}" has an unreachable guard`)
-        }
-        if (
-          Verdict.isFalse(
-            Abstract.checkTransition(state, { ...transition, inputSchema: Option.some(input) }),
-          )
-        ) {
-          throw new Error(`Sync.make: "${tag}" violates a shared-state invariant`)
-        }
+        const unsound = transition.check({ shared: sharedCodec, input, laws })
+        if (Option.isSome(unsound)) throw new Error(`Sync.make: "${tag}" ${unsound.value}`)
         transitions.set(tag, transition)
-        footprints[tag] = Transition.footprint(transition)
+        footprints[tag] = transition.footprint
       }
     }
     const replay =
@@ -643,10 +637,9 @@ const build = <
         : (value: Shared, message: Message): Shared => {
             const tag = tagOf(message)
             const transition = Option.isSome(tag) ? transitions.get(tag.value) : undefined
-            if (transition === undefined) return fallbackReplay(value, message)
-            const result = Transition.run(transition, { model: value }, message)
-            if (Result.isFailure(result)) throw new Error(result.failure.reason)
-            return result.success.model
+            return transition === undefined
+              ? fallbackReplay(value, message)
+              : transition.replay(value, message)
           }
     const stamps = options.stamp as
       | Record<string, (message: Message, commit: CommitStamp) => Message>

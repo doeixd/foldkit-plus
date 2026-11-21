@@ -32,6 +32,7 @@ import {
   type WrittenOperation,
 } from '../src/index.js'
 import { journalExchange, reaction, serverJournal } from '../src/journal.js'
+import { Declared } from '../src/metakit.js'
 import { memoryStorage } from './memoryStorage.js'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String })
@@ -84,7 +85,7 @@ const Capped = Sync.forApplication(App)
     ...options,
     laws: {
       atMost100Todos: {
-        holds: Num.lte(Arr.count(model.todos), 100),
+        holds: Declared.holds(Num.lte(Arr.count(model.todos), 100)),
         message: 'A list holds 100 todos',
         path: ['todos'],
       },
@@ -178,12 +179,15 @@ describe('a law', () => {
   it('rejects an unreachable transition and a transition that breaks an expression law', () => {
     const state = Schema.Struct({ model: options.shared.schema })
     const input = Message.CreatedTodo
-    const rule = { holds: Num.lte(Arr.count(model.todos), 0), message: 'Must stay empty' }
+    const rule = {
+      holds: Declared.holds(Num.lte(Arr.count(model.todos), 0)),
+      message: 'Must stay empty',
+    }
     const make = (transition: Transition.Transition<typeof state.Type, typeof input.Type>) =>
       Sync.forApplication(App).make({
         ...options,
         laws: { empty: rule },
-        transitions: { CreatedTodo: transition },
+        transitions: { CreatedTodo: Declared.transition(transition) },
       })
     expect(() =>
       make(Transition.make({ state, input, when: () => false, apply: () => [] })),
@@ -217,12 +221,14 @@ describe('a law', () => {
       .make({
         ...options,
         transitions: {
-          CreatedTodo: Transition.make({
-            state: Schema.Struct({ model: options.shared.schema }),
-            input: Message.CreatedTodo,
-            when: ({ state }) => Num.lt(Arr.count(state.model.todos), 1),
-            apply: ({ state }) => [Transition.set(state.model.todos, only)],
-          }),
+          CreatedTodo: Declared.transition(
+            Transition.make({
+              state: Schema.Struct({ model: options.shared.schema }),
+              input: Message.CreatedTodo,
+              when: ({ state }) => Num.lt(Arr.count(state.model.todos), 1),
+              apply: ({ state }) => [Transition.set(state.model.todos, only)],
+            }),
+          ),
         },
       })
     const journal = openJournal(Single)

@@ -21,8 +21,8 @@ export default [
     name: 'a dead transition is accepted',
     edits: [
       {
-        file: '../src/make.ts',
-        find: 'Verdict.isTrue(Abstract.checkInvariant(environment, Bool.not(transition.when)))',
+        file: '../src/metakit.ts',
+        find: 'Verdict.isTrue(Abstract.checkInvariant(environment, Bool.not(declared.when)))',
         replace: 'false',
       },
     ],
@@ -32,10 +32,32 @@ export default [
     name: 'the reachability of a guard is judged without the laws',
     edits: [
       {
-        file: '../src/make.ts',
+        file: '../src/metakit.ts',
         find: 'const environment = Schema.Struct({ state, input })',
         replace:
-          'const environment = Schema.Struct({ state: Schema.Struct({ model: sharedCodec }), input })',
+          'const environment = Schema.Struct({ state: Schema.Struct({ model: shared }), input })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'make ignores what a transition finds unsound',
+    edits: [
+      {
+        file: '../src/make.ts',
+        find: 'if (Option.isSome(unsound)) throw',
+        replace: 'if (false) throw',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'make hands a transition no laws',
+    edits: [
+      {
+        file: '../src/make.ts',
+        find: 'transition.check({ shared: sharedCodec, input, laws })',
+        replace: 'transition.check({ shared: sharedCodec, input, laws: [] })',
       },
     ],
     tests,
@@ -44,9 +66,9 @@ export default [
     name: 'a Message whose guard is false is replayed as a no-op',
     edits: [
       {
-        file: '../src/make.ts',
+        file: '../src/metakit.ts',
         find: 'if (Result.isFailure(result)) throw new Error(result.failure.reason)',
-        replace: 'if (Result.isFailure(result)) return value',
+        replace: 'if (Result.isFailure(result)) return shared',
       },
     ],
     tests,
@@ -54,7 +76,7 @@ export default [
   {
     name: 'a transition that breaks an invariant is accepted',
     edits: [
-      { file: '../src/make.ts', find: 'Verdict.isFalse(', replace: 'false && Verdict.isFalse(' },
+      { file: '../src/metakit.ts', find: 'Verdict.isFalse(', replace: 'false && Verdict.isFalse(' },
     ],
     tests,
   },
@@ -62,9 +84,9 @@ export default [
     name: 'an expression law judges the previous snapshot',
     edits: [
       {
-        file: '../src/make.ts',
-        find: '({ after }) => Expr.eval(predicate, { model: after })',
-        replace: '({ before }) => Expr.eval(predicate, { model: before })',
+        file: '../src/metakit.ts',
+        find: '({ after }) => Expr.eval(expression, { model: after })',
+        replace: '({ before }) => Expr.eval(expression, { model: before })',
       },
     ],
     tests,

@@ -24,6 +24,7 @@ import {
   type Replica,
   type Storage,
 } from '../src/index.js'
+import { Declared } from '../src/metakit.js'
 import { unconfirmedEdits } from '../src/mount.js'
 import { memoryStorage } from './memoryStorage.js'
 
@@ -232,11 +233,13 @@ describe('Sync.mount', () => {
       shared,
       durable: MessageSet.make(App, [Message.CreatedTodo]),
       transitions: {
-        CreatedTodo: Transition.make({
-          state: Schema.Struct({ model: shared.schema }),
-          input: Message.CreatedTodo,
-          apply: ({ state }) => [Transition.set(state.model.todos, replacement)],
-        }),
+        CreatedTodo: Declared.transition(
+          Transition.make({
+            state: Schema.Struct({ model: shared.schema }),
+            input: Message.CreatedTodo,
+            apply: ({ state }) => [Transition.set(state.model.todos, replacement)],
+          }),
+        ),
       },
     })
     const reads = vi.spyOn(Closure, 'reads')

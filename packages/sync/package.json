@@ -51,6 +51,11 @@
       "foldkit-plus:source": "./src/remote.ts",
       "types": "./dist/remote.d.ts",
       "import": "./dist/remote.js"
+    },
+    "./metakit": {
+      "foldkit-plus:source": "./src/metakit.ts",
+      "types": "./dist/metakit.d.ts",
+      "import": "./dist/metakit.js"
     }
   },
   "files": [
