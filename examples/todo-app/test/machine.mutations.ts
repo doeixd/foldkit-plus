@@ -33,13 +33,13 @@ export default [
     tests: [unit],
   },
   {
-    name: 'an arm writes a field its transition does not declare',
+    name: 'a step that stays code writes a field its transition does not declare',
     edits: [
       {
-        file: app,
-        find: "DraftChanged: input => run({ _tag: 'DraftChanged', input }),",
+        file: machine,
+        find: 'run: (state, input) => mirrors.url(state, input.url),',
         replace:
-          "DraftChanged: input => ({ model: { ...run({ _tag: 'DraftChanged', input }).model, listTitle: 'Sneaked' } }),",
+          "run: (state, input) => ({ ...mirrors.url(state, input.url), listTitle: 'Sneaked' }),",
       },
     ],
     tests: [unit],
@@ -72,9 +72,8 @@ export default [
     edits: [
       {
         file: machine,
-        find: '  CompletedFocus: Transition.make({ state: Model, input: Message.CompletedFocus, apply: () => [] }),',
-        replace:
-          '  RenamedList: Transition.make({ state: Model, input: Message.RenamedList, apply: () => [] }),',
+        find: 'apply: ({ state, input }) => [Transition.set(state.listTitle, Str.trim(input.title))],',
+        replace: 'apply: () => [],',
       },
     ],
     tests: [unit],

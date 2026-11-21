@@ -68,9 +68,9 @@ export default [
     name: 'an unchanged sync status hands back a new Model',
     edits: [
       {
-        file: app,
-        find: 'return commands.length === 0 ? { model: next } : { model: next, commands }',
-        replace: 'return { model: { ...next }, commands }',
+        file: '../../../packages/surface/src/declared.ts',
+        find: '    if (emitted.length === 0) return { model: next }',
+        replace: '    if (emitted.length === 0) return { model: { ...next } }',
       },
     ],
     tests: [unit],
