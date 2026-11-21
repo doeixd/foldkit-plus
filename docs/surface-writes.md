@@ -71,10 +71,10 @@ writes.regions().map(region => [region.name, region.redrawnBy])
 
 What happened:
 
-- `Writes.of(App, machine)` reads each Transition's writes. A Transition named for something that is not one of the application's Messages is a type error, and throws.
+- `Writes.of(App, machine)` reads each Transition's writes. A Transition under a name that is not one of the application's Messages does not compile; from plain JavaScript, `Writes.of` throws.
 - `Surface.rootView(Header, undefined, drawHeader, { writes })` makes the header's view; `undefined` is for a Surface that takes no params. `Header` reads `title`, and of the two Transitions only `Renamed` sets `title`. That match is made here, once.
 - Your application's view calls `header(model, h)` and `tally(model, h)` with the Model and the builder `h` Foldkit hands it, as it would without `writes`.
-- `writes.track(appUpdate)` is the `update` you give Foldkit. It notes which Message made each Model. After a `Counted`, `header` hands Foldkit the drawing it made last time: `drawHeader` does not run, the Model is not read for it, and Foldkit skips comparing it with the page.
+- `writes.track(appUpdate)` is the `update` you give Foldkit. It notes which Message made each Model. After a `Counted`, `header` hands Foldkit the drawing it made last time: the header's fields are not read from the Model, `drawHeader` does not run, and Foldkit skips comparing the header with the page. What that costs instead is a counter raised for each view a Message reaches, and two numbers compared per view.
 - `writes.regions()` lists the result, so you can see which Messages draw each Surface again.
 
 In the counting test, fifty `Counted` Messages draw the five Surfaces 105 times with `writes` and 255 times without. The header, drawn once, is the same DOM element with no change recorded on it ([`writes.browser.test.ts`](../packages/surface/test/writes.browser.test.ts)).
@@ -84,7 +84,7 @@ In the counting test, fifty `Counted` Messages draw the five Surfaces 105 times 
 A drawing is kept only when it is known that nothing it reads was written. Everything else is drawn again:
 
 - **A Message with no Transition.** A Machine may hold Transitions for three of your forty Messages. Each of the other thirty-seven draws every Surface, as it does today, and the next declared Message keeps drawings again.
-- **A Model `track` did not see made.** The first Model, one restored from storage, or one from an `update` you did not wrap draws every Surface once. Wrap the outermost `update`, once.
+- **A Model `track` did not see made.** The first Model, one your application installs from storage or a server render, or one from an `update` you did not wrap draws every Surface once. Wrap the outermost `update`, once.
 - **A Surface that reads through a function.** A Surface whose `model` reads with `Projection.fromReader`, or picks a field with `true` in `Projection.of`, names no Model field. Neither does a part that shows server data through a `foldkit-remote` read. Every Message that changes the Model draws such a Surface, so a panel of server rows is drawn as often as before.
 - **A page rendered on a server, and a view called outside a running application** (in a unit test), where no drawing can be kept.
 
