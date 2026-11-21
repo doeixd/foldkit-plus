@@ -1,6 +1,7 @@
 /**
- * A number that may be NaN: every checker orders its numbers, so each stays
- * undecided over one, and decides the same question over a finite number.
+ * A number that may be NaN: evaluation refuses to order it, so every checker
+ * stays undecided over a rule that reads one, decides the same rule over a
+ * finite number, and knows a guard over NaN does not fire.
  */
 import { Effect, Option, Result, Schema } from 'effect'
 import { Abstract, Bool, Expr, Num, Path, Transition, Verdict } from 'metakit'
@@ -53,11 +54,20 @@ describe('a number that may be NaN', () => {
     expect(Result.isFailure(Transition.run(Break, held, {}))).toBe(true)
   })
 
-  it.each(names)(
+  it.each(['Abstract.checkInvariant', 'Prove.invariant', 'Prove.policy'] as const)(
     'leaves %s undecided, naming the path',
     async name => {
       const verdict = await gauge(Schema.Number).checks[name]()
-      expect(Verdict.isUnknown(verdict) && verdict.reason).toContain('level" may hold NaN')
+      expect(Verdict.isUnknown(verdict) && verdict.reason).toMatch(/level" may (hold|be null)/)
+    },
+    30_000,
+  )
+
+  // The guard is refused over NaN and unsatisfiable over a number, so it never fires.
+  it.each(['Abstract.checkTransition', 'Prove.transition'] as const)(
+    'lets %s prove a transition whose guard NaN cannot fire',
+    async name => {
+      expect(Verdict.isTrue(await gauge(Schema.Number).checks[name]())).toBe(true)
     },
     30_000,
   )
@@ -79,14 +89,14 @@ describe('a number that may be NaN', () => {
     expect(level).toBeLessThanOrEqual(0)
   }, 30_000)
 
-  it('leaves a machine transition over one undecided', async () => {
+  it('proves a machine transition whose guard NaN cannot fire', async () => {
     const report = (level: typeof Schema.Number) => {
       const { State, Break } = gauge(level)
       return Effect.runPromise(
         Prove.machine(Machine.make({ state: State, transitions: { Break } }), { strict: false }),
       )
     }
-    expect((await report(Schema.Number)).entries.map(entry => entry.status)).toEqual(['undecided'])
+    expect((await report(Schema.Number)).entries.map(entry => entry.status)).toEqual(['proved'])
     expect((await report(Schema.Finite)).entries.map(entry => entry.status)).toEqual(['proved'])
   }, 30_000)
 })

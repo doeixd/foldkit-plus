@@ -12,7 +12,13 @@ const bool = '../src/ops/bool.ts'
 const num = '../src/ops/num.ts'
 const ord = '../src/ops/ord.ts'
 
+const check = '../src/abstract/check.ts'
+const interval = '../src/abstract/interval.ts'
+const zone = '../src/abstract/zone.ts'
+
 const nullStrict = ['packages/metakit/test/null-strict.test.ts']
+const soundness = ['packages/metakit/test/abstract-soundness.test.ts']
+const conformance = ['packages/metakit/test/conformance.test.ts']
 
 const mutation = (
   tests: ReadonlyArray<string>,
@@ -22,7 +28,179 @@ const mutation = (
   replace: string,
 ) => ({ name, edits: [{ file, find, replace }], tests })
 
+const checker = [
+  mutation(
+    soundness,
+    'a strict rule over reals tightens by one',
+    check,
+    'const delta = strict ? (bothInt ? -1 : 0) : 0',
+    'const delta = strict ? -1 : 0',
+  ),
+  mutation(
+    soundness,
+    'a strict goal is proved from a bound that is not strict',
+    check,
+    'const slack = strict && bothInt ? 1 : 0',
+    'const slack = 0',
+  ),
+  mutation(
+    soundness,
+    'an exclusive minimum on a real is tightened as if it were an integer',
+    check,
+    'Interval.between(isInt ? Math.floor(m) + 1 : m, Infinity)',
+    'Interval.between(Math.floor(m) + 1, Infinity)',
+  ),
+  mutation(
+    soundness,
+    'membership bounds a number by its smallest candidate',
+    check,
+    'state.zone.constrainUpper(id.value, Math.max(...numbers))',
+    'state.zone.constrainUpper(id.value, Math.min(...numbers))',
+  ),
+  mutation(
+    soundness,
+    'a sum is bounded by the lower end of what is added',
+    check,
+    'if (Number.isFinite(riv.hi)) tighten(id, lv.value, riv.hi)',
+    'if (Number.isFinite(riv.lo)) tighten(id, lv.value, riv.lo)',
+  ),
+  mutation(
+    nullStrict,
+    'subtraction declares zero a left identity',
+    num,
+    "identity: { value: 0, side: 'right' },",
+    "identity: { value: 0, side: 'both' },",
+  ),
+  mutation(
+    soundness,
+    'a conditional is decided from the branch taken',
+    check,
+    '...(skipped.propagate() ? [skipped.entails(branch.otherwise, 0)] : []),',
+    '',
+  ),
+  mutation(
+    soundness,
+    'a conditional over a condition that may be null is decided',
+    check,
+    'if (!this.hasValue(branch.cond)) return this.unvalued(branch.cond)',
+    '',
+  ),
+  mutation(
+    soundness,
+    'a rule is read off the struct a write replaced',
+    check,
+    'if (Path.isPrefix(target, read)) {',
+    'if (target.length === read.length && Path.isPrefix(target, read)) {',
+  ),
+  mutation(
+    soundness,
+    'a struct write is not held to its fields',
+    check,
+    'overall = Verdict.and(overall, state.fits(part, info))',
+    "overall = Verdict.and(overall, proved('zone'))",
+  ),
+  mutation(
+    soundness,
+    'a write to an integer field need not be an integer',
+    check,
+    'if (info.isInt && !state.isIntNode(value)) return unknown',
+    '',
+  ),
+  mutation(
+    soundness,
+    'a write to a field that takes no null may be null',
+    check,
+    'if (!acceptsNull && !this.hasValue(value)) return this.unvalued(value)',
+    '',
+  ),
+  mutation(
+    soundness,
+    'an optional key is taken to be present',
+    check,
+    'under || members.length !== flat(ast).length || SchemaAST.isOptional(ast)',
+    'under || members.length !== flat(ast).length',
+  ),
+  mutation(
+    soundness,
+    'a field under a nullable struct is taken to be present',
+    check,
+    'collectFields(property.type, [...prefix, property.name], fields, nullable)',
+    'collectFields(property.type, [...prefix, property.name], fields, false)',
+  ),
+  mutation(
+    soundness,
+    'a rule on an absent field is a fact about it',
+    check,
+    'if (info === undefined || !info.nullable) return node',
+    'if (true) return node',
+  ),
+  mutation(
+    soundness,
+    'arithmetic is never refused',
+    check,
+    'Interval.within(this.evalInterval(node), SAFE)',
+    'true',
+  ),
+  mutation(
+    soundness,
+    'a sum of doubles relates exactly to its operands',
+    check,
+    "if (relation !== 'none' && isInt && args.length === 2) {",
+    "if (relation !== 'none' && args.length === 2) {",
+  ),
+  mutation(
+    soundness,
+    'a comparison over an operand that may be null is decided',
+    check,
+    'if (open !== undefined) return this.unvalued(open)',
+    '',
+  ),
+  mutation(
+    soundness,
+    'two numbers that may be null are equal by their intervals',
+    check,
+    "if (!state.hasValue(a) || !state.hasValue(b)) return Verdict.Unknown('an operand may be null')",
+    '',
+  ),
+  mutation(
+    soundness,
+    'a disjunction is proved by cases on a disjunct that may be null',
+    check,
+    'if (!Verdict.isUnknown(direct) || !state.hasValue(a)) return direct',
+    'if (!Verdict.isUnknown(direct)) return direct',
+  ),
+  mutation(
+    soundness,
+    'a search for the empty string holds of a text that may be null',
+    check,
+    'const open = call.args.find(arg => !this.hasValue(arg))',
+    'const open = call.args.find(arg => !this.hasValue(arg) && !Node.$is("Path")(arg))',
+  ),
+  mutation(
+    soundness,
+    'an interval bound of a sum rounds to nearest',
+    interval,
+    'return norm(error * toward > 0 ? sum + toward * ulp(sum) : sum)',
+    'return norm(sum)',
+  ),
+  mutation(
+    conformance,
+    'a zone bound of a sum rounds to nearest',
+    zone,
+    'return error > 0 ? sum + Math.abs(sum) * Number.EPSILON : sum',
+    'return sum',
+  ),
+  mutation(
+    conformance,
+    'a path that is not null is taken to hold no NaN',
+    check,
+    'state.markNotNull(term)',
+    'state.markValued(term)',
+  ),
+]
+
 export default [
+  ...checker,
   mutation(
     nullStrict,
     'a strict operator computes over a null operand',

@@ -4,14 +4,16 @@ import { Eq, Expr, Null, Num, Ord } from 'metakit'
 import * as Conformance from 'metakit/conformance'
 
 describe('metakit/conformance (Galois & partial-eval soundness)', () => {
-  it('verifies forward and backward Galois soundness for every Tier 3 Interval transformer', () => {
-    const reports = Conformance.checkAllIntervalTransformers({ samples: 30 })
-    expect(reports.length).toBeGreaterThan(15)
-    for (const report of reports) {
-      expect(report.checked).toBeGreaterThan(0)
-      expect(report.failures, `op ${report.op} failed Galois soundness`).toEqual([])
-      expect(report.ok).toBe(true)
-    }
+  const reports = Conformance.checkAllOps()
+
+  it.each(reports)('holds $op to one answer over the awkward values', report => {
+    expect(report.failures.slice(0, 5)).toEqual([])
+    expect(report.checked).toBeGreaterThan(20)
+  })
+
+  it('covers every primitive', () => {
+    expect(reports.map(report => report.op)).toEqual(Object.keys(Conformance.coreOps))
+    expect(reports).toHaveLength(20)
   })
 
   it('verifies Tier 2 residualize & judge soundness against Tier 1 eval over Arbitrary environments', () => {

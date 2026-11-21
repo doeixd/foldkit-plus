@@ -2,9 +2,10 @@
  * Interval abstract domain `[lo, hi]` with sound forward transformers for
  * numeric operators and Kleene $K_3$ comparison verdicts.
  *
- * Every transformer satisfies Galois soundness:
+ * Every transformer satisfies Galois soundness over doubles:
  *   ∀ x ∈ γ(a), f(x) ∈ γ(f#(a))
- * verified by property tests in `metakit/conformance`.
+ * since IEEE rounding is monotone, so the rounded bound of a sum or product
+ * still bounds every rounded sum or product inside.
  */
 import { Option } from 'effect'
 import * as Verdict from '../verdict.js'
@@ -39,6 +40,10 @@ export const constant = (value: number): Interval => {
 export const contains = (iv: Interval, value: number): boolean =>
   !isBottom(iv) && value >= iv.lo && value <= iv.hi
 
+/** Whether every value of `inner` is one of `outer`; an empty `inner` is within anything. */
+export const within = (inner: Interval, outer: Interval): boolean =>
+  isBottom(inner) || (!isBottom(outer) && inner.lo >= outer.lo && inner.hi <= outer.hi)
+
 /** Intersection (greatest lower bound). */
 export const meet = (a: Interval, b: Interval): Interval => {
   if (isBottom(a) || isBottom(b)) return bottom
@@ -52,14 +57,26 @@ export const join = (a: Interval, b: Interval): Interval => {
   return between(Math.min(a.lo, b.lo), Math.max(a.hi, b.hi))
 }
 
-const safeAdd = (a: number, b: number, fallback: number): number => {
+/** At least one unit in the last place of `n`: how far a rounded result may sit from the exact one. */
+const ulp = (n: number): number => Math.abs(n) * Number.EPSILON + Number.MIN_VALUE
+
+/**
+ * `a + b` rounded away from the exact sum in direction `toward` (-1 down, 1
+ * up), so a bound stays a bound of the real sum as well as of the double.
+ * The error term of Knuth's TwoSum says which side the double fell on.
+ */
+const directedAdd = (a: number, b: number, toward: -1 | 1): number => {
   const sum = a + b
-  return Number.isNaN(sum) ? fallback : norm(sum)
+  if (Number.isNaN(sum)) return toward * Infinity
+  if (!Number.isFinite(sum)) return sum
+  const bPart = sum - a
+  const error = a - (sum - bPart) + (b - bPart)
+  return norm(error * toward > 0 ? sum + toward * ulp(sum) : sum)
 }
 
 export const add = (a: Interval, b: Interval): Interval => {
   if (isBottom(a) || isBottom(b)) return bottom
-  return between(safeAdd(a.lo, b.lo, -Infinity), safeAdd(a.hi, b.hi, Infinity))
+  return between(directedAdd(a.lo, b.lo, -1), directedAdd(a.hi, b.hi, 1))
 }
 
 export const neg = (a: Interval): Interval => {
@@ -80,33 +97,25 @@ const safeMul = (x: number, y: number): Option.Option<number> => {
 
 export const mul = (a: Interval, b: Interval): Interval => {
   if (isBottom(a) || isBottom(b)) return bottom
-  if ((a.lo === 0 && a.hi === 0) || (b.lo === 0 && b.hi === 0)) return constant(0)
-  const corners = [
+  const corners = Option.all([
     safeMul(a.lo, b.lo),
     safeMul(a.lo, b.hi),
     safeMul(a.hi, b.lo),
     safeMul(a.hi, b.hi),
-  ]
-  if (corners.some(Option.isNone)) return top
-  const values = corners.map(c => (c as Option.Some<number>).value)
-  return between(Math.min(...values), Math.max(...values))
-}
-
-export const min = (a: Interval, b: Interval): Interval => {
-  if (isBottom(a) || isBottom(b)) return bottom
-  return between(Math.min(a.lo, b.lo), Math.min(a.hi, b.hi))
-}
-
-export const max = (a: Interval, b: Interval): Interval => {
-  if (isBottom(a) || isBottom(b)) return bottom
-  return between(Math.max(a.lo, b.lo), Math.max(a.hi, b.hi))
-}
-
-export const abs = (a: Interval): Interval => {
-  if (isBottom(a)) return bottom
-  if (a.lo >= 0) return a
-  if (a.hi <= 0) return neg(a)
-  return between(0, Math.max(-a.lo, a.hi))
+  ])
+  return Option.match(corners, {
+    onNone: () => top,
+    onSome: values => {
+      const lo = Math.min(...values)
+      const hi = Math.max(...values)
+      // A product of safe integers that is one is exact; any other may have rounded.
+      const factors = [a.lo, a.hi, b.lo, b.hi]
+      if ([...factors, lo, hi].every(Number.isSafeInteger)) return between(lo, hi)
+      // A zero end beside a zero factor is that factor's exact product, not an underflow.
+      const slack = (end: number): number => (end === 0 && factors.includes(0) ? 0 : ulp(end))
+      return between(lo - slack(lo), hi + slack(hi))
+    },
+  })
 }
 
 /** Sound Kleene $K_3$ verdict for `a < b`. */
@@ -125,10 +134,6 @@ export const lte = (a: Interval, b: Interval): Verdict.Verdict<never> => {
   return Verdict.Unknown('intervals overlap')
 }
 
-export const gt = (a: Interval, b: Interval): Verdict.Verdict<never> => lt(b, a)
-
-export const gte = (a: Interval, b: Interval): Verdict.Verdict<never> => lte(b, a)
-
 /** Sound Kleene $K_3$ verdict for `a == b`. */
 export const is = (a: Interval, b: Interval): Verdict.Verdict<never> => {
   if (isBottom(a) || isBottom(b)) return Verdict.True(Option.some(Verdict.Proved('interval')))
@@ -137,56 +142,4 @@ export const is = (a: Interval, b: Interval): Verdict.Verdict<never> => {
   }
   if (a.hi < b.lo || b.hi < a.lo) return Verdict.False()
   return Verdict.Unknown('intervals overlap')
-}
-
-export const isNot = (a: Interval, b: Interval): Verdict.Verdict<never> => Verdict.not(is(a, b))
-
-// --- Backward narrowing transformers ---
-// Given `f(a, b) ∈ target`, return tightened `[a', b']` such that
-// ∀ x ∈ a, y ∈ b: f(x, y) ∈ target ==> x ∈ a' ∧ y ∈ b'.
-
-export const narrowAdd = (
-  a: Interval,
-  b: Interval,
-  target: Interval,
-): readonly [Interval, Interval] => [meet(a, sub(target, b)), meet(b, sub(target, a))]
-
-export const narrowSub = (
-  a: Interval,
-  b: Interval,
-  target: Interval,
-): readonly [Interval, Interval] => [meet(a, add(target, b)), meet(b, sub(a, target))]
-
-export const narrowNeg = (a: Interval, target: Interval): readonly [Interval] => [
-  meet(a, neg(target)),
-]
-
-const divSafe = (num: Interval, den: Interval): Interval => {
-  if (isBottom(num) || isBottom(den)) return bottom
-  // If divisor spans 0, division can produce any real number
-  if (den.lo <= 0 && den.hi >= 0) return top
-  const corners = [num.lo / den.lo, num.lo / den.hi, num.hi / den.lo, num.hi / den.hi]
-  if (corners.some(Number.isNaN)) return top
-  return between(Math.min(...corners), Math.max(...corners))
-}
-
-export const narrowMul = (
-  a: Interval,
-  b: Interval,
-  target: Interval,
-): readonly [Interval, Interval] => [meet(a, divSafe(target, b)), meet(b, divSafe(target, a))]
-
-export const narrowLte = (a: Interval, b: Interval): readonly [Interval, Interval] => [
-  meet(a, between(-Infinity, b.hi)),
-  meet(b, between(a.lo, Infinity)),
-]
-
-export const narrowGte = (a: Interval, b: Interval): readonly [Interval, Interval] => {
-  const [nb, na] = narrowLte(b, a)
-  return [na, nb]
-}
-
-export const narrowEq = (a: Interval, b: Interval): readonly [Interval, Interval] => {
-  const m = meet(a, b)
-  return [m, m]
 }

@@ -14,6 +14,20 @@ import * as Interval from './interval.js'
 
 export const ZERO = 0
 
+/**
+ * `a + b`, never below the exact sum. A bound is an upper bound, and a sum of
+ * two near 2^53 rounds to nearest: rounded down, two bounds that agree read
+ * as a negative cycle, and a satisfiable zone as a contradiction. Where the
+ * double fell short of the sum (the error term of Knuth's TwoSum is positive)
+ * it is moved up by at least one unit in the last place.
+ */
+const addUp = (a: number, b: number): number => {
+  const sum = a + b
+  const bPart = sum - a
+  const error = a - (sum - bPart) + (b - bPart)
+  return error > 0 ? sum + Math.abs(sum) * Number.EPSILON : sum
+}
+
 export class Zone {
   private readonly size: number
   private readonly m: Array<Array<number>>
@@ -92,7 +106,7 @@ export class Zone {
         for (let j = 0; j < n; j++) {
           const mkj = mk[j]!
           if (!Number.isFinite(mkj)) continue
-          const sum = mik + mkj
+          const sum = addUp(mik, mkj)
           if (sum < mi[j]!) {
             mi[j] = Object.is(sum, -0) ? 0 : sum
           }
