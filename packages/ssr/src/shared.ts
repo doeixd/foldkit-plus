@@ -297,7 +297,7 @@ export type Start = 'now' | 'idle' | 'on-interaction'
 export interface ResumePart<Model> {
   readonly id: string
   readonly covers: ReadonlyArray<string>
-  /** The Model paths `restore` sets from what `capture` sent: a Surface's read of one is covered by this part. */
+  /** The Model paths `restore` sets from what `capture` sent: a read of one that carries metadata in `covers` is covered by this part. */
   readonly restores?: ReadonlyArray<ReadonlyArray<string>> | undefined
   readonly capture: (
     model: Model,

@@ -184,7 +184,10 @@ would rebuild those elements.
   Remote reads name their store's field (`remote`) as what they read; the part
   restores that field, so `SSR.inspect` shows such a read covered by `part`,
   and a plan without the part fails with "reads remote, which is neither in
-  the plan's state nor local". `SSR.inspect(plan, model)` shows each read's cover. The check runs for the
+  the plan's state nor local". Only a read the part resumes counts: the part
+  carries what Remote reads ask, not the whole field, so a Surface holding a
+  plain reference to the store (`model.remote`) is `missing` and refused with
+  the same message. `SSR.inspect(plan, model)` shows each read's cover. The check runs for the
   server's Model, since a Surface's reads follow its params.
 - `SSR.static('id', ih => [...])` in a view: rendered once on the server with
   the inert builder (no handlers), adopted as trusted `InnerHTML` in the

@@ -404,8 +404,11 @@ const pathOf = (path: ReadonlyArray<string>): string =>
 /**
  * A path is covered by a sent, restored or local path equal to it or
  * containing it, or by a path a part of the plan restores (a Remote store
- * `Remote.resume` carries). An empty path is the whole Model, which no pick
- * covers.
+ * `Remote.resume` carries) when the read is one that part resumes: `reads`
+ * names the metadata the projection carries, and the part must cover one of
+ * them. A part carries what those reads ask and not the field, so a plain
+ * reference to the store, which carries no metadata, is not covered by it.
+ * An empty path is the whole Model, which no pick covers.
  */
 const coverOf = (
   path: ReadonlyArray<string>,
@@ -414,9 +417,11 @@ const coverOf = (
     readonly restored: ReadonlyArray<{ readonly path: ReadonlyArray<string> }>
     readonly local: ReadonlyArray<ReadonlyArray<string>>
     readonly parts: ReadonlyArray<{
+      readonly covers: ReadonlyArray<string>
       readonly restores?: ReadonlyArray<ReadonlyArray<string>> | undefined
     }>
   },
+  reads: ReadonlyArray<string> = [],
 ): Cover => {
   const contains = (outer: ReadonlyArray<string>) =>
     outer.length > 0 &&
@@ -425,7 +430,13 @@ const coverOf = (
   if (plan.state.dependencies.some(contains)) return 'state'
   if (plan.restored.some(({ path: outer }) => contains(outer))) return 'restored'
   if (plan.local.some(contains)) return 'local'
-  if (plan.parts.some(part => (part.restores ?? []).some(contains))) return 'part'
+  if (
+    plan.parts.some(
+      part =>
+        (part.restores ?? []).some(contains) && part.covers.some(name => reads.includes(name)),
+    )
+  )
+    return 'part'
   return 'missing'
 }
 
@@ -511,29 +522,30 @@ const coverRow = <Model, Fields extends Schema.Struct.Fields>(
   },
   served: Projection<Model, unknown> | undefined,
   browserServed: Projection<Model, unknown> | undefined,
-): SurfaceCoverage => ({
-  name: entry.name,
-  active: served !== undefined,
-  ...(entry.key === undefined ? {} : { key: entry.key }),
-  ...(entry.via === undefined ? {} : { via: entry.via }),
-  ...(entry.activation === undefined
-    ? {}
-    : {
-        activation: {
-          path: pathOf(entry.activation.path),
-          cover: coverOf(entry.activation.path, plan),
-        },
-      }),
-  reads: (served?.dependencies ?? []).map(path => ({
-    path: pathOf(path),
-    cover: coverOf(path, plan),
-  })),
-  unresumed:
-    served === undefined
-      ? []
-      : Metadata.summarize(served.metadata).filter(summary => !covered.has(summary.name)),
-  sameInBrowser: readsKey(served) === readsKey(browserServed),
-})
+): SurfaceCoverage => {
+  const carried = served === undefined ? [] : Metadata.summarize(served.metadata)
+  const names = carried.map(summary => summary.name)
+  return {
+    name: entry.name,
+    active: served !== undefined,
+    ...(entry.key === undefined ? {} : { key: entry.key }),
+    ...(entry.via === undefined ? {} : { via: entry.via }),
+    ...(entry.activation === undefined
+      ? {}
+      : {
+          activation: {
+            path: pathOf(entry.activation.path),
+            cover: coverOf(entry.activation.path, plan),
+          },
+        }),
+    reads: (served?.dependencies ?? []).map(path => ({
+      path: pathOf(path),
+      cover: coverOf(path, plan, names),
+    })),
+    unresumed: carried.filter(summary => !covered.has(summary.name)),
+    sameInBrowser: readsKey(served) === readsKey(browserServed),
+  }
+}
 
 /**
  * A Surface's coverage rows: its own row, then, while it is active, one row
