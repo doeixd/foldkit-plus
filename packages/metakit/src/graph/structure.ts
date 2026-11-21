@@ -371,11 +371,25 @@ export const build = (config: {
     return readerOrder.filter(id => !everAffected.has(id))
   }
 
+  // The pair is put in one order first, so `overlaps(a, b)` and `overlaps(b, a)`
+  // give the same reasons: a row write bridged into a Model path meets the
+  // other writer's write from either side.
   const overlaps = (writerA: string, writerB: string): ReadonlyArray<OverlapReason> => {
-    const a = writerMap.get(writerA)
-    const b = writerMap.get(writerB)
+    const [first, second] = writerA <= writerB ? [writerA, writerB] : [writerB, writerA]
+    const a = writerMap.get(first)
+    const b = writerMap.get(second)
     if (a === undefined || b === undefined) return []
     const reasons: Array<OverlapReason> = []
+    const bridged = (we: PathEdge, wp: PathAddress, targets: ReadonlyArray<PathEdge>): void => {
+      for (const link of links) {
+        if (!addressesOverlap(wp, link.row)) continue
+        for (const te of targets) {
+          if (Option.isSome(te.path) && addressesOverlap(link.model, te.path.value)) {
+            reasons.push({ kind: 'bridged', write: we, link, read: te })
+          }
+        }
+      }
+    }
     const checkPair = (writes: ReadonlyArray<PathEdge>, targets: ReadonlyArray<PathEdge>): void => {
       if (targets.length === 0) return
       for (const we of writes) {
@@ -394,19 +408,16 @@ export const build = (config: {
             reasons.push({ kind: 'direct', write: we, read: te })
           }
         }
-        // Bridged row -> model links
-        for (const link of links) {
-          if (!addressesOverlap(wp.value, link.row)) continue
-          for (const te of targets) {
-            if (Option.isSome(te.path) && addressesOverlap(link.model, te.path.value)) {
-              reasons.push({ kind: 'bridged', write: we, link, read: te })
-            }
-          }
-        }
+        bridged(we, wp.value, targets)
       }
     }
-    // Write-write overlap
+    // Write-write overlap: direct and unknown reasons once, bridges from both sides.
     checkPair(a.writes, b.writes)
+    if (a.writes.length > 0) {
+      for (const we of b.writes) {
+        if (!isUnknownEdge(we) && Option.isSome(we.path)) bridged(we, we.path.value, a.writes)
+      }
+    }
     // Write-read overlap in both directions
     if (b.reads !== undefined) checkPair(a.writes, b.reads)
     if (a.reads !== undefined) checkPair(b.writes, a.reads)
