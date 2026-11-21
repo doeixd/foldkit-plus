@@ -10,6 +10,7 @@ import * as Machine from 'metakit/machine'
 import { describe, expect, it } from 'vitest'
 import { Declared } from '../src/declared.js'
 import { Surface } from '../src/index.js'
+import { WritesCheck } from '../src/writes.js'
 
 const Model = Schema.Struct({
   title: Schema.String,
@@ -145,5 +146,36 @@ describe('Declared.of', () => {
         sends: { LogTitle: ['constructor'] },
       }),
     ).toThrow(/not a Message of this application/)
+  })
+
+  it('confines an opaque child Bundle to its path: skips unrelated reads and catches stray writes', () => {
+    // `Noted` stands for an opaque child Bundle placed at `['note']` with no machine.
+    const declared = Declared.of(App, PartialMachine, {
+      commands: { LogTitle: () => [], Persist: () => [] },
+      contracts: [{ messages: ['Noted'], owns: [['note']] }],
+      fallback: (model, message) =>
+        message._tag === 'Noted' ? { model: { ...model, note: message.note } } : { model },
+    })
+
+    const titleEpoch = declared.writes.epochFor([['title']])
+    const noteEpoch = declared.writes.epochFor([['note']])
+    const m1 = declared.update(initial, Message.Incremented({ by: 1 })).model
+    const titleBefore = titleEpoch()
+    const noteBefore = noteEpoch()
+
+    // Confined child writes `['note']`: noteEpoch advances, titleEpoch stays exact!
+    declared.update(m1, Message.Noted({ note: 'inside' }))
+    expect(noteEpoch()).toBeGreaterThan(noteBefore)
+    expect(titleEpoch()).toBe(titleBefore)
+
+    // WritesCheck enforces the confinement: if the opaque child writes outside `['note']`, it fails.
+    const leaky = WritesCheck.verify(declared.writes, (model: Model, message: Message) =>
+      message._tag === 'Noted'
+        ? { model: { ...model, note: message.note, title: 'leaked!' } }
+        : { model },
+    )
+    expect(() => leaky(m1, Message.Noted({ note: 'x' }))).toThrow(
+      /"Noted" changed title, and its transition declares it writes note/,
+    )
   })
 })
