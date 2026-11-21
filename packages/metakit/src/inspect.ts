@@ -8,6 +8,7 @@
 import { Option, Schema, SchemaAST } from 'effect'
 import { domainOfAst, type DomainMetadata } from './domain/annotation.js'
 import * as Expr from './expr.js'
+import { isIntCheck } from './intCheck.js'
 import * as Node from './node.js'
 
 export interface FieldSpec {
@@ -126,10 +127,6 @@ const boundsAt = (
 
 const ruleNodes = (schema: Schema.Top): ReadonlyArray<Node.Node> =>
   Expr.refinementsOf(schema).map(r => r.node)
-
-const isIntCheck = (check: SchemaAST.Check<unknown>): boolean =>
-  check.annotations?.representation?.id === 'effect/schema/isInt' ||
-  (check._tag === 'FilterGroup' && check.checks.some(isIntCheck))
 
 const scalarLiteral = (ast: SchemaAST.AST): Option.Option<string | number | boolean> =>
   SchemaAST.isLiteral(ast) &&

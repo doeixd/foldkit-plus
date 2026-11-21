@@ -9,6 +9,7 @@
  */
 import { Data, Option, Result, Schema, SchemaAST } from 'effect'
 import * as Expr from './expr.js'
+import { isIntCheck } from './intCheck.js'
 import * as Node from './node.js'
 import { residualizeNode } from './ops/residualize.js'
 import * as Path from './path.js'
@@ -69,10 +70,6 @@ const literal = (value: unknown): Lowered => {
   }
   return Result.succeed([SqlPiece.Value({ value: Object.is(value, -0) ? 0 : value })])
 }
-
-const isIntCheck = (check: SchemaAST.Check<unknown>): boolean =>
-  check.annotations?.representation?.id === 'effect/schema/isInt' ||
-  (check._tag === 'FilterGroup' && check.checks.some(isIntCheck))
 
 const isIntAst = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isUnion(ast)

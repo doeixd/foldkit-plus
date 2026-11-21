@@ -22,6 +22,7 @@
 import { Option, SchemaAST } from 'effect'
 import type { Schema } from 'effect'
 import * as Expr from './expr.js'
+import { isIntCheck } from './intCheck.js'
 import * as Node from './node.js'
 import { toNode, wrap, type ExprInput } from './ops/core.js'
 import * as Num from './ops/num.js'
@@ -100,10 +101,6 @@ export type Aggregate<Row> =
   | Max<Row>
   | Every<Row>
   | Any<Row>
-
-const isIntCheck = (check: SchemaAST.Check<unknown>): boolean =>
-  check.annotations?.representation?.id === 'effect/schema/isInt' ||
-  (check._tag === 'FilterGroup' && check.checks.some(isIntCheck))
 
 const isIntegerAst = (ast: SchemaAST.AST): boolean => {
   if (SchemaAST.isNumber(ast)) return (ast.checks ?? []).some(isIntCheck)

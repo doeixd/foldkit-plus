@@ -9,7 +9,7 @@
  * member (#241).
  */
 import { rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterAll, expect, test } from 'vitest'
 import { buildPublished, packages, pageModules, scratchIn } from './pageBuild.js'
 
@@ -258,6 +258,46 @@ test('a page reading only Expr.eval and Num.lte from metakit keeps no sql, prove
   expect(built.some(id => /\/dist\/ops\/ord\.js$/.test(id))).toBe(true)
   expect(source.some(id => /\/src\/ops\/ord\.ts$/.test(id))).toBe(true)
   const forbidden =
-    /\/(sql|drizzle|prove|conformance|domain|aggregates|machine|inspect|graph|policy|abstract\/(zone|interval|check)|ops\/(num|null|eq|str|arr))\.(js|ts)$|z3-solver|drizzle-orm/
+    /\/(sql|sqlLowering|drizzle|prove|conformance|domain|aggregates|aggregatesSql|machine|inspect|graph|policy|abstract\/(zone|interval|check)|ops\/(num|null|eq|str|arr))\.(js|ts)$|z3-solver|drizzle-orm/
   expect([...built, ...source].filter(id => forbidden.test(id))).toEqual([])
 }, 120_000)
+
+/**
+ * The subpaths of metakit a page may import carry no SQL lowering, no Drizzle
+ * and no solver, built or source. Broken by hand: `import './sqlLowering.js'`
+ * with a module-level read of `sqlOps` in `src/aggregates.ts` turned the
+ * `aggregates` row red.
+ */
+test.each([
+  [
+    'domain',
+    'domain',
+    `import { Money } from 'pkg'\nexport const used = Money.add`,
+    'domain/money',
+  ],
+  ['machine', 'machine', `import { make } from 'pkg'\nexport const used = make`, 'machine'],
+  [
+    'inspect',
+    'inspect',
+    `import { fieldSpecs } from 'pkg'\nexport const used = fieldSpecs`,
+    'inspect',
+  ],
+  ['aggregates', 'aggregates', `import { sum } from 'pkg'\nexport const used = sum`, 'aggregates'],
+])(
+  'a page reading metakit/%s keeps no SQL lowering, Drizzle or solver module',
+  async (_, file, page, kept) => {
+    const root = scratchIn('metakit', 'published-')
+    made.push(root)
+    const modules = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const index = await buildPublished('metakit', root)
+    const built = await modules(join(dirname(index), `${file}.js`))
+    const source = await modules(join(packages, 'metakit', 'src', `${file}.ts`))
+    expect(built.some(id => id.endsWith(`/dist/${kept}.js`))).toBe(true)
+    expect(source.some(id => id.endsWith(`/src/${kept}.ts`))).toBe(true)
+    const server =
+      /\/(sql|sqlLowering|aggregatesSql|drizzle|prove|graph|conformance)\.(js|ts)$|z3-solver|drizzle-orm/
+    expect([...built, ...source].filter(id => server.test(id))).toEqual([])
+  },
+  120_000,
+)
