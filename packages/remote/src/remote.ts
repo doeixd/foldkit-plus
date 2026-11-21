@@ -45,7 +45,14 @@ import type { WhyReader } from './whyReasons.js'
 import { withInner } from './inner.js'
 import { storePaths } from './storePath.js'
 import { liveAskOf, liveEntry } from './liveEntry.js'
-import { askedOf, askedUnion, resolvedOf, storeOnly, type NamedProjection } from './active.js'
+import {
+  askedOf,
+  askedUnion,
+  askReads,
+  resolvedOf,
+  storeOnly,
+  type NamedProjection,
+} from './active.js'
 
 import { inspectEntity, inspectRemote } from './inspect.js'
 import type { LiveEvent } from './liveState.js'
@@ -1809,7 +1816,7 @@ const bindDomain = <
       policies.set(entry, new Map(policies.get(entry)).set(key, policy))
       const ask = (model: AppModel) =>
         askedUnion(resolvedAt(model).map(({ projection }) => projection))
-      const asked = { of: ask, storeOnly: storeOnly(entry) }
+      const asked = { of: ask, storeOnly: storeOnly(entry), reads: askReads(entry) }
       entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, {
         ...options,
         policy,

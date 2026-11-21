@@ -1967,11 +1967,21 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     RemoteModel,
     Map<string, { readonly until: number; readonly dependencies: ReadDependencies }>
   >()
-  // The last plan and what it came from: a Message touching neither costs a few comparisons.
+  const valueAtPath = (root: unknown, path: ReadonlyArray<string>): unknown => {
+    let cursor = root
+    for (const key of path) {
+      if (cursor === null || typeof cursor !== 'object') return undefined
+      cursor = (cursor as Record<string, unknown>)[key]
+    }
+    return cursor
+  }
+  // The last plan and what it came from: a Message touching neither the store nor
+  // the entry's declared read paths costs a few `Object.is` comparisons.
   let last:
     | {
         readonly remote: RemoteModel
         readonly policy: RemotePolicy
+        readonly readValues: ReadonlyArray<unknown>
         readonly until: number
         readonly dependencies: ReadDependencies
       }
@@ -2006,8 +2016,22 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       const policy = policyAt(options.policy, model)
       const remote = bound.store.get(model)
       const at = now()
-      // Kept only for an ask the store alone decides (`remember`).
-      if (last !== undefined && last.remote === remote && last.policy === policy && at < last.until)
+      const readValues =
+        asked.reads !== undefined
+          ? asked.reads.map(path => valueAtPath(model, path))
+          : asked.storeOnly
+            ? []
+            : undefined
+      // Kept only when the ask's Model inputs are known (`storeOnly` or declared `reads`).
+      if (
+        last !== undefined &&
+        readValues !== undefined &&
+        last.remote === remote &&
+        last.policy === policy &&
+        at < last.until &&
+        readValues.length === last.readValues.length &&
+        readValues.every((value, index) => Object.is(value, last!.readValues[index]))
+      )
         return last.dependencies
       const ask = asked.of(model)
       // A policy picked from the Model can change while the Remote model does not.
@@ -2015,7 +2039,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       let byAsked = planned.get(remote)
       const known = byAsked?.get(askedKey)
       const remember = (until: number, dependencies: ReadDependencies) => {
-        if (asked.storeOnly) last = { remote, policy, until, dependencies }
+        if (readValues !== undefined) last = { remote, policy, readValues, until, dependencies }
         return dependencies
       }
       if (known !== undefined && at < known.until) return remember(known.until, known.dependencies)

@@ -28,11 +28,31 @@ export interface Asked {
 export interface AskedRead<AppModel> {
   readonly of: (model: AppModel) => Asked
   readonly storeOnly: boolean
+  /**
+   * Model paths beyond the Remote store that determine what `of(model)` asks
+   * (e.g. `Surface.when`'s `activation.path`). Absent when unknown (such as an
+   * opaque `Surface.at` callback), in which case planning is never skipped.
+   */
+  readonly reads?: ReadonlyArray<ReadonlyArray<string>> | undefined
 }
 
 /** Whether an active entry resolves without the Model: not a `Surface.at`, `Surface.when` or family, which may read anything of it. */
 export const storeOnly = <AppModel>(entry: ActiveEntry<AppModel>): boolean =>
   !('projectionOf' in entry || 'instancesOf' in entry)
+
+/**
+ * The declared Model paths beyond the store that decide what `entry` asks, or
+ * `undefined` when unknown (`Surface.at`, families with opaque parents).
+ */
+export const askReads = <AppModel>(
+  entry: ActiveEntry<AppModel>,
+): ReadonlyArray<ReadonlyArray<string>> | undefined => {
+  if (storeOnly(entry)) return []
+  if ('activation' in entry && entry.activation !== undefined && !('from' in entry)) {
+    return [entry.activation.path]
+  }
+  return undefined
+}
 
 export const askedOf = (projection: Projection<any, unknown>): Asked => ({
   requirements: requirementsOf(projection),
