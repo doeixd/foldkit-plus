@@ -34,6 +34,26 @@ export const isFiniteNumber = (ast: SchemaAST.AST): boolean =>
 export const isInteger = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isNumber(ast) && declares(ast.checks, new Set(['effect/schema/isInt']))
 
+/** A value of `ast` is never text holding a NUL character. */
+const holdsNoNulText = (ast: SchemaAST.AST): boolean =>
+  present(ast).every(
+    member =>
+      SchemaAST.isNumber(member) ||
+      SchemaAST.isBoolean(member) ||
+      SchemaAST.isObjects(member) ||
+      SchemaAST.isArrays(member) ||
+      (SchemaAST.isLiteral(member) && !Node.holdsNul([member.literal])),
+  )
+
+/**
+ * A literal or a path that holds no text with a NUL character: a term
+ * evaluation reads, which no text or equality operation refuses for it.
+ */
+export const isPortableRead = (node: Node.Node): boolean => {
+  if (Node.$is('Lit')(node)) return !Node.isRefusal(node.value) && !Node.holdsNul([node.value])
+  return Node.$is('Path')(node) && Option.isSome(node.ast) && holdsNoNulText(node.ast.value)
+}
+
 const kindOfAst = (ast: SchemaAST.AST): Option.Option<Node.ValueKind> => {
   const members = present(ast)
   if (members.length !== 1) return Option.none()

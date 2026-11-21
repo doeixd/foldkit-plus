@@ -78,7 +78,20 @@ const solve = async (z3: Z3, problem: Problem): Promise<Solved> => {
     return undecided(`z3 lowering unsupported: ${detail}`, 'unsupported', detail)
   }
 
-  const status = await solver.check()
+  let status = await solver.check()
+  // A witness holds no text with a NUL where one without exists: the replay writes none.
+  const nul = lowered.nulFlags()
+  if (status === 'sat' && nul.length > 0) {
+    solver.add(z3.And(...nul.map(flag => z3.Not(flag))))
+    status = await solver.check()
+    if (status === 'unsat') {
+      return undecided(
+        'every counterexample holds text with a NUL, which the text operations refuse',
+        'refused',
+        'text holding a NUL',
+      )
+    }
+  }
   if (status === 'unknown') {
     const why = solver.reasonUnknown()
     return /timeout|canceled/.test(why)

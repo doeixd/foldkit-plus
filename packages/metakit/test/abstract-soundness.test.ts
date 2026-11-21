@@ -260,7 +260,11 @@ describe('a value that may be null', () => {
     unproved(Row, Expr.when(row.flag, { then: true, else: true }), nulls)
     // What is known not to be null is decided as before.
     proved(Row, Expr.implies(Null.isNotNull(row.n), Ord.gte(row.n, 3)))
-    proved(Row, Expr.implies(Null.isNotNull(row.name), Str.startsWith(row.name, '')))
+    // Text may hold a NUL, which `startsWith` refuses: not null is not enough.
+    unproved(Row, Expr.implies(Null.isNotNull(row.name), Str.startsWith(row.name, '')), {
+      ...nulls,
+      name: 'a\u0000',
+    })
     proved(Row, Expr.any(Null.isNull(row.n), Eq.is(row.n, 3)))
   })
 

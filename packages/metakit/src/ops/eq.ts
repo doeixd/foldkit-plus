@@ -10,31 +10,30 @@ import { Equal, Option } from 'effect'
 import * as Node from '../node.js'
 import type { Expr } from '../path.js'
 import { call, type EnvOfInput, type ExprInput, type ValueOfInput } from './core.js'
+import { isPortableRead } from './kind.js'
 
 const sameValue = (a: unknown, b: unknown): boolean =>
   Object.is(a, b) || (a === 0 && b === 0) || Equal.equals(a, b)
 
 const nullSafe =
-  (decide: (a: unknown, b: unknown) => boolean) =>
+  (id: 'eq.is' | 'eq.isNot', decide: (a: unknown, b: unknown) => boolean) =>
   (args: ReadonlyArray<unknown>): unknown =>
-    args.find(Node.isRefusal) ?? decide(args[0], args[1])
+    args.find(Node.isRefusal) ??
+    (Node.holdsNul(args) ? Node.unportable(id) : decide(args[0], args[1]))
 
 export const isOp: Node.Op<'eq.is'> = {
   id: 'eq.is',
   returns: 'boolean',
   nulls: 'own',
-  evaluate: nullSafe(sameValue),
+  evaluate: nullSafe('eq.is', sameValue),
 }
 
 export const isNotOp: Node.Op<'eq.isNot'> = {
   id: 'eq.isNot',
   returns: 'boolean',
   nulls: 'own',
-  evaluate: nullSafe((a, b) => !sameValue(a, b)),
+  evaluate: nullSafe('eq.isNot', (a, b) => !sameValue(a, b)),
 }
-
-/** A literal or a path: a term evaluation reads and cannot refuse. */
-const isRead = (node: Node.Node): boolean => Node.$is('Lit')(node) || Node.$is('Path')(node)
 
 export const inOp: Node.Op<'eq.in'> = {
   id: 'eq.in',
@@ -45,14 +44,15 @@ export const inOp: Node.Op<'eq.in'> = {
     if (refused !== undefined) return refused
     const [needle, haystack] = args
     if (!Array.isArray(haystack)) return Node.illTyped('eq.in', 'an array of candidates', haystack)
+    if (Node.holdsNul([needle, ...haystack])) return Node.unportable('eq.in')
     return haystack.some(item => sameValue(needle, item === undefined ? null : item))
   },
   fold: args => {
     const needle = args[0]!
     const haystack = args[1]!
     if (!Node.$is('Lit')(haystack) || !Array.isArray(haystack.value)) return Option.none()
-    // A refused needle is refused, not false: only a read is known not to be.
-    if (haystack.value.length === 0 && isRead(needle)) {
+    // A refused needle is refused, not false: only a read of no NUL text is known not to be.
+    if (haystack.value.length === 0 && isPortableRead(needle)) {
       return Option.some(Node.Lit({ value: false }))
     }
     if (haystack.value.length === 1) {

@@ -142,6 +142,8 @@ const texts: ReadonlyArray<Sample> = [
   field('empty text', '', Schema.String),
   field('"ab"', 'ab', Schema.String),
   field('"🚀x"', '🚀x', Schema.String),
+  field('"\\uD83D", half of an astral character', '\uD83D', Schema.String),
+  field('"a\\u0000b"', 'a\u0000b', Schema.String),
   field('"ab" or null', 'ab', Schema.NullOr(Schema.String)),
   field('null text', null, Schema.NullOr(Schema.String)),
 ]

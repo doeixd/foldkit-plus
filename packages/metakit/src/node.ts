@@ -39,12 +39,14 @@ export type OpId = CoreOpId
 /**
  * Evaluation declined to answer: an integer result left the safe range
  * (`unsafe-integer`), a number was NaN or infinite (`non-finite`), an operand
- * was not of the operator's type (`ill-typed`), or a `Match` met a value none
- * of its cases names (`unmatched`). A refusal is not a value: every operator
- * passes it on, and a predicate that is refused does not hold.
+ * was not of the operator's type (`ill-typed`), a `Match` met a value none
+ * of its cases names (`unmatched`), or a text or equality operation met text
+ * holding a NUL character, which Postgres cannot store (`unportable`). A
+ * refusal is not a value: every operator passes it on, and a predicate that
+ * is refused does not hold.
  */
 export class Refusal extends Data.TaggedError('Refusal')<{
-  readonly reason: 'unsafe-integer' | 'non-finite' | 'ill-typed' | 'unmatched'
+  readonly reason: 'unsafe-integer' | 'non-finite' | 'ill-typed' | 'unmatched' | 'unportable'
   /** The operator id, or `if` or `match`. */
   readonly at: string
   readonly detail: string
@@ -62,6 +64,18 @@ export const illTyped = (at: string, expected: string, value: unknown): Refusal 
     reason: 'ill-typed',
     at,
     detail: `expected ${expected}, got ${Array.isArray(value) ? 'an array' : typeof value}`,
+  })
+
+/** Whether one of `values` is text holding a NUL character. */
+export const holdsNul = (values: ReadonlyArray<unknown>): boolean =>
+  values.some(value => typeof value === 'string' && value.includes('\u0000'))
+
+/** The refusal of text holding a NUL character, which every text and equality operation gives. */
+export const unportable = (at: string): Refusal =>
+  new Refusal({
+    reason: 'unportable',
+    at,
+    detail: 'text holding a NUL character, which Postgres cannot store',
   })
 
 /** What an operator's result is, which decides the properties that may return an operand of it. */

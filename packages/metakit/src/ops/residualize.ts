@@ -18,7 +18,7 @@ import * as Path from '../path.js'
 import * as Verdict from '../verdict.js'
 import { opProperties } from '../properties.js'
 import { evalNode, ifArm, matchArm } from './eval.js'
-import { kindOf, present } from './kind.js'
+import { isPortableRead, kindOf, present } from './kind.js'
 
 const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> => {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
@@ -71,9 +71,6 @@ const lookupPartial = (
 const isLitEqual = (node: Node.Node, expected: unknown): boolean =>
   Node.$is('Lit')(node) && (Object.is(node.value, expected) || (node.value === 0 && expected === 0))
 
-/** A literal or a path: a term evaluation reads and cannot refuse. */
-const isRead = (node: Node.Node): boolean => Node.$is('Lit')(node) || Node.$is('Path')(node)
-
 /** Size-reducing rewrites, from the operator's row of `opProperties`. */
 const applyLaws = (op: Node.Op, args: ReadonlyArray<Node.Node>): Option.Option<Node.Node> => {
   const laws = opProperties[op.id]
@@ -119,7 +116,7 @@ const applyLaws = (op: Node.Op, args: ReadonlyArray<Node.Node>): Option.Option<N
     if (laws.idempotent === true && same && ofKind(left)) {
       return Option.some(left)
     }
-    if (laws.reflexive !== undefined && same && isRead(left)) {
+    if (laws.reflexive !== undefined && same && isPortableRead(left)) {
       return Option.some(Node.Lit({ value: laws.reflexive.value }))
     }
   }

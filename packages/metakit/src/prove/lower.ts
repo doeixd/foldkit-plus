@@ -1,5 +1,6 @@
 import { Option } from 'effect'
 import type { Arith, Bool, Context, Solver } from 'z3-solver'
+import { abstractOps } from '../abstract/ops.js'
 import * as Node from '../node.js'
 import * as Str from '../ops/str.js'
 import * as Path from '../path.js'
@@ -267,8 +268,9 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
   }
   /** A text predicate the solver cannot read: free, but for the lengths it implies. */
   const textPredicate =
-    (id: 'str.startsWith' | 'str.contains', test: (text: string, part: string) => boolean) =>
+    (op: Node.Op<'str.startsWith' | 'str.contains'>) =>
     ([text, part]: ReadonlyArray<Term>, [textNode, partNode]: ReadonlyArray<Node.Node>): Term => {
+      const id = op.id
       const known = (node: Node.Node): Option.Option<string> =>
         Node.$is('Lit')(node) && typeof node.value === 'string'
           ? Option.some(node.value)
@@ -276,7 +278,9 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       const a = known(textNode!)
       const b = known(partNode!)
       if (Option.isSome(a) && Option.isSome(b)) {
-        return present(z3.Bool.val(test(a.value, b.value)), 'bool')
+        const value = Node.apply(op, [a.value, b.value])
+        // A refusal (a NUL) is added by the caller from the operands.
+        return present(z3.Bool.val(value === true), 'bool')
       }
       // Every text begins with and contains the empty one.
       if (Option.isSome(b) && b.value === '') {
@@ -295,6 +299,30 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     Node.$is('Lit')(node) && typeof node.value === 'string'
       ? z3.Int.val(Str.codePointLength(node.value))
       : measure('strLen', node)
+
+  /** Whether `node` may be text holding a NUL: a flag the model sets, where its Schema allows text. */
+  const nulOf = (node: Node.Node): ZBool =>
+    Node.$match(node, {
+      Lit: ({ value }) => z3.Bool.val(Node.holdsNul([value])),
+      Path: ({ segments }) => {
+        const name = Path.format(segments)
+        const info = shape.paths.get(name)
+        const textless =
+          info !== undefined &&
+          (info.sort === 'int' ||
+            info.sort === 'real' ||
+            info.sort === 'bool' ||
+            info.sort === 'struct' ||
+            (info.literals.length > 0 && !Node.holdsNul(info.literals)))
+        return textless ? never : flagVar(`nul:${name}`)
+      },
+      // An operator that gives text refuses a NUL in what it takes.
+      Call: () => never,
+      If: ({ then, otherwise }) => z3.Or(nulOf(then), nulOf(otherwise)),
+      Match: ({ cases, otherwise }) =>
+        z3.Or(never, ...[...cases.map(([, arm]) => arm), ...Option.toArray(otherwise)].map(nulOf)),
+      Opaque: opaqueNode => flagVar(`nul:${Node.key(opaqueNode)}`),
+    })
 
   type Lowerer = (args: ReadonlyArray<Term>, nodes: ReadonlyArray<Node.Node>) => Term
 
@@ -330,8 +358,8 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       return strict('num', [a!], result, unsafe(result))
     },
     'str.len': ([a], [node]) => strict('num', [a!], length(node!)),
-    'str.startsWith': textPredicate('str.startsWith', (text, part) => text.startsWith(part)),
-    'str.contains': textPredicate('str.contains', (text, part) => text.includes(part)),
+    'str.startsWith': textPredicate(Str.startsWithOp),
+    'str.contains': textPredicate(Str.containsOp),
     'arr.count': ([a], [node]) =>
       strict(
         'num',
@@ -376,7 +404,22 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
         if (info.nan) nanReads.add(name)
         return { ...present(vars.get(name)!, sortKind[info.sort]), isNull: anyOf(info.flags) }
       },
-      Call: ({ op, args }) => smtOps[op.id](args.map(lower), args),
+      Call: ({ op, args }) => {
+        const operands = args.map(lower)
+        const term = smtOps[op.id](operands, args)
+        if (!abstractOps[op.id].unportable) return term
+        // Text holding a NUL is refused; a strict operator gives null first.
+        const nul = z3.And(
+          z3.Not(anyRefused(operands)),
+          z3.Or(...args.map(nulOf)),
+          op.nulls === 'strict' ? z3.Not(anyNull(operands)) : z3.Bool.val(true),
+        )
+        return {
+          ...term,
+          isNull: z3.And(term.isNull, z3.Not(nul)),
+          refused: z3.Or(term.refused, nul),
+        }
+      },
       If: ({ cond, then, otherwise }) => {
         const c = lower(cond)
         return under(c, choose(bool(c), lower(then), lower(otherwise)))
@@ -425,7 +468,11 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       },
     })
 
-  return { lower, holds, flagVar, vars, lengths, codeTexts, opaque, nanReads }
+  /** The flags by which a model puts a NUL in text. */
+  const nulFlags = (): ReadonlyArray<ZBool> =>
+    Array.from(flagVars).flatMap(([name, flag]) => (name.startsWith('nul:') ? [flag] : []))
+
+  return { lower, holds, flagVar, vars, lengths, codeTexts, opaque, nanReads, nulFlags }
 }
 
 export type Lowered = ReturnType<typeof lowering>

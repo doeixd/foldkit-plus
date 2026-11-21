@@ -357,7 +357,7 @@ export default [
     nullStrict,
     'equality of a term with itself is true though the term may be refused',
     residualize,
-    'if (laws.reflexive !== undefined && same && isRead(left)) {',
+    'if (laws.reflexive !== undefined && same && isPortableRead(left)) {',
     'if (laws.reflexive !== undefined && same) {',
   ),
   mutation(

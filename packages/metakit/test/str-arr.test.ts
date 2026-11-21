@@ -108,16 +108,22 @@ describe('Str and Arr core ops across eval, residualize, SQL/PGlite, Zone, and Z
   it('proves string length and array emptiness implications in Tier 3 Zone and Tier 4 Z3', async () => {
     const $ = Path.from(Item)
 
-    // str.len >= 0 and arr.count >= 0 synchronously at Tier 3
-    expect(Verdict.isTrue(Abstract.checkInvariant(Item, Ord.gte(Str.len($.name), 0)))).toBe(true)
+    // A `Schema.String` may hold a NUL, which every text operation refuses, so
+    // no rule over its text is proved; text a Schema names holds none.
+    const Labelled = Schema.Struct({ name: Schema.Literals(['🚀abc', 'café']) })
+    const label = Path.from(Labelled)
+    expect(Verdict.isTrue(Abstract.checkInvariant(Item, Ord.gte(Str.len($.name), 0)))).toBe(false)
+    expect(Verdict.isTrue(Abstract.checkInvariant(Labelled, Ord.gte(Str.len(label.name), 0)))).toBe(
+      true,
+    )
     expect(Verdict.isTrue(Abstract.checkInvariant(Item, Ord.gte(Arr.count($.tags), 0)))).toBe(true)
 
     // startsWith('🚀ab') => str.len >= 3 (code-point length!) synchronously at Tier 3
     expect(
       Verdict.isTrue(
         Abstract.checkInvariant(
-          Item,
-          Expr.implies(Str.startsWith($.name, '🚀ab'), Ord.gte(Str.len($.name), 3)),
+          Labelled,
+          Expr.implies(Str.startsWith(label.name, '🚀ab'), Ord.gte(Str.len(label.name), 3)),
         ),
       ),
     ).toBe(true)

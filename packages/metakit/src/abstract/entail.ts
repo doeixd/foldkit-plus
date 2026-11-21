@@ -230,6 +230,10 @@ export function decide(this: AbstractState, goal: Node.Node): Verdict.Verdict<ne
             const open = call.args.find(arg => !this.hasValue(arg))
             if (open !== undefined) return this.unvalued(open)
           }
+          // Text holding a NUL is refused, which is neither true nor false.
+          if (row.unportable && !call.args.every(arg => this.portable(arg))) {
+            return Verdict.Unknown('an operand may be text holding a NUL')
+          }
           return row.decide(call.args, this)
         },
       }),

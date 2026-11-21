@@ -29,6 +29,8 @@ export interface TermOp {
   readonly refuses: boolean
   /** The difference constraints an integer result has with its operands. */
   readonly relation: 'add' | 'sub' | 'none'
+  /** Whether the evaluator refuses an operand that is text holding a NUL. */
+  readonly unportable: boolean
 }
 
 /** A boolean operator's row: how it is decided, and what its truth and its falsity say. */
@@ -44,6 +46,8 @@ export interface PredicateOp {
   readonly assume: (args: ReadonlyArray<Node.Node>, state: AbstractState) => void
   /** Record that the call evaluates to false. */
   readonly refute: (args: ReadonlyArray<Node.Node>, state: AbstractState) => void
+  /** Whether the evaluator refuses an operand that is text holding a NUL. */
+  readonly unportable: boolean
 }
 
 export type AbstractOp = TermOp | PredicateOp
@@ -55,6 +59,7 @@ const arithmetic = (relation: TermOp['relation'], forward: TermOp['forward']): T
   integral: args => args.every(Boolean),
   refuses: true,
   relation,
+  unportable: false,
 })
 
 /**
@@ -69,7 +74,7 @@ const monotone = (
   return directions === undefined ? () => Interval.top : Interval.monotone(directions, at)
 }
 
-/** A length or a count: an integer that is never negative and never refused. */
+/** A count: an integer that is never negative and never refused. */
 const measure: TermOp = {
   _tag: 'Term',
   range: Interval.between(0, Infinity),
@@ -77,7 +82,11 @@ const measure: TermOp = {
   integral: () => true,
   refuses: false,
   relation: 'none',
+  unportable: false,
 }
+
+/** A length of text: a count, refused for text holding a NUL. */
+const length: TermOp = { ...measure, unportable: true }
 
 const none = (): ReadonlyArray<Node.Node> => []
 
@@ -87,6 +96,7 @@ const comparison = (
   strict: boolean,
 ): PredicateOp => ({
   _tag: 'Predicate',
+  unportable: false,
   neverNull: false,
   measures: none,
   decide: (args, state) => state.entailsLeq(...order(args), strict),
@@ -194,6 +204,7 @@ const countOf = (items: Node.Node): Node.Node => Node.Call({ op: Arr.countOp, ar
 /** `str.startsWith` or `str.contains`: the text is at least as long as the part it holds. */
 const search = (op: Node.Op): PredicateOp => ({
   _tag: 'Predicate',
+  unportable: true,
   neverNull: false,
   measures: args => [lengthOf(args[0]!)],
   decide: args => {
@@ -221,6 +232,7 @@ const search = (op: Node.Op): PredicateOp => ({
 export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   'bool.and': {
     _tag: 'Predicate',
+    unportable: false,
     neverNull: false,
     measures: none,
     decide: (args, state) => Verdict.and(state.decide(args[0]!), state.decide(args[1]!)),
@@ -235,6 +247,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   },
   'bool.or': {
     _tag: 'Predicate',
+    unportable: false,
     neverNull: false,
     measures: none,
     decide: (args, state) => {
@@ -257,6 +270,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   },
   'bool.not': {
     _tag: 'Predicate',
+    unportable: false,
     neverNull: false,
     measures: none,
     decide: (args, state) => negated(state.decide(args[0]!)),
@@ -265,6 +279,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   },
   'eq.is': {
     _tag: 'Predicate',
+    unportable: true,
     neverNull: true,
     measures: none,
     decide: decideEqual,
@@ -273,6 +288,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   },
   'eq.isNot': {
     _tag: 'Predicate',
+    unportable: true,
     neverNull: true,
     measures: none,
     decide: (args, state) => negated(decideEqual(args, state)),
@@ -281,6 +297,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   },
   'eq.in': {
     _tag: 'Predicate',
+    unportable: true,
     neverNull: true,
     measures: none,
     decide: (args, state) => {
@@ -318,6 +335,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   },
   'null.isNull': {
     _tag: 'Predicate',
+    unportable: false,
     neverNull: true,
     measures: none,
     decide: (args, state) => {
@@ -361,12 +379,13 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     'none',
     monotone('num.neg', ([a]) => -a!),
   ),
-  'str.len': measure,
+  'str.len': length,
   'str.startsWith': search(Str.startsWithOp),
   'str.contains': search(Str.containsOp),
   'arr.count': measure,
   'arr.isEmpty': {
     _tag: 'Predicate',
+    unportable: false,
     neverNull: false,
     measures: args => [countOf(args[0]!)],
     decide: (args, state) => {

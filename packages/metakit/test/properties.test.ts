@@ -94,7 +94,7 @@ describe('partial evaluation reads the table', () => {
   const Row = Schema.Struct({ n: Schema.Int, b: Schema.Boolean })
   const $ = Path.forSchema(Row)
 
-  it.each([
+  it.each<readonly [string, Expr.Expr<typeof Row.Type, unknown>, unknown]>([
     ['x + 0', Num.add($.n, 0), $.n.node],
     ['0 + x', Num.add(0, $.n), $.n.node],
     ['x - 0', Num.sub($.n, 0), $.n.node],
@@ -104,7 +104,7 @@ describe('partial evaluation reads the table', () => {
     ['b or b', Bool.or($.b, $.b), $.b.node],
     ['b and false', Bool.and($.b, false), { _tag: 'Lit', value: false }],
     ['n == n', Eq.is($.n, $.n), { _tag: 'Lit', value: true }],
-  ] as const)('%s shrinks', (_, expr, residual) => {
+  ])('%s shrinks', (_, expr, residual) => {
     expect(Expr.residualize(expr, {}).node).toEqual(residual)
   })
 

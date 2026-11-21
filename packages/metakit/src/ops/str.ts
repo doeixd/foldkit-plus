@@ -1,10 +1,12 @@
 /**
  * String primitives (`str.len`, `str.startsWith`, `str.contains`) and derived
- * helper (`Str.isEmpty`). Null-strict: a null string gives null.
+ * helper (`Str.isEmpty`). Null-strict: a null string gives null, and text
+ * holding a NUL character is refused (`unportable`).
  *
  * `str.len` counts Unicode code points (`[...s].length`) so JavaScript,
  * Postgres (`char_length`), and SQLite (`length`) agree identically on
- * surrogate pairs and emoji.
+ * surrogate pairs and emoji. Text is compared by character, as a database
+ * holds it: a lone surrogate, which UTF-8 cannot encode, reads as U+FFFD.
  */
 import * as Node from '../node.js'
 import type { Expr } from '../path.js'
@@ -21,35 +23,46 @@ export const codePointLength = (s: string): number => {
   return count
 }
 
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
+/** `text` as SQLite's and Postgres's drivers hold it: each lone surrogate as U+FFFD. */
+const REPLACEMENT = String.fromCharCode(0xfffd)
+
+const wellFormed = (text: string): string => text.replace(LONE_SURROGATE, REPLACEMENT)
+
+/**
+ * A text operation over its operands, each a string without a NUL. Over
+ * well-formed text a match by UTF-16 unit starts and ends on a character.
+ */
+const textual =
+  <A>(id: Node.CoreOpId, decide: (texts: ReadonlyArray<string>) => A) =>
+  (args: ReadonlyArray<unknown>): unknown => {
+    const other = args.find(arg => typeof arg !== 'string')
+    if (other !== undefined) return Node.illTyped(id, 'a string', other)
+    if (Node.holdsNul(args)) return Node.unportable(id)
+    return decide((args as ReadonlyArray<string>).map(wellFormed))
+  }
+
 export const lenOp: Node.Op<'str.len'> = {
   id: 'str.len',
   returns: 'number',
   nulls: 'strict',
-  evaluate: ([text]) =>
-    typeof text === 'string' ? codePointLength(text) : Node.illTyped('str.len', 'a string', text),
+  evaluate: textual('str.len', ([text]) => codePointLength(text!)),
 }
-
-const search =
-  (id: 'str.startsWith' | 'str.contains', decide: (text: string, part: string) => boolean) =>
-  ([text, part]: ReadonlyArray<unknown>): unknown => {
-    if (typeof text !== 'string') return Node.illTyped(id, 'a string', text)
-    if (typeof part !== 'string') return Node.illTyped(id, 'a string', part)
-    return decide(text, part)
-  }
 
 // Neither declares `op(x, '') -> true`: over a null `x` it is null.
 export const startsWithOp: Node.Op<'str.startsWith'> = {
   id: 'str.startsWith',
   returns: 'boolean',
   nulls: 'strict',
-  evaluate: search('str.startsWith', (text, part) => text.startsWith(part)),
+  evaluate: textual('str.startsWith', ([text, part]) => text!.startsWith(part!)),
 }
 
 export const containsOp: Node.Op<'str.contains'> = {
   id: 'str.contains',
   returns: 'boolean',
   nulls: 'strict',
-  evaluate: search('str.contains', (text, part) => text.includes(part)),
+  evaluate: textual('str.contains', ([text, part]) => text!.includes(part!)),
 }
 
 /** Unicode code-point length of a string (always `>= 0`). */

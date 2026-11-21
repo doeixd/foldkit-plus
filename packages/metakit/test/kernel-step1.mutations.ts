@@ -112,4 +112,80 @@ const readers = [
   ),
 ]
 
-export default [...table, ...checks, ...readers]
+const unportableTests = ['packages/metakit/test/unportable.test.ts']
+const policyTests = ['packages/metakit/test/policy.test.ts']
+
+const text = [
+  mutation(
+    unportableTests,
+    'equality takes text holding a NUL',
+    '../src/ops/eq.ts',
+    '(Node.holdsNul(args) ? Node.unportable(id) : decide(args[0], args[1]))',
+    'decide(args[0], args[1])',
+  ),
+  mutation(
+    unportableTests,
+    'membership takes a candidate holding a NUL',
+    '../src/ops/eq.ts',
+    "if (Node.holdsNul([needle, ...haystack])) return Node.unportable('eq.in')",
+    "if (Node.holdsNul([needle])) return Node.unportable('eq.in')",
+  ),
+  mutation(
+    unportableTests,
+    'text is compared by UTF-16 unit',
+    '../src/ops/str.ts',
+    'return decide((args as ReadonlyArray<string>).map(wellFormed))',
+    'return decide(args as ReadonlyArray<string>)',
+  ),
+  mutation(
+    unportableTests,
+    'a text operation takes text holding a NUL',
+    '../src/ops/str.ts',
+    'if (Node.holdsNul(args)) return Node.unportable(id)',
+    '',
+  ),
+  mutation(
+    unportableTests,
+    'a path to text is a read no operation refuses',
+    '../src/ops/kind.ts',
+    'SchemaAST.isNumber(member) ||\n      SchemaAST.isBoolean(member) ||',
+    'SchemaAST.isString(member) ||\n      SchemaAST.isNumber(member) ||\n      SchemaAST.isBoolean(member) ||',
+  ),
+  mutation(
+    unportableTests,
+    'the checker takes a text field as holding no NUL',
+    '../src/abstract/state.ts',
+    "info.kind === 'number' ||\n            info.kind === 'boolean' ||",
+    "info.kind === 'text' ||\n            info.kind === 'number' ||\n            info.kind === 'boolean' ||",
+  ),
+  mutation(
+    unportableTests,
+    'the checker decides an operation over text that may hold a NUL',
+    '../src/abstract/entail.ts',
+    'if (row.unportable && !call.args.every(arg => this.portable(arg))) {',
+    'if (false) {',
+  ),
+  mutation(
+    unportableTests,
+    'the checker learns nothing from a rule that took text',
+    '../src/abstract/state.ts',
+    'for (const arg of call.args) this.portableKeys.add(Node.key(arg))',
+    '',
+  ),
+  mutation(
+    unportableTests,
+    'the solver reads no NUL into text',
+    '../src/prove/lower.ts',
+    'if (!abstractOps[op.id].unportable) return term',
+    'return term',
+  ),
+  mutation(
+    policyTests,
+    'the solver reports a witness holding a NUL it cannot replay',
+    '../src/prove/solve.ts',
+    "if (status === 'sat' && nul.length > 0) {",
+    'if (false) {',
+  ),
+]
+
+export default [...table, ...checks, ...readers, ...text]
