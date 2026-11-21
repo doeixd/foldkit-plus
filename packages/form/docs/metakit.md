@@ -11,12 +11,14 @@ into input attributes, judges the transition against what has been typed so
 far, and shows a rule over two keys (leave after you arrive) beside both keys
 as soon as the dates break it.
 
+A form's keys are its fields, and its input Schema is the Effect `Schema` of the value it decodes to. Install `foldkit-form`, `metakit` and `effect`. The blocks below continue one file; each result is in the comment under the code.
+
 ## Read input attributes from the Schema
 
 `Declared.of(form)` reads the form's input Schema once, through metakit's
 `Inspect.fieldSpecs`, and gives each key a constraint: its bounds, its literal
 options, its domain type, and the HTML attributes those imply. This form edits
-an amount of US dollars, which metakit's `Money` type stores as whole cents:
+an amount of US dollars, which metakit's `Money` type stores as whole cents. `Form.make(name, Form.input(Schema), { inputs })` declares a form over that Schema, with a control for each key under `inputs` (the next section says what a control is):
 
 ```ts
 import { Schema } from 'effect'
@@ -40,6 +42,7 @@ const { constraints } = Declared.of(WithdrawForm)
 
 const { min, max, step } = constraints.amount.attributes
 // min: Option.some('0.01'), max: Option.some('10000.00'), step: Option.some('0.01')
+// constraints.amount.attributes.type -> Option.some('number')
 ```
 
 The bounds come out in the units the input shows: dollars, not cents. "Above
@@ -84,8 +87,8 @@ control that matches its attributes. The example above passed it under
 `inputs`. A `Money` key's draft is the amount in whole units (`12.50`), stored
 as cents (`1250`); a `CalendarDay` key's draft is the day as `YYYY-MM-DD`, what
 an `<input type="date">` holds. Without it, a `Money` key gets the plain
-`Number` control, which reads `12.50` as 12.5 and fails the Schema's integer
-check.
+`Number` control, which reads `12.50` as the number 12.5; the Schema stores
+whole cents, so 12.5 is not a valid stored value and decoding fails.
 
 A control you name for the same key replaces the derived one:
 
@@ -136,7 +139,7 @@ const Withdraw = Transition.make({
 const { can } = Declared.of(WithdrawForm)
 
 const verdict = can(WithdrawForm.initial, Withdraw, { balance: Money.minor('USD', 10_000), frozen: false })
-Verdict.isFalse(verdict) // false: nothing is typed yet, so the guard is not decided
+Verdict.isFalse(verdict) // false: no amount is typed yet, so the verdict is Unknown, not False
 ```
 
 The answer has three values, not two:
@@ -151,7 +154,7 @@ The answer has three values, not two:
   decode yet, or comes from an opaque function. A draft that does not read as
   an amount is `Unknown`, not `False`.
 
-Refuse the control only on `False`, and leave it pressable on `Unknown`:
+Refuse the control only on `False`, and leave it pressable on `Unknown`. `h` is the form's HTML builder, as in the `h.input` example above:
 
 ```ts
 h.button([...(Verdict.isFalse(verdict) ? [h.AriaDisabled(true)] : [])], ['Withdraw'])
@@ -195,8 +198,9 @@ text that is not a date, the rule is undecided and nothing is reported. A rule
 on one key (`Schema.isGreaterThan(0)` on `guests`) is left to that key's own
 validation, which `form.field` already shows.
 
-A rule given no message has nothing to show. `Declared.of` refuses such a rule
-when the form is declared, unless you pass `unworded`, which words it:
+A rule on the input struct given no message has nothing to show. `Declared.of`
+throws an error naming such a rule when you call it, unless you pass
+`unworded`, which words it:
 
 ```ts
 Declared.of(StayForm, { unworded: failure => `Check ${failure.keys.join(' and ')}` })

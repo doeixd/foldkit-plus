@@ -7,11 +7,11 @@ Two things decide whether the rule still holds, and neither is in the rule:
 - **How the database runs concurrent writes.** If it runs them one at a time, the second withdrawal reads 20 and is refused.
 - **The order events arrive in.** If a page applies an old reply over a newer one, it shows a state no single step produced.
 
-This guide shows how to turn the first into an error when the server starts, and the second into a list of tests still to write, with a function that runs your steps in many orders for you. It assumes the account and its transitions from [the tutorial](./getting-started.md).
+This guide shows how to turn the first into an error when the server starts, and the second into a list of tests still to write, with a function that runs your steps in many orders for you. It assumes you have read [the tutorial](./getting-started.md); the account here is a smaller one with only a `balance`. Install `metakit` and `effect`; the proof step needs `z3-solver` only if one of your transitions is one the built-in checks cannot decide. The code blocks below continue one file as an ES module (they use top-level `await`); the comment under each is its result.
 
 ## Refuse a store that cannot hold a rule
 
-A *store* here is whatever persists your state: Postgres, SQLite, a table in memory. Describe it with three facts. These are Postgres as it comes: its default level is read committed, and nothing locks a parent row unless your writes do.
+A *store* here is whatever persists your state: Postgres, SQLite, a table in memory. Describe it with a name and two facts about how it runs writes, defined just below. The values here are Postgres as it comes: its default level is read committed, and nothing locks a parent row unless your writes do.
 
 ```ts
 import * as Store from 'metakit/store'
@@ -86,11 +86,11 @@ const mounting = () => Store.mount(postgres, needed)
 
 It throws `StoreRefused`, an error, for a store that cannot hold one of the rules, and returns nothing for one that can. `Store.refused(postgres, needed)` gives the same list without throwing.
 
-To get past the refusal, change what is true of the database and then what you declare: run it at the serializable level (`isolation: 'serializable'`), or have every write of an entry lock its account row first (`select … for update`) and declare `parentRowLock: true`. `Store.mount` believes the three facts; it does not inspect the database.
+To get past the refusal, change what is true of the database and then what you declare: run it at the serializable level (`isolation: 'serializable'`), or have every write of an entry lock its account row first (`select … for update`) and declare `parentRowLock: true`. `Store.mount` believes the two facts; it does not inspect the database.
 
 ## List the orders a proof leaves open
 
-`Prove.machine` proves each transition alone. Its report also names what that leaves open: each pair of transitions where one writes what the other reads or writes, so the order their replies arrive in can matter.
+`Prove.machine` proves each transition alone. Its report also names what that leaves open: each pair of transitions (a transition can pair with itself, as two deposits do) where one writes what the other reads or writes, so the order their replies arrive in can matter.
 
 ```ts
 import { Effect } from 'effect'
@@ -163,12 +163,12 @@ const open = Temporal.undischarged(report.obligations, discharges).map(({ name }
 // ['Deposit/Withdraw', 'Withdraw/Withdraw']: two walks still to write
 ```
 
-In a test, `expect(open).toEqual([])` fails until every obligation has a walk. A walk that broke does not count, and a discharge naming an obligation that is not in the list is a type error.
+In a test, `expect(open).toEqual([])` fails until every obligation has a walk, and that is how the build fails: the test is red while any is open. A walk that broke does not count, and a discharge naming an obligation that is not in the list is a type error. To close `Deposit/Withdraw`, write a scenario the same way: one step `of` `Deposit`, one `of` `Withdraw`, the replies that can arrive in either order, and a `holds` that says what the page must never show.
 
 ## What this does not do
 
 - A walk tries the orders its seeds give (200 unless you pass `runs`), not every order. It finds races; it does not prove their absence.
-- `Store.mount` trusts the three facts you give it. It does not inspect the database.
+- `Store.mount` trusts the two facts you give it. It does not inspect the database.
 - The steps of a scenario are your model of the page and the server. A walk says nothing about code the steps do not call.
 
 ## Next

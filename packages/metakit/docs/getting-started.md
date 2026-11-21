@@ -6,16 +6,18 @@ Effect `Schema` already gives you types, runtime decoding, and JSON Schema from 
 
 ## Prerequisites
 
-Install `metakit` alongside `effect`. Add `z3-solver` as a dev dependency if you want SMT counterexamples in tests.
+Install `metakit` alongside `effect`. `z3-solver` is a general-purpose solver; add it as a dev dependency only if you want counterexamples for transitions the built-in checks cannot decide (this tutorial's proof does not need it).
 
 ```bash
 pnpm add metakit effect
 pnpm add -D z3-solver
 ```
 
+The four steps below build one file. Keep every block in it, in order, as an ES module (step 4 uses top-level `await`), and run it with your TypeScript runner. Each step's result is shown in a comment under the code.
+
 ## 1. Attach an inspectable invariant to an Effect Schema
 
-An Effect `Schema` describes the shape of a record. `Expr.refine` attaches a data-level expression (`Expr`) to that schema instead of an opaque JavaScript callback, so every tool can read it.
+An Effect `Schema` describes the shape of a record. `Expr.refine` attaches a data-level expression (`Expr`, a small tree of operations such as `Num.gte`) to that schema instead of an opaque JavaScript callback, so every tool can read it. In `Expr.refine($ => …)`, `$` stands for the record being checked, so `$.balance` is its `balance` field.
 
 ```ts
 import { Result, Schema } from 'effect'
@@ -33,7 +35,7 @@ export const Account = Schema.Struct({
 )
 ```
 
-Decoding with `Schema.decodeUnknownSync(Account)` now enforces `balance >= 0`, `reserved >= 0`, and `reserved <= balance` at runtime, just like `Schema.filter`.
+Decoding with `Schema.decodeUnknownSync(Account)` now enforces `balance >= 0`, `reserved >= 0`, and `reserved <= balance` at runtime, as a `Schema.makeFilter` rule would. A value that breaks one fails to decode.
 
 ## 2. Generate SQL `CHECK` and `WHERE` from the same rule
 
@@ -54,11 +56,13 @@ const where = Result.getOrThrow(Sql.toWhere(openHigh, { dialect: 'postgres', row
 // where.params -> ['open', 20000]
 ```
 
-The check ends in `IS TRUE` because a rule holds only where it is true: a comparison of a null is null in SQL and in `Expr.eval` alike, and the check then fails as the Schema refuses the value. `Eq.is` compiles to `IS NOT DISTINCT FROM` in Postgres (`IS` in SQLite), so it answers of a null column as it does in memory. The same predicate selects the same rows on both databases and in `Expr.eval`.
+What happened: `toCheck` wrote the `CHECK` clause for your migration, and `toWhere` wrote a `WHERE` clause with its values as parameters. `Expr.in({ row: Account }, …)` builds an expression over a named input, here the row, and `rowPrefix: ['row']` says paths under `row` are columns, so `row.status` becomes `"status"`.
+
+The check ends in `IS TRUE` because SQL lets a `CHECK` pass when its result is null; here a null result fails, as it does when the Schema decodes the value. `Eq.is` compiles to `IS NOT DISTINCT FROM` in Postgres (`IS` in SQLite), so it answers of a null column as `Expr.eval`, metakit's in-memory evaluator, does. The same predicate selects the same rows on both databases and in `Expr.eval`.
 
 ## 3. Declare a guarded transition and disable actions early
 
-A `Transition` pairs a boolean guard (`when`) with simultaneous field writes (`apply`). You can evaluate it against a full `{ state, input }` pair to run the update, or against a partial `{ state }` to know whether the action is allowed before the user types an amount.
+A `Transition` is one state change: a boolean guard (`when`) with the field writes (`apply`) that happen together when the guard holds. A `Machine` is a named set of transitions over one Schema. You can evaluate a transition against a full `{ state, input }` pair to run the update, or against a partial `{ state }` to know whether the action is allowed before the user types an amount.
 
 ```ts
 import * as Machine from 'metakit/machine'
@@ -94,11 +98,11 @@ const affordances = AccountMachine.affordances(frozen)
 // affordances -> { available: [], disabled: ['Withdraw', 'Freeze'], pending: [] }
 ```
 
-On an open account, `Freeze` is `available` (its guard needs no input) and `Withdraw` is `pending` (it needs `input.amount`). On a frozen account, both become `disabled` without a separate UI check.
+`affordances` sorts every transition into `available` (its guard is true now), `disabled` (false now) or `pending` (it still needs input). On an open account, `Freeze` is `available` (its guard needs no input) and `Withdraw` is `pending` (it needs `input.amount`). On a frozen account, both are `disabled` without a separate UI check. To turn that into a button, put `disabled` on the button whose Message tag is in the `disabled` list.
 
 ## 4. Prove that every transition preserves the schema invariants
 
-`Prove.machine` checks every transition in `AccountMachine`. It runs a fast synchronous Zone check first and only boots Z3 if it needs a counterexample or non-linear reasoning.
+`Prove.machine` checks that no state a transition's guard allows can break a rule of the Schema. It runs the built-in interval and zone checkers first and starts Z3 only for a goal they cannot decide. `pin` names the transitions that must stay proved.
 
 ```ts
 import { Effect } from 'effect'
@@ -113,7 +117,7 @@ const report = await Effect.runPromise(
 //   PROVED (zone) Freeze [pinned]
 ```
 
-If someone removes `Num.lte(input.amount, Num.sub(state.balance, state.reserved))` from `Withdraw`, `report.ok` becomes `false` and `report.format()` prints the exact `before`, `input`, `after`, violated invariant, and a copy-pasteable `Transition.run(...)` reproducer.
+If someone removes `Num.lte(input.amount, Num.sub(state.balance, state.reserved))` from `Withdraw`, `report.ok` becomes `false` and `report.format()` prints a state and input that break the rule: the exact `before`, `input`, `after`, the violated rule, and a `Transition.run(...)` call that repeats it. Try it: delete that guard line, run the file again, and compare with the report in [Verify a state machine in CI](./proving-transitions.md).
 
 ## Next
 

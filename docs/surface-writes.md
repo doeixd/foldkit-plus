@@ -12,7 +12,7 @@ pnpm add foldkit-surface metakit
 
 ## Keep a Surface's drawing until a Message writes what it reads
 
-This page has a title and a counter. The blocks below are one file. The first is an application as you would already have it: a Model, two Messages, and a Surface with a view function (a renderer) for each part. `App.surface`'s `model` picks the fields the part reads.
+This page has a title and a counter. The blocks below are one file (install `foldkit`, `effect`, `foldkit-surface` and `metakit`). The first is an application as you would already have it: a Model, two Messages, and a Surface with a view function (a renderer) for each part. `App.surface`'s `model` picks the fields the part reads. A `Renderer<Model, Message>` is a view function from the fields the Surface reads and an HTML builder `h` to HTML; its second type parameter is the Messages the part can send, and `never` means none.
 
 ```ts
 import { Result, Schema } from 'effect'
@@ -33,7 +33,7 @@ const drawTally: Renderer<{ readonly count: number }, never> = (model, h) =>
   h.p([], [String(model.count)])
 ```
 
-Now declare what each Message writes. A **Transition**, from the `metakit` package, is a Message's change written as data: `Transition.set(state.count, …)` says "this sets `count`", and the path is checked against the Model's Schema. A **Machine** is a record of Transitions, one under each Message's name.
+Now declare what each Message writes. A **Transition**, from the `metakit` package, is a Message's change written as data: `Transition.set(state.count, …)` says "this sets `count`", and the path is checked against the Model's Schema (`state` is the Model's paths, `Num` builds number expressions). A **Machine** is a record of Transitions, one under each Message's name.
 
 ```ts
 import { Num, Transition } from 'metakit'
@@ -73,17 +73,17 @@ What happened:
 
 - `Writes.of(App, machine)` reads each Transition's writes. A Transition under a name that is not one of the application's Messages does not compile; from plain JavaScript, `Writes.of` throws.
 - `writes.rootView(Header, undefined, drawHeader)` makes the header's view; `undefined` is for a Surface that takes no params. It takes what `Surface.rootView` takes and gives the same view. `Header` reads `title`, and of the two Transitions only `Renamed` sets `title`. That match is made here, once.
-- Your application's view calls `header(model, h)` and `tally(model, h)` with the Model and the builder `h` Foldkit hands it, as it would without `writes`.
+- Your application's view calls `header(model, h)` and `tally(model, h)` with the Model and the builder `h` Foldkit hands it, as it would without `writes`, and you give `update` to Foldkit as usual.
 - `writes.track(appUpdate)` is the `update` you give Foldkit. It notes which Message made each Model. After a `Counted`, `header` hands Foldkit the drawing it made last time: the header's fields are not read from the Model, `drawHeader` does not run, and Foldkit skips comparing the header with the page. What that costs instead is a counter raised for each view a Message reaches, and two numbers compared per view.
-- `writes.regions()` lists the result, so you can see which Messages draw each Surface again.
+- `writes.regions()` lists the result, so you can see which Messages draw each Surface again (`redrawnBy` is that list of Message names).
 
-In the counting test, fifty `Counted` Messages draw the five Surfaces 105 times with `writes` and 255 times without. The header, drawn once, is the same DOM element with no change recorded on it ([`writes.browser.test.ts`](../packages/surface/test/writes.browser.test.ts)).
+In the counting test, the five Surfaces are a header, a counter, an account panel, an owner line and one that names no path. Fifty `Counted` Messages draw them 105 times with `writes` (the counter and the pathless one 51 times each, counting the first drawing, and the other three once) and 255 times without (5 Surfaces in 51 Models). The header, drawn once, is the same DOM element with no change recorded on it ([`writes.browser.test.ts`](../packages/surface/test/writes.browser.test.ts)).
 
 ## What still draws every time
 
 A drawing is kept only when it is known that nothing it reads was written. Everything else is drawn again:
 
-- **A Message with no Transition.** A Machine may hold Transitions for three of your forty Messages. Each of the other thirty-seven draws every Surface, as it does today, and the next declared Message keeps drawings again.
+- **A Message with no Transition.** A Machine may hold Transitions for three of your forty Messages. Each of the other thirty-seven draws every Surface, as it does today. The next Message that has a Transition keeps drawings again.
 - **A Model `track` did not see made.** The first Model, one your application installs from storage or a server render, or one from an `update` you did not wrap draws every Surface once. Wrap the outermost `update`, once.
 - **A Surface that reads through a function.** A Surface whose `model` reads with `Projection.fromReader`, or picks a field with `true` in `Projection.of`, names no Model field. Every Message that changes the Model draws such a Surface.
 - **A Surface that shows server data through a `foldkit-remote` read.** Such a read does name the field its store sits in, but the store also changes with Remote's own Messages and with any of yours that starts a write, so the field's name is not trusted: every Message that changes the Model draws the Surface, and a panel of server rows is drawn as often as before. This covers a Surface whose `model` holds the read itself (`Data.get`, `Data.query`). A value you derive from one with `Projection.derive`, or a plain reference to the store's field, is matched by that field like any other, so a Message of yours that has a Transition and also writes the store must declare it.

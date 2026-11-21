@@ -2,7 +2,9 @@
 
 If you already use [Effect](https://effect.website) and `effect/Schema`, you know the value of keeping structure as data. Because an Effect `Schema` carries an inspectable `SchemaAST`, one declaration gives you TypeScript types, runtime decoding, encoding, JSON Schema, and `Arbitrary` test generators without writing them four times.
 
-That stops the moment you write a business rule or a state transition.
+That stops the moment you write a business rule or a state transition. A rule like "reserved may not exceed the balance" is a JavaScript function, so you write it again as a SQL `CHECK`, again as a disabled button and again in a test, and nothing proves an update cannot break it.
+
+`metakit` is a package that keeps such a rule as data, a small expression tree attached to your Effect `Schema`, so the browser, the database, the form and a prover all read the one copy. You can run all of it in one file: [`examples/metakit/src/demo.ts`](../../../examples/metakit/src/demo.ts). Install it with `pnpm add metakit effect`.
 
 ## The cliff: opaque JavaScript closures
 
@@ -41,6 +43,8 @@ Both work at runtime when you have every value in memory. Neither can be read by
 `metakit` does not replace Effect or `effect/Schema`. It extends `SchemaAST` by replacing only the opaque predicate with a small, typed expression tree (`Expr`) and replacing imperative update logic with a single-step `Transition` (`when` + simultaneous `apply` writes).
 
 Your `Account` is still an ordinary Effect `Schema`: `Schema.decodeUnknownSync`, `Schema.is`, `Arbitrary`, `Option`, `Result`, and `Effect` all keep working unchanged.
+
+The imports below come from one package: `metakit` holds the expression and transition builders (`Expr`, `Transition`) and the operation namespaces (`Eq` for equality, `Num` for numbers), and each reader lives on its own subpath (`metakit/sql`, `metakit/prove`, and so on) so a page loads only the readers it names. `$` in `Expr.refine($ => …)` stands for the value being checked, so `$.balance` is its `balance` field.
 
 ```ts
 import { Effect, Result, Schema } from 'effect'
@@ -82,7 +86,7 @@ const Withdraw = Transition.make({
 
 ### 1. One rule runs in JS, SQL, forms, and JSON Schema
 
-Every reader consumes the exact same AST attached to `Account`:
+Every reader consumes the exact same AST attached to `Account`. The blocks from here on continue the file above (`Account`, `Withdraw` and the imports stay in scope):
 
 ```ts
 // Runtime decode (standard Effect Schema)
@@ -98,6 +102,7 @@ const bad = Schema.decodeUnknownResult(Account)({
 // Postgres CHECK constraint
 const check = Result.getOrThrow(Sql.toCheck(Account, { dialect: 'postgres' }))
 // check -> CHECK ((((("balance" >= 0) AND ("reserved" >= 0)) AND ("reserved" <= "balance"))) IS TRUE)
+// `IS TRUE` because SQL lets a CHECK pass when its result is null; here null fails, as it does in the Schema.
 
 // Form field bounds & JSON Schema
 const specs = Inspect.fieldSpecs(Account)
@@ -138,11 +143,11 @@ Runtime `null` is kept strictly separate from missing (`Unknown`) fields: `{ dis
 
 ### 3. Validity vs. authority is enforced by TypeScript
 
-Every `Expr<Env, A>` is indexed by the environment `Env` it can read. `Account`'s invariant has `Env = Account`, so referencing a `principal` inside `Account`'s `Expr.refine` is a compile-time error. A policy built with `Expr.in({ row: Account, principal: Principal }, ...)` has both in scope. You cannot accidentally leak an authorization check into a table `CHECK` constraint.
+Every `Expr<Env, A>` is indexed by the environment `Env` it can read. `Account`'s invariant has `Env = Account`, so referencing a `principal` (the signed-in user asking) inside `Account`'s `Expr.refine` is a compile-time error. A policy built with `Expr.in({ row: Account, principal: Principal }, ...)` has both in scope. You cannot accidentally leak an authorization check into a table `CHECK` constraint.
 
 ### 4. Invariant preservation is proved—or refuted with a reproducer
 
-`Prove.machine` checks every transition against `Account`'s invariants. Linear arithmetic and `OrderedEnum` rules prove synchronously via Interval + Zone in microseconds; if a guard is weakened, Z3 produces a concrete counterexample:
+`Prove.machine` checks every transition against `Account`'s invariants (the rules in `Expr.refine`). Rules built from linear arithmetic and `OrderedEnum` are proved by the built-in interval and zone checkers, which run in your process without Z3, a general-purpose solver. If a guard is weakened, the solver is asked for a concrete counterexample. A pin, `pin: ['Withdraw']`, says this transition must stay proved; the report is not `ok` otherwise:
 
 ```ts
 const AccountMachine = Machine.make({ state: Account, transitions: { Withdraw } })
@@ -185,6 +190,7 @@ const analysis = Graph.analyze(AccountMachine, bindings)
 const pruned = Graph.pruneStatic(bindings, { promoEnabled: false })
 // pruned.staticValues -> { promoBonus: 0 }
 // pruned.resumePaths  -> Some([['balance'], ['reserved'], ['id']])
+// `accountId` is dead (no transition writes `id`), but the page still reads it, so `id` stays.
 void analysis
 void pruned
 ```

@@ -8,10 +8,14 @@ whether or not an invoice changed. `aggregated`, from
 renders: when one invoice changes, it moves the total by that invoice's
 difference instead of adding everything up again.
 
-It works on a list the page has already loaded with `Data.query`, so it asks
-the server nothing. The aggregate itself (the rule "add up the cents") is
-written with `metakit`, this repository's library of inspectable expressions,
-whose `metakit/aggregates` entry has the six kinds this guide uses.
+It works on a list the page has already loaded into its Model with
+`Data.query`, so it asks the server nothing. In the example below, `Data` is
+your Remote domain (the value `Remote.make` returns), `model` is your
+application's Model and `invoices` is a list read from `Data`, all set up as
+the [Remote page](../README.md) shows. The aggregate itself (the
+rule "add up the cents") is written with `metakit`, a package that keeps rules
+as data (`pnpm add metakit`), whose `metakit/aggregates` entry has the six
+kinds this guide uses.
 
 <!-- docs-check define invoices
 import { Schema as S } from 'effect'
@@ -56,14 +60,20 @@ const Row = Schema.Struct({ cents: Schema.Int, status: Schema.String })
 const UnpaidCents = Rows.sum(Row, $ => $.cents)
 
 const unpaid = aggregated(Data, model, invoices, UnpaidCents, { where: Unpaid, input: {} })
-unpaid.value // 124000
+unpaid.value // 124000, the unpaid invoices' cents: $1,240.00
 unpaid.complete // true
 ```
 
+What happened: `aggregated` added `cents` over the invoices `Unpaid` picks and
+returned the total as `value`. Call it again with a changed Model and it
+follows only the rows that changed.
+
 `invoices` is the list the page shows (`Data.query(AllInvoices, …)`), and
-`Unpaid` is a registered query whose body picks the unpaid rows: the same pair
-`filtered` takes, and `aggregated` counts exactly the rows `filtered` would
-return. Leave the last argument out to count every row of the list.
+`Unpaid` is a query you listed under `queries` in `Remote.make`, whose body
+picks the unpaid rows. `input` holds that query's inputs, none here. The same
+pair `filtered` takes, and `aggregated` counts exactly the rows `filtered` would
+return. Leave out the final `{ where, input }` object to count every row of the
+list.
 
 "The list" here is every row the page has loaded for that query and input,
 which can be more than one read of it shows. `invoices` asks for `first: 50`;
@@ -85,14 +95,18 @@ both ends, `complete` is `true` beside a list that shows 50.
 | Aggregate | `value` | When the list has no rows |
 | --- | --- | --- |
 | `Rows.sum(Row, $ => $.cents)` | a number | `0` |
-| `Rows.count(Row)`, or `Rows.count(Row, $ => …)` for rows a condition holds of | a number | `0` |
-| `Rows.min(Row, $ => $.due)`, `Rows.max(…)` | an `Option` of a number: none when no row has a value | `Option.none()` |
+| `Rows.count(Row)` | a number | `0` |
+| `Rows.min(Row, $ => $.due)` | an `Option` of a number | `Option.none()` |
+| `Rows.max(Row, $ => $.due)` | an `Option` of a number | `Option.none()` |
 | `Rows.every(Row, $ => …)` | a boolean | `true` |
 | `Rows.any(Row, $ => …)` | a boolean | `false` |
 
+`Rows.count(Row, $ => …)` counts only the rows a condition holds of. `min` and
+`max` give `Option.none()` also when no row has a value.
+
 `Rows.sum` takes only whole-number contributions (a `Schema.Int`, `Money` or
-`Decimal` field, and `+`, `-`, `*` over them) and throws where it is defined
-otherwise: adding and taking away decimals drifts, so a total kept by
+`Decimal` field, and `+`, `-`, `*` over them) and throws when you call
+`Rows.sum`, not later, for anything else: adding and taking away decimals drifts, so a total kept by
 differences would stop matching one added up afresh. `min` and `max` skip a
 `null`; a condition that cannot be decided (it reads a `null`) counts as false.
 
@@ -117,7 +131,7 @@ It adds everything up again when it cannot tell which rows changed: a snapshot
 restored into the store, a change of who is signed in, a Model older than the
 last one it was given, or more than about a thousand store writes since it was
 last called. It also does when `Unpaid` reads another row (an
-`Expr.path` through a relation) or the list's Selection joins one, on any
+`Expr.path` through a relation) or the list's `select` option joins one, on any
 change to the store, since a write to any row can then move which rows count.
 
 While any write in the domain is pending, each change to the store also walks
@@ -137,7 +151,8 @@ though the kept total is the same.
 
 It counts the rows the page has loaded, never the rows the server has: with
 50 invoices loaded and more on the server, the total is over those 50, with
-`complete: false` until the last page is loaded. It includes what a pending
+`complete: false` until the last page is loaded; `complete` is how you tell a
+total over everything from a total over what is loaded so far. It includes what a pending
 write shows, as the list does, and moves back when the write fails. For
 "which rows" rather than "how much",
 use [`filtered`](../README.md#filtering-a-loaded-list-without-asking-the-server).

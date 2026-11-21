@@ -2,15 +2,17 @@
 
 Server-rendered pages often serialize the entire model to the browser even when half the UI is behind a disabled feature flag or never changes after load. And cascading forms (country -> region -> city) often fire broken queries before upstream selections are filled in.
 
-`metakit/graph` solves both statically from your `Machine` and `Expr` definitions without running a runtime subscription tracker.
+`metakit/graph`, a subpath of the `metakit` package (`pnpm add metakit effect`), works both out from your `Machine` and `Expr` definitions before the page runs, so no runtime tracker has to watch what each view reads. A `Machine` is a named set of transitions over one Schema (see [Write a business rule once](./getting-started.md)); an `Expr` is a rule or a value written as data. This page also shows how to build one machine from the machines of a model's parts.
+
+A binding is a named expression a view reads, such as the balance the screen shows. A path is a field's address in the Model, such as `['balance']`.
 
 ## Compute static `affectedBy` maps and dead bindings
 
-`Graph.analyze(machine, bindings)` compares every transition's write paths against every view binding's read paths (symmetrically along parent and child prefixes). It returns:
+`Graph.analyze(machine, bindings)` compares every transition's write paths against every binding's read paths (also when one path is a parent or child of the other). It returns:
 
-- `affectedBy[tag]`: the exact bindings invalidated when `tag` fires.
-- `deadBindings`: bindings that depend on no path written by any transition, so they never need client subscriptions.
-- `liveModelPaths`: the minimal set of model paths touched anywhere.
+- `affectedBy[tag]`: the bindings that must be read again when the transition named `tag` runs.
+- `deadBindings`: bindings that depend on no path written by any transition, so the page never needs to watch them for changes.
+- `liveModelPaths`: the paths that some transition writes or some binding reads, as a minimal set.
 
 ```ts
 import { Option, Schema } from 'effect'
@@ -58,6 +60,8 @@ const analysis = Graph.analyze(AccountMachine, bindings)
 // analysis.deadBindings        -> ['accountId']
 ```
 
+What happened: `Withdraw` writes `balance`, which `available` and `promoBonus` read, so only those two bindings need reading again; `Freeze` writes `status`, which only `statusLabel` reads; nothing writes `id`, so `accountId` is dead. The analysis follows the paths an expression names, not which branch runs, so `promoBonus` counts as reading `balance` even while `promoEnabled` is false.
+
 If a binding contains an `Expr.opaque` node without explicit `reads`, `Graph.analyze` conservatively marks it affected by every transition that writes at least one path.
 
 ## Build one machine from the machines of its parts
@@ -102,7 +106,7 @@ What to expect from a composed machine:
 
 ## Shrink SSR resume payloads (`Graph.pruneStatic`)
 
-At SSR time, pass known server-side values (feature flags, tenant settings, fixed constants) to `Graph.pruneStatic`. Bindings that fold completely to a literal move into `staticValues` (including known `null`, which stays distinct from omitted `Unknown` fields), and `resumePaths` returns the exact minimal model paths still needed by `liveBindings`.
+A resumable page is one the browser continues from the Model the server sent, so every Model field a view reads has to be in that payload. At server-render time, pass the values you already know (feature flags, tenant settings, fixed constants) to `Graph.pruneStatic`. Bindings that fold completely to a literal move into `staticValues` (a known `null` counts: it is a value, unlike a field you left out, which stays unknown). `liveBindings` are the others, and `resumePaths` is the minimal list of Model paths they still read, wrapped in an `Option` that is `None` when a binding reads something no path names (an `Expr.opaque` term with no declared `reads`).
 
 ```ts
 const pruned = Graph.pruneStatic(bindings, { promoEnabled: false })
@@ -114,7 +118,7 @@ const pruned = Graph.pruneStatic(bindings, { promoEnabled: false })
 
 ## Gate dependent queries (`Graph.queryReadiness`)
 
-For a cascading filter over `{ row, params }`, `Graph.queryReadiness(expr, partialEnv)` partially evaluates the predicate and reports whether any non-row paths remain unbound. It is ready only when none do and what is left lowers to SQL: a predicate SQL refuses (an `Expr.opaque` term over the row, a fraction beside an integer column) has nothing `missing` and names the reason in `unsupported`.
+For a cascading filter over `{ row, params }` (the row being tested and the choices made so far), `Graph.queryReadiness(expr, partialEnv)` fills in the choices you have and reports whether any parameter the filter still reads is unbound. The result is `{ ready: true, residual }` when none is and what is left lowers to SQL; `residual` is the filter simplified by what you supplied. Otherwise it is `{ ready: false, missing, unsupported, residual }`: `missing` lists the parameters still needed, and a predicate SQL refuses (an `Expr.opaque` term over the row, a fraction beside an integer column) has nothing missing and names the reason in `unsupported`.
 
 ```ts
 import { Result } from 'effect'
@@ -139,7 +143,7 @@ const step1 = Graph.queryReadiness(filter, { params: { countryId: 'US' } })
 //            unsupported: None, residual }
 
 const step2 = Graph.queryReadiness(filter, { params: { all: true } })
-// step2 -> { ready: true, residual } (short-circuited: countryId and regionId are not required)
+// step2 -> { ready: true, residual } (`all` is true, so countryId and regionId are not required)
 
 const step3 = Graph.queryReadiness(filter, {
   params: { all: false, countryId: 'US', regionId: 'CA' },
@@ -157,3 +161,8 @@ void pruned
 void step1
 void step2
 ```
+
+## Next
+
+- Prove the machines you analyze here: [Verify a state machine in CI](./proving-transitions.md).
+- Expose a machine's transitions to an AI assistant: [Let an agent call your state machine's transitions](../../agent/docs/machine-tools.md).
