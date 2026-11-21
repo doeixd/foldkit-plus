@@ -1,7 +1,9 @@
 /**
- * A child's drawing kept while its Model is the same object (#431). A child
- * view is given its Model alone, so the same Model draws the same tree:
- * Foldkit's lazy slot hands the last one back, and snabbdom skips diffing it.
+ * A child's drawing kept while its Model is the same object (#431), or while
+ * no declared write has reached its placement path (#586). A child view is
+ * given its Model alone, so the same Model (or unchanged path epoch) draws the
+ * same tree: Foldkit's lazy slot hands the last one back, and snabbdom skips
+ * diffing it.
  */
 import { createLazy, type Html, type HtmlBuilder } from 'foldkit/html'
 
@@ -13,11 +15,6 @@ import { createLazy, type Html, type HtmlBuilder } from 'foldkit/html'
  */
 const SERVER_RENDER = Symbol.for('foldkit-plus.serverRender')
 
-// How many kept drawings have started. Foldkit's lazy slot throws before it
-// calls the drawing when there is no runtime frame (a test, a server's first
-// pass), so a throw with this unchanged is that; one after is the drawing's.
-let started = 0
-
 /**
  * What a view's drawing also depends on besides its Model, for a view that
  * swaps its own body (`Bundle.lazy`): a kept drawing is handed back for the
@@ -26,21 +23,38 @@ let started = 0
  */
 export const drawEpochs = new WeakMap<object, () => unknown>()
 
-/** One position's drawing of a child, kept while its Model and builder are the ones it last drew. */
+export interface KeptDrawingOptions {
+  /**
+   * Optional epoch reader driven by declared write paths (e.g. from
+   * `foldkit-surface/writes`, #586). When provided, the lazy slot keys on this
+   * epoch instead of raw child Model identity so structurally rebuilt slices
+   * whose path was not written stay cached.
+   */
+  readonly pathEpoch?: (() => unknown) | undefined
+}
+
+/** One position's drawing of a child, kept while its Model (or declared path epoch) and builder are the ones it last drew. */
 export const keptDrawing = <Model>(
   draw: (model: Model, h: HtmlBuilder<any>) => Html,
   view?: object,
+  options?: KeptDrawingOptions,
 ): ((model: Model, h: HtmlBuilder<any>) => Html) => {
   const lazy = createLazy()
-  const counted = (model: Model, h: HtmlBuilder<any>, _epoch?: unknown): Html => {
+  // Instance-scoped so concurrent renders or nested placements never collide.
+  let started = 0
+  let latest: Model
+  const pathEpoch = options?.pathEpoch
+  const counted = (key: unknown, h: HtmlBuilder<any>, _epoch?: unknown): Html => {
     started++
-    return draw(model, h)
+    return draw(pathEpoch === undefined ? (key as Model) : latest, h)
   }
   return (model, h) => {
     if ((globalThis as Record<symbol, unknown>)[SERVER_RENDER] === true) return draw(model, h)
+    latest = model
     const before = started
     try {
-      return lazy(counted, [model, h, view === undefined ? undefined : drawEpochs.get(view)?.()])
+      const key = pathEpoch === undefined ? model : pathEpoch()
+      return lazy(counted, [key, h, view === undefined ? undefined : drawEpochs.get(view)?.()])
     } catch (error) {
       if (started !== before) throw error
       return draw(model, h)
