@@ -2,7 +2,7 @@
  * What `Data.can` computes (#533), kept apart from `can.ts` so only a domain
  * that registers a Mutation loads the write judges (the write capability).
  */
-import { Match, Option, Schema } from 'effect'
+import { Match, Option, Result, Schema } from 'effect'
 import { Write as DomainWrite, type AnyWrite, type ExprContext } from 'foldkit-entity'
 import type { HeldRow, MemoryOperators } from 'foldkit-entity'
 import { Verdict } from 'metakit'
@@ -13,24 +13,29 @@ import { own } from './record.js'
 import type { EntityStore } from './store.js'
 import { tableOf } from './table.js'
 
-/** The keys given, each encoded as the server reads the input. */
+/**
+ * The keys given, each encoded as the server reads the input, or the first key
+ * and the words of why its schema cannot encode it.
+ */
 const encodedGiven = (
   write: AnyWrite,
   input: Readonly<Record<string, unknown>>,
-): Readonly<Record<string, unknown>> =>
-  Object.fromEntries(
-    Object.entries(write.input.schema.fields).flatMap(([key, field]) => {
-      const given = own(input, key)
-      return given === undefined
-        ? []
-        : [
-            [
-              key,
-              Schema.encodeUnknownSync(field as unknown as Schema.Codec<unknown, unknown>)(given),
-            ],
-          ]
-    }),
-  )
+): Result.Result<
+  Readonly<Record<string, unknown>>,
+  { readonly key: string; readonly message: string }
+> => {
+  const encoded: Record<string, unknown> = {}
+  for (const [key, field] of Object.entries(write.input.schema.fields)) {
+    const given = own(input, key)
+    if (given === undefined) continue
+    const result = Schema.encodeUnknownResult(field as unknown as Schema.Codec<unknown, unknown>)(
+      given,
+    )
+    if (Result.isFailure(result)) return Result.fail({ key, message: result.failure.message })
+    encoded[key] = result.success
+  }
+  return Result.succeed(encoded)
+}
 
 export const canOf = (
   write: AnyWrite,
@@ -60,7 +65,20 @@ export const canOf = (
       ? []
       : [`the client holds no ${unheld.join(', ')}, which a rule may refuse the write by`]
   if (Option.isSome(row)) {
-    const met = metByWrite(write, row.value, encodedGiven(write, input), context, store, operators)
+    // An input the schema cannot encode is one the server refuses too.
+    const encoded = encodedGiven(write, input)
+    if (Result.isFailure(encoded))
+      return Verdict.False(
+        Option.some(
+          CanRefusal.Invalid({
+            entity: entity.name,
+            rule: 'input',
+            message: `${encoded.failure.key}: ${encoded.failure.message}`,
+            path: [encoded.failure.key],
+          }),
+        ),
+      )
+    const met = metByWrite(write, row.value, encoded.success, context, store, operators)
     if (Verdict.isFalse(met)) return Verdict.False(Option.some(CanRefusal.Unmet({})))
     if (Verdict.isUnknown(met)) reasons.push(met.reason)
   }
@@ -97,7 +115,8 @@ export type Ask<Model> = (model: Model, input: Readonly<Record<string, unknown>>
 /**
  * `Data.capability`: `authorize` refuses a `No(Forbidden)`, `applies` a
  * `No(Unmet)` or `No(Invalid)`, and both allow `Undecided`, which the server
- * decides. Each hook asks again, over the Model its call carries.
+ * decides. Each hook asks again, over the Model its call carries. A hook fails
+ * closed: asking that throws, or a `No` that names no refusal, refuses.
  */
 export const capabilityOf = <Model>(
   mutation: { readonly name: string; readonly write: AnyWrite },
@@ -109,47 +128,60 @@ export const capabilityOf = <Model>(
     return { input, can: ask(request.model, input) }
   }
   const allowed = (): true => true
+  // The answer's own words are for the caller who asked, never an exception's.
+  const closed = <A>(
+    request: CapabilityRequest<Model, any, any>,
+    judge: (a: ReturnType<typeof answer>) => A,
+  ): A | false => {
+    try {
+      return judge(answer(request))
+    } catch {
+      return false
+    }
+  }
   return {
     authorize: request =>
-      Verdict.match(answer(request).can, {
-        False: ({ witness }) =>
-          Option.match(witness, {
-            onNone: () => false,
-            onSome: refusal =>
-              CanRefusal.match(refusal, {
-                Forbidden: ({ reason }) =>
-                  Option.match(reason, {
-                    onNone: () => false,
-                    onSome: words => ({ allowed: false as const, reason: words }),
-                  }),
-                Unmet: allowed,
-                Invalid: allowed,
-              }),
-          }),
-        True: allowed,
-        Unknown: allowed,
-      }),
-    applies: request => {
-      const { input, can } = answer(request)
-      return Verdict.match(can, {
-        False: ({ witness }) =>
-          Option.match(witness, {
-            onNone: () => false,
-            onSome: refusal =>
-              CanRefusal.match(refusal, {
-                // `authorize` refused it before `applies` is asked.
-                Forbidden: allowed,
-                Unmet: () => ({
-                  applies: false as const,
-                  reason: `${mutation.write.input.entity.name} ${String(own(input, mutation.write.id.key))} does not hold what ${mutation.name} asks of it`,
+      closed(request, ({ can }) =>
+        Verdict.match(can, {
+          False: ({ witness }) =>
+            Option.match(witness, {
+              onNone: () => false,
+              onSome: refusal =>
+                CanRefusal.match(refusal, {
+                  Forbidden: ({ reason }) =>
+                    Option.match(reason, {
+                      onNone: () => false,
+                      onSome: words => ({ allowed: false as const, reason: words }),
+                    }),
+                  Unmet: allowed,
+                  Invalid: allowed,
                 }),
-                Invalid: ({ message }) => ({ applies: false as const, reason: message }),
-              }),
-          }),
-        True: allowed,
-        Unknown: allowed,
-      })
-    },
+            }),
+          True: allowed,
+          Unknown: allowed,
+        }),
+      ),
+    applies: request =>
+      closed(request, ({ input, can }) =>
+        Verdict.match(can, {
+          False: ({ witness }) =>
+            Option.match(witness, {
+              onNone: () => false,
+              onSome: refusal =>
+                CanRefusal.match(refusal, {
+                  // `authorize` refused it before `applies` is asked.
+                  Forbidden: allowed,
+                  Unmet: () => ({
+                    applies: false as const,
+                    reason: `${mutation.write.input.entity.name} ${String(own(input, mutation.write.id.key))} does not hold what ${mutation.name} asks of it`,
+                  }),
+                  Invalid: ({ message }) => ({ applies: false as const, reason: message }),
+                }),
+            }),
+          True: allowed,
+          Unknown: allowed,
+        }),
+      ),
   }
 }
 
@@ -162,10 +194,16 @@ export const availableOf =
   (model: Model): boolean =>
     Option.match(inputOf(model), {
       onNone: () => false,
-      onSome: input =>
-        Verdict.match(ask(model, input), {
-          False: () => false,
-          True: () => true,
-          Unknown: () => true,
-        }),
+      onSome: input => {
+        try {
+          return Verdict.match(ask(model, input), {
+            False: () => false,
+            True: () => true,
+            Unknown: () => true,
+          })
+        } catch {
+          // A control that cannot be judged is not offered.
+          return false
+        }
+      },
     })

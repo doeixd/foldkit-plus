@@ -9,6 +9,8 @@ import { Derived, Entity, Expr, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { Verdict } from 'metakit'
 import { describe, expect, it } from 'vitest'
+import { availableOf, capabilityOf } from '../src/canOf.js'
+import { CanRefusal } from '../src/can.js'
 import { Can, Mutation, Remote } from '../src/index.js'
 
 const Doc = Entity.define(
@@ -104,6 +106,14 @@ const Retitle = Mutation.write(
     id: 'id',
   }),
 )
+// A refinement keeps the type `string` while the schema refuses what the type allows.
+const Name = Mutation.write(
+  'Name',
+  Write.update(
+    Entity.input(Doc, Schema.Struct({ id: Schema.String, title: Schema.NonEmptyString })),
+    { id: 'id' },
+  ),
+)
 const Drop = Mutation.write(
   'Drop',
   Write.delete(Entity.input(Doc, Schema.Struct({ id: Schema.String })), { id: 'id' }),
@@ -119,7 +129,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Doc],
-  mutations: [Publish, Revert, PublishSeen, Grow, Resize, Retitle, Drop, Hand],
+  mutations: [Publish, Revert, PublishSeen, Grow, Resize, Retitle, Name, Drop, Hand],
 })
 
 const read = (
@@ -365,6 +375,57 @@ describe('Data.capability', () => {
     expect(() => Data.capability(Hand, () => ({ id: 'x' }))).toThrow(
       'Data.capability(Hand): the mutation was not declared as a Write',
     )
+  })
+})
+
+describe('a capability fails closed', () => {
+  const unencodable = Data.capability(Name, ({ input }: { input: { readonly id: string } }) => ({
+    id: input.id,
+    title: '',
+  }))
+
+  it('answers No(Invalid), and does not throw, for an input its schema cannot encode', () => {
+    expect(refusal(Data.can(held, Name, { id: 'draft', title: '' }))).toMatchObject({
+      _tag: 'Invalid',
+      entity: 'Doc',
+      path: ['title'],
+    })
+  })
+
+  it('leaves the gate to authorize and refuses an unencodable input in applies', () => {
+    expect(unencodable.authorize(call('draft'))).toBe(true)
+    expect(unencodable.applies(call('draft'))).toMatchObject({ applies: false })
+  })
+
+  const throwing = (): Can => {
+    throw new Error('the store failed')
+  }
+  const request = { model: held, input: {}, principal: { name: 'agent' } }
+  const stub = (ask: () => Can) =>
+    capabilityOf({ name: 'Publish', write: Publish.write }, ask, () => ({}))
+
+  it('refuses in both hooks, without a reason, when asking throws', () => {
+    const checks = stub(throwing)
+    expect(checks.authorize(request)).toBe(false)
+    expect(checks.applies(request)).toBe(false)
+  })
+
+  it('refuses in both hooks a False that carries no refusal', () => {
+    const checks = stub(() => Verdict.False(Option.none<CanRefusal>()))
+    expect(checks.authorize(request)).toBe(false)
+    expect(checks.applies(request)).toBe(false)
+  })
+
+  it('allows an Unknown, which the server decides', () => {
+    const checks = stub(() => Can.undecided(['not held']))
+    expect(checks.authorize(request)).toBe(true)
+    expect(checks.applies(request)).toBe(true)
+  })
+
+  it('shows a control unavailable when asking throws or the refusal has no witness', () => {
+    const names = () => Option.some({})
+    expect(availableOf(throwing, names)(held)).toBe(false)
+    expect(availableOf(() => Verdict.False(Option.none<CanRefusal>()), names)(held)).toBe(false)
   })
 })
 
