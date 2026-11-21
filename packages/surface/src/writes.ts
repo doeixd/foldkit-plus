@@ -23,6 +23,7 @@ import {
   type Renderer,
 } from './index.js'
 import { messageTag, tagOf } from './messageTags.js'
+import { registerRootViewHook } from './rootViewRegistry.js'
 
 export {
   WritesCheck,
@@ -30,6 +31,25 @@ export {
   type UndeclaredWrite,
   type WriteDiagnostic,
 } from './writesCheck.js'
+
+/** A contract (such as a Remote domain or Sync document) whose Messages write its `owns` paths. */
+export interface WritesContract {
+  readonly messages: ReadonlyArray<string>
+  readonly owns: ReadonlyArray<ReadonlyArray<string>>
+}
+
+/** Additional writers contributed alongside a Machine to `Writes.of`. */
+export interface WritesOptions {
+  /**
+   * Contracts whose Messages write their owned Model paths (e.g. a Remote
+   * domain whose reducer Messages write `['remote']`). Any reader under those
+   * paths — including a `Projection.derive` over a Remote read or a plain
+   * reference into the store — is reached by those Messages.
+   */
+  readonly contracts?: ReadonlyArray<WritesContract> | undefined
+  /** Extra Message-to-paths declarations outside `machine.transitions`. */
+  readonly writers?: Readonly<Record<string, ReadonlyArray<ReadonlyArray<string>>>> | undefined
+}
 
 /** What `Writes.of` worked out for one view it keeps the drawing of. */
 export interface RegionFacts<Tag extends string> {
@@ -67,6 +87,13 @@ export interface Writes<Root, Message, Tag extends string> {
   readonly track: <Return extends { readonly model: Root }>(
     update: (model: Root, message: Message) => Return,
   ) => (model: Root, message: Message) => Return
+  /**
+   * Installs these writes as the default `Surface.rootView` path-skipper for
+   * this application (#587), so every `Surface.rootView` and
+   * `SurfaceView.toRenderer` skips unchanged Surfaces without repeating
+   * `writes.rootView`. Returns a disposer that restores plain rendering.
+   */
+  readonly install: () => () => void
   /** Each view defined with these writes, in the order they were defined. */
   readonly regions: () => ReadonlyArray<RegionFacts<Tag>>
 }
@@ -86,17 +113,39 @@ const of = <
 >(
   app: AppScope<Root, F, Cases>,
   machine: Machine<Root, Transitions> & OnlyMessages<Cases, Transitions>,
+  options?: WritesOptions,
 ): Writes<Root, Schema.Schema.Type<MessageUnion<Cases>>, keyof Transitions & string> => {
   type Tag = keyof Transitions & string
-  const tags = Object.keys(machine.transitions) as Array<Tag>
   const messages: Readonly<Record<string, unknown>> = app.Message
-  for (const tag of tags) {
+  const assertMessageTag = (tag: string): void => {
     if (!Object.hasOwn(messages, tag) || messageTag(messages[tag]) !== tag) {
       throw new Error(
         `Writes.of: the transition "${tag}" is not named by a Message of this application`,
       )
     }
   }
+  const merged = new Map<string, Array<ReadonlyArray<string>>>()
+  const addWrites = (tag: string, paths: ReadonlyArray<ReadonlyArray<string>>): void => {
+    assertMessageTag(tag)
+    const existing = merged.get(tag) ?? []
+    merged.set(tag, [...existing, ...paths])
+  }
+  for (const tag of Object.keys(machine.transitions)) {
+    const fp = machine.footprints[tag as Tag]
+    addWrites(tag, fp?.writes ?? [])
+  }
+  const hasContractsOrWriters =
+    (options?.contracts !== undefined && options.contracts.length > 0) ||
+    (options?.writers !== undefined && Object.keys(options.writers).length > 0)
+  for (const contract of options?.contracts ?? []) {
+    for (const tag of contract.messages) addWrites(tag, contract.owns)
+  }
+  for (const [tag, paths] of Object.entries(options?.writers ?? {})) {
+    addWrites(tag, paths)
+  }
+  const footprints: Record<string, { readonly writes: ReadonlyArray<ReadonlyArray<string>> }> =
+    Object.create(null)
+  for (const [tag, paths] of merged) footprints[tag] = { writes: paths }
 
   // Counted up to draw every view again, and each view's own count for a
   // Message declared to write what it reads: a lazy slot keeps a drawing
@@ -106,7 +155,7 @@ const of = <
     own: number
   }
   // A tag absent here has no transition, so nothing is known of what it writes.
-  const redraws = new Map<string, Array<Region>>(tags.map(tag => [tag, []]))
+  const redraws = new Map<string, Array<Region>>([...merged.keys()].map(tag => [tag, []]))
   const facts: Array<RegionFacts<Tag>> = []
   // The Model the counts are true of: the last a tracked update made, or a view drew.
   let current = Option.none<Root>()
@@ -115,9 +164,7 @@ const of = <
   const writes: Writes<Root, Schema.Schema.Type<MessageUnion<Cases>>, Tag> = {
     declared: message =>
       Option.flatMap(tagOf(message), tag =>
-        Object.hasOwn(machine.footprints, tag)
-          ? Option.some(machine.footprints[tag as Tag].writes)
-          : Option.none(),
+        Object.hasOwn(footprints, tag) ? Option.some(footprints[tag]!.writes) : Option.none(),
       ),
 
     track: update => (model, message) => {
@@ -134,18 +181,19 @@ const of = <
     },
 
     rootView: (surface, params, render) => {
-      const draw = Surface.rootView(surface, params, render)
       const name = surface.name
       const projection = surface.projection(params)
       // A projection carrying metadata reads through a planner (a Remote read):
-      // what it shows also moves with Messages no transition is written for, so
-      // its paths decide nothing and every Message that writes draws it again.
+      // unless its store-owning contracts/writers are registered here, its paths
+      // decide nothing and every Message that writes draws it again.
       const reads =
-        Metadata.summarize(projection.metadata).length > 0 ? Option.none() : pathsRead(projection)
+        !hasContractsOrWriters && Metadata.summarize(projection.metadata).length > 0
+          ? Option.none()
+          : pathsRead(projection)
       // A read that names no path (`Option.none()`) is conservatively affected
       // by every transition that writes at least one path.
       const redrawnBy = affectedTags(
-        machine.footprints as Readonly<
+        footprints as Readonly<
           Record<Tag, { readonly writes: ReadonlyArray<ReadonlyArray<string>> }>
         >,
         reads,
@@ -164,7 +212,7 @@ const of = <
       let latest: Root
       // The builder is the application's, which the type `Surface.rootView`
       // gives the view checks at each call: here it is only handed on.
-      const drawn = (root: Root, h: unknown): Html => draw(root, h as never)
+      const drawn = (root: Root, h: unknown): Html => render(projection.read(root), h as never)
       const counted = (_all: number, _own: number, h: unknown): Html => {
         started++
         return drawn(latest, h)
@@ -186,6 +234,16 @@ const of = <
         }
       }
     },
+
+    install: () =>
+      registerRootViewHook(
+        app.owner,
+        writes.rootView as (
+          surface: unknown,
+          params: unknown,
+          render: unknown,
+        ) => (root: unknown, h: unknown) => Html,
+      ),
 
     regions: () => facts,
   }

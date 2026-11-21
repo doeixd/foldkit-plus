@@ -16,13 +16,8 @@ export default [
   // The matcher under-reports: a view is kept although a declared write reaches it.
   edit(
     'no declared Message draws a view again',
-    'tags.filter(tag => affectedBy[tag].length > 0)',
-    'tags.filter(() => false)',
-  ),
-  edit(
-    'a read no path names is taken to read nothing',
-    'onNone: () => Expr.opaque<Root, void>({ name }, run),',
-    'onNone: () => Expr.opaque<Root, void>({ name, reads: [] }, run),',
+    '      const redrawnBy = affectedTags(',
+    '      const redrawnBy: Array<Tag> = []; void affectedTags(',
   ),
   edit(
     'a projection that names no path is given as reading none',
@@ -65,8 +60,19 @@ export default [
   ),
   edit(
     'a projection carrying metadata is kept by the paths it names',
-    'Metadata.summarize(projection.metadata).length > 0 ? Option.none() : pathsRead(projection)',
-    'pathsRead(projection)',
+    '!hasContractsOrWriters && Metadata.summarize(projection.metadata).length > 0',
+    'false',
+  ),
+  edit(
+    'store contracts passed to Writes.of are ignored',
+    '  for (const contract of options?.contracts ?? []) {\n    for (const tag of contract.messages) addWrites(tag, contract.owns)\n  }',
+    '  for (const _contract of []) {}',
+  ),
+  edit(
+    'Surface.rootView ignores installed Writes hook',
+    '    if (hook !== undefined) {',
+    '    if (false) {',
+    '../src/index.ts',
   ),
   edit(
     'a projection nested under a key keeps paths from the nested value',
@@ -96,8 +102,8 @@ export default [
   ),
   edit(
     'every declared Message is said to write nothing',
-    '? Option.some(machine.footprints[tag as Tag].writes)',
-    '? Option.some([])',
+    'Object.hasOwn(footprints, tag) ? Option.some(footprints[tag]!.writes) : Option.none()',
+    'Object.hasOwn(footprints, tag) ? Option.some([]) : Option.none()',
   ),
 
   check(

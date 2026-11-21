@@ -11,7 +11,7 @@ import * as Runtime from 'foldkit/runtime'
 import { Transition } from 'metakit'
 import * as Machine from 'metakit/machine'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Metadata, pathsRead, Projection } from '../src/index.js'
+import { Metadata, pathsRead, Projection, Surface } from '../src/index.js'
 import { Writes } from '../src/writes.js'
 import { App, Declared, initial, make, Message, Model, update } from './writesFixture.js'
 
@@ -154,6 +154,45 @@ describe('a Surface whose projection carries metadata', () => {
         reads: Option.none(),
         redrawnBy: ['Renamed', 'Counted', 'Deposited', 'Moved', 'Sneaked'],
       },
+    ])
+  })
+
+  it('reaches Projection.derive over a Remote read and plain store refs when store contracts are registered', () => {
+    const remoteRead = Projection.fromReader(Schema.String, (model: Model) => model.note, {
+      dependencies: [['note']],
+      metadata: Asked.of('note'),
+    })
+    const DerivedRemote = App.surface('DerivedRemote', {
+      model: () =>
+        Projection.struct({
+          summary: Projection.derive([remoteRead], (model: Model) => `len:${model.note.length}`, {
+            Model: Schema.String,
+          }),
+        }),
+    })
+    const StoreRef = App.surface('StoreRef', {
+      model: ({ model }) => ({ note: model.note }),
+    })
+
+    // Without registering the store-owning contract, neither DerivedRemote nor StoreRef
+    // carries metadata, so Pinged (declared empty in the machine) would skip them.
+    const withoutContract = Writes.of(App, Declared)
+    withoutContract.rootView(DerivedRemote, undefined, ({ summary }, h) => h.p([], [summary]))
+    withoutContract.rootView(StoreRef, undefined, ({ note }, h) => h.p([], [note]))
+    expect(withoutContract.regions().map(region => region.redrawnBy)).toEqual([[], []])
+
+    // Registering the store contract makes its reducer Messages writers of ['note'] in the
+    // graph: DerivedRemote, StoreRef, and Planned are all reached by Noted and skipped by Counted.
+    const withContract = Writes.of(App, Declared, {
+      contracts: [{ messages: ['Noted'], owns: [['note']] }],
+    })
+    withContract.rootView(DerivedRemote, undefined, ({ summary }, h) => h.p([], [summary]))
+    withContract.rootView(StoreRef, undefined, ({ note }, h) => h.p([], [note]))
+    withContract.rootView(Planned, undefined, (note, h) => h.p([], [note]))
+    expect(withContract.regions()).toEqual([
+      { name: 'DerivedRemote', reads: Option.some([['note']]), redrawnBy: ['Noted'] },
+      { name: 'StoreRef', reads: Option.some([['note']]), redrawnBy: ['Noted'] },
+      { name: 'Planned', reads: Option.some([['note']]), redrawnBy: ['Noted'] },
     ])
   })
 })
@@ -372,6 +411,61 @@ describe('on the runtime', () => {
     } finally {
       delete flags[serverRender]
       handle.dispose()
+    }
+  })
+
+  it('routes plain Surface.rootView through path-skipping while writes.install() is active (#587)', async () => {
+    const writes = Writes.of(App, Declared)
+    const detach = writes.install()
+    let titleDraws = 0
+    let countDraws = 0
+    const CountSurface = App.surface('CountSurface', {
+      model: ({ model }) => ({ count: model.count }),
+    })
+    const titleView = Surface.rootView(Titled, undefined, (model, h) => {
+      titleDraws++
+      return h.h1([h.Id('installed-title')], [model.title])
+    })
+    const countView = Surface.rootView(CountSurface, undefined, (model, h) => {
+      countDraws++
+      return h.span([h.Id('installed-count')], [String(model.count)])
+    })
+    const container = document.createElement('div')
+    container.id = 'installed'
+    document.body.appendChild(container)
+    timedFrames()
+    const tracked = writes.track(update)
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container,
+        init: () => ({ model: initial }),
+        update: (model: Model, message: Message) => ({
+          model: tracked(model, message).model,
+          commands: [],
+        }),
+        view: (model: Model, h: HtmlBuilder<Message>) =>
+          h.div(
+            [],
+            [
+              titleView(model, h),
+              countView(model, h),
+              h.button([h.Id('inc'), h.OnClick(Message.Counted())], ['inc']),
+            ],
+          ),
+      }),
+    )
+    try {
+      await vi.waitFor(() => expect(text('installed-count')).toBe('0'))
+      press('inc')
+      await vi.waitFor(() => expect(text('installed-count')).toBe('1'))
+      press('inc')
+      await vi.waitFor(() => expect(text('installed-count')).toBe('2'))
+      expect(titleDraws).toBe(1)
+      expect(countDraws).toBe(3)
+    } finally {
+      handle.dispose()
+      detach()
     }
   })
 })

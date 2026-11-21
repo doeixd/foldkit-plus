@@ -41,6 +41,7 @@ export {
   type GraphSpace,
 } from './graph.js'
 import { hasTagIn, messageTag, messageTags } from './messageTags.js'
+import { getRootViewHook } from './rootViewRegistry.js'
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnostics.js'
 export {
   CachedRead,
@@ -1746,6 +1747,13 @@ export const Surface = {
     root: Root,
     h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
   ) => Html) => {
+    const hook = getRootViewHook(surface.owner)
+    if (hook !== undefined) {
+      return hook(surface, params, render) as <AppMessage>(
+        root: Root,
+        h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
+      ) => Html
+    }
     const projection = surface.projection(params)
     // Sound narrowing: the renderer can only construct this Surface's Messages,
     // and `Subset` guarantees the application builder accepts them.
