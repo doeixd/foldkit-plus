@@ -115,13 +115,14 @@ REFUTED Withdraw [PIN BROKEN]
 - **`Path` as a subtype of `Expr`** lets you read `state.balance` inside expressions while `Transition.set` requires a `Path` as its write target.
 - **Environment scoping (`Env`)** separates validity from authority at compile time: `Account`'s invariant cannot reference a `principal` because `principal` is not in its `Env`, while a guard built with `Expr.in({ row: Account, principal: Principal }, ...)` can.
 - **Partial evaluation (`Expr.residualize`, `Expr.judge`, `Transition.can`)** folds known environment slices into a three-valued `Verdict` (`True`, `False`, or `Unknown` with a reason), keeping missing (`Unknown`) fields separate from runtime `null`.
-- **Escape hatch (`Expr.opaque`)** wraps arbitrary JavaScript with optional declared `reads`; it runs in `Expr.eval` and degrades soundly to `Unknown` in static checkers.
+- **Escape hatch (`Expr.opaque`)** wraps arbitrary JavaScript with optional declared `reads`; it runs in `Expr.eval` and degrades soundly to `Unknown` in static checkers. `Transition.opaque` does the same for a whole step, declared by the paths it reads and writes.
+- **Supplied values** are what a transition cannot make: `Transition.make({ …, supplied: { now: Schema.Int } })` reads the time as `supplied.now`, and whoever runs the step passes it once (`Transition.run(t, state, input, { now })`), so the step stays a function of its arguments and a proof holds for every time.
 
 ## Subpaths by where code runs
 
 | Import | Runs in | Purpose |
 | --- | --- | --- |
-| `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 20-op core (`Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr` + derived helpers), and synchronous Interval + Zone checks (`Abstract`). |
+| `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 29-op core (`Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr` + derived helpers) with what each op keeps (`opProperties`), operations your application defines (`Node.foreign`), and synchronous Interval + Zone checks (`Abstract`). A path to an `Option` field reads as its value or null. |
 | `metakit/domain` | Browser / server | Currency-safe `Money`, fixed-scale `Decimal` (`Decimal.mul` and `Money.mul` round half-even, in memory only), timezone-free `CalendarDay`, `OrderedEnum`, and `Domain.domainOf`. |
 | `metakit/aggregates` | Browser / server | `Rows.sum` (of integers), `Rows.count` (O(1) group deltas) and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any` (semilattice). Imports no SQL. |
 | `metakit/aggregates/sql` | Server | `RowsSql.toSql(aggregate, options)`: an aggregate as a SQL expression. |
@@ -134,7 +135,8 @@ REFUTED Withdraw [PIN BROKEN]
 | `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` as text for Postgres and SQLite. A predicate selects the rows `Expr.eval` holds true, null included. |
 | `metakit/drizzle` | Server (optional `drizzle-orm`) | `Drizzle.toCheck`, `Drizzle.toWhere`, `Drizzle.toUpdate`: the same lowering as Drizzle `SQL` over a Drizzle table. |
 | `metakit/prove` | Dev / CI only (optional `z3-solver`) | `Prove.invariant`, `Prove.transition`, `Prove.policy`, `Prove.machine` (pinning, `allowUnknown`, replayed counterexamples). |
-| `metakit/conformance` | Dev / CI only | `checkOpSoundness` holds each of the 20 operators to one answer from evaluation, partial evaluation and the Tier 3 checker over null, absent keys, NaN and the ends of the safe integer range; `checkResidualizeSoundness` does the same for an expression of yours over values sampled from its Schema. |
+| `metakit/conformance` | Dev / CI only | `checkOpSoundness` holds each of the 29 operators to one answer from evaluation, partial evaluation and the Tier 3 checker over null, absent keys, NaN, the ends of the safe integer range and text holding a NUL; `checkAllProperties` checks what `opProperties` declares against the evaluator; `checkResidualizeSoundness` does the same for an expression of yours over values sampled from its Schema. |
+| `metakit/build` | Browser / server | The functions over nodes (`wrap`, `toNode`, `call`, `evalNode`, `residualizeNode`, `judgeNode`, `readsOfNode`), for a language that builds its own constructors on metakit. |
 
 ## When to use something else
 
