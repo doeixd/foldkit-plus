@@ -53,6 +53,11 @@
       "foldkit-plus:source": "./src/media.ts",
       "types": "./dist/media.d.mts",
       "import": "./dist/media.mjs"
+    },
+    "./check": {
+      "foldkit-plus:source": "./src/check.ts",
+      "types": "./dist/check.d.mts",
+      "import": "./dist/check.mjs"
     }
   },
   "files": [

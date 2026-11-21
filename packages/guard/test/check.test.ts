@@ -3,6 +3,7 @@ import { Entity, Expr, Laws, Relation, Write } from 'foldkit-entity'
 import { Verdict } from 'metakit'
 import * as Prove from 'metakit/prove'
 import { expect, it } from 'vitest'
+import { GuardCheck } from '../src/check.js'
 import { Guards } from '../src/index.js'
 
 const Fields = Entity.define('Ledger', Schema.Struct({ id: Schema.String, limit: Schema.Int }))
@@ -25,22 +26,22 @@ const Ledger = Fields.pipe(
 
 it('uses state invariants for implication and detects unreachable updates separately', () => {
   const safe = Ledger.pipe(Guards.attach(G, { members: { limit: { Read: [G.nonnegative] } } }))
-  expect(Verdict.isTrue(Guards.check(safe, 'limit').implication)).toBe(true)
+  expect(Verdict.isTrue(GuardCheck.policy(safe, 'limit').implication)).toBe(true)
   const dead = Ledger.pipe(Guards.attach(G, { row: { Update: [G.negative] } }))
-  expect(Verdict.isFalse(Guards.check(dead, 'limit').consistent)).toBe(true)
-  expect(() => Guards.check(Fields, 'limit')).toThrow('carries guards on another descriptor')
+  expect(Verdict.isFalse(GuardCheck.policy(dead, 'limit').consistent)).toBe(true)
+  expect(() => GuardCheck.policy(Fields, 'limit')).toThrow('carries guards on another descriptor')
 })
 
 it('finds the allowed update whose member is hidden, with a valid boundary witness', async () => {
   const leaky = Ledger.pipe(Guards.attach(G, { members: { limit: { Read: [G.positive] } } }))
-  const { definition } = Guards.check(leaky, 'limit')
+  const { definition } = GuardCheck.policy(leaky, 'limit')
   const verdict = await Effect.runPromise(Prove.policyImplies(definition, 'Update', 'Read'))
   expect(Verdict.isFalse(verdict) && Option.getOrUndefined(verdict.witness)?.['row.limit']).toBe(0)
 })
 
 it('keeps a server-only principal decision independent for each interaction', async () => {
   const guarded = Ledger.pipe(Guards.attach(G, { always: [G.manager] }))
-  const { definition, implication } = Guards.check(guarded, 'limit')
+  const { definition, implication } = GuardCheck.policy(guarded, 'limit')
   expect(Verdict.isUnknown(implication)).toBe(true)
   expect(
     Verdict.isUnknown(await Effect.runPromise(Prove.policyImplies(definition, 'Update', 'Read'))),
@@ -83,7 +84,7 @@ const D = Guards.declare(
   { key: user => user.id, unguarded: 'allow' },
 )
 const proves = (entity: typeof Doc, member: 'rank' | 'score' | 'note' | 'team') =>
-  Verdict.isTrue(Guards.check(entity, member).implication)
+  Verdict.isTrue(GuardCheck.policy(entity, member).implication)
 
 // Read of `rank`, by who may update the row. Zero is updated and fails `positive`; eleven fails `band`.
 it.each([
@@ -114,7 +115,10 @@ it.each([
   ['NaN', 'score', { score: { Read: [D.scoreUp, D.scoreDown] } }],
   ['an absent key', 'note', { note: { Read: [D.noteUp, D.noteDown] } }],
 ] as const)('proves nothing from a comparison over %s', async (_, member, members) => {
-  const { definition, implication } = Guards.check(Doc.pipe(Guards.attach(D, { members })), member)
+  const { definition, implication } = GuardCheck.policy(
+    Doc.pipe(Guards.attach(D, { members })),
+    member,
+  )
   expect(Verdict.isUnknown(implication)).toBe(true)
   expect(
     Verdict.isUnknown(await Effect.runPromise(Prove.policyImplies(definition, 'Update', 'Read'))),
@@ -135,7 +139,7 @@ it('still proves over the other fields beside an invariant over such a number', 
 
 it('keeps a rule that reads another row independent for each interaction', async () => {
   const reaching = Doc.pipe(Guards.attach(D, { row: { Update: [D.inAcme], Read: [D.inAcme] } }))
-  const { definition } = Guards.check(reaching, 'rank')
+  const { definition } = GuardCheck.policy(reaching, 'rank')
   expect(
     Verdict.isUnknown(await Effect.runPromise(Prove.policyImplies(definition, 'Update', 'Read'))),
   ).toBe(true)
@@ -148,7 +152,7 @@ it('assumes no rule over a change, which a stored row does not hold', () => {
     }),
     Guards.attach(G, { members: { limit: { Read: [G.positive] } } }),
   )
-  const { consistent, implication } = Guards.check(growing, 'limit')
+  const { consistent, implication } = GuardCheck.policy(growing, 'limit')
   expect([consistent._tag, implication._tag]).toEqual(['Unknown', 'Unknown'])
 })
 
@@ -159,9 +163,9 @@ it('leaves a surface without rules to the set: closed, no one updates and no one
     unguarded: 'deny',
   })
   const unwritable = Vault.pipe(Guards.attach(Closed, { row: { Read: [Guards.anyone] } }))
-  expect(Verdict.isFalse(Guards.check(unwritable, 'limit').consistent)).toBe(true)
+  expect(Verdict.isFalse(GuardCheck.policy(unwritable, 'limit').consistent)).toBe(true)
   const unreadable = Vault.pipe(Guards.attach(Closed, { row: { Update: [Guards.anyone] } }))
-  const { definition, implication } = Guards.check(unreadable, 'limit')
+  const { definition, implication } = GuardCheck.policy(unreadable, 'limit')
   expect(Verdict.isTrue(implication)).toBe(false)
   expect(
     Verdict.isFalse(await Effect.runPromise(Prove.policyImplies(definition, 'Update', 'Read'))),

@@ -1,3 +1,8 @@
+/**
+ * What a guard set's rules prove, before any request: whether a row Update is
+ * reachable and whether it implies Read of a member. A development and test
+ * tool, apart from the main entry so no page carries the prover.
+ */
 import { Match, Option, Schema, SchemaAST } from 'effect'
 import { Entity, type AnyEntity, type Operandish, type Predicate } from 'foldkit-entity'
 import { Eq, Expr, Num, Path, type Verdict } from 'metakit'
@@ -69,7 +74,7 @@ const predicateOf = (predicate: Predicate, prefix: readonly string[]): Option.Op
 }
 
 /** Check whether row Update is reachable and implies Read of the named member, on a valid row. */
-export const check = <E extends AnyEntity>(
+const policy = <E extends AnyEntity>(
   entity: E,
   member: keyof NoInfer<E>['members'] & string,
 ): PolicyCheck<E['schema']['Encoded']> => {
@@ -130,3 +135,5 @@ export const check = <E extends AnyEntity>(
     implication: Policy.checkImplication(definition, 'Update', 'Read'),
   }
 }
+
+export const GuardCheck = { policy } as const
