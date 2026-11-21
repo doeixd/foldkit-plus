@@ -52,14 +52,8 @@ export default [
   unordered(
     'the Zone proves an invariant over a number that may be NaN',
     check,
-    'return ordered(state.entails(goal.node), [[[], schema]], [goal.node])',
-    'return state.entails(goal.node)',
-  ),
-  unordered(
-    'the Zone proves a transition over a number that may be NaN',
-    check,
-    'return ordered(overall, slices, [transition.when.node, ...postGoals])',
-    'return overall',
+    "onSome: info => info.kind !== 'number' || info.finite,",
+    'onSome: () => true,',
   ),
   unordered(
     'the solver proves an invariant over a number that may be NaN',
@@ -268,8 +262,8 @@ export default [
     edits: [
       {
         file: str,
-        find: 'codePointLength(args[0])',
-        replace: 'args[0].length',
+        find: "typeof text === 'string' ? codePointLength(text)",
+        replace: "typeof text === 'string' ? text.length",
       },
     ],
     tests: strArrTests,
