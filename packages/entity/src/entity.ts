@@ -892,8 +892,42 @@ export const input = <
       )
     return member
   })
-  return Object.freeze({ entity, schema, members: Object.freeze(members) }) as never
+  return Object.freeze({
+    entity,
+    schema: schema.check(withoutNul),
+    members: Object.freeze(members),
+  }) as never
 }
+
+const NUL = String.fromCharCode(0)
+
+/** Where `value` holds text with a NUL, by its path from `value`; none when it holds none. */
+const nulAt = (
+  value: unknown,
+  path: ReadonlyArray<PropertyKey>,
+): Option.Option<ReadonlyArray<PropertyKey>> => {
+  if (typeof value === 'string') return value.includes(NUL) ? Option.some(path) : Option.none()
+  if (typeof value !== 'object' || value === null) return Option.none()
+  for (const [key, each] of Object.entries(value)) {
+    const found = nulAt(each, [...path, Array.isArray(value) ? Number(key) : key])
+    if (Option.isSome(found)) return found
+  }
+  return Option.none()
+}
+
+/**
+ * An Entity's write refuses text holding a NUL character in any of its input,
+ * where it is decoded: Postgres cannot store one, and every reader refuses
+ * one compared, so no stored row holds one (`lower.ts` types stored text so).
+ */
+const withoutNul = Schema.makeFilter<Readonly<Record<string, unknown>>>(
+  value =>
+    Option.match(nulAt(value, []), {
+      onNone: () => undefined,
+      onSome: path => ({ path, issue: 'text holding a NUL character, which no store keeps' }),
+    }),
+  { expected: 'text without a NUL character' },
+)
 
 /**
  * The schemas of some of an Entity's fields, by key, to spread into an input's

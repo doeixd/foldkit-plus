@@ -30,8 +30,15 @@ const concat = Expr.operator('acme.concat', {
   input: [Schema.String, Schema.String],
   output: Schema.String,
 })
+/** A prefix the memory implementation refuses, as an implementation may refuse a value. */
+const REFUSED = 'refused'
 const operators = {
-  memory: Operators.memory(Operators.implement(concat, (left, right) => `${left}${right}`)),
+  memory: Operators.memory(
+    Operators.implement(concat, (left, right) => {
+      if (left === REFUSED || right === REFUSED) throw new Error(`no label from ${REFUSED}`)
+      return `${left}${right}`
+    }),
+  ),
   sql: DrizzleOperators.make(
     DrizzleOperators.implement(concat, ({ args: [left, right] }) => sql`(${left} || ${right})`),
   ),
@@ -267,7 +274,7 @@ describe('A guarded write that sets, moves and computes', () => {
       id: 't1',
       revision: 1,
       title: 'New',
-      prefix: `o${String.fromCharCode(0)}`,
+      prefix: REFUSED,
       by: 0,
     })
     // A failure the caller reads nothing of: an implementation's own message may say anything.
@@ -297,7 +304,7 @@ describe('A guarded write that sets, moves and computes', () => {
       id: 't1',
       revision: 1,
       title: 'New',
-      prefix: `o${String.fromCharCode(0)}`,
+      prefix: REFUSED,
       by: 0,
     })
     const answer = await Effect.runPromise(
@@ -326,7 +333,7 @@ describe('A guarded write that sets, moves and computes', () => {
   it('refuses a writer its rules refuse before working out what it would compute', async () => {
     const { retag } = open()
     const answer = await retag(
-      { id: 't1', revision: 1, title: 'New', prefix: `o${String.fromCharCode(0)}`, by: 0 },
+      { id: 't1', revision: 1, title: 'New', prefix: REFUSED, by: 0 },
       'ada',
     )
     expect(answer).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })

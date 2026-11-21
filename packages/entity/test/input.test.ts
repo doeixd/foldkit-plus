@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Cause, Exit, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Collation, Entity, Expr, Query, Relation, evaluate, type AnyEntity } from '../src/index.js'
 import { Blog } from './blogFixture.js'
@@ -16,8 +16,30 @@ describe('Entity.input', () => {
     const rename = Entity.input(Post, schema)
 
     expect(rename.members).toEqual({ id: Post.fields.id, title: Post.fields.title })
-    expect(rename.schema).toBe(schema)
+    expect(rename.schema.fields).toBe(schema.fields)
     expect(rename.entity).toBe(Post)
+  })
+
+  it('refuses text holding a NUL where its input is decoded, naming where it is', () => {
+    const schema = Schema.Struct({
+      id: Schema.String,
+      title: Schema.optional(Schema.String),
+      tags: Schema.optional(Schema.Array(Schema.String)),
+    })
+    const decode = Schema.decodeUnknownExit(
+      Entity.input(Post, schema, { tags: Entity.unmapped }).schema,
+    )
+    const NUL = String.fromCharCode(0)
+    expect(Exit.isSuccess(decode({ id: 'p1', title: 'Hello', tags: ['a'] }))).toBe(true)
+    for (const [given, where] of [
+      [{ id: 'p1', title: `Hel${NUL}lo` }, 'title'],
+      [{ id: `p${NUL}1` }, 'id'],
+      [{ id: 'p1', tags: ['a', `b${NUL}`] }, 'tags'],
+    ] as const) {
+      const exit = decode(given)
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(String(Exit.isFailure(exit) ? Cause.squash(exit.cause) : '')).toContain(where)
+    }
   })
 
   it('maps the other keys to what the mapping says: a relation, a renamed field, nothing', () => {
