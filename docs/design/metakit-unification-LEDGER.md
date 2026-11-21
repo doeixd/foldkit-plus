@@ -241,3 +241,21 @@ Add a row per phase and per budget it touches. Keep the earlier rows.
 | Phase 3 gate (`examples/todo-app`) | Command-sending Messages via `Declared.of` | 0% (`70585f667`) | 100% (`92d3114e2`) | All 7 emitted record tags (`Rename`, `Focus`, `Mint`, `Delete`, `FocusNeighbour`, `ExpireUndo`, `Restore`) routed through `todoCommands`; -36 net lines in `app.ts`/`surface.ts` |
 | Phase 3 gate (`examples/todo-app`) | `tsc -b examples/todo-app` | none | 3.034 s (`21bbb5355`) | 2,114,035 own instantiations; `bundle.test.ts` brotli budget green |
 | Phase 3 gate (`examples/foldkit/domains-plus`) | Counted Message gap list | none | 41 own Messages (`21bbb5355`) | 19 pure declarable (13 no-op/completion + 3 Command-emitting + 3 state/list) + 22 confined `Transition.opaque` (13 widget-delegating + 9 search/URL/remote); >=3/4 gate holds with widget/opaque transitions |
+| Phase 1, step 5 (`66d25a4ed`, `b61064cb4`, `12a8b4f7b`) | the six Remote and entity page budgets | pre-step-5 ceilings below | raised by the readings below (+300) | entity's judge on metakit through the translation layer; see "Owed by step 10" |
+
+## Owed by step 10
+
+Step 5 put entity's in-memory judge on metakit through a translation layer (`lower.ts`, `lowerEnv.ts`, `lowerOperator.ts`). Every page that reaches entity grew by about 7.4 kB brotli. The coordinator accepts the growth until step 10, because the layer is temporary. Each ceiling was raised on 2026-11-21 to the reading plus 300 bytes, with a dated comment in its budget test. **Step 10 must bring each back to its target.**
+
+| Budget | Pre-step-5 ceiling (target) | Reading at step 5 | Ceiling now | Forecast after step 10 (estimate) | Step 10 must remove |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| cloudflare | 224,500 | 232,465 | 232,765 | 230,500 to 231,800 | 7,965 |
+| cms | 164,500 | 171,911 | 172,211 | 170,000 to 171,300 | 7,411 |
+| reference | 252,300 | 260,108 | 260,408 | 258,200 to 259,500 | 7,808 |
+| auth | 228,500 | 235,875 | 236,175 | 234,000 to 235,200 | 7,375 |
+| registry | 262,300 | 269,797 | 270,097 | 267,900 to 269,200 | 7,497 |
+| entity | 222,000 | 229,410 | 229,710 | 227,500 to 228,800 | 7,410 |
+
+The forecast is not met: deleting the layer is expected to return about 0.6 to 1.9 kB of the 7.4 to 8.0 kB (estimated from minified size at each page's brotli ratio, 0.275 to 0.277; not a build with the modules removed). Registry, minified: `lower` 2,332, `lowerEnv` 2,536, `lowerOperator` 2,072 (6,940, about 1,900 B brotli if all three go; `lowerEnv` and `lowerOperator` may survive as the environment and foreign-operator code the direct constructors still need, leaving `lower` alone at about 640 B). What stays after step 10 is metakit's own code the page runs (22.5 kB minified: `ops/residualize` 3,886, `node` 3,608, `ops/rows` 2,766, `ops/kind` 2,641, `properties` 1,947, `ops/eval` 1,619, `ops/residualizeRows` 1,207, `ops/str` 1,081, the rest about 3.8 kB), plus entity's `rowOrder`, `judgeRun`, `queryErrors`, `pins` (4.4 kB), against the old `evaluate.js` that went (10.9 kB). Reachable waste in that code, not yet removed (minified, from reading the sources; the `properties` and `kind` figures are esbuild minifications of the pieces): `ops/rows` and `ops/residualizeRows` (3,973, no page budgeted here calls `Expr.exists`), the part of `properties` that only the checker, aggregates and transitions read (about 1,150), `ops/kind`'s `isInteger` and the length bounds of `textChecksOf` (about 450). Together about 5.6 kB minified, 1.5 kB brotli. Even with that and the whole layer gone, about 4 kB of the debt would remain unless `expr.js` (27.6 kB minified) shrinks when its constructors build metakit nodes directly.
+
+The kernel note's prototype (25,300 against 32,639 brotli) measured a page with three temporary constructors and none of `expr.js` (21,360 minified, all of entity's other constructors, `Query`, relations, ordering, dependencies, `show`), and with `ops/rows`, `residualizeRows`, `properties` and the larger `kind` and `node` absent (8,028 of metakit against 22.5 kB now). It replaced all of entity's expression code with three constructors; the real page keeps all of it.

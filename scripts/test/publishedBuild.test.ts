@@ -227,13 +227,36 @@ test('a page reading only Metadata keeps no Evidence module, built or source', a
 }, 120_000)
 
 /**
- * A metakit module other than `verdict`. Since step 2 of the unification plan
- * (6e319f5ff) `foldkit-entity` answers with metakit's `Verdict`, so a page that
- * reaches entity keeps that one module and, by the plan's byte rule, no other.
+ * Rule 3 of the unification plan's byte rules: a page carries the node
+ * constructors and the operation modules it names, and the checker, the
+ * prover, SQL lowering, conformance and graph analysis never reach it. Since
+ * step 5 `foldkit-entity` judges with metakit, so a page that reaches entity
+ * keeps `node`, `verdict` and the `ops/*` it names; this list is what it must
+ * not keep. Of the graph, only the path matcher (`graph/match`) may come.
+ * `foldkit-*`'s own `metakit` adapter entries are also off a page.
  */
-const metakitBeyondVerdict = (id: string) =>
-  (/\/metakit\/(src|dist)\//.test(id) && !/\/metakit\/(src|dist)\/verdict\.(js|ts)$/.test(id)) ||
-  /\/metakit\.(js|ts)$/.test(id)
+const KEPT_OFF_A_PAGE: ReadonlyArray<RegExp> = [
+  /^abstract\//, // the checker
+  /^prove(\/|$)/, // the prover
+  /^sql(Lowering|Render|Statements)?$/,
+  /^drizzle$/,
+  /^aggregatesSql$/,
+  /^conformance$/,
+  /^(property|fold|write)Checks$/,
+  /^graph$/,
+  /^graph\/(?!match$)/,
+  /^policy$/,
+  /^temporal$/,
+  /^store$/,
+  /^inspect$/,
+]
+const metakitKeptOffAPage = (id: string) => {
+  const inMetakit = /\/metakit\/(?:src|dist)\/(.+)\.(?:js|ts)$/.exec(id)
+  return (
+    (inMetakit !== null && KEPT_OFF_A_PAGE.some(pattern => pattern.test(inMetakit[1]!))) ||
+    /\/metakit\.(js|ts)$/.test(id)
+  )
+}
 
 /**
  * Form, Guard, Sync, Agent and the form view read metakit through a subpath of their own
@@ -257,7 +280,7 @@ test.each([
     'index.mjs',
   ],
 ] as const)(
-  'a page reading the main entry of foldkit-%s keeps no metakit module but verdict, built or source',
+  'a page reading the main entry of foldkit-%s keeps no metakit module the plan keeps off a page, built or source',
   async (name, page, index) => {
     const root = scratchIn(name, 'published-')
     made.push(root)
@@ -268,7 +291,7 @@ test.each([
     expect(built.some(id => id.endsWith(`/dist/${index}`))).toBe(true)
     // `foldkit-agent`'s index only re-exports its namespace, so a page keeps its modules, not the index.
     expect(source.some(id => id.includes(`/${name}/src/`))).toBe(true)
-    expect([...built, ...source].filter(metakitBeyondVerdict)).toEqual([])
+    expect([...built, ...source].filter(metakitKeptOffAPage)).toEqual([])
   },
   120_000,
 )
@@ -353,7 +376,7 @@ test.each([
   ['index', `import { Remote } from 'pkg'\nexport const used = Remote.make`, 'remote'],
   ['aggregate', `import { aggregated } from 'pkg'\nexport const used = aggregated`, 'aggregate'],
 ] as const)(
-  'a page reading foldkit-remote/%s keeps no metakit module but verdict, built or source',
+  'a page reading foldkit-remote/%s keeps no metakit module the plan keeps off a page, built or source',
   async (file, page, kept) => {
     const root = scratchIn('remote', 'published-')
     made.push(root)
@@ -366,7 +389,7 @@ test.each([
     expect(source.some(id => id.endsWith(`/remote/src/${kept}.ts`))).toBe(true)
     const aggregate = /\/(dist|remote\/src)\/aggregate\.(js|ts)$/
     const forbidden = (id: string) =>
-      metakitBeyondVerdict(id) || (file === 'index' && aggregate.test(id))
+      metakitKeptOffAPage(id) || (file === 'index' && aggregate.test(id))
     expect([...built, ...source].filter(forbidden)).toEqual([])
   },
   120_000,

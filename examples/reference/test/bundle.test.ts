@@ -46,7 +46,13 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // measured by its author), the store's key bookkeeping and the read-entry plan reuse (30d7a5fe0), and
 // reads naming their store's field. The opt-in parts (aggregates, the declared-writes skip, declared
 // forms, sync transitions) were moved to subpaths first and are not in the page.
-const CEILING = 252_300
+// +8,108 on 2026-11-21, TEMPORARY: 260,108 measured. Step 5 of the metakit unification plan
+// put entity's judge on metakit through a translation layer (`lower.ts`, `lowerEnv.ts`,
+// `lowerOperator.ts`), so the page carries metakit's node, partial evaluation and operation modules
+// (22.5 kB minified) and the layer on top of them, against the old `evaluate.js` it replaced. Step 10
+// deletes the layer; forecast after it, estimated from minified size at this page's brotli ratio: 258,200 to 259,500.
+// Step 10 of the unification plan must bring this back to 252,300. Owed: docs/design/metakit-unification-LEDGER.md.
+const CEILING = 260_408
 
 clientBudget({
   name: 'reference',

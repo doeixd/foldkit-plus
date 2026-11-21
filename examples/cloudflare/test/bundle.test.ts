@@ -22,7 +22,13 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // first chunk. Ceiling raised to the reading plus about 0.4%, rounded up.
 // +500 on 2026-11-19: 224,160 measured, 160 over, after `Expr.add`/`sub`/`implies`, `decrement`,
 // row-reading `when` and `Mutation.update`'s `input` (#600) in `foldkit-entity` and `foldkit-remote`.
-const CEILING = 224_500
+// +8,265 on 2026-11-21, TEMPORARY: 232,465 measured. Step 5 of the metakit unification plan
+// put entity's judge on metakit through a translation layer (`lower.ts`, `lowerEnv.ts`,
+// `lowerOperator.ts`), so the page carries metakit's node, partial evaluation and operation modules
+// (22.5 kB minified) and the layer on top of them, against the old `evaluate.js` it replaced. Step 10
+// deletes the layer; forecast after it, estimated from minified size at this page's brotli ratio: 230,500 to 231,800.
+// Step 10 of the unification plan must bring this back to 224,500. Owed: docs/design/metakit-unification-LEDGER.md.
+const CEILING = 232_765
 
 clientBudget({
   name: 'cloudflare',

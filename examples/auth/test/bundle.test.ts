@@ -32,7 +32,13 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // 0.3%, rounded up.
 // +500 on 2026-11-19: CI read 228,029 (+29 over 228,000) after recipe `.style` (0.42.0) and
 // `Expr.add`/`sub`/`implies`, `Entity.transition`, `decrement` and `Mutation.update`'s `input` (#600).
-const CEILING = 228_500
+// +7,675 on 2026-11-21, TEMPORARY: 235,875 measured. Step 5 of the metakit unification plan
+// put entity's judge on metakit through a translation layer (`lower.ts`, `lowerEnv.ts`,
+// `lowerOperator.ts`), so the page carries metakit's node, partial evaluation and operation modules
+// (22.5 kB minified) and the layer on top of them, against the old `evaluate.js` it replaced. Step 10
+// deletes the layer; forecast after it, estimated from minified size at this page's brotli ratio: 234,000 to 235,200.
+// Step 10 of the unification plan must bring this back to 228,500. Owed: docs/design/metakit-unification-LEDGER.md.
+const CEILING = 236_175
 
 clientBudget({
   name: 'auth',

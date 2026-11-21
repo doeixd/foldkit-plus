@@ -54,7 +54,13 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // first is held by `routes.test.ts`, which adds the chunk: studio 366.6 kB, site 322.2 kB.
 // +500 on 2026-11-19: CI read 164,044 (+44 over 164,000) after `Expr.add`/`sub`/`implies`,
 // `Entity.transition`, `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600).
-const CEILING = 164_500
+// +7,711 on 2026-11-21, TEMPORARY: 171,911 measured. Step 5 of the metakit unification plan
+// put entity's judge on metakit through a translation layer (`lower.ts`, `lowerEnv.ts`,
+// `lowerOperator.ts`), so the page carries metakit's node, partial evaluation and operation modules
+// (22.5 kB minified) and the layer on top of them, against the old `evaluate.js` it replaced. Step 10
+// deletes the layer; forecast after it, estimated from minified size at this page's brotli ratio: 170,000 to 171,300.
+// Step 10 of the unification plan must bring this back to 164,500. Owed: docs/design/metakit-unification-LEDGER.md.
+const CEILING = 172_211
 
 clientBudget({
   name: 'cms',
