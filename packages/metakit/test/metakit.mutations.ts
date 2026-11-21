@@ -7,9 +7,13 @@ const residualize = '../src/ops/residualize.ts'
 const transition = '../src/transition.ts'
 const zone = '../src/abstract/zone.ts'
 const sql = '../src/sqlLowering.ts'
-const prove = '../src/prove.ts'
+const proveLower = '../src/prove/lower.ts'
+const proveMachine = '../src/prove/machine.ts'
+const proveShape = '../src/prove/shape.ts'
+const proveSolve = '../src/prove/solve.ts'
 const graph = '../src/graph.ts'
-const check = '../src/abstract/check.ts'
+const abstractState = '../src/abstract/state.ts'
+const matches = '../src/abstract/matches.ts'
 const str = '../src/ops/str.ts'
 const coreTests = ['packages/metakit/test/core.test.ts']
 const sqlTests = ['packages/metakit/test/sql.test.ts']
@@ -45,25 +49,25 @@ export default [
   ),
   policy(
     'the solver proves a policy goal over a number that may be NaN',
-    prove,
+    proveSolve,
     "if (nanReads.size > 0 && status === 'unsat') {",
     'if (false) {',
   ),
   unordered(
     'the Zone proves an invariant over a number that may be NaN',
-    check,
+    abstractState,
     "onSome: info => info.kind !== 'number' || info.finite,",
     'onSome: () => true,',
   ),
   unordered(
     'the solver proves an invariant over a number that may be NaN',
-    prove,
+    proveSolve,
     "if (nanReads.size > 0 && status === 'unsat') {",
     'if (false) {',
   ),
   unordered(
     'the solver proves a transition over a number that may be NaN',
-    prove,
+    proveSolve,
     "if (nanReads.size > 0 && status === 'unsat') {",
     'if (false) {',
   ),
@@ -99,7 +103,7 @@ export default [
   ),
   policy(
     'a path of no known sort is an integer to the solver',
-    prove,
+    proveShape,
     "return info('real', { nan: Schema.is(Schema.make<Schema.Top>(ast))(Number.NaN) })",
     "return info('int', { nan: Schema.is(Schema.make<Schema.Top>(ast))(Number.NaN) })",
   ),
@@ -107,7 +111,7 @@ export default [
     name: 'mixed literal sorts silently alias text with numbers',
     edits: [
       {
-        file: prove,
+        file: proveLower,
         find: "if (info.sort === 'other' && info.literals.length > 0) {",
         replace: 'if (false) {',
       },
@@ -129,7 +133,7 @@ export default [
     name: 'a satisfiable policy model skips concrete validation',
     edits: [
       {
-        file: prove,
+        file: proveSolve,
         find: 'valid(slices, env) && given.every(rule => holdsOf(rule, env)) && reproduces(env)',
         replace: 'true',
       },
@@ -206,7 +210,7 @@ export default [
     name: 'Prove returns bogus False instead of Unknown on sat with Opaque term',
     edits: [
       {
-        file: prove,
+        file: proveSolve,
         find: 'if (opaque.size > 0) {',
         replace: 'if (false) {',
       },
@@ -217,7 +221,7 @@ export default [
     name: 'Prove.machine accepts blank allowUnknown reason',
     edits: [
       {
-        file: prove,
+        file: proveMachine,
         find: 'if (reason.trim().length === 0) {',
         replace: 'if (reason.length < 0) {',
       },
@@ -228,7 +232,7 @@ export default [
     name: 'Prove.machine ignores broken pin',
     edits: [
       {
-        file: prove,
+        file: proveMachine,
         find: "const pinBroken = pinned && status !== 'proved'",
         replace: 'const pinBroken = false',
       },
@@ -250,7 +254,7 @@ export default [
     name: 'AbstractState.matchCandidates drops null branch on nullable enum',
     edits: [
       {
-        file: check,
+        file: matches,
         find: '[...info.literals.value, null]',
         replace: 'info.literals.value',
       },

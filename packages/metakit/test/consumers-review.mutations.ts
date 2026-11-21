@@ -9,7 +9,11 @@ const inspect = '../src/inspect.ts'
 const sql = '../src/sql.ts'
 const drizzle = '../src/drizzle.ts'
 const lowering = '../src/sqlLowering.ts'
-const prove = '../src/prove.ts'
+const proveLower = '../src/prove/lower.ts'
+const proveShape = '../src/prove/shape.ts'
+const proveSolve = '../src/prove/solve.ts'
+const proveTransition = '../src/prove/transition.ts'
+const proveWitness = '../src/prove/witness.ts'
 const policy = '../src/policy.ts'
 const proveTests = ['packages/metakit/test/prove-review.test.ts']
 const graph = '../src/graph.ts'
@@ -57,91 +61,91 @@ export default [
   ),
   mutation(
     'the solver takes a nullable or optional path for one that is never null',
-    prove,
+    proveShape,
     'const flags = mayBeAbsent ? [...above, flag] : above',
     'const flags = above',
     proveTests,
   ),
   mutation(
     'the solver reads a field under a nullable parent as always there',
-    prove,
+    proveShape,
     "info('struct')\n    for (const property of inner.propertySignatures) {\n      if (typeof property.name === 'string') {\n        readShape(\n          property.type,\n          [...segments, property.name],\n          flags,",
     "info('struct')\n    for (const property of inner.propertySignatures) {\n      if (typeof property.name === 'string') {\n        readShape(\n          property.type,\n          [...segments, property.name],\n          above,",
     proveTests,
   ),
   mutation(
     'the solver takes the last case of a match for every value no case names',
-    prove,
+    proveLower,
     'if (!covered) {',
     'if (false) {',
     proveTests,
   ),
   mutation(
     'the solver compares text with a number',
-    prove,
+    proveLower,
     "if (a.kind !== 'null' && b.kind !== 'null' && sorted(a.kind) !== sorted(b.kind)) {",
     'if (false) {',
     proveTests,
   ),
   mutation(
     'an assignment that does not replay is a counterexample',
-    prove,
+    proveSolve,
     'valid(slices, env) && given.every(rule => holdsOf(rule, env)) && reproduces(env)',
     'true',
     proveTests,
   ),
   mutation(
     'a write to a parent leaves the fields a rule reads beneath it as they were',
-    prove,
+    proveTransition,
     'if (Path.isPrefix(target, read)) {',
     'if (target.length === read.length && Path.isPrefix(target, read)) {',
     proveTests,
   ),
   mutation(
     'a written value is not held to a bound declared inside NullOr',
-    prove,
+    proveTransition,
     'if (info.flags.length > 0) return fits.map(fit => call(orOp, isNull, fit))',
     'if (info.flags.length > 0) return []',
     proveTests,
   ),
   mutation(
     'an integer bound that is a fraction is handed to the solver as an integer',
-    prove,
+    proveLower,
     'guard(whole ? made.ge(Math.floor(bound) + 1) : made.gt(bound))',
     'guard(made.gt(whole ? z3.Int.val(bound) : bound))',
     proveTests,
   ),
   mutation(
     'an integer result past the safe range is a value',
-    prove,
+    proveLower,
     "return strict('num', [a!, b!], result, unsafe(result))",
     "return strict('num', [a!, b!], result)",
     ['packages/metakit/test/prove.test.ts'],
   ),
   mutation(
     'the solver runs past its time',
-    prove,
+    proveSolve,
     "solver.set('timeout', problem.timeoutMs)",
     "solver.set('timeout', 600_000)",
     proveTests,
   ),
   mutation(
     'a timeout is reported as a nonlinear goal',
-    prove,
+    proveSolve,
     'return /timeout|canceled/.test(why)',
     'return false',
     proveTests,
   ),
   mutation(
     'a failed load of the solver is kept',
-    prove,
+    proveSolve,
     'loading.catch(() => {\n      loadedZ3 = Option.none()\n    })',
     'loading.catch(() => {})',
     ['packages/metakit/test/prove-unavailable.test.ts'],
   ),
   mutation(
     'a refuted transition reports no rule it breaks',
-    prove,
+    proveWitness,
     "violated: broken.length > 0 ? broken : ['a check of the state Schema that is no rule'],",
     'violated: [],',
     proveTests,

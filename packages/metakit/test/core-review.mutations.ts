@@ -13,6 +13,11 @@ const num = '../src/ops/num.ts'
 const ord = '../src/ops/ord.ts'
 
 const check = '../src/abstract/check.ts'
+const entail = '../src/abstract/entail.ts'
+const fields = '../src/abstract/fields.ts'
+const fits = '../src/abstract/fits.ts'
+const abstractOps = '../src/abstract/ops.ts'
+const abstractState = '../src/abstract/state.ts'
 const interval = '../src/abstract/interval.ts'
 const zone = '../src/abstract/zone.ts'
 
@@ -32,35 +37,35 @@ const checker = [
   mutation(
     soundness,
     'a strict rule over reals tightens by one',
-    check,
+    entail,
     'const delta = strict ? (bothInt ? -1 : 0) : 0',
     'const delta = strict ? -1 : 0',
   ),
   mutation(
     soundness,
     'a strict goal is proved from a bound that is not strict',
-    check,
+    entail,
     'const slack = strict && bothInt ? 1 : 0',
     'const slack = 0',
   ),
   mutation(
     soundness,
     'an exclusive minimum on a real is tightened as if it were an integer',
-    check,
+    fields,
     'Interval.between(isInt ? Math.floor(m) + 1 : m, Infinity)',
     'Interval.between(Math.floor(m) + 1, Infinity)',
   ),
   mutation(
     soundness,
     'membership bounds a number by its smallest candidate',
-    check,
+    abstractOps,
     'state.zone.constrainUpper(id.value, Math.max(...numbers))',
     'state.zone.constrainUpper(id.value, Math.min(...numbers))',
   ),
   mutation(
     soundness,
     'a sum is bounded by the lower end of what is added',
-    check,
+    entail,
     'if (Number.isFinite(riv.hi)) tighten(id, lv.value, riv.hi)',
     'if (Number.isFinite(riv.lo)) tighten(id, lv.value, riv.lo)',
   ),
@@ -74,14 +79,14 @@ const checker = [
   mutation(
     soundness,
     'a conditional is decided from the branch taken',
-    check,
+    entail,
     '...(skipped.propagate() ? [skipped.entails(branch.otherwise, 0)] : []),',
     '',
   ),
   mutation(
     soundness,
     'a conditional over a condition that may be null is decided',
-    check,
+    entail,
     'if (!this.hasValue(branch.cond)) return this.unvalued(branch.cond)',
     '',
   ),
@@ -102,28 +107,28 @@ const checker = [
   mutation(
     soundness,
     'a write to an integer field need not be an integer',
-    check,
+    fits,
     'if (info.isInt && !state.isIntNode(value)) return unknown',
     '',
   ),
   mutation(
     soundness,
     'a write to a field that takes no null may be null',
-    check,
+    fits,
     'if (!acceptsNull && !this.hasValue(value)) return this.unvalued(value)',
     '',
   ),
   mutation(
     soundness,
     'an optional key is taken to be present',
-    check,
+    fields,
     'under || members.length !== flat(ast).length || SchemaAST.isOptional(ast)',
     'under || members.length !== flat(ast).length',
   ),
   mutation(
     soundness,
     'a field under a nullable struct is taken to be present',
-    check,
+    fields,
     'collectFields(property.type, [...prefix, property.name], fields, nullable)',
     'collectFields(property.type, [...prefix, property.name], fields, false)',
   ),
@@ -137,42 +142,42 @@ const checker = [
   mutation(
     soundness,
     'arithmetic is never refused',
-    check,
+    abstractState,
     'Interval.within(this.evalInterval(node), SAFE)',
     'true',
   ),
   mutation(
     soundness,
     'a sum of doubles relates exactly to its operands',
-    check,
+    abstractState,
     "if (relation !== 'none' && isInt && args.length === 2) {",
     "if (relation !== 'none' && args.length === 2) {",
   ),
   mutation(
     soundness,
     'a comparison over an operand that may be null is decided',
-    check,
+    entail,
     'if (open !== undefined) return this.unvalued(open)',
     '',
   ),
   mutation(
     soundness,
     'two numbers that may be null are equal by their intervals',
-    check,
+    abstractOps,
     "if (!state.hasValue(a) || !state.hasValue(b)) return Verdict.Unknown('an operand may be null')",
     '',
   ),
   mutation(
     soundness,
     'a disjunction is proved by cases on a disjunct that may be null',
-    check,
+    abstractOps,
     'if (!Verdict.isUnknown(direct) || !state.hasValue(a)) return direct',
     'if (!Verdict.isUnknown(direct)) return direct',
   ),
   mutation(
     soundness,
     'a search for the empty string holds of a text that may be null',
-    check,
+    entail,
     'const open = call.args.find(arg => !this.hasValue(arg))',
     'const open = call.args.find(arg => !this.hasValue(arg) && !Node.$is("Path")(arg))',
   ),
@@ -193,7 +198,7 @@ const checker = [
   mutation(
     conformance,
     'a path that is not null is taken to hold no NaN',
-    check,
+    abstractOps,
     'state.markNotNull(term)',
     'state.markValued(term)',
   ),

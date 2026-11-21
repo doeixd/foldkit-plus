@@ -1,7 +1,7 @@
 /** Mutations for `metakit/store` and `metakit/temporal`: the store refusal, the derived obligations and the walk. */
 const file = '../src/temporal.ts'
 const store = '../src/store.ts'
-const prove = '../src/prove.ts'
+const proveMachine = '../src/prove/machine.ts'
 const tests = ['packages/metakit/test/temporal.test.ts']
 
 const mutation = (name: string, find: string, replace: string, at = file) => ({
@@ -64,7 +64,7 @@ export default [
     'the proof report carries no obligations',
     'const obligations = Temporal.obligations(m)',
     'const obligations: ReturnType<typeof Temporal.obligations<State, Transitions>> = []',
-    prove,
+    proveMachine,
   ),
   mutation('every run walks the first seed', 'const seed = first + run', 'const seed = first'),
   mutation(
