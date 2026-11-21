@@ -2,7 +2,7 @@
  * String primitives (`str.len`, `str.startsWith`, `str.contains`,
  * `str.lowerAscii`, `str.trim`, the code-point orders `str.lt`, `str.lte`,
  * `str.gt`, `str.gte`) and derived helper (`Str.isEmpty`). Null-strict: a null string gives null, and text
- * holding a NUL character is refused (`unportable`).
+ * holding a NUL character is refused (`unportable`), before null.
  *
  * `str.len` counts Unicode code points (`[...s].length`) so JavaScript,
  * Postgres (`char_length`), and SQLite (`length`) agree identically on
@@ -32,22 +32,29 @@ const REPLACEMENT = String.fromCharCode(0xfffd)
 export const wellFormed = (text: string): string => text.replace(LONE_SURROGATE, REPLACEMENT)
 
 /**
- * A text operation over its operands, each a string without a NUL. Over
- * well-formed text a match by UTF-16 unit starts and ends on a character.
+ * A text operation over its operands, each a string without a NUL (`refuses`
+ * turned one away before null). Over well-formed text a match by UTF-16 unit
+ * starts and ends on a character.
  */
 const textual =
   <A>(id: Node.CoreOpId, decide: (texts: ReadonlyArray<string>) => A) =>
   (args: ReadonlyArray<unknown>): unknown => {
     const other = args.find(arg => typeof arg !== 'string')
     if (other !== undefined) return Node.illTyped(id, 'a string', other)
-    if (Node.holdsNul(args)) return Node.unportable(id)
     return decide((args as ReadonlyArray<string>).map(wellFormed))
   }
+
+/** Text holding a NUL, refused before null: a database refuses the statement before any operator runs. */
+const nul =
+  (id: Node.CoreOpId) =>
+  (value: unknown): Node.Refusal | undefined =>
+    Node.holdsNul([value]) ? Node.unportable(id) : undefined
 
 export const lenOp: Node.Op<'str.len'> = {
   id: 'str.len',
   returns: 'number',
   nulls: 'strict',
+  refuses: nul('str.len'),
   evaluate: textual('str.len', ([text]) => codePointLength(text!)),
 }
 
@@ -56,6 +63,7 @@ export const startsWithOp: Node.Op<'str.startsWith'> = {
   id: 'str.startsWith',
   returns: 'boolean',
   nulls: 'strict',
+  refuses: nul('str.startsWith'),
   evaluate: textual('str.startsWith', ([text, part]) => text!.startsWith(part!)),
 }
 
@@ -63,6 +71,7 @@ export const containsOp: Node.Op<'str.contains'> = {
   id: 'str.contains',
   returns: 'boolean',
   nulls: 'strict',
+  refuses: nul('str.contains'),
   evaluate: textual('str.contains', ([text, part]) => text!.includes(part!)),
 }
 
@@ -70,6 +79,7 @@ export const lowerAsciiOp: Node.Op<'str.lowerAscii'> = {
   id: 'str.lowerAscii',
   returns: 'text',
   nulls: 'strict',
+  refuses: nul('str.lowerAscii'),
   evaluate: textual('str.lowerAscii', ([text]) =>
     text!.replace(/[A-Z]/g, letter => letter.toLowerCase()),
   ),
@@ -82,6 +92,7 @@ export const trimOp: Node.Op<'str.trim'> = {
   id: 'str.trim',
   returns: 'text',
   nulls: 'strict',
+  refuses: nul('str.trim'),
   evaluate: textual('str.trim', ([text]) => text!.replace(EDGE_SPACE, '')),
 }
 
@@ -102,6 +113,7 @@ const order = <Id extends 'str.lt' | 'str.lte' | 'str.gt' | 'str.gte'>(
   id,
   returns: 'boolean',
   nulls: 'strict',
+  refuses: nul(id),
   evaluate: textual(id, ([a, b]) => holds(byCodePoint(a!, b!))),
 })
 

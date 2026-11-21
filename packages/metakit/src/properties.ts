@@ -40,8 +40,16 @@ export type Domain = 'all' | 'integers'
 export interface OpProperties {
   /** `op(x, value)` is `x`, on `side`, for every `x` of the result's kind, null or refused. */
   readonly identity?: { readonly value: unknown; readonly side: Side }
-  /** `op(x, value)` is `result`, on `side`, for every `x`. */
-  readonly absorbing?: { readonly value: unknown; readonly result: unknown; readonly side: Side }
+  /**
+   * `op(x, value)` is `result`, on `side`, for every `x`; `unlessRefused`:
+   * for every `x` that is not refused, since a refusal is not absorbed.
+   */
+  readonly absorbing?: {
+    readonly value: unknown
+    readonly result: unknown
+    readonly side: Side
+    readonly unlessRefused?: true
+  }
   /** Twice is once: `op(x, x)` is `x` for two arguments, `op(op(x))` is `op(x)` for one. */
   readonly idempotent?: true
   /** `op(x, y)` and `op(y, x)` give one answer, for every value. */
@@ -64,12 +72,12 @@ export interface OpProperties {
 export const opProperties: { readonly [Id in Node.CoreOpId]: OpProperties } = {
   'bool.and': {
     identity: { value: true, side: 'both' },
-    absorbing: { value: false, result: false, side: 'both' },
+    absorbing: { value: false, result: false, side: 'both', unlessRefused: true },
     idempotent: true,
   },
   'bool.or': {
     identity: { value: false, side: 'both' },
-    absorbing: { value: true, result: true, side: 'both' },
+    absorbing: { value: true, result: true, side: 'both', unlessRefused: true },
     idempotent: true,
   },
   'bool.not': { involution: true },
@@ -152,7 +160,12 @@ const summed = (over: Domain): FoldProperties => {
   }
 }
 
-/** What `any` and `every` take from `bool.or` and `bool.and`: the value that decides them. */
+/**
+ * What `any` and `every` take from `bool.or` and `bool.and`: the value that
+ * decides them. A fold decides over an element whose test was refused
+ * (`rows.ts`), so it absorbs over every value, where the operation absorbs
+ * only over values that are not refused.
+ */
 const decided = (from: 'bool.or' | 'bool.and', monotone: Direction): FoldProperties => {
   const absorbing = opProperties[from].absorbing
   return {

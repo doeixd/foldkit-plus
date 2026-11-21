@@ -1,18 +1,20 @@
 /**
  * Boolean primitive operators (`bool.and`, `bool.or`, `bool.not`), three-valued
- * the way SQL's are: `false AND null` is false, `true AND null` is null.
+ * the way SQL's are: `false AND null` is false, `true AND null` is null. A
+ * refused operand refuses either, whatever the other is: `false AND x` is
+ * refused where `x` is, as a database refuses the statement.
  */
 import * as Node from '../node.js'
 import type { Expr } from '../path.js'
 import { call, type EnvOfInput, type ExprInput, type NullOf } from './core.js'
 
-/** `and` when `decided` is false, `or` when it is true: `decided` wins over null and a refusal. */
+/** `and` when `decided` is false, `or` when it is true: a refusal first, then `decided` wins over null. */
 const kleene =
   (id: 'bool.and' | 'bool.or', decided: boolean) =>
   (args: ReadonlyArray<unknown>): unknown => {
-    if (args.includes(decided)) return decided
     const refused = args.find(Node.isRefusal)
     if (refused !== undefined) return refused
+    if (args.includes(decided)) return decided
     const other = args.find(arg => arg !== null && typeof arg !== 'boolean')
     if (other !== undefined) return Node.illTyped(id, 'a boolean', other)
     return args.includes(null) ? null : !decided

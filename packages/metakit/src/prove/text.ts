@@ -57,6 +57,7 @@ export const textReading = (kit: TextKit) => {
             info.sort === 'real' ||
             info.sort === 'bool' ||
             info.sort === 'struct' ||
+            info.nulFree ||
             (info.literals.length > 0 && !Node.holdsNul(info.literals)))
         return textless ? never : flagVar(`nul:${name}`)
       },

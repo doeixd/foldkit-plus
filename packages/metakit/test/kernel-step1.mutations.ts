@@ -45,8 +45,8 @@ const table = [
     propertyTests,
     'or declares false absorbing',
     properties,
-    "absorbing: { value: true, result: true, side: 'both' },",
-    "absorbing: { value: false, result: false, side: 'both' },",
+    "absorbing: { value: true, result: true, side: 'both', unlessRefused: true },",
+    "absorbing: { value: false, result: false, side: 'both', unlessRefused: true },",
   ),
 ]
 
@@ -141,8 +141,8 @@ const text = [
     unportableTests,
     'a text operation takes text holding a NUL',
     '../src/ops/str.ts',
-    'if (Node.holdsNul(args)) return Node.unportable(id)',
-    '',
+    'Node.holdsNul([value]) ? Node.unportable(id) : undefined',
+    'undefined',
   ),
   mutation(
     unportableTests,
@@ -251,10 +251,10 @@ const operations = [
   ),
   mutation(
     parityTests,
-    'SQL answers false of a null value among nothing',
+    'SQL answers null of a null value among nothing',
     '../src/sqlLowering.ts',
-    'return Result.succeed(q`((${needle} IS NULL) AND NULL)`)',
-    'return Result.succeed(q`FALSE`)',
+    'if (items.length === 0) return Result.succeed(q`FALSE`)',
+    'if (items.length === 0) return Result.succeed(q`((${needle} IS NULL) AND NULL)`)',
   ),
   mutation(
     conformanceTests,
@@ -291,10 +291,10 @@ const foreign = [
   ),
   mutation(
     foreignTests,
-    'evaluation runs an implementation of another version',
+    'evaluation finds an implementation by id alone',
     '../src/ops/eval.ts',
-    'if (implementation.version !== op.version) {',
-    'if (false) {',
+    'const name = Node.foreignName(op)',
+    'const name = op.id',
   ),
   mutation(
     foreignTests,
@@ -314,15 +314,15 @@ const foreign = [
     foreignTests,
     'judge answers of a foreign call it holds no implementation of as missing environment',
     '../src/ops/residualize.ts',
-    'const unimplemented = foreignCalls(residual).find(\n    op => !Object.hasOwn(foreign, op.id) || foreign[op.id]!.version !== op.version,\n  )',
+    'const unimplemented = foreignCalls(residual).find(\n    op => !Object.hasOwn(foreign, Node.foreignName(op)),\n  )',
     'const unimplemented = foreignCalls(residual).find(() => false)',
   ),
   mutation(
     foreignTests,
-    'SQL writes an entry of another version',
+    'SQL finds an entry by id alone',
     '../src/sqlRender.ts',
-    'return entry !== undefined && entry.version === op.version',
-    'return entry !== undefined',
+    'const name = Node.foreignName(op)',
+    'const name = op.id',
   ),
   mutation(
     foreignTests,
@@ -335,7 +335,7 @@ const foreign = [
     foreignTests,
     'a foreign call is one term whatever its version',
     '../src/node.ts',
-    '(isForeign(op) ? `${op.id}@${op.version}` : op.id)',
+    '(isForeign(op) ? foreignName(op) : op.id)',
     'op.id',
   ),
 ]

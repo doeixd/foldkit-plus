@@ -8,7 +8,7 @@ import { opProperties } from '../properties.js'
 import * as Verdict from '../verdict.js'
 import * as Interval from './interval.js'
 import type { AbstractState } from './state.js'
-import { isRead, negated, proved, refuted } from './support.js'
+import { isRead, negated, noCandidate, proved, refuted } from './support.js'
 import { ZERO } from './zone.js'
 
 const not = (node: Node.Node): Node.Node => Node.Call({ op: Bool.notOp, args: [node] })
@@ -50,8 +50,6 @@ export interface PredicateOp {
   readonly unportable: boolean
   /** Whether the call has a value, where its operands having theirs does not say (`eq.among`). */
   readonly valued?: (args: ReadonlyArray<Node.Node>, state: AbstractState) => boolean
-  /** Strict, and takes NaN without refusing it: a truth value says only that no operand is null. */
-  readonly takesNaN?: true
 }
 
 /** A row for a call whose value is text or an operand: no interval, no truth value. */
@@ -268,6 +266,30 @@ const search = (op: Node.Op): PredicateOp => ({
   refute: () => {},
 })
 
+/**
+ * The verdict of `and` (`decisive` is `isFalse`) or `or` (`isTrue`) as its
+ * operands' verdicts combine to `direct`, kept where an operand at the
+ * deciding value meets one decided or known not to be refused: a refusal is
+ * not absorbed, so `false and x` is refused where `x` is.
+ */
+const unabsorbed = (
+  direct: Verdict.Verdict<never>,
+  decisive: (verdict: Verdict.Verdict<never>) => boolean,
+  args: ReadonlyArray<Node.Node>,
+  verdicts: readonly [Verdict.Verdict<never>, Verdict.Verdict<never>],
+  state: AbstractState,
+): Verdict.Verdict<never> => {
+  if (!decisive(direct)) return direct
+  const settled = verdicts.some(
+    (verdict, index) =>
+      decisive(verdict) &&
+      (!Verdict.isUnknown(verdicts[1 - index]!) || state.notRefused(args[1 - index]!)),
+  )
+  return settled
+    ? direct
+    : Verdict.Unknown('the other operand may be refused, which is not absorbed')
+}
+
 /** Every primitive's Tier 3 row: a new `CoreOpId` fails to compile until it has one. */
 export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   'bool.and': {
@@ -275,7 +297,10 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     unportable: false,
     neverNull: false,
     measures: none,
-    decide: (args, state) => Verdict.and(state.decide(args[0]!), state.decide(args[1]!)),
+    decide: (args, state) => {
+      const verdicts = [state.decide(args[0]!), state.decide(args[1]!)] as const
+      return unabsorbed(Verdict.and(...verdicts), Verdict.isFalse, args, verdicts, state)
+    },
     assume: (args, state) => {
       state.assume(args[0]!)
       state.assume(args[1]!)
@@ -292,9 +317,11 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     measures: none,
     decide: (args, state) => {
       const [a, b] = [args[0]!, args[1]!]
-      const direct = Verdict.or(state.decide(a), state.decide(b))
-      // Γ ⊢ A ∨ B from Γ, ¬A ⊢ B, where A is true or false: a null A gives a null disjunction.
-      if (!Verdict.isUnknown(direct) || !state.hasValue(a)) return direct
+      const verdicts = [state.decide(a), state.decide(b)] as const
+      const direct = unabsorbed(Verdict.or(...verdicts), Verdict.isTrue, args, verdicts, state)
+      // Γ ⊢ A ∨ B from Γ, ¬A ⊢ B, where A is true or false (a null A gives a
+      // null disjunction) and B is not refused where A is true.
+      if (!Verdict.isUnknown(direct) || !state.hasValue(a) || !state.notRefused(b)) return direct
       const otherwise = state.clone()
       otherwise.refute(a)
       const rest = otherwise.entails(b, 1)
@@ -376,26 +403,31 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   'eq.equals': {
     _tag: 'Predicate',
     unportable: true,
-    takesNaN: true,
     neverNull: false,
     measures: none,
     decide: decideEqual,
     assume: assumeEqual,
     refute: assumeUnequal,
   },
+  // Not strict: no candidate is false whatever the value. Among some, a truth
+  // value says the value had one (null, NaN and a NUL refused or null first).
   'eq.among': {
     _tag: 'Predicate',
     unportable: true,
-    takesNaN: true,
     neverNull: false,
     measures: none,
-    // No match against a null candidate is null, not false.
+    // False among no candidate; among some, no match against a null candidate is null, not false.
     valued: ([needle, candidates], state) =>
-      state.hasValue(needle!) &&
-      Node.$is('Lit')(candidates!) &&
-      Array.isArray(candidates.value) &&
-      candidates.value.every(item => item !== null && item !== undefined),
+      noCandidate(candidates)
+        ? state.notRefused(needle!)
+        : state.hasValue(needle!) &&
+          Node.$is('Lit')(candidates!) &&
+          Array.isArray(candidates.value) &&
+          candidates.value.every(item => item !== null && item !== undefined),
     decide: ([needle, candidates], state) => {
+      if (noCandidate(candidates)) {
+        return state.notRefused(needle!) ? refuted() : Verdict.Unknown('the value may be refused')
+      }
       const known = Node.$is('Lit')(needle!)
         ? Option.some<unknown>(needle.value)
         : Node.$is('Path')(needle!) && state.eqFacts.has(Node.key(needle))
@@ -415,6 +447,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
         state.markBottom()
         return
       }
+      state.markValued(needle!)
       const numbers = present.filter((item): item is number => typeof item === 'number')
       const id = state.varOf(needle!)
       if (Option.isSome(id) && numbers.length === present.length) {
@@ -422,15 +455,12 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
         state.zone.constrainUpper(id.value, Math.max(...numbers))
       }
     },
-    // False only where no candidate is null.
-    refute: ([, candidates], state) => {
-      if (
-        Node.$is('Lit')(candidates!) &&
-        Array.isArray(candidates.value) &&
-        candidates.value.some(item => item === null || item === undefined)
-      ) {
-        state.markBottom()
-      }
+    // False of no candidate whatever the value; among some, only of a value where no candidate is null.
+    refute: ([needle, candidates], state) => {
+      if (!Node.$is('Lit')(candidates!) || !Array.isArray(candidates.value)) return
+      if (candidates.value.length === 0) return
+      if (candidates.value.some(item => item === null || item === undefined)) state.markBottom()
+      else state.markValued(needle!)
     },
   },
   'null.coalesce': {

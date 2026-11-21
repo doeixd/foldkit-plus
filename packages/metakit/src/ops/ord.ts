@@ -1,7 +1,7 @@
 /**
  * Ordering primitives (`ord.lt`, `ord.lte`, `ord.gt`, `ord.gte`) and derived
  * range helper (`Ord.between`). Null-strict: a comparison with null is null.
- * NaN has no order, so a comparison over it is refused.
+ * NaN has no order, so a comparison over it is refused, before null.
  */
 import * as Node from '../node.js'
 import type { Expr } from '../path.js'
@@ -16,39 +16,31 @@ const comparison =
   ([a, b]: ReadonlyArray<unknown>): unknown => {
     if (typeof a !== 'number') return Node.illTyped(id, 'a number', a)
     if (typeof b !== 'number') return Node.illTyped(id, 'a number', b)
-    if (Number.isNaN(a) || Number.isNaN(b)) {
-      return new Node.Refusal({ reason: 'non-finite', at: id, detail: 'NaN has no order' })
-    }
     return decide(a, b)
   }
 
-export const ltOp: Node.Op<'ord.lt'> = {
-  id: 'ord.lt',
-  returns: 'boolean',
-  nulls: 'strict',
-  evaluate: comparison('ord.lt', (a, b) => a < b),
-}
+/** NaN, refused before null, as every refusal of an operand is. */
+const nan =
+  (id: Node.CoreOpId) =>
+  (value: unknown): Node.Refusal | undefined =>
+    Number.isNaN(value) ? Node.unordered(id) : undefined
 
-export const lteOp: Node.Op<'ord.lte'> = {
-  id: 'ord.lte',
+const order = <Id extends 'ord.lt' | 'ord.lte' | 'ord.gt' | 'ord.gte'>(
+  id: Id,
+  decide: (a: number, b: number) => boolean,
+): Node.Op<Id> => ({
+  id,
   returns: 'boolean',
   nulls: 'strict',
-  evaluate: comparison('ord.lte', (a, b) => a <= b),
-}
+  refuses: nan(id),
+  evaluate: comparison(id, decide),
+})
 
-export const gtOp: Node.Op<'ord.gt'> = {
-  id: 'ord.gt',
-  returns: 'boolean',
-  nulls: 'strict',
-  evaluate: comparison('ord.gt', (a, b) => a > b),
-}
-
-export const gteOp: Node.Op<'ord.gte'> = {
-  id: 'ord.gte',
-  returns: 'boolean',
-  nulls: 'strict',
-  evaluate: comparison('ord.gte', (a, b) => a >= b),
-}
+// Pure: a page that names no order keeps none.
+export const ltOp = /* @__PURE__ */ order('ord.lt', (a, b) => a < b)
+export const lteOp = /* @__PURE__ */ order('ord.lte', (a, b) => a <= b)
+export const gtOp = /* @__PURE__ */ order('ord.gt', (a, b) => a > b)
+export const gteOp = /* @__PURE__ */ order('ord.gte', (a, b) => a >= b)
 
 export const lt = <L extends NullableNumber, R extends NullableNumber>(
   left: L,

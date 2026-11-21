@@ -171,8 +171,8 @@ const checker = [
     soundness,
     'a disjunction is proved by cases on a disjunct that may be null',
     abstractOps,
-    'if (!Verdict.isUnknown(direct) || !state.hasValue(a)) return direct',
-    'if (!Verdict.isUnknown(direct)) return direct',
+    'if (!Verdict.isUnknown(direct) || !state.hasValue(a) || !state.notRefused(b)) return direct',
+    'if (!Verdict.isUnknown(direct) || !state.notRefused(b)) return direct',
   ),
   mutation(
     soundness,
@@ -301,8 +301,8 @@ export default [
     nullStrict,
     'NaN is ordered',
     ord,
-    'if (Number.isNaN(a) || Number.isNaN(b)) {',
-    'if (false) {',
+    'Number.isNaN(value) ? Node.unordered(id) : undefined',
+    'undefined',
   ),
   mutation(
     nullStrict,

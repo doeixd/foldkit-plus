@@ -1,18 +1,20 @@
 import { Effect, Option, Schema } from 'effect'
 import { Bool, Eq, Expr, Null, Num, Path, Verdict } from 'metakit'
+import { Text } from 'metakit/domain'
 import * as Policy from 'metakit/policy'
 import * as Prove from 'metakit/prove'
 import { describe, expect, it } from 'vitest'
 
+// Text holding no NUL, so a comparison of ids is never refused and partial evaluation may drop it.
 const Document = Schema.Struct({
-  id: Schema.String,
-  ownerId: Schema.String,
+  id: Text.schema,
+  ownerId: Text.schema,
   balance: Schema.Int,
   status: Schema.Literals(['open', 'frozen']),
 }).pipe(Expr.refine($ => Num.gte($.balance, 0)))
 
 const Principal = Schema.Struct({
-  userId: Schema.String,
+  userId: Text.schema,
   role: Schema.Literals(['owner', 'editor', 'admin', 'guest']),
 })
 

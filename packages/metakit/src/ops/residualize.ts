@@ -18,7 +18,7 @@ import * as Path from '../path.js'
 import * as Verdict from '../verdict.js'
 import { opProperties } from '../properties.js'
 import { applyForeign, evalNode, ifArm, matchArm, type ForeignImplementations } from './eval.js'
-import { isPortableRead, kindOf, present } from './kind.js'
+import { cannotRefuse, isPortableRead, kindOf, present } from './kind.js'
 import { readsOfNode } from './reads.js'
 import { residualizeRows } from './residualizeRows.js'
 
@@ -102,11 +102,13 @@ const applyLaws = (op: Node.Op, args: ReadonlyArray<Node.Node>): Option.Option<N
     const right = args[1]!
 
     if (laws.absorbing !== undefined) {
-      const { value, result, side } = laws.absorbing
-      if ((side === 'left' || side === 'both') && isLitEqual(left, value)) {
+      const { value, result, side, unlessRefused } = laws.absorbing
+      // A refusal is not absorbed: the operand dropped must be one that cannot be refused.
+      const drops = (operand: Node.Node): boolean => unlessRefused !== true || cannotRefuse(operand)
+      if ((side === 'left' || side === 'both') && isLitEqual(left, value) && drops(right)) {
         return Option.some(Node.Lit({ value: result }))
       }
-      if ((side === 'right' || side === 'both') && isLitEqual(right, value)) {
+      if ((side === 'right' || side === 'both') && isLitEqual(right, value) && drops(left)) {
         return Option.some(Node.Lit({ value: result }))
       }
     }
@@ -134,6 +136,19 @@ const applyLaws = (op: Node.Op, args: ReadonlyArray<Node.Node>): Option.Option<N
 }
 
 /**
+ * Whether a strict call is null whatever its operands not yet known hold: one
+ * is a known null, and every other cannot be refused nor give a value the
+ * operation refuses before null (`cannotRefuse`), as its Schema or its form
+ * says.
+ */
+const nullBesideUnrefused = (op: Node.AnyOp, args: ReadonlyArray<Node.Node>): boolean => {
+  // A foreign call with no implementation is refused before its null rule.
+  if (Node.isForeign(op) || op.nulls !== 'strict' || args.every(Node.$is('Lit'))) return false
+  const isNull = (arg: Node.Node): boolean => Node.$is('Lit')(arg) && arg.value === null
+  return args.some(isNull) && args.every(arg => isNull(arg) || cannotRefuse(arg))
+}
+
+/**
  * Partially evaluate `node` against `partialEnv`, substituting known paths and
  * applying declarative size-reducing operator laws. A foreign call over
  * known arguments runs the implementation `foreign` gives, and stays a call
@@ -153,10 +168,9 @@ export const residualizeNode = (
       }),
     Call: ({ op, args }) => {
       const nextArgs = args.map(arg => residualizeNode(arg, partialEnv, foreign))
+      if (nullBesideUnrefused(op, nextArgs)) return Node.Lit({ value: null })
       if (Node.isForeign(op)) {
-        return nextArgs.every(Node.$is('Lit')) &&
-          Object.hasOwn(foreign, op.id) &&
-          foreign[op.id]!.version === op.version
+        return nextArgs.every(Node.$is('Lit')) && Object.hasOwn(foreign, Node.foreignName(op))
           ? Node.Lit({
               value: applyForeign(
                 op,
@@ -289,10 +303,10 @@ export const judgeNode = (
     )
   }
   const unimplemented = foreignCalls(residual).find(
-    op => !Object.hasOwn(foreign, op.id) || foreign[op.id]!.version !== op.version,
+    op => !Object.hasOwn(foreign, Node.foreignName(op)),
   )
   if (unimplemented !== undefined) {
-    const named = `${unimplemented.id}@${unimplemented.version}`
+    const named = Node.foreignName(unimplemented)
     return Verdict.Unknown(
       `no implementation of ${named}`,
       Option.some({ kind: 'unsupported', detail: named }),

@@ -1,5 +1,6 @@
 import { Option, Result, Schema } from 'effect'
 import { Eq, Expr, Null, Num, Ord, Path, Transition } from 'metakit'
+import { Text } from 'metakit/domain'
 import * as Graph from 'metakit/graph'
 import * as Machine from 'metakit/machine'
 import * as Sql from 'metakit/sql'
@@ -167,15 +168,16 @@ describe('metakit/graph', () => {
   })
 
   it('Graph.queryReadiness gates cascading queries and short-circuits satisfied branches', () => {
+    // Ids holding no NUL, so a branch comparing them is never refused and `all` may decide.
     const CityRow = Schema.Struct({
-      id: Schema.String,
-      countryId: Schema.String,
-      regionId: Schema.String,
+      id: Text.schema,
+      countryId: Text.schema,
+      regionId: Text.schema,
     })
     const QueryParams = Schema.Struct({
       all: Schema.Boolean,
-      countryId: Schema.String,
-      regionId: Schema.String,
+      countryId: Text.schema,
+      regionId: Text.schema,
     })
 
     const cascading = Expr.in({ row: CityRow, params: QueryParams }, ({ row, params }) =>

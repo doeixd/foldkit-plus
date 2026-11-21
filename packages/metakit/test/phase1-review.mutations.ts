@@ -41,12 +41,6 @@ export default [
       'only more cautious: it adds the not-null obligation for a coalesce with a non-null operand, which holds and which the solver proves',
   },
   mutation(
-    'a strict call marks its operands portable though one may be null',
-    '../src/abstract/state.ts',
-    "if (node.op.nulls !== 'strict' || node.args.every(arg => this.hasValue(arg))) {",
-    'if (true) {',
-  ),
-  mutation(
     'eq text equality leaves a lone surrogate as it is',
     '../src/ops/eq.ts',
     "typeof value === 'string' ? Node.wellFormed(value) : value",
@@ -67,7 +61,7 @@ export default [
   mutation(
     'a foreign call of another version than the implementation counts as implemented',
     '../src/ops/residualize.ts',
-    'op => !Object.hasOwn(foreign, op.id) || foreign[op.id]!.version !== op.version,',
+    'op => !Object.hasOwn(foreign, Node.foreignName(op)),',
     'op => !Object.hasOwn(foreign, op.id),',
   ),
 ]

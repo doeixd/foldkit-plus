@@ -65,14 +65,19 @@ export const ifArm = (
   return { value: Node.illTyped('if', 'a boolean', cond) }
 }
 
-/** One implementation of a foreign operation: the version it implements, and the function. */
+/** One implementation of a foreign operation. */
 export interface ForeignImplementation {
-  readonly version: number
-  /** The operation on argument values, after its null rule. It returns a value, null, or a `Node.Refusal`. */
+  /**
+   * The operation on argument values, after its null rule. It returns a
+   * value, null, or a `Node.Refusal`; a throw is refused as `failed`.
+   */
   readonly run: (args: ReadonlyArray<unknown>) => unknown
 }
 
-/** The implementations a reader is given, by foreign operation id. */
+/**
+ * The implementations a reader is given, by `id@version` (`Node.foreignName`),
+ * so two versions of one operation each have theirs.
+ */
 export type ForeignImplementations = Readonly<Record<string, ForeignImplementation>>
 
 const none: ForeignImplementations = {}
@@ -88,21 +93,25 @@ const kindOfValue = (value: unknown): Node.ValueKind | 'other' =>
 
 /**
  * A foreign call over argument values: refused where no implementation of
- * its id and version is given, and where the one given answers with a value
- * not of the kind it declares, a number that is not finite, or a NUL.
+ * its id and version is given (`unsupported`), where the one given throws
+ * (`failed`), and where it answers with a value not of the kind it declares,
+ * a number that is not finite, or a NUL.
  */
 export const applyForeign = (
   op: Node.ForeignOp,
   args: ReadonlyArray<unknown>,
   implementations: ForeignImplementations,
 ): unknown => {
-  const implementation = Object.hasOwn(implementations, op.id) ? implementations[op.id] : undefined
+  const name = Node.foreignName(op)
+  const implementation = Object.hasOwn(implementations, name) ? implementations[name] : undefined
   if (implementation === undefined) return Node.unsupported(op)
-  if (implementation.version !== op.version) {
-    return Node.unsupported(op, `the implementation given is of version ${implementation.version}`)
-  }
   return Node.applying(op, args, values => {
-    const result = implementation.run(values)
+    let result: unknown
+    try {
+      result = implementation.run(values)
+    } catch (error) {
+      return Node.failed(op, error)
+    }
     if (result === null || result === undefined) return null
     if (Node.isRefusal(result)) return result
     if (kindOfValue(result) !== op.returns) return Node.illTyped(op.id, `a ${op.returns}`, result)

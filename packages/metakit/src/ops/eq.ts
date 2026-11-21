@@ -3,7 +3,8 @@
  * `eq.in`, and SQL's `=` and `in` (`eq.equals`, `eq.among`).
  *
  * `eq.is`, `eq.isNot` and `eq.in` are null-safe: null equals null and nothing
- * else, so these never give null; `eq.equals` and `eq.among` give null as SQL does. Uses Effect `Equal.equals` (with `Object.is` and `±0`
+ * else, so these never give null; `eq.equals` and `eq.among` give null as SQL
+ * does, and refuse NaN as the orders do. Uses Effect `Equal.equals` (with `Object.is` and `±0`
  * normalization). SQL lowering emits `IS NOT DISTINCT FROM` / `IS` on nullable
  * columns so JS and SQL never diverge.
  */
@@ -11,7 +12,7 @@ import { Equal, Option } from 'effect'
 import * as Node from '../node.js'
 import type { Expr } from '../path.js'
 import { call, type EnvOfInput, type ExprInput, type NullOf, type ValueOfInput } from './core.js'
-import { isPortableRead } from './kind.js'
+import { cannotRefuse, isPortableRead } from './kind.js'
 
 const normalizeText = (value: unknown): unknown =>
   typeof value === 'string' ? Node.wellFormed(value) : value
@@ -71,38 +72,56 @@ export const inOp: Node.Op<'eq.in'> = {
   },
 }
 
-/** SQL's `=`: null where either side is null, and refused for text holding a NUL. */
+/**
+ * SQL's `=`: refused for text holding a NUL or for NaN, on either side and
+ * before null; then null where either side is null.
+ */
 export const equalsOp: Node.Op<'eq.equals'> = {
   id: 'eq.equals',
   returns: 'boolean',
   nulls: 'strict',
-  evaluate: args =>
-    Node.holdsNul(args) ? Node.unportable('eq.equals') : sameValue(args[0], args[1]),
+  refuses: value => Node.refusedForEquality('eq.equals', value),
+  evaluate: args => sameValue(args[0], args[1]),
 }
 
 /**
- * SQL's `in`: null for a null value, true for a match, and otherwise null
- * where a candidate is null and false where none is.
+ * SQL's `in`. In order: a refused operand refuses; a null list gives null; no candidate gives false,
+ * whatever the value, null included (SQLite's `x in ()`, and what Drizzle
+ * writes for an empty `inArray`); text holding a NUL or NaN, in the value or a
+ * candidate, refuses; a null value gives null; then true for a match, null
+ * where none matches beside a null candidate, and false.
  */
 export const amongOp: Node.Op<'eq.among'> = {
   id: 'eq.among',
   returns: 'boolean',
-  nulls: 'strict',
-  evaluate: ([needle, candidates]) => {
+  nulls: 'own',
+  evaluate: args => {
+    const refused = args.find(Node.isRefusal)
+    if (refused !== undefined) return refused
+    const [needle, candidates] = args
+    // A list not given (an optional filter's input) is null, as a strict operand is.
+    if (candidates === null) return null
     if (!Array.isArray(candidates)) {
       return Node.illTyped('eq.among', 'an array of candidates', candidates)
     }
-    if (Node.holdsNul([needle, ...candidates])) return Node.unportable('eq.among')
+    if (candidates.length === 0) return false
+    const screened = Node.refusedForEquality('eq.among', [needle, candidates])
+    if (screened !== undefined) return screened
+    if (needle === null) return null
     const present = candidates.filter(item => item !== null && item !== undefined)
     if (present.some(item => sameValue(needle, item))) return true
     return present.length < candidates.length ? null : false
   },
   fold: args => {
-    const candidates = args[1]!
+    const [needle, candidates] = [args[0]!, args[1]!]
     if (!Node.$is('Lit')(candidates) || !Array.isArray(candidates.value)) return Option.none()
+    // A value that is not refused is among no candidate.
+    if (candidates.value.length === 0 && (Node.$is('Path')(needle) || cannotRefuse(needle))) {
+      return Option.some(Node.Lit({ value: false }))
+    }
     const [only] = candidates.value
     return candidates.value.length === 1 && only !== null && only !== undefined
-      ? Option.some(Node.Call({ op: equalsOp, args: [args[0]!, Node.Lit({ value: only })] }))
+      ? Option.some(Node.Call({ op: equalsOp, args: [needle, Node.Lit({ value: only })] }))
       : Option.none()
   },
 }
@@ -131,8 +150,8 @@ export const isNot = <
 
 /**
  * Equality as SQL's `=` answers it: null where either side is null, so a rule
- * over a missing value does not hold. `Eq.is` is the equality where null
- * equals null.
+ * over a missing value does not hold; NaN and text holding a NUL are refused.
+ * `Eq.is` is the equality where null equals null.
  */
 export const equals = <
   L extends ExprInput<never, unknown>,
@@ -144,8 +163,9 @@ export const equals = <
   call(equalsOp, [left, right])
 
 /**
- * Membership as SQL's `in` answers it: null for a null `value`, and null
- * where nothing matches and a candidate is null. `Eq.oneOf` never gives null.
+ * Membership as SQL's `in` answers it: false among no candidate, null for a
+ * null `value` among some, and null where nothing matches and a candidate is
+ * null. Text holding a NUL and NaN are refused. `Eq.oneOf` never gives null.
  */
 export const among = <
   X extends ExprInput<never, unknown>,

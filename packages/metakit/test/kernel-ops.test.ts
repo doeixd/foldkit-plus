@@ -34,7 +34,17 @@ describe('evaluation', () => {
     ['equals with null on the left', Eq.equals($.n, $.m), { m: 1 }, null],
     ['equals with null on the right', Eq.equals($.n, $.m), { n: 1 }, null],
     ['equals of two nulls', Eq.equals($.n, $.m), {}, null],
-    ['equals of NaN with itself, as Eq.is', Eq.equals($.x, $.x), { x: NaN }, true],
+    ['equals of NaN with itself', Eq.equals($.x, $.x), { x: NaN }, 'refused: non-finite'],
+    ['equals of NaN beside null', Eq.equals($.x, $.n), { x: NaN }, 'refused: non-finite'],
+    ['among, a NaN value', Eq.among($.x, [1, 2]), { x: NaN }, 'refused: non-finite'],
+    ['among, a NaN candidate', Eq.among($.n, [1, NaN]), { n: 1 }, 'refused: non-finite'],
+    ['among, a NaN candidate of null', Eq.among($.n, [NaN]), {}, 'refused: non-finite'],
+    [
+      'equals of text holding a NUL beside null',
+      Eq.equals($.s, $.t),
+      { s: 'a\u0000' },
+      'refused: unportable',
+    ],
     [
       'equals of text holding a NUL',
       Eq.equals($.s, $.t),
@@ -47,7 +57,8 @@ describe('evaluation', () => {
     ['among, no match beside a null', Eq.among($.n, [1, null]), { n: 3 }, null],
     ['among, a match beside a null', Eq.among($.n, [1, null]), { n: 1 }, true],
     ['among nothing', Eq.among($.n, []), { n: 1 }, false],
-    ['among nothing, of null', Eq.among($.n, []), {}, null],
+    ['among nothing, of null', Eq.among($.n, []), {}, false],
+    ['among nothing, of NaN', Eq.among($.x, []), { x: NaN }, false],
     [
       'among, a candidate holding a NUL',
       Eq.among($.s, ['a\u0000']),

@@ -204,6 +204,7 @@ const attributesOf = (spec: FieldSpec): InputAttributes =>
           decimal: ({ scale }) => scaledAttributes(spec, scale),
           orderedEnum: () => none,
           currency: () => none,
+          text: () => none,
         }),
       ),
   })
@@ -242,6 +243,7 @@ const controlFor = (domain: Domain.DomainMetadata): Option.Option<Control> =>
       decimal: scaled => Option.some(DecimalInput.of(scaled)),
       orderedEnum: () => Option.none(),
       currency: () => Option.none(),
+      text: () => Option.none(),
     }),
   )
 

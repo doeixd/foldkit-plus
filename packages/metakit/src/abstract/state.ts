@@ -9,8 +9,8 @@ import { evalMatchInterval, matchCandidates, resolveMatchArm } from './matches.j
 import { foldProperties } from '../properties.js'
 import { countBounds, type CountBounds } from './lists.js'
 import { abstractOf } from './rowOf.js'
-import { MAX_SPLITS, show } from './support.js'
-import { hasValue, portable } from './values.js'
+import { MAX_SPLITS, noCandidate, show } from './support.js'
+import { hasValue, notRefused, portable } from './values.js'
 import { Zone, ZERO } from './zone.js'
 
 /**
@@ -253,19 +253,31 @@ export class AbstractState {
     return portable.call(this, node)
   }
 
-  /** Record what a strict call that was not null says of its operands: values, or at least not null. */
+  /** Whether `node` is known not to be refused, though it may be null. */
+  notRefused(node: Node.Node): boolean {
+    return notRefused.call(this, node)
+  }
+
+  /**
+   * Record what a strict call that was not null says of its operands: each
+   * has a value (a core operation refuses NaN where it takes a number), or,
+   * of a foreign one, which may take NaN, each is not null.
+   */
   private markOperands(call: Node.Call): void {
-    const row = abstractOf(call.op)
-    const takesNaN = row._tag === 'Predicate' && row.takesNaN === true
     for (const arg of call.args) {
-      if (takesNaN) this.markNotNull(arg)
+      if (Node.isForeign(call.op)) this.markNotNull(arg)
       else this.markValued(arg)
     }
   }
 
-  /** Record that an operation refusing text with a NUL took `args` without refusing. */
+  /**
+   * Record that an operation refusing text with a NUL took `args` without
+   * refusing; it refuses one before null. `eq.among` of no candidate reads
+   * no operand, so it says nothing.
+   */
   private markPortable(call: Node.Call): void {
     if (!abstractOf(call.op).unportable) return
+    if (call.op.id === 'eq.among' && noCandidate(call.args[1])) return
     for (const arg of call.args) this.portableKeys.add(Node.key(arg))
   }
 
@@ -348,11 +360,7 @@ export class AbstractState {
    */
   assumeEvaluated(node: Node.Node): void {
     if (!Node.$is('Call')(node)) return
-    // Strict ops short-circuit to null before `holdsNul` runs, so only mark
-    // their operands portable when every operand is known non-null.
-    if (node.op.nulls !== 'strict' || node.args.every(arg => this.hasValue(arg))) {
-      this.markPortable(node)
-    }
+    this.markPortable(node)
     if (node.op.nulls !== 'strict') return
     for (const arg of node.args) this.assumeEvaluated(arg)
     this.unrefused.add(Node.key(node))

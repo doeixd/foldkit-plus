@@ -34,6 +34,13 @@ export const numberOf = (node: Node.Node): Option.Option<number> =>
 
 export const show = (node: Node.Node): string => Expr.show(wrap(node))
 
+/** A literal list of no candidate, among which `eq.among` is false whatever its value, read or not. */
+export const noCandidate = (candidates: Node.Node | undefined): boolean =>
+  candidates !== undefined &&
+  Node.$is('Lit')(candidates) &&
+  Array.isArray(candidates.value) &&
+  candidates.value.length === 0
+
 /** A literal that is not a refusal, or a path: a term evaluation reads and cannot refuse. */
 export const isRead = (node: Node.Node): boolean =>
   Node.$is('Path')(node) || (Node.$is('Lit')(node) && !Node.isRefusal(node.value))

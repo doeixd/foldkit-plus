@@ -2,9 +2,10 @@
  * Numeric arithmetic primitives (`num.add`, `num.sub`, `num.mul`, `num.neg`)
  * and derived helpers (`min`, `max`, `abs`, `clamp`) built over `If` + `Ord`.
  *
- * Null-strict: a null operand gives null. A result that is NaN or infinite is
- * refused, and so is an integer result past ±(2^53−1), where a double no
- * longer holds every integer and SQL's answer would differ.
+ * Null-strict: a null operand gives null, after an operand that is NaN or
+ * infinite is refused. A result that is NaN or infinite is refused, and so is
+ * an integer result past ±(2^53−1), where a double no longer holds every
+ * integer and SQL's answer would differ.
  *
  * `Ord` comparisons (`lt`, `lte`, `gt`, `gte`) are also re-exported here for
  * ergonomic `Num.lte(...)` call sites.
@@ -40,10 +41,19 @@ const arithmetic =
     return result === 0 ? 0 : result
   }
 
+/** NaN or an infinity, whose every result is not finite: refused before null. */
+const notFinite =
+  (id: Node.CoreOpId) =>
+  (value: unknown): Node.Refusal | undefined =>
+    typeof value === 'number' && !Number.isFinite(value)
+      ? new Node.Refusal({ reason: 'non-finite', at: id, detail: `an operand is ${value}` })
+      : undefined
+
 export const addOp: Node.Op<'num.add'> = {
   id: 'num.add',
   returns: 'number',
   nulls: 'strict',
+  refuses: notFinite('num.add'),
   evaluate: arithmetic('num.add', (a, b) => a + b),
 }
 
@@ -51,6 +61,7 @@ export const subOp: Node.Op<'num.sub'> = {
   id: 'num.sub',
   returns: 'number',
   nulls: 'strict',
+  refuses: notFinite('num.sub'),
   evaluate: arithmetic('num.sub', (a, b) => a - b),
 }
 
@@ -58,6 +69,7 @@ export const mulOp: Node.Op<'num.mul'> = {
   id: 'num.mul',
   returns: 'number',
   nulls: 'strict',
+  refuses: notFinite('num.mul'),
   evaluate: arithmetic('num.mul', (a, b) => a * b),
 }
 
@@ -65,6 +77,7 @@ export const negOp: Node.Op<'num.neg'> = {
   id: 'num.neg',
   returns: 'number',
   nulls: 'strict',
+  refuses: notFinite('num.neg'),
   evaluate: arithmetic('num.neg', a => -a),
 }
 

@@ -1,6 +1,7 @@
 import { Option } from 'effect'
 import type { Arith, Bool, Context, Solver } from 'z3-solver'
 import { abstractOps } from '../abstract/ops.js'
+import { noCandidate } from '../abstract/support.js'
 import * as Node from '../node.js'
 import * as Str from '../ops/str.js'
 import * as Path from '../path.js'
@@ -261,12 +262,12 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       const result = apply(...aligned(number(a!), number(b!)))
       return strict('num', [a!, b!], result, unsafe(result))
     }
-  /** Kleene: `settling` when either side is, then a refusal, then null, then the other value. */
+  /** Kleene: a refusal first, which is not absorbed; then `settling` when either side is; then null; then the other value. */
   const kleene = (settling: boolean) => {
     const settles = settling ? holds : fails
     return (args: ReadonlyArray<Term>): Term => {
-      const settled = z3.Or(...args.map(settles))
-      const refused = z3.And(z3.Not(settled), anyRefused(args))
+      const refused = anyRefused(args)
+      const settled = z3.And(z3.Not(refused), z3.Or(...args.map(settles)))
       return {
         value: settling ? settled : z3.Not(settled),
         isNull: z3.And(z3.Not(settled), z3.Not(refused), anyNull(args)),
@@ -322,6 +323,8 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     'eq.equals': ([a, b]) => strict('bool', [a!, b!], sameValue(a!, b!)),
     'eq.among': ([needle], [, list]) => {
       const candidates = candidatesOf('eq.among', list!)
+      // No candidate is false whatever the value, null included; only a refusal comes first.
+      if (candidates.length === 0) return nullSafe([needle!], never)
       const present = candidates.filter(item => item !== null && item !== undefined)
       const matches = z3.Or(never, ...present.map(item => sameValue(needle!, literal(item))))
       const term = strict('bool', [needle!], matches)
@@ -405,12 +408,9 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
         const operands = args.map(lower)
         const term = smtOps[op.id](operands, args)
         if (!abstractOps[op.id].unportable) return term
-        // Text holding a NUL is refused; a strict operator gives null first.
-        const nul = z3.And(
-          z3.Not(anyRefused(operands)),
-          z3.Or(...args.map(nulOf)),
-          op.nulls === 'strict' ? z3.Not(anyNull(operands)) : z3.Bool.val(true),
-        )
+        if (op.id === 'eq.among' && noCandidate(args[1])) return term
+        // Text holding a NUL is refused after a refused operand, and before null.
+        const nul = z3.And(z3.Not(anyRefused(operands)), z3.Or(...args.map(nulOf)))
         return {
           ...term,
           isNull: z3.And(term.isNull, z3.Not(nul)),

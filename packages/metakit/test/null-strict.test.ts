@@ -141,12 +141,16 @@ describe('null-strict evaluation', () => {
     expect(Object.is(outcome(Num.mul($.n, 0), { ...row({}), n: -3 }), 0)).toBe(true)
   })
 
-  it('lets false decide a conjunction and true a disjunction over a refusal', () => {
+  it('lets neither false decide a conjunction nor true a disjunction over a refusal', () => {
     const refused = Ord.gt(Num.add($.n, 2), 0)
     const env = { ...row({}), n: 2 ** 53 - 1 }
-    expect(outcome(Bool.and($.c, refused), env)).toBe(false)
-    expect(outcome(Bool.or($.b, refused), env)).toBe(true)
+    expect(outcome(Bool.and($.c, refused), env)).toBe('refused: unsafe-integer')
+    expect(outcome(Bool.or($.b, refused), env)).toBe('refused: unsafe-integer')
+    expect(outcome(Bool.and(refused, $.c), env)).toBe('refused: unsafe-integer')
     expect(outcome(Bool.and($.b, refused), env)).toBe('refused: unsafe-integer')
+    // Over values that are not refused, false still decides a conjunction and true a disjunction.
+    expect(outcome(Bool.and($.c, Ord.gt($.n, 0)), env)).toBe(false)
+    expect(outcome(Bool.or($.b, Ord.gt($.n, 0)), env)).toBe(true)
   })
 
   it('holds a rule only where it is true', () => {

@@ -1,5 +1,6 @@
 import { Option, Predicate, Schema, SchemaAST } from 'effect'
 import type { Slice } from '../abstract/unordered.js'
+import { isText } from '../ops/kind.js'
 import * as Path from '../path.js'
 
 /** What a Schema says of each path. */
@@ -19,6 +20,8 @@ export interface PathInfo {
   readonly exclusiveMax: Option.Option<number>
   /** A number whose Schema accepts NaN, which has no order. */
   readonly nan: boolean
+  /** Text whose Schema refuses a NUL (`Text.schema`), so no operation refuses it for one. */
+  readonly nulFree: boolean
 }
 
 /** A path that may read as null, and what a witness writes there: null, undefined, or no key. */
@@ -135,6 +138,7 @@ const readShape = (
       literals: [],
       ...noBounds,
       nan: false,
+      nulFree: false,
       ...more,
     })
   }
@@ -185,7 +189,7 @@ const readShape = (
     })
   }
   if (SchemaAST.isBoolean(inner)) return info('bool')
-  if (SchemaAST.isString(inner)) return info('text')
+  if (SchemaAST.isString(inner)) return info('text', { nulFree: isText(inner) })
   return info('other')
 }
 

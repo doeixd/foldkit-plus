@@ -39,9 +39,9 @@ export interface DrizzleRelation {
 export type DrizzleRelations = Readonly<Record<string, DrizzleRelation>>
 
 /**
- * The Drizzle `SQL` of each foreign operation, by id, from its arguments
- * rendered as Drizzle `SQL`. A foreign call with no entry of its version is
- * refused by name.
+ * The Drizzle `SQL` of each foreign operation, by `id@version`
+ * (`Node.foreignName`), from its arguments rendered as Drizzle `SQL`. A
+ * foreign call with no entry is refused by that name.
  */
 export type ForeignDrizzle = Readonly<Record<string, ForeignSql<SQL>>>
 

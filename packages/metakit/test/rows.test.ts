@@ -206,9 +206,10 @@ describe('a fold over a list, read statically', () => {
   })
 
   it('judge decides any once a held element passes, though another answer is unknown', () => {
-    const Env2 = { state: State, input: Schema.Struct({ id: Schema.String }) }
+    // Each answer is `or` of a field and an equality of integers, which cannot be refused.
+    const Env2 = { state: State, input: Schema.Struct({ n: Schema.Int }) }
     const any = Expr.in(Env2, ({ state: s, input }) =>
-      Arr.any(s.items, each => Bool.or(each.done, Eq.is(each.id, input.id))),
+      Arr.any(s.items, each => Bool.or(each.done, Eq.is(each.n, input.n))),
     )
     expect(
       Verdict.isTrue(Expr.judge(any, { state: { items: [item('a', true, 1)], limit: 1 } })),

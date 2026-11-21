@@ -1,6 +1,6 @@
 import { Option, Predicate, Schema, SchemaAST } from 'effect'
 import * as Node from '../node.js'
-import { isFiniteNumber, isInteger, present } from '../ops/kind.js'
+import { isFiniteNumber, isInteger, isText, present } from '../ops/kind.js'
 import { optionInner } from '../path.js'
 import * as Interval from './interval.js'
 
@@ -18,6 +18,8 @@ export interface FieldInfo {
   readonly isInt: boolean
   /** A number that is never NaN or infinite. */
   readonly finite: boolean
+  /** Text that never holds a NUL (`Text.schema`), which no text or equality operation refuses. */
+  readonly nulFree: boolean
   /** May read as null: `NullOr`, an optional key, or a field under either. */
   readonly nullable: boolean
   readonly interval: Interval.Interval
@@ -109,6 +111,7 @@ export const collectFields = (
     kind: 'other',
     isInt: false,
     finite: false,
+    nulFree: false,
     nullable,
     interval: Interval.top,
     literals: Option.none(),
@@ -142,7 +145,7 @@ export const collectFields = (
     return
   }
   if (only !== undefined && SchemaAST.isString(only)) {
-    set({ kind: 'text' })
+    set({ kind: 'text', nulFree: isText(only) })
     return
   }
   const literals = members.flatMap(member =>

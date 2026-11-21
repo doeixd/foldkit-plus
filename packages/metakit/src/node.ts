@@ -54,10 +54,12 @@ export type OpId = CoreOpId
  * (`unsafe-integer`), a number was NaN or infinite (`non-finite`), an operand
  * was not of the operator's type (`ill-typed`), a `Match` met a value none
  * of its cases names (`unmatched`), a text or equality operation met text
- * holding a NUL character, which Postgres cannot store (`unportable`), or a
- * foreign operation had no implementation (`unsupported`). A
- * refusal is not a value: every operator passes it on, and a predicate that
- * is refused does not hold.
+ * holding a NUL character, which Postgres cannot store (`unportable`), a
+ * foreign operation had no implementation (`unsupported`), or the one given
+ * threw (`failed`). A refusal is not a value: it decides before null, and no
+ * operator absorbs it, so an expression with a refused operand is refused, as
+ * a database refuses a statement it cannot run before any operator answers.
+ * A predicate that is refused does not hold.
  */
 export class Refusal extends Data.TaggedError('Refusal')<{
   readonly reason:
@@ -67,6 +69,7 @@ export class Refusal extends Data.TaggedError('Refusal')<{
     | 'unmatched'
     | 'unportable'
     | 'unsupported'
+    | 'failed'
   /** The operator id, or `if` or `match`. */
   readonly at: string
   readonly detail: string
@@ -106,6 +109,25 @@ export const unportable = (at: string): Refusal =>
     detail: 'text holding a NUL character, which Postgres cannot store',
   })
 
+/** The refusal of NaN by an operation that orders or compares numbers, as the databases part over it. */
+export const unordered = (at: string): Refusal =>
+  new Refusal({ reason: 'non-finite', at, detail: 'NaN has no order and no equal' })
+
+/**
+ * The refusal of an operand an equality refuses whatever the others hold:
+ * text holding a NUL, or NaN; candidates are looked into.
+ */
+export const refusedForEquality = (at: string, value: unknown): Refusal | undefined => {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const refused = refusedForEquality(at, item)
+      if (refused !== undefined) return refused
+    }
+    return undefined
+  }
+  if (typeof value === 'string') return value.includes('\u0000') ? unportable(at) : undefined
+  return Number.isNaN(value) ? unordered(at) : undefined
+}
 /** What an operator's result is, which decides the properties that may return an operand of it. */
 export type ValueKind = 'number' | 'boolean' | 'text'
 
@@ -121,11 +143,17 @@ export interface Op<Id extends CoreOpId = CoreOpId> {
   /** What a result that is neither null nor a refusal is; `operand`: one of its operands (`null.coalesce`). */
   readonly returns: ValueKind | 'operand'
   /**
-   * `strict`: a null operand gives null and a refused one the refusal, before
-   * `evaluate` runs. `own`: `evaluate` decides (Kleene `and`/`or`, null-safe
-   * equality, `isNull`).
+   * `strict`: a refused operand gives the refusal, then an operand `refuses`
+   * names its refusal, then a null operand gives null, all before `evaluate`
+   * runs. `own`: `evaluate` decides (Kleene `and`/`or`, null-safe equality,
+   * `isNull`, SQL's `in`).
    */
   readonly nulls: 'strict' | 'own'
+  /**
+   * The refusal of one operand the operator refuses whatever the others hold
+   * (text holding a NUL, NaN), which a strict operator gives before null.
+   */
+  readonly refuses?: (value: unknown) => Refusal | undefined
   /** The operator on argument values. It never throws: it returns a `Refusal`. */
   readonly evaluate: (args: ReadonlyArray<unknown>) => unknown
   /** A size-reducing fold no property says (`eq.in` over one candidate). */
@@ -184,9 +212,24 @@ export const foreign = (descriptor: {
   return { _tag: 'Foreign', properties: {}, ...descriptor }
 }
 
+/**
+ * A foreign operation's name in every reader's table of implementations:
+ * `id@version`, so two versions of one operation are two entries.
+ */
+export const foreignName = (op: Pick<ForeignOp, 'id' | 'version'>): string =>
+  `${op.id}@${op.version}`
+
 /** The refusal of a call of an operation the reader holds no implementation of. */
 export const unsupported = (op: ForeignOp, detail = 'no implementation was given'): Refusal =>
-  new Refusal({ reason: 'unsupported', at: op.id, detail: `${op.id}@${op.version}: ${detail}` })
+  new Refusal({ reason: 'unsupported', at: op.id, detail: `${foreignName(op)}: ${detail}` })
+
+/** The refusal of a call whose implementation threw, with what it threw. */
+export const failed = (op: ForeignOp, error: unknown): Refusal =>
+  new Refusal({
+    reason: 'failed',
+    at: op.id,
+    detail: `${foreignName(op)}: ${error instanceof Error ? error.message : String(error)}`,
+  })
 
 /** `op` applied to argument values under its null rule; an absent value is null. */
 export const apply = (op: Op, args: ReadonlyArray<unknown>): unknown =>
@@ -202,6 +245,13 @@ export const applying = (
   if (op.nulls === 'strict') {
     const refused = values.find(isRefusal)
     if (refused !== undefined) return refused
+    const refuses = isForeign(op) ? undefined : op.refuses
+    if (refuses !== undefined) {
+      for (const value of values) {
+        const screened = value === null ? undefined : refuses(value)
+        if (screened !== undefined) return screened
+      }
+    }
     if (values.includes(null)) return null
   }
   return run(values)
@@ -380,7 +430,7 @@ const litKey = (value: unknown): string => {
 }
 
 /** An operator's name in a key: a foreign one's with its version, so two versions are two terms. */
-const opKey = (op: AnyOp): string => (isForeign(op) ? `${op.id}@${op.version}` : op.id)
+const opKey = (op: AnyOp): string => (isForeign(op) ? foreignName(op) : op.id)
 
 /**
  * A string equal for two nodes exactly when they are the same term: the key

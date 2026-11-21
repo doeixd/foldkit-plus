@@ -5,7 +5,7 @@
  * rows related to the row a predicate is asked of.
  */
 import { Option, Result } from 'effect'
-import type * as Node from './node.js'
+import * as Node from './node.js'
 import * as Path from './path.js'
 import { SqlUnsupportedError, type RelatedFold, type SqlDialect } from './sqlLowering.js'
 
@@ -14,19 +14,19 @@ const unsupported = (reason: string): Result.Result<never, SqlUnsupportedError> 
 
 /** The SQL of a foreign operation for a dialect, from its lowered arguments, in some form of SQL. */
 export interface ForeignSql<S> {
-  readonly version: number
   readonly sql: (args: ReadonlyArray<S>, dialect: SqlDialect) => S
 }
 
-/** The entry of `table` for a foreign call, refused by name where it has none of the call's version. */
+/** The entry of `table` for a foreign call, by `id@version`, refused by that name where it has none. */
 export const foreignSql = <S>(
   table: Readonly<Record<string, ForeignSql<S>>>,
   op: Node.ForeignOp,
 ): Result.Result<ForeignSql<S>, SqlUnsupportedError> => {
-  const entry = Object.hasOwn(table, op.id) ? table[op.id] : undefined
-  return entry !== undefined && entry.version === op.version
+  const name = Node.foreignName(op)
+  const entry = Object.hasOwn(table, name) ? table[name] : undefined
+  return entry !== undefined
     ? Result.succeed(entry)
-    : unsupported(`no SQL is given for the foreign operation ${op.id}@${op.version}`)
+    : unsupported(`no SQL is given for the foreign operation ${name}`)
 }
 
 /** The entry of `table` for a relation, refused by name where it has none. */

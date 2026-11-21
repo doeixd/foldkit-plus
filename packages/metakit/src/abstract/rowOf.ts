@@ -22,7 +22,6 @@ const foreignTerm: TermOp = {
 const foreignPredicate: PredicateOp = {
   _tag: 'Predicate',
   unportable: true,
-  takesNaN: true,
   neverNull: false,
   measures: () => [],
   valued: () => false,

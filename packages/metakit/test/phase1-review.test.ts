@@ -3,7 +3,7 @@
  * every counterexample that previously caused Z3, the abstract checker, or the
  * evaluator to disagree.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import * as Abstract from '../src/abstract/check.js'
 import * as Expr from '../src/expr.js'
@@ -73,7 +73,7 @@ describe('Phase 1 adversarial soundness regressions', () => {
     expect(Verdict.isTrue(Abstract.checkInvariant(State, goal))).toBe(false)
   })
 
-  it('Abstract.checkGoal does not mark multi-arg strict op operands portable when another operand may be null', () => {
+  it('Abstract.checkGoal marks a strict op operands portable beside a null, since a NUL is refused before null', () => {
     const State = Schema.Struct({
       s: Schema.NullOr(Schema.String),
       p: Schema.String,
@@ -86,8 +86,12 @@ describe('Phase 1 adversarial soundness regressions', () => {
     })
     const next = Path.forEnv({ next: State }).next
     const goal = Eq.is(next.p, next.p)
-    const checked = Abstract.checkGoal(State, tr, { goal })
-    expect(Verdict.isTrue(checked)).toBe(false)
+    const s = Path.forSchema(State)
+    expect(Expr.evalResult(Eq.equals(s.s, s.p), { s: null, p: 'a\u0000', flag: null })).toEqual(
+      Result.fail(expect.objectContaining({ reason: 'unportable' })),
+    )
+    // A transition that wrote took `p` without refusing it, so `p` holds no NUL.
+    expect(Verdict.isTrue(Abstract.checkGoal(State, tr, { goal }))).toBe(true)
   })
 
   it('ops/eq normalizes lone surrogates to U+FFFD consistently with ops/str and SQL UTF-8', () => {
@@ -131,7 +135,7 @@ describe('Phase 1 adversarial soundness regressions', () => {
       op,
       args: [Node.Path({ segments: ['x'], ast: Option.some(Schema.String.ast) })],
     })
-    const verdict = judgeNode(call, {}, { 'custom.check': { version: 1, run: () => true } })
+    const verdict = judgeNode(call, {}, { 'custom.check@1': { run: () => true } })
     expect(Verdict.isUnknown(verdict)).toBe(true)
     if (Verdict.isUnknown(verdict)) {
       expect(Option.map(verdict.obligation, o => o.kind)).toEqual(Option.some('unsupported'))

@@ -28,6 +28,10 @@ export type DomainMetadata =
       readonly kind: 'currency'
       readonly allowed: ReadonlyArray<string>
     }
+  | {
+      /** Text holding no NUL character (`Text.schema`). */
+      readonly kind: 'text'
+    }
 
 /**
  * Read `metakit/domain` metadata from a `SchemaAST.AST`, scanning check

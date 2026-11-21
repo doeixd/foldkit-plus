@@ -266,8 +266,8 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
         if (Result.isFailure(lowered)) return lowered
         items.push(lowered.success)
       }
-      // SQL has no empty `IN ()`: null of a null value, false of any other.
-      if (items.length === 0) return Result.succeed(q`((${needle} IS NULL) AND NULL)`)
+      // No candidate is false whatever the value, as SQLite answers `x IN ()` and Drizzle writes an empty `inArray`.
+      if (items.length === 0) return Result.succeed(q`FALSE`)
       return Result.succeed(q`(${needle} IN (${joined(items, ', ')}))`)
     })
   },

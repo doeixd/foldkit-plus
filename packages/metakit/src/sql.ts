@@ -49,9 +49,9 @@ export interface RelationTable {
 export type RelationTables = Readonly<Record<string, RelationTable>>
 
 /**
- * The SQL of each foreign operation, by id: pieces from the lowered
- * arguments, which this module renders with the rest. A foreign call with no
- * entry of its version is refused by name.
+ * The SQL of each foreign operation, by `id@version` (`Node.foreignName`):
+ * pieces from the lowered arguments, which this module renders with the
+ * rest. A foreign call with no entry is refused by that name.
  */
 export type ForeignSqlTable = Readonly<Record<string, ForeignSql<Sql>>>
 

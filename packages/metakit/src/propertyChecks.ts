@@ -127,7 +127,9 @@ export const checkProperties = (
     }
   }
   if (absorbing !== undefined) {
-    for (const x of awkward) {
+    const over =
+      absorbing.unlessRefused === true ? awkward.filter(x => !Node.isRefusal(x)) : awkward
+    for (const x of over) {
       for (const args of placed(absorbing.side, x, absorbing.value)) {
         expect('absorbing', args, sameAnswer(run(args), absorbing.result), 'gives its result')
       }
