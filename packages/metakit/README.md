@@ -128,8 +128,9 @@ REFUTED Withdraw [PIN BROKEN]
 | `metakit/machine` | Browser / server | Declarative state machine (`dispatch`, TEA `update`, `canDispatch`, `affordances`, `footprints`). |
 | `metakit/inspect` | Browser / server | Form `fieldSpecs` and an enriched `toJsonSchema`, read straight off the Schema. |
 | `metakit/graph` | Build / SSR / planner | Static `Graph.analyze` (`affectedBy`, `deadBindings`), SSR `Graph.pruneStatic`, and `Graph.queryReadiness`. |
-| `metakit/policy` | Browser / server | Authorization policies (`Policy.make`, `allow`, `can`) and synchronous Tier 3 `checkImplication` / `checkConsistent`. |
-| `metakit/temporal` | Server / CI | Setup-time store capability refusals (`checkStoreCapabilities`, `assertStoreCapabilities`) and seeded interleaving walks (`emitWalkObligations`, `runWalk`). |
+| `metakit/policy` | Browser / server | Named rules over a row and a principal (`Policy.make`), and the synchronous `checkImplication` and `checkConsistent`. |
+| `metakit/store` | Server | What a store guarantees of concurrent writes (`StoreCapabilities`), and `Store.mount`, which throws where a store is set up to hold a rule it cannot. |
+| `metakit/temporal` | Dev / CI only | `Temporal.requirements` (what each rule needs of its store), `Temporal.obligations` (the pairs of transitions whose order a proof leaves open), and `Temporal.walk`, which runs a scenario's steps in seeded orders. |
 | `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` as text for Postgres and SQLite. A predicate selects the rows `Expr.eval` holds true, null included. |
 | `metakit/drizzle` | Server (optional `drizzle-orm`) | `Drizzle.toCheck`, `Drizzle.toWhere`, `Drizzle.toUpdate`: the same lowering as Drizzle `SQL` over a Drizzle table. |
 | `metakit/prove` | Dev / CI only (optional `z3-solver`) | `Prove.invariant`, `Prove.transition`, `Prove.policy`, `Prove.machine` (pinning, `allowUnknown`, replayed counterexamples). |
@@ -148,3 +149,4 @@ REFUTED Withdraw [PIN BROKEN]
 - [Model domain types and row aggregates](./docs/domain-types.md) — currency-safe `Money`, `CalendarDay`, `OrderedEnum`, and `Rows.*` aggregates.
 - [Verify a state machine in CI](./docs/proving-transitions.md) — pin proofs with `Prove.machine`, allow opaque transitions explicitly, and read counterexamples.
 - [Prune SSR payloads and gate dependent queries](./docs/resumability-and-queries.md) — static `affectedBy` maps, `Graph.pruneStatic`, and `Graph.queryReadiness`.
+- [Check what a proof of one step cannot](./docs/stores-and-order.md) — refuse a database that cannot hold a rule under concurrent writes, and test the orders replies can arrive in.

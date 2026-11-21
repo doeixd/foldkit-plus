@@ -1469,6 +1469,13 @@ guard's rule that reads another row, which `GuardServer.writer` hands it as `req
 (`requires: true` on the writer: an update's and a delete's `RowRequirement`). When nothing was
 written, the row read back says why, in this order: gone, `Forbidden` (a `requires` it fails),
 `Conflict`, `Unmet`, `Invalid`.
+A writer also says how its database runs concurrent writes (`EntityWriter.store`, a
+`StoreCapabilities` from `metakit/store`): `writer(binding)` says serializable over SQLite and
+read-committed over Postgres, `writer(binding, { isolation: 'serializable' })` says a Postgres set
+to run so, and `RemoteServer.memoryWriter` says serializable. `RemoteServer.write` throws, where
+the write is registered, for a precondition or invariant that reads other rows through a writer
+that names no store or one that cannot run those rows' writers one at a time. Both shipped writers
+refuse such a rule before that, since neither runs a path or an exists in a write.
 A row already holding what the write sets answers as written (taken for the retry of one that
 landed), unless it increments or a ledger was consulted for it: a ledger answers a retry itself, so
 under one a new write is judged by its `when` and transition invariants. An insert's values are judged before it is written, by its state invariants
