@@ -395,9 +395,15 @@ test('each served page names itself in the head, and the running page keeps one'
 // in the other order. A page saves one edit at a time (its editor waits for
 // the answer), so the second edit is another tab's. Once the second is saved
 // its tab shows nothing else. The first tab shows its own edit while that is
-// pending; the late answer disagrees with the second edit it heard meanwhile,
-// so it reads the note again, and from then shows the second and not the first.
-// Broken by hand: with the first tab's reads aborted, it stays on the first edit.
+// pending, and goes to the list after the second edit is stored: the list's
+// read brings it the second. Its live stream is held unopened meanwhile (one
+// opened after the second edit would have nothing to send, but would ask for
+// the list once more, at a moment of its own), so that read is all the tab
+// hears. The late answer disagrees with what the read brought, so the tab
+// reads the note again, and from then shows the second and not the first.
+// Broken by hand: with the first tab's reads aborted, it stays on the first
+// edit; so it does on a client that keeps nothing of a read answered beside a
+// pending write.
 test('two edits of one note answered out of order keep the second edit throughout and after reload', async () => {
   const context = await browser.newContext()
   const turing1 = await context.newPage()
@@ -430,9 +436,15 @@ test('two edits of one note answered out of order keep the second edit throughou
   const releaseFirstAnswer = deferred()
   const firstDelivered = deferred()
   const secondAnswered = deferred()
+  const openLive = deferred()
 
   await context.route('**/remote', async (route: Route) => {
     const req = route.request()
+    if (req.frame().page() === turing1 && (req.postData() ?? '').includes('"operation":"live"')) {
+      await openLive.promise
+      // The page may have left by then, and its request with it.
+      return route.fallback().catch(() => {})
+    }
     if (!isEdit(req)) return route.fallback()
     const body = req.postData() ?? ''
     if (body.includes('First edit')) {
@@ -462,10 +474,6 @@ test('two edits of one note answered out of order keep the second edit throughou
   await turing1.getByRole('button', { name: 'Save' }).click()
   await firstCommitted.promise
   await turing1.getByRole('heading', { name: 'First edit' }).waitFor()
-  // The first tab goes to the list, which hears of every member's writes as they land.
-  await turing1.getByRole('link', { name: 'All notes' }).click()
-  await notes(turing1).getByRole('link', { name: 'First edit' }).waitFor()
-  await recordTitles(turing1)
 
   // The second edit, from the second tab: stored after the first, answered before it.
   await turing2.getByRole('button', { name: 'Edit' }).click()
@@ -474,6 +482,18 @@ test('two edits of one note answered out of order keep the second edit throughou
   await turing2.getByRole('heading', { name: 'Second edit' }).waitFor()
   await recordTitles(turing2)
   await secondAnswered.promise
+
+  // The first tab goes to the list, and the list's read brings it the second
+  // edit under its own, still pending: drawn, a frame after the answer.
+  const readSecond = turing1.waitForResponse(async response => {
+    const sent = response.request().postData() ?? ''
+    return sent.includes('"operation":"query"') && (await response.text()).includes('Second edit')
+  })
+  await turing1.getByRole('link', { name: 'All notes' }).click()
+  await notes(turing1).getByRole('link', { name: 'First edit' }).waitFor()
+  await recordTitles(turing1)
+  await readSecond
+  await turing1.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve(true))))
 
   // The first edit's answer, late: the first tab reads the note again and shows the second.
   const before = asked.length
@@ -487,11 +507,11 @@ test('two edits of one note answered out of order keep the second edit throughou
         `the first tab never showed the second edit; after the late answer it asked:\n${asked.slice(before).join('\n') || '(nothing)'}`,
       )
     })
-  // Past the late answer and whatever it started: a read, a frame.
+  // The second edit shows once that read is answered, and nothing is asked after it: a frame.
   for (const tab of [turing1, turing2]) {
-    await tab.waitForLoadState('networkidle')
     await tab.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve(true))))
   }
+  openLive.resolve()
   const shown = (tab: Page) => tab.evaluate(() => window.titlesShown ?? [])
   // The second tab showed the second edit and never the first.
   const second = await shown(turing2)
