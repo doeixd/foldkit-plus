@@ -236,8 +236,9 @@ const metakitBeyondVerdict = (id: string) =>
   /\/metakit\.(js|ts)$/.test(id)
 
 /**
- * Form, Guard and Sync read metakit through a subpath of their own
- * (`foldkit-form/metakit`, `foldkit-guard/check`, `foldkit-sync/metakit`), so
+ * Form, Guard, Sync, Agent and the form view read metakit through a subpath of their own
+ * (`foldkit-form/metakit`, `foldkit-guard/check`, `foldkit-sync/metakit`,
+ * `foldkit-agent/metakit`, `foldkit-mixins-form/declared`), so
  * a page using the main entry keeps none of it beyond the `Verdict` entity
  * answers with, built or source. Broken by
  * hand: a module-level `console.log(fieldSpecs)` in form's `src/index.ts`
@@ -249,6 +250,12 @@ test.each([
   ['form', `import { Form } from 'pkg'\nexport const used = Form.make`, 'index.js'],
   ['guard', `import { Guards } from 'pkg'\nexport const used = Guards.attach`, 'index.mjs'],
   ['sync', `import { Sync } from 'pkg'\nexport const used = Sync.forApplication`, 'index.js'],
+  ['agent', `import { Agent } from 'pkg'\nexport const used = Agent.forApplication`, 'index.mjs'],
+  [
+    'mixins-form',
+    `import { FormView } from 'pkg'\nexport const used = FormView.define`,
+    'index.mjs',
+  ],
 ] as const)(
   'a page reading the main entry of foldkit-%s keeps no metakit module but verdict, built or source',
   async (name, page, index) => {
@@ -259,7 +266,8 @@ test.each([
     const built = await kept(await buildPublished(name, root))
     const source = await kept(join(packages, name, 'src', 'index.ts'))
     expect(built.some(id => id.endsWith(`/dist/${index}`))).toBe(true)
-    expect(source.some(id => id.endsWith(`/${name}/src/index.ts`))).toBe(true)
+    // `foldkit-agent`'s index only re-exports its namespace, so a page keeps its modules, not the index.
+    expect(source.some(id => id.includes(`/${name}/src/`))).toBe(true)
     expect([...built, ...source].filter(metakitBeyondVerdict)).toEqual([])
   },
   120_000,
