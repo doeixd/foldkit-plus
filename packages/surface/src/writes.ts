@@ -11,8 +11,7 @@
 import { Option, type Schema } from 'effect'
 import { createLazy, type Html } from 'foldkit/html'
 import type { MessageUnion } from 'foldkit/message'
-import { Expr, Path } from 'metakit'
-import { analyze } from 'metakit/graph'
+import { affectedTags } from 'metakit/graph/match'
 import type { Machine } from 'metakit/machine'
 import {
   Metadata,
@@ -79,11 +78,6 @@ type OnlyMessages<Cases, Transitions> = [Exclude<keyof Transitions, keyof Cases>
 /** Set by `foldkit-ssr` while a server renders, where a kept drawing would carry another request's markers. */
 const SERVER_RENDER = Symbol.for('foldkit-plus.serverRender')
 
-// How many kept drawings have started. Foldkit's lazy slot throws before it
-// calls the drawing when there is no runtime frame (a test, a server's first
-// pass), so a throw with this unchanged is that; one after is the drawing's.
-let started = 0
-
 const of = <
   Root,
   F extends Schema.Struct.Fields,
@@ -148,24 +142,24 @@ const of = <
       // its paths decide nothing and every Message that writes draws it again.
       const reads =
         Metadata.summarize(projection.metadata).length > 0 ? Option.none() : pathsRead(projection)
-      // A read that names no path is an opaque term with no declared reads,
-      // which `analyze` holds affected by every transition that writes.
-      const run = (): void => undefined
-      const binding = Option.match(reads, {
-        onNone: () => Expr.opaque<Root, void>({ name }, run),
-        onSome: paths =>
-          Expr.opaque<Root, void>(
-            { name, reads: paths.map(path => Path.make<Root, unknown>(path)) },
-            run,
-          ),
-      })
-      const { affectedBy } = analyze(machine, { region: binding })
-      const redrawnBy = tags.filter(tag => affectedBy[tag].length > 0)
+      // A read that names no path (`Option.none()`) is conservatively affected
+      // by every transition that writes at least one path.
+      const redrawnBy = affectedTags(
+        machine.footprints as Readonly<
+          Record<Tag, { readonly writes: ReadonlyArray<ReadonlyArray<string>> }>
+        >,
+        reads,
+      )
       const region: Region = { own: 0 }
       for (const tag of redrawnBy) redraws.get(tag)?.push(region)
       facts.push({ name, reads, redrawnBy })
 
       const lazy = createLazy()
+      // How many kept drawings have started on this region (instance-scoped,
+      // never module-scoped, so concurrent instances or server renders stay
+      // isolated). Foldkit's lazy slot throws before calling `counted` when
+      // there is no runtime frame; a throw with `started` unchanged is that.
+      let started = 0
       // The slot compares its arguments, and the Model is new on every Message.
       let latest: Root
       // The builder is the application's, which the type `Surface.rootView`

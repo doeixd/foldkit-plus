@@ -109,6 +109,25 @@ describe('where there is no runtime frame', () => {
     expect(() => view(initial, h)).toThrow('the drawing broke')
     expect(draws).toBe(1)
   })
+
+  it('isolates started-draw tracking per rootView instance when views nest or run concurrently', () => {
+    const first = Writes.of(App, Declared)
+    const second = Writes.of(App, Declared)
+    let firstDraws = 0
+    let secondDraws = 0
+    const inner = second.rootView(Titled, undefined, () => {
+      secondDraws++
+      return h.span([], ['ok'])
+    })
+    const outer = first.rootView(Titled, undefined, () => {
+      firstDraws++
+      inner(initial, h)
+      throw new Error('outer failed')
+    })
+    expect(() => outer(initial, h)).toThrow('outer failed')
+    expect(firstDraws).toBe(1)
+    expect(secondDraws).toBe(1)
+  })
 })
 
 describe('a Surface whose projection carries metadata', () => {
