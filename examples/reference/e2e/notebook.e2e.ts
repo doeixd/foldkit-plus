@@ -169,8 +169,32 @@ declare global {
     served?: ReadonlyArray<Element>
     /** The root's markup as the Worker sent it. */
     servedMarkup?: string
+    /** What the page's headings and links said at each change since `recordTitles`, in order. */
+    titlesShown?: Array<string>
   }
 }
+
+/**
+ * Records what the page's headings and links say from now on (a note's title
+ * is its page's heading and its link in the list): what a later look would miss.
+ */
+const recordTitles = (page: Page) =>
+  page.evaluate(() => {
+    const shown: Array<string> = []
+    window.titlesShown = shown
+    const read = () => {
+      const text = [...document.querySelectorAll('h1, h2, h3, a')]
+        .map(titled => titled.textContent ?? '')
+        .join(' | ')
+      if (shown.at(-1) !== text) shown.push(text)
+    }
+    read()
+    new MutationObserver(read).observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    })
+  })
 
 /**
  * Keeps the elements of the page the Worker sends, as parsed and before any
@@ -367,9 +391,13 @@ test('each served page names itself in the head, and the running page keeps one'
   await babbage.close()
 })
 
-// #480: two edits of one note committed in order on the server, whose HTTP
-// answers arrive out of order. The second edit must stay visible throughout
-// (stale first answer must not clobber it) and after reload.
+// #480: two edits of one note, stored in the order made, whose answers arrive
+// in the other order. A page saves one edit at a time (its editor waits for
+// the answer), so the second edit is another tab's. Once the second is saved
+// its tab shows nothing else. The first tab shows its own edit while that is
+// pending; the late answer disagrees with the second edit it heard meanwhile,
+// so it reads the note again, and from then shows the second and not the first.
+// Broken by hand: with the first tab's reads aborted, it stays on the first edit.
 test('two edits of one note answered out of order keep the second edit throughout and after reload', async () => {
   const context = await browser.newContext()
   const turing1 = await context.newPage()
@@ -424,35 +452,63 @@ test('two edits of one note answered out of order keep the second edit throughou
     return route.fallback()
   })
 
-  // Edit #1 (tab 1): committed to D1 first (revision +1), HTTP answer held in flight.
+  // What the first tab asks the server from here on: said when it never shows the second edit.
+  const asked: Array<string> = []
+  turing1.on('request', request => asked.push((request.postData() ?? request.url()).slice(0, 160)))
+
+  // The first edit, from the first tab: stored, its answer held.
   await turing1.getByRole('button', { name: 'Edit' }).click()
   await turing1.getByLabel('Title').fill('First edit')
   await turing1.getByRole('button', { name: 'Save' }).click()
   await firstCommitted.promise
   await turing1.getByRole('heading', { name: 'First edit' }).waitFor()
-
-  // Tab 1 returns to the live notes list while Edit #1's HTTP answer is still held.
+  // The first tab goes to the list, which hears of every member's writes as they land.
   await turing1.getByRole('link', { name: 'All notes' }).click()
   await notes(turing1).getByRole('link', { name: 'First edit' }).waitFor()
+  await recordTitles(turing1)
 
-  // Edit #2 (tab 2): committed to D1 second (revision +2), HTTP answer lands FIRST.
+  // The second edit, from the second tab: stored after the first, answered before it.
   await turing2.getByRole('button', { name: 'Edit' }).click()
   await turing2.getByLabel('Title').fill('Second edit')
   await turing2.getByRole('button', { name: 'Save' }).click()
-  await secondAnswered.promise
   await turing2.getByRole('heading', { name: 'Second edit' }).waitFor()
+  await recordTitles(turing2)
+  await secondAnswered.promise
 
-  // Release the stale HTTP answer for Edit #1: tab 1's pending layer clears and
-  // MUST show 'Second edit' (never reverting to stale 'First edit').
+  // The first edit's answer, late: the first tab reads the note again and shows the second.
+  const before = asked.length
   releaseFirstAnswer.resolve()
   await firstDelivered.promise
-  await notes(turing1).getByRole('link', { name: 'Second edit' }).waitFor({ timeout: 15_000 })
-  expect(await notes(turing1).getByRole('link', { name: 'First edit' }).count()).toBe(0)
-  expect(await turing2.getByRole('heading', { name: 'Second edit' }).isVisible()).toBe(true)
+  await notes(turing1)
+    .getByRole('link', { name: 'Second edit' })
+    .waitFor({ timeout: 15_000 })
+    .catch(() => {
+      throw new Error(
+        `the first tab never showed the second edit; after the late answer it asked:\n${asked.slice(before).join('\n') || '(nothing)'}`,
+      )
+    })
+  // Past the late answer and whatever it started: a read, a frame.
+  for (const tab of [turing1, turing2]) {
+    await tab.waitForLoadState('networkidle')
+    await tab.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve(true))))
+  }
+  const shown = (tab: Page) => tab.evaluate(() => window.titlesShown ?? [])
+  // The second tab showed the second edit and never the first.
+  const second = await shown(turing2)
+  expect(second.length).toBeGreaterThan(0)
+  expect(second.filter(text => !text.includes('Second edit'))).toEqual([])
+  // The first tab went from the first edit to the second, and not back.
+  const first = await shown(turing1)
+  const arrived = first.findIndex(text => text.includes('Second edit'))
+  expect(arrived).toBeGreaterThan(0)
+  expect(first.slice(arrived).filter(text => text.includes('First edit'))).toEqual([])
+  expect(first.at(-1)).toContain('Second edit')
 
-  // Reload: D1 holds the second edit, so it remains visible after reload.
+  // The server holds the second edit: both tabs show it after a reload.
   await turing1.reload()
   await notes(turing1).getByRole('link', { name: 'Second edit' }).waitFor()
+  await turing2.reload()
+  await turing2.getByRole('heading', { name: 'Second edit' }).waitFor()
   expect(errors1()).toEqual([])
   expect(errors2()).toEqual([])
   await context.close()
