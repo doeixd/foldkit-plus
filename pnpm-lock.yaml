@@ -2399,6 +2399,9 @@ importers:
       foldkit-sync:
         specifier: workspace:*
         version: link:../../packages/sync
+      metakit:
+        specifier: workspace:*
+        version: link:../../packages/metakit
       ws:
         specifier: ^8.22.0
         version: 8.22.0
