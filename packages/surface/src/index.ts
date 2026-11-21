@@ -36,6 +36,7 @@ export {
   type Breaker,
   type ContractLaws,
   type GraphFacts,
+  type GraphMachine,
   type GraphOptions,
   type GraphSpace,
 } from './graph.js'

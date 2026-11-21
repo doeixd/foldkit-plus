@@ -7,6 +7,8 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Write } from 'foldkit-entity'
 import { Evidence } from 'foldkit-metadata'
+import { Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
 import { describe, expect, it } from 'vitest'
 import {
   Graph,
@@ -400,5 +402,39 @@ describe('Module', () => {
     expect(rulesOf(Graph.validate(module))).toEqual(
       expect.arrayContaining(['law-unwitnessed', 'level-declared-twice']),
     )
+  })
+})
+
+describe('unified dependency graph (graph.dependencies)', () => {
+  it('joins remote entity writes to model surfaces observing the owned store path and machine transitions', () => {
+    const ShopView = Surface.make(App, 'ShopView', {
+      model: ({ model }) => Projection.struct({ remote: model.remote }),
+      messages: [],
+    })
+    const FilterBar = Surface.make(App, 'FilterBar', {
+      model: ({ model }) => Projection.struct({ filter: model.filter }),
+      messages: [Message.ChangedFilter],
+    })
+    const ChangedFilter = Transition.make({
+      state: Model,
+      input: Schema.Struct({ filter: Schema.String }),
+      apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
+    })
+    const machine = Machine.make({
+      state: Model,
+      transitions: { ChangedFilter },
+    })
+    const graph = Graph.of(Module.make(App, [document, shop, ShopView, FilterBar]), { machine })
+
+    // write:Sell writes entity:Product.stock -> directly affects Product.reservedWithinStock
+    // AND bridges through remote:shop's row->model link to surface:ShopView (observing ['remote']).
+    expect(graph.dependencies.affectedBy('write:Sell')).toEqual([
+      'Product.reservedWithinStock',
+      'surface:ShopView',
+    ])
+    // Machine transition message:ChangedFilter writes model:filter -> affects only surface:FilterBar.
+    expect(graph.dependencies.affectedBy('message:ChangedFilter')).toEqual(['surface:FilterBar'])
+    // Durable transition durable:CreatedTodo writes model:todos -> affects sync:todos.capped only.
+    expect(graph.dependencies.affectedBy('durable:CreatedTodo')).toEqual(['sync:todos.capped'])
   })
 })
