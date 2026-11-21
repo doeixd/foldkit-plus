@@ -28,6 +28,8 @@ import { registerRootViewHook } from './rootViewRegistry.js'
 export {
   WritesCheck,
   type OutsideWrite,
+  type OwnerWrite,
+  type OwnershipContract,
   type UndeclaredWrite,
   type WriteDiagnostic,
 } from './writesCheck.js'

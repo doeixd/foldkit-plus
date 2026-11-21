@@ -108,7 +108,7 @@ const checked = WritesCheck.verify(writes, update, { surfaces: [Header] })
 expectTrue<Equal<typeof checked, (model: Model, message: Message) => { readonly model: Model }>>()
 WritesCheck.verify(writes, update, {
   report: (finding: WriteDiagnostic) => {
-    expectTrue<Equal<(typeof finding)['_tag'], 'UndeclaredWrite' | 'OutsideWrite'>>()
+    expectTrue<Equal<(typeof finding)['_tag'], 'UndeclaredWrite' | 'OutsideWrite' | 'OwnerWrite'>>()
   },
 })
 const OtherSurface = OtherApp.surface('Other', { model: ({ model }) => ({ other: model.other }) })

@@ -225,3 +225,45 @@ describe('what it does with a finding', () => {
     expect(report).not.toHaveBeenCalled()
   })
 })
+
+describe('against owning contracts (Sync / Remote ownership)', () => {
+  const syncDoc = {
+    kind: 'sync',
+    name: 'ledger',
+    owns: [['account']],
+    messages: ['Deposited'],
+  }
+
+  it('reports OwnerWrite when a Message outside the contract mutates an owned path', () => {
+    const reported: Array<WriteDiagnostic> = []
+    const checked = WritesCheck.verify(writes, update, {
+      contracts: [syncDoc],
+      report: finding => reported.push(finding),
+    })
+    // Deposited is declared by sync:ledger -> allowed.
+    checked(initial, Message.Deposited({ amount: 5 }))
+    expect(reported).toEqual([])
+    // Moved is NOT in sync:ledger.messages, and writes ['account'] -> OwnerWrite.
+    checked(initial, Message.Moved({ account: { balance: 1, owner: 'grace' } }))
+    expect(reported).toMatchObject([
+      {
+        _tag: 'OwnerWrite',
+        tag: 'Moved',
+        owner: 'sync:ledger',
+        paths: [
+          ['account', 'balance'],
+          ['account', 'owner'],
+        ],
+      },
+    ])
+  })
+
+  it('reports nothing when a foreign Message changes an unrelated path', () => {
+    const reported: Array<WriteDiagnostic> = []
+    WritesCheck.verify(writes, update, {
+      contracts: [syncDoc],
+      report: finding => reported.push(finding),
+    })(initial, Message.Renamed({ title: 'Next' }))
+    expect(reported).toEqual([])
+  })
+})

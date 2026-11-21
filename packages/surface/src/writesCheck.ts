@@ -6,6 +6,7 @@
  * only where `import.meta.env.DEV` holds carries none of it.
  */
 import { Effect, Equal, Option } from 'effect'
+import { pathsOverlap } from 'metakit/graph/match'
 import { movedOutside, type ClosedSurfaces } from './closure.js'
 import { Diagnostics, type Diagnostic } from './diagnostics.js'
 import type { DependencyTree } from './index.js'
@@ -33,8 +34,26 @@ export interface OutsideWrite extends Diagnostic {
   readonly surface: string
 }
 
+/** A contract (such as a Sync document or Remote store) that owns Model paths. */
+export interface OwnershipContract {
+  readonly kind: string
+  readonly name: string
+  readonly owns: DependencyTree
+  readonly messages: ReadonlyArray<string>
+}
+
+/** A Message outside an owning contract's `messages` changed a Model path the contract owns. */
+export interface OwnerWrite extends Diagnostic {
+  readonly _tag: 'OwnerWrite'
+  readonly tag: string
+  /** The owning contract (`kind:name`, e.g. `sync:todos`). */
+  readonly owner: string
+  /** The owned paths that changed. */
+  readonly paths: DependencyTree
+}
+
 /** Every diagnostic `WritesCheck.verify` reports. */
-export type WriteDiagnostic = UndeclaredWrite | OutsideWrite
+export type WriteDiagnostic = UndeclaredWrite | OutsideWrite | OwnerWrite
 
 const texts = (paths: DependencyTree): string =>
   paths.length === 0 ? 'nothing' : paths.map(pathText).join(', ')
@@ -60,6 +79,16 @@ const outsideWrite = (tag: string, surface: string): OutsideWrite => ({
   message: `"${tag}" changed what the closed Surface "${surface}" projects, and is not one of its messages. Add it to the Surface's messages, or move the write to one that is.`,
   tag,
   surface,
+})
+
+const ownerWrite = (tag: string, owner: string, paths: DependencyTree): OwnerWrite => ({
+  _tag: 'OwnerWrite',
+  source,
+  level: 'warning',
+  message: `"${tag}" changed ${texts(paths)}, which "${owner}" owns, and is not one of its messages. Move the write to a message "${owner}" declares, or add "${tag}" to it.`,
+  tag,
+  owner,
+  paths,
 })
 
 const structOrArray = (value: unknown): value is Readonly<Record<string, unknown>> => {
@@ -116,11 +145,24 @@ const verify = <Root, Message, Return extends { readonly model: Root }>(
   options: {
     /** Surfaces of the application; those declared `closed: true` are checked. */
     readonly surfaces?: ClosedSurfaces<Root>
+    /**
+     * Owning contracts (such as Sync documents or Remote stores): a Message
+     * outside a contract's `messages` that changes a path under `owns` is
+     * reported as an `OwnerWrite`.
+     */
+    readonly contracts?: ReadonlyArray<OwnershipContract>
     /** What to do with a finding: `WritesCheck.fail` when left out. */
     readonly report?: (diagnostic: WriteDiagnostic) => void
   } = {},
 ): ((model: Root, message: Message) => Return) => {
   const outside = movedOutside<Root, Message>(options.surfaces ?? [])
+  const owners = (options.contracts ?? [])
+    .filter(contract => contract.owns.length > 0)
+    .map(contract => ({
+      owner: `${contract.kind}:${contract.name}`,
+      owns: contract.owns,
+      messages: new Set(contract.messages),
+    }))
   const report = options.report ?? fail
   return (model, message) => {
     const result = update(model, message)
@@ -134,6 +176,19 @@ const verify = <Root, Message, Return extends { readonly model: Root }>(
     }
     for (const { surface } of outside(model, message, result.model)) {
       report(outsideWrite(tag, surface))
+    }
+    if (owners.length > 0) {
+      const foreign = owners.filter(entry => !entry.messages.has(tag))
+      if (foreign.length > 0) {
+        const changed: Array<ReadonlyArray<string>> = []
+        collect(model, result.model, [], [], changed)
+        for (const entry of foreign) {
+          const violated = changed.filter(path =>
+            entry.owns.some(owned => pathsOverlap(path, owned)),
+          )
+          if (violated.length > 0) report(ownerWrite(tag, entry.owner, violated))
+        }
+      }
     }
     return result
   }

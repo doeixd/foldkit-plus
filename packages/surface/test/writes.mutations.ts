@@ -153,4 +153,9 @@ export default [
     'report(outsideWrite(tag, surface))',
     "report(outsideWrite('', surface))",
   ),
+  check(
+    'owning contract violations are not reported',
+    'if (violated.length > 0) report(ownerWrite(tag, entry.owner, violated))',
+    'if (false) report(ownerWrite(tag, entry.owner, violated))',
+  ),
 ]
