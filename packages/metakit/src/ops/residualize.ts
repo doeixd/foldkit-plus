@@ -17,7 +17,7 @@ import * as Node from '../node.js'
 import * as Path from '../path.js'
 import * as Verdict from '../verdict.js'
 import { opProperties } from '../properties.js'
-import { evalNode, ifArm, matchArm } from './eval.js'
+import { applyForeign, evalNode, ifArm, matchArm, type ForeignImplementations } from './eval.js'
 import { isPortableRead, kindOf, present } from './kind.js'
 
 const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> => {
@@ -127,9 +127,15 @@ const applyLaws = (op: Node.Op, args: ReadonlyArray<Node.Node>): Option.Option<N
 
 /**
  * Partially evaluate `node` against `partialEnv`, substituting known paths and
- * applying declarative size-reducing operator laws.
+ * applying declarative size-reducing operator laws. A foreign call over
+ * known arguments runs the implementation `foreign` gives, and stays a call
+ * where it gives none.
  */
-export const residualizeNode = (node: Node.Node, partialEnv: unknown): Node.Node =>
+export const residualizeNode = (
+  node: Node.Node,
+  partialEnv: unknown,
+  foreign: ForeignImplementations = {},
+): Node.Node =>
   Node.$match(node, {
     Lit: lit => lit,
     Path: path =>
@@ -138,7 +144,18 @@ export const residualizeNode = (node: Node.Node, partialEnv: unknown): Node.Node
         onSome: value => Node.Lit({ value }),
       }),
     Call: ({ op, args }) => {
-      const nextArgs = args.map(arg => residualizeNode(arg, partialEnv))
+      const nextArgs = args.map(arg => residualizeNode(arg, partialEnv, foreign))
+      if (op._tag === 'Foreign') {
+        return nextArgs.every(Node.$is('Lit')) && Object.hasOwn(foreign, op.id)
+          ? Node.Lit({
+              value: applyForeign(
+                op,
+                nextArgs.map(arg => arg.value),
+                foreign,
+              ),
+            })
+          : Node.Call({ op, args: nextArgs })
+      }
       if (nextArgs.every(Node.$is('Lit'))) {
         return Node.Lit({
           value: Node.apply(
@@ -157,33 +174,33 @@ export const residualizeNode = (node: Node.Node, partialEnv: unknown): Node.Node
     },
     // No `if c then a else a -> a`: a null or refused `c` gives neither.
     If: branch => {
-      const cond = residualizeNode(branch.cond, partialEnv)
+      const cond = residualizeNode(branch.cond, partialEnv, foreign)
       if (Node.$is('Lit')(cond)) {
         const taken = ifArm(branch, evalNode(cond, undefined))
         return 'arm' in taken
-          ? residualizeNode(taken.arm, partialEnv)
+          ? residualizeNode(taken.arm, partialEnv, foreign)
           : Node.Lit({ value: taken.value })
       }
       return Node.If({
         cond,
-        then: residualizeNode(branch.then, partialEnv),
-        otherwise: residualizeNode(branch.otherwise, partialEnv),
+        then: residualizeNode(branch.then, partialEnv, foreign),
+        otherwise: residualizeNode(branch.otherwise, partialEnv, foreign),
       })
     },
     Match: match => {
-      const on = residualizeNode(match.on, partialEnv)
+      const on = residualizeNode(match.on, partialEnv, foreign)
       if (Node.$is('Lit')(on)) {
         const taken = matchArm(match, evalNode(on, undefined))
         return 'arm' in taken
-          ? residualizeNode(taken.arm, partialEnv)
+          ? residualizeNode(taken.arm, partialEnv, foreign)
           : Node.Lit({ value: taken.value })
       }
       return Node.Match({
         on,
         cases: match.cases.map(
-          ([value, arm]) => [value, residualizeNode(arm, partialEnv)] as const,
+          ([value, arm]) => [value, residualizeNode(arm, partialEnv, foreign)] as const,
         ),
-        otherwise: Option.map(match.otherwise, arm => residualizeNode(arm, partialEnv)),
+        otherwise: Option.map(match.otherwise, arm => residualizeNode(arm, partialEnv, foreign)),
       })
     },
     Opaque: opaque => {
@@ -257,14 +274,32 @@ const hasOpaque = (node: Node.Node): boolean =>
     Opaque: () => true,
   })
 
+/** The foreign operations `node` calls. */
+const foreignCalls = (node: Node.Node): ReadonlyArray<Node.ForeignOp> =>
+  Node.$match(node, {
+    Lit: () => [],
+    Path: () => [],
+    Call: ({ op, args }) => [...(op._tag === 'Foreign' ? [op] : []), ...args.flatMap(foreignCalls)],
+    If: ({ cond, then, otherwise }) => [cond, then, otherwise].flatMap(foreignCalls),
+    Match: ({ on, cases, otherwise }) =>
+      [on, ...cases.map(([, branch]) => branch), ...Option.toArray(otherwise)].flatMap(
+        foreignCalls,
+      ),
+    Opaque: () => [],
+  })
+
 /**
  * Partially evaluate a boolean `Node` and return its Kleene $K_3$ `Verdict`:
  * `True` where it is known to hold, `False` where it is known not to (a known
  * null does not hold), `Unknown` where the environment or the evaluator
  * leaves it open.
  */
-export const judgeNode = (node: Node.Node, partialEnv: unknown): Verdict.Verdict<never> => {
-  const residual = residualizeNode(node, partialEnv)
+export const judgeNode = (
+  node: Node.Node,
+  partialEnv: unknown,
+  foreign: ForeignImplementations = {},
+): Verdict.Verdict<never> => {
+  const residual = residualizeNode(node, partialEnv, foreign)
   if (Node.$is('Lit')(residual)) {
     if (residual.value === true) return Verdict.True(Option.some(Verdict.Proved('concrete')))
     if (!Node.isRefusal(residual.value)) return Verdict.False()
@@ -277,6 +312,14 @@ export const judgeNode = (node: Node.Node, partialEnv: unknown): Verdict.Verdict
     return Verdict.Unknown(
       'residual contains opaque term',
       Option.some({ kind: 'opaque', detail: 'residual contains an opaque function' }),
+    )
+  }
+  const unimplemented = foreignCalls(residual).find(op => !Object.hasOwn(foreign, op.id))
+  if (unimplemented !== undefined) {
+    const named = `${unimplemented.id}@${unimplemented.version}`
+    return Verdict.Unknown(
+      `no implementation of ${named}`,
+      Option.some({ kind: 'unsupported', detail: named }),
     )
   }
   const missing = Option.match(readsOfNode(residual), {

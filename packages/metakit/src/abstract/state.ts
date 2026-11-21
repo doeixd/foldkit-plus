@@ -6,7 +6,7 @@ import { SAFE, type FieldInfo } from './fields.js'
 import { fits } from './fits.js'
 import * as Interval from './interval.js'
 import { evalMatchInterval, matchCandidates, resolveMatchArm } from './matches.js'
-import { abstractOps } from './ops.js'
+import { abstractOf } from './rowOf.js'
 import { MAX_SPLITS, isRead, show } from './support.js'
 import { Zone, ZERO } from './zone.js'
 
@@ -95,7 +95,7 @@ export class AbstractState {
     }
     for (const [id, term] of this.termNodes) {
       if (Node.$is('Call')(term)) {
-        Match.valueTags(abstractOps[term.op.id], {
+        Match.valueTags(abstractOf(term.op), {
           Term: ({ range }) => this.bound(id, range),
           Predicate: () => {},
           Value: () => {},
@@ -142,7 +142,7 @@ export class AbstractState {
       Path: path =>
         Option.match(this.fieldOf(path), { onNone: () => false, onSome: info => info.isInt }),
       Call: ({ op, args }) =>
-        Match.valueTags(abstractOps[op.id], {
+        Match.valueTags(abstractOf(op), {
           Term: ({ integral }) => integral(args.map(arg => this.isIntNode(arg))),
           Predicate: () => false,
           Value: () => false,
@@ -161,7 +161,7 @@ export class AbstractState {
       Path: () => {},
       Call: ({ op, args }) => {
         for (const arg of args) this.collectTerms(arg)
-        Match.valueTags(abstractOps[op.id], {
+        Match.valueTags(abstractOf(op), {
           Term: ({ relation }) => {
             const isInt = this.isIntNode(node)
             const id = this.register(Node.key(node), isInt)
@@ -203,7 +203,7 @@ export class AbstractState {
 
   /** Whether an arithmetic term's result is known to stay in the safe range, so it is not refused. */
   private inRange(node: Node.Call): boolean {
-    return Match.valueTags(abstractOps[node.op.id], {
+    return Match.valueTags(abstractOf(node.op), {
       Predicate: () => true,
       Value: () => true,
       Term: ({ refuses }) =>
@@ -233,7 +233,7 @@ export class AbstractState {
         }),
       Call: call => {
         const settled = (arg: Node.Node): boolean => isRead(arg) || this.hasValue(arg)
-        const row = abstractOps[call.op.id]
+        const row = abstractOf(call.op)
         if (row.unportable && !call.args.every(arg => this.portable(arg))) return false
         if (row._tag !== 'Term' && row.valued !== undefined) return row.valued(call.args, this)
         if (call.op.nulls === 'strict') {
@@ -293,7 +293,7 @@ export class AbstractState {
 
   /** Record what a strict call that was not null says of its operands: values, or at least not null. */
   private markOperands(call: Node.Call): void {
-    const row = abstractOps[call.op.id]
+    const row = abstractOf(call.op)
     const takesNaN = row._tag === 'Predicate' && row.takesNaN === true
     for (const arg of call.args) {
       if (takesNaN) this.markNotNull(arg)
@@ -303,7 +303,7 @@ export class AbstractState {
 
   /** Record that an operation refusing text with a NUL took `args` without refusing. */
   private markPortable(call: Node.Call): void {
-    if (!abstractOps[call.op.id].unportable) return
+    if (!abstractOf(call.op).unportable) return
     for (const arg of call.args) this.portableKeys.add(Node.key(arg))
   }
 
@@ -368,7 +368,7 @@ export class AbstractState {
   private keepInRange(call: Node.Call): void {
     const id = this.varOf(call)
     if (Option.isNone(id) || !this.intVars.has(id.value)) return
-    Match.valueTags(abstractOps[call.op.id], {
+    Match.valueTags(abstractOf(call.op), {
       Predicate: () => {},
       Value: () => {},
       Term: ({ refuses }) => {
@@ -416,13 +416,14 @@ export class AbstractState {
       onSome: id => this.zone.intervalOf(id),
     })
     if (!Node.$is('Call')(node)) return fromZone
-    return Match.valueTags(abstractOps[node.op.id], {
+    return Match.valueTags(abstractOf(node.op), {
       Predicate: () => fromZone,
       Value: () => fromZone,
       Term: ({ range, forward }) => {
-        if (node.args.every(Node.$is('Lit'))) {
+        const op = node.op
+        if (op._tag !== 'Foreign' && node.args.every(Node.$is('Lit'))) {
           const value = Node.apply(
-            node.op,
+            op,
             node.args.map(arg => arg.value),
           )
           return typeof value === 'number' ? Interval.constant(value) : Interval.top
@@ -480,7 +481,7 @@ export class AbstractState {
 
   /** A call with a truth value was evaluated: a strict one over operands that all have values. */
   private settle(call: Node.Call, truth: boolean): void {
-    Match.valueTags(abstractOps[call.op.id], {
+    Match.valueTags(abstractOf(call.op), {
       Term: () => {},
       // A value of `null.coalesce` that is true says nothing this state holds.
       Value: () => {},

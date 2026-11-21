@@ -10,6 +10,7 @@
  * over `If` and the primitives and need no table entry.
  */
 import { Data, Option, type SchemaAST } from 'effect'
+import type { OpProperties } from './properties.js'
 
 /** The closed set of 29 primitive operators. */
 export type CoreOpId =
@@ -49,13 +50,20 @@ export type OpId = CoreOpId
  * Evaluation declined to answer: an integer result left the safe range
  * (`unsafe-integer`), a number was NaN or infinite (`non-finite`), an operand
  * was not of the operator's type (`ill-typed`), a `Match` met a value none
- * of its cases names (`unmatched`), or a text or equality operation met text
- * holding a NUL character, which Postgres cannot store (`unportable`). A
+ * of its cases names (`unmatched`), a text or equality operation met text
+ * holding a NUL character, which Postgres cannot store (`unportable`), or a
+ * foreign operation had no implementation (`unsupported`). A
  * refusal is not a value: every operator passes it on, and a predicate that
  * is refused does not hold.
  */
 export class Refusal extends Data.TaggedError('Refusal')<{
-  readonly reason: 'unsafe-integer' | 'non-finite' | 'ill-typed' | 'unmatched' | 'unportable'
+  readonly reason:
+    | 'unsafe-integer'
+    | 'non-finite'
+    | 'ill-typed'
+    | 'unmatched'
+    | 'unportable'
+    | 'unsupported'
   /** The operator id, or `if` or `match`. */
   readonly at: string
   readonly detail: string
@@ -96,6 +104,8 @@ export type ValueKind = 'number' | 'boolean' | 'text'
  * that operator's evaluator. What it keeps is in `opProperties`.
  */
 export interface Op<Id extends CoreOpId = CoreOpId> {
+  /** Absent: what tells a core operator from a `ForeignOp`. */
+  readonly _tag?: undefined
   readonly id: Id
   /** What a result that is neither null nor a refusal is; `operand`: one of its operands (`null.coalesce`). */
   readonly returns: ValueKind | 'operand'
@@ -111,15 +121,76 @@ export interface Op<Id extends CoreOpId = CoreOpId> {
   readonly fold?: (args: ReadonlyArray<Node>) => Option.Option<Node>
 }
 
+/**
+ * An operation an application defines, outside the closed set: carried by
+ * its `id` and `version`, with no evaluator, since a page and a server may
+ * hold different implementations of it or none. Each reader takes the
+ * implementations from its caller, and refuses a call it holds none for.
+ */
+export interface ForeignOp {
+  readonly _tag: 'Foreign'
+  readonly id: string
+  readonly version: number
+  /** What a result that is neither null nor a refusal is. */
+  readonly returns: ValueKind
+  /** `strict`: a null argument gives null, and a refused one the refusal, before an implementation runs. */
+  readonly nulls: 'strict' | 'own'
+  /** What the operation declares it keeps; no reader acts on these yet. */
+  readonly properties: OpProperties
+}
+
+/** An operator a `Call` may name: a core one, which carries its evaluator, or a foreign one. */
+export type AnyOp = Op | ForeignOp
+
+/** The prefixes of the core operators' ids, which a foreign operation may not take. */
+const RESERVED = ['bool.', 'eq.', 'null.', 'ord.', 'num.', 'str.', 'arr.', 'rows.']
+
+/**
+ * Declare a foreign operation. An id under a core prefix (`num.`, `str.`, …)
+ * is refused, and so is a version that is not a positive integer.
+ */
+export const foreign = (descriptor: {
+  readonly id: string
+  readonly version: number
+  readonly returns: ValueKind
+  readonly nulls: 'strict' | 'own'
+  readonly properties?: OpProperties
+}): ForeignOp => {
+  const reserved = RESERVED.find(prefix => descriptor.id.startsWith(prefix))
+  if (reserved !== undefined) {
+    throw new Error(
+      `[metakit] Node.foreign: "${descriptor.id}" is under the core prefix "${reserved}"`,
+    )
+  }
+  if (!Number.isSafeInteger(descriptor.version) || descriptor.version < 1) {
+    throw new Error(
+      `[metakit] Node.foreign: the version of "${descriptor.id}" is not a positive integer`,
+    )
+  }
+  return { _tag: 'Foreign', properties: {}, ...descriptor }
+}
+
+/** The refusal of a call of an operation the reader holds no implementation of. */
+export const unsupported = (op: ForeignOp, detail = 'no implementation was given'): Refusal =>
+  new Refusal({ reason: 'unsupported', at: op.id, detail: `${op.id}@${op.version}: ${detail}` })
+
 /** `op` applied to argument values under its null rule; an absent value is null. */
-export const apply = (op: Op, args: ReadonlyArray<unknown>): unknown => {
+export const apply = (op: Op, args: ReadonlyArray<unknown>): unknown =>
+  applying(op, args, values => op.evaluate(values))
+
+/** `run` over argument values under `op`'s null rule; an absent value is null. */
+export const applying = (
+  op: AnyOp,
+  args: ReadonlyArray<unknown>,
+  run: (values: ReadonlyArray<unknown>) => unknown,
+): unknown => {
   const values = args.map(arg => (arg === undefined ? null : arg))
   if (op.nulls === 'strict') {
     const refused = values.find(isRefusal)
     if (refused !== undefined) return refused
     if (values.includes(null)) return null
   }
-  return op.evaluate(values)
+  return run(values)
 }
 
 /** A constant. */
@@ -138,7 +209,7 @@ export interface PathNode {
 /** An operator applied to arguments. */
 export interface Call {
   readonly _tag: 'Call'
-  readonly op: Op
+  readonly op: AnyOp
   readonly args: ReadonlyArray<Node>
 }
 
@@ -232,7 +303,8 @@ export const key = (node: Node): string =>
   $match(node, {
     Lit: ({ value }) => litKey(value),
     Path: ({ segments }) => `$${JSON.stringify(segments)}`,
-    Call: ({ op, args }) => `${op.id}(${args.map(key).join(',')})`,
+    Call: ({ op, args }) =>
+      `${op._tag === 'Foreign' ? `${op.id}@${op.version}` : op.id}(${args.map(key).join(',')})`,
     If: ({ cond, then, otherwise }) => `if(${key(cond)},${key(then)},${key(otherwise)})`,
     Match: ({ on, cases, otherwise }) =>
       `match(${key(on)},${cases.map(([value, then]) => `${JSON.stringify(value)}:${key(then)}`).join(',')}${Option.match(

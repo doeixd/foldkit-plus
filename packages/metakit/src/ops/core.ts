@@ -38,8 +38,8 @@ export const isExpr = (value: unknown): value is Expr<never, unknown> =>
 export const toNode = <Env, A>(input: ExprInput<Env, A>): Node.Node =>
   isExpr(input) ? input.node : Node.Lit({ value: input })
 
-/** Build a `Call` expression from an `Op` and argument `ExprInput`s. */
+/** Build a `Call` expression from an operator, core or foreign, and argument `ExprInput`s. */
 export const call = <Env, A>(
-  op: Node.Op,
+  op: Node.AnyOp,
   args: ReadonlyArray<ExprInput<Env, unknown>>,
 ): Expr<Env, A> => wrap<Env, A>(Node.Call({ op, args: args.map(toNode) }))

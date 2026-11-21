@@ -389,6 +389,9 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
         return { ...present(vars.get(name)!, sortKind[info.sort]), isNull: anyOf(info.flags) }
       },
       Call: ({ op, args }) => {
+        if (op._tag === 'Foreign') {
+          throw new Unsupported(`the foreign operation ${op.id}@${op.version}`)
+        }
         const operands = args.map(lower)
         const term = smtOps[op.id](operands, args)
         if (!abstractOps[op.id].unportable) return term

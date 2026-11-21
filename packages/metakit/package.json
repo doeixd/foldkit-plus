@@ -111,6 +111,11 @@
       "foldkit-plus:source": "./src/conformance.ts",
       "types": "./dist/conformance.d.ts",
       "import": "./dist/conformance.js"
+    },
+    "./build": {
+      "foldkit-plus:source": "./src/build.ts",
+      "types": "./dist/build.d.ts",
+      "import": "./dist/build.js"
     }
   },
   "files": [

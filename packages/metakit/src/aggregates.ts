@@ -111,7 +111,12 @@ const isIntegerAst = (ast: SchemaAST.AST): boolean => {
   return false
 }
 
-const integerOps: ReadonlySet<Node.CoreOpId> = new Set(['num.add', 'num.sub', 'num.mul', 'num.neg'])
+const integerOps: ReadonlySet<string> = new Set<Node.CoreOpId>([
+  'num.add',
+  'num.sub',
+  'num.mul',
+  'num.neg',
+])
 
 /** True when every value `node` can take is a safe integer or null. */
 const isIntegerValued = (node: Node.Node): boolean =>

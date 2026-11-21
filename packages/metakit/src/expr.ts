@@ -22,7 +22,7 @@ import {
   type UnionToIntersection,
   type ValueOfInput,
 } from './ops/core.js'
-import { evalNode } from './ops/eval.js'
+import { evalNode, type ForeignImplementations } from './ops/eval.js'
 import { present } from './ops/kind.js'
 import { gtOp, gteOp, ltOp, lteOp } from './ops/ord.js'
 import { judgeNode, readsOfNode, residualizeNode } from './ops/residualize.js'
@@ -30,8 +30,18 @@ import * as Path from './path.js'
 import type { Expr as ExprType, Path as PathType, PathAccessor } from './path.js'
 import type { Verdict } from './verdict.js'
 
-export type { ExprType as Expr, ExprInput, EnvOfInput }
+export type { ExprType as Expr, ExprInput, EnvOfInput, ForeignImplementations }
+export type { ForeignImplementation } from './ops/eval.js'
 export { isExpr }
+
+/**
+ * What evaluation, `residualize` and `judge` take besides the expression: the
+ * implementations of the foreign operations it calls, by id. A call with
+ * none is refused by evaluation and `Unknown` to `judge`.
+ */
+export interface ReaderOptions {
+  readonly foreign?: ForeignImplementations
+}
 
 /** Annotation key under which `Expr.refine` stores its `Node` on a `SchemaAST.Filter`. */
 export const REFINEMENT_ANNOTATION_KEY = 'metakit/expr' as const
@@ -393,8 +403,9 @@ export const lift = <Outer, Inner, A>(
 export const evalResult = <Env, A>(
   expr: ExprType<Env, A>,
   env: Env,
+  options?: ReaderOptions,
 ): Result.Result<A | null, Node.Refusal> => {
-  const value = evalNode(expr.node, env)
+  const value = evalNode(expr.node, env, options?.foreign)
   return Node.isRefusal(value) ? Result.fail(value) : Result.succeed(value as A | null)
 }
 
@@ -404,8 +415,8 @@ export const evalResult = <Env, A>(
  * `Node.Refusal`. Evaluation is null-strict, so over a null or absent operand
  * the result is null whatever `A` says.
  */
-export const evaluate = <Env, A>(expr: ExprType<Env, A>, env: Env): A => {
-  const value = evalNode(expr.node, env)
+export const evaluate = <Env, A>(expr: ExprType<Env, A>, env: Env, options?: ReaderOptions): A => {
+  const value = evalNode(expr.node, env, options?.foreign)
   if (Node.isRefusal(value)) throw value
   return value as A
 }
@@ -414,8 +425,11 @@ export const evaluate = <Env, A>(expr: ExprType<Env, A>, env: Env): A => {
 export { evaluate as eval }
 
 /** Whether the rule `expr` holds of `env`: only where it evaluates to true, never on null or a refusal. */
-export const holds = <Env>(expr: ExprType<Env, boolean | null>, env: Env): boolean =>
-  evalNode(expr.node, env) === true
+export const holds = <Env>(
+  expr: ExprType<Env, boolean | null>,
+  env: Env,
+  options?: ReaderOptions,
+): boolean => evalNode(expr.node, env, options?.foreign) === true
 
 /** Partially known environment where any top-level slice or nested field may be omitted. */
 export type PartialEnv<Env> =
@@ -432,15 +446,18 @@ export type PartialEnv<Env> =
 export const residualize = <Env, A>(
   expr: ExprType<Env, A>,
   partialEnv: PartialEnv<Env>,
-): ExprType<Env, A> => wrap(residualizeNode(expr.node, partialEnv))
+  options?: ReaderOptions,
+): ExprType<Env, A> => wrap(residualizeNode(expr.node, partialEnv, options?.foreign))
 
 /**
  * Partially evaluate a boolean `expr` and return its Kleene $K_3$ `Verdict`.
+ * A foreign call with no implementation given is `Unknown`.
  */
 export const judge = <Env>(
   expr: ExprType<Env, boolean | null>,
   partialEnv: PartialEnv<Env>,
-): Verdict<never> => judgeNode(expr.node, partialEnv)
+  options?: ReaderOptions,
+): Verdict<never> => judgeNode(expr.node, partialEnv, options?.foreign)
 
 /**
  * Static read footprint of `expr`. Returns `Option.some(paths)` when every
@@ -450,7 +467,7 @@ export const reads = <Env, A>(
   expr: ExprType<Env, A>,
 ): Option.Option<ReadonlyArray<ReadonlyArray<string>>> => readsOfNode(expr.node)
 
-const infixSymbols: Readonly<Partial<Record<Node.CoreOpId, string>>> = {
+const infixSymbols: Readonly<Partial<Record<string, string>>> = {
   'bool.and': '&&',
   'bool.or': '||',
   'eq.is': '==',
@@ -471,7 +488,8 @@ const showNode = (node: Node.Node): string =>
     Call: ({ op, args }) => {
       if (op.id === 'bool.not' && args.length === 1) return `!${showNode(args[0]!)}`
       if (op.id === 'num.neg' && args.length === 1) return `-${showNode(args[0]!)}`
-      const sym = infixSymbols[op.id]
+      // A foreign id is the application's: `constructor` names no symbol here.
+      const sym = Object.hasOwn(infixSymbols, op.id) ? infixSymbols[op.id] : undefined
       if (sym !== undefined && args.length === 2) {
         return `(${showNode(args[0]!)} ${sym} ${showNode(args[1]!)})`
       }

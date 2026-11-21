@@ -4,7 +4,7 @@ import * as Node from '../node.js'
 import { present } from '../ops/kind.js'
 import * as Verdict from '../verdict.js'
 import { flat, isPrimitive, type FieldInfo, type FieldKind } from './fields.js'
-import { abstractOps } from './ops.js'
+import { abstractOf } from './rowOf.js'
 import type { AbstractState } from './state.js'
 import { agree, proved, refuted, show } from './support.js'
 
@@ -68,8 +68,7 @@ function fitsTerm(
   const byKind: Readonly<Record<FieldKind, () => Verdict.Verdict<never>>> = {
     number: () => {
       const numeric =
-        sourceKind === 'number' ||
-        (Node.$is('Call')(value) && abstractOps[value.op.id]._tag === 'Term')
+        sourceKind === 'number' || (Node.$is('Call')(value) && abstractOf(value.op)._tag === 'Term')
       if (!numeric) return unknown
       if (info.isInt && !state.isIntNode(value)) return unknown
       if (info.finite && !state.hasValue(value)) return state.unvalued(value)

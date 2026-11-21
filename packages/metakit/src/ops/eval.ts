@@ -60,23 +60,77 @@ export const ifArm = (
   return { value: Node.illTyped('if', 'a boolean', cond) }
 }
 
-/** Evaluate `node` against a concrete `env`: a value, null, or a `Node.Refusal`. */
-export const evalNode = (node: Node.Node, env: unknown): unknown =>
+/** One implementation of a foreign operation: the version it implements, and the function. */
+export interface ForeignImplementation {
+  readonly version: number
+  /** The operation on argument values, after its null rule. It returns a value, null, or a `Node.Refusal`. */
+  readonly run: (args: ReadonlyArray<unknown>) => unknown
+}
+
+/** The implementations a reader is given, by foreign operation id. */
+export type ForeignImplementations = Readonly<Record<string, ForeignImplementation>>
+
+const none: ForeignImplementations = {}
+
+const kindOfValue = (value: unknown): Node.ValueKind | 'other' =>
+  typeof value === 'number'
+    ? 'number'
+    : typeof value === 'boolean'
+      ? 'boolean'
+      : typeof value === 'string'
+        ? 'text'
+        : 'other'
+
+/**
+ * A foreign call over argument values: refused where no implementation of
+ * its id and version is given, and where the one given answers with a value
+ * not of the kind it declares, a number that is not finite, or a NUL.
+ */
+export const applyForeign = (
+  op: Node.ForeignOp,
+  args: ReadonlyArray<unknown>,
+  implementations: ForeignImplementations,
+): unknown => {
+  const implementation = Object.hasOwn(implementations, op.id) ? implementations[op.id] : undefined
+  if (implementation === undefined) return Node.unsupported(op)
+  if (implementation.version !== op.version) {
+    return Node.unsupported(op, `the implementation given is of version ${implementation.version}`)
+  }
+  return Node.applying(op, args, values => {
+    const result = implementation.run(values)
+    if (result === null || result === undefined) return null
+    if (Node.isRefusal(result)) return result
+    if (kindOfValue(result) !== op.returns) return Node.illTyped(op.id, `a ${op.returns}`, result)
+    if (typeof result === 'number' && !Number.isFinite(result)) {
+      return new Node.Refusal({ reason: 'non-finite', at: op.id, detail: `gave ${result}` })
+    }
+    return Node.holdsNul([result]) ? Node.unportable(op.id) : result
+  })
+}
+
+/**
+ * Evaluate `node` against a concrete `env`: a value, null, or a
+ * `Node.Refusal`. A foreign call runs the implementation `foreign` gives.
+ */
+export const evalNode = (
+  node: Node.Node,
+  env: unknown,
+  foreign: ForeignImplementations = none,
+): unknown =>
   Node.$match(node, {
     Lit: ({ value }) => (value === undefined ? null : value),
     Path: ({ segments }) => readSegments(env, segments),
-    Call: ({ op, args }) =>
-      Node.apply(
-        op,
-        args.map(arg => evalNode(arg, env)),
-      ),
+    Call: ({ op, args }) => {
+      const values = args.map(arg => evalNode(arg, env, foreign))
+      return op._tag === 'Foreign' ? applyForeign(op, values, foreign) : Node.apply(op, values)
+    },
     If: node => {
-      const taken = ifArm(node, evalNode(node.cond, env))
-      return 'arm' in taken ? evalNode(taken.arm, env) : taken.value
+      const taken = ifArm(node, evalNode(node.cond, env, foreign))
+      return 'arm' in taken ? evalNode(taken.arm, env, foreign) : taken.value
     },
     Match: node => {
-      const taken = matchArm(node, evalNode(node.on, env))
-      return 'arm' in taken ? evalNode(taken.arm, env) : taken.value
+      const taken = matchArm(node, evalNode(node.on, env, foreign))
+      return 'arm' in taken ? evalNode(taken.arm, env, foreign) : taken.value
     },
     Opaque: ({ run }) => {
       const value = run(env)

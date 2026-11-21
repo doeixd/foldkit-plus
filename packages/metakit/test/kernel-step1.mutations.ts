@@ -279,4 +279,65 @@ const operations = [
   ),
 ]
 
-export default [...table, ...checks, ...readers, ...text, ...operations]
+const foreignTests = ['packages/metakit/test/foreign.test.ts']
+
+const foreign = [
+  mutation(
+    foreignTests,
+    'a foreign id may take a core prefix',
+    '../src/node.ts',
+    'if (reserved !== undefined) {',
+    'if (false) {',
+  ),
+  mutation(
+    foreignTests,
+    'evaluation runs an implementation of another version',
+    '../src/ops/eval.ts',
+    'if (implementation.version !== op.version) {',
+    'if (false) {',
+  ),
+  mutation(
+    foreignTests,
+    'evaluation takes an answer of another kind',
+    '../src/ops/eval.ts',
+    'if (kindOfValue(result) !== op.returns) return Node.illTyped(op.id, `a ${op.returns}`, result)',
+    '',
+  ),
+  mutation(
+    foreignTests,
+    'a foreign call runs over a null argument it declares strict',
+    '../src/ops/eval.ts',
+    'return Node.applying(op, args, values => {',
+    'return ((values: ReadonlyArray<unknown>) => {',
+  ),
+  mutation(
+    foreignTests,
+    'judge answers of a foreign call it holds no implementation of as missing environment',
+    '../src/ops/residualize.ts',
+    'const unimplemented = foreignCalls(residual).find(op => !Object.hasOwn(foreign, op.id))',
+    'const unimplemented = foreignCalls(residual).find(() => false)',
+  ),
+  mutation(
+    foreignTests,
+    'SQL writes an entry of another version',
+    '../src/sqlLowering.ts',
+    'return entry !== undefined && entry.version === op.version',
+    'return entry !== undefined',
+  ),
+  mutation(
+    foreignTests,
+    'the checker takes a foreign predicate over values to have a value',
+    '../src/abstract/rowOf.ts',
+    '  valued: () => false,\n  decide',
+    '  decide',
+  ),
+  mutation(
+    foreignTests,
+    'a foreign call is one term whatever its version',
+    '../src/node.ts',
+    "`${op._tag === 'Foreign' ? `${op.id}@${op.version}` : op.id}(${args.map(key).join(',')})`",
+    "`${op.id}(${args.map(key).join(',')})`",
+  ),
+]
+
+export default [...table, ...checks, ...readers, ...text, ...operations, ...foreign]

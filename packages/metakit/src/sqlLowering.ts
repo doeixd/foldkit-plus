@@ -28,6 +28,8 @@ export type SqlPiece = Data.TaggedEnum<{
   Value: { readonly value: unknown }
   /** A column, by its path under the row. */
   Column: { readonly segments: ReadonlyArray<string> }
+  /** A call of a foreign operation over its lowered arguments, which the renderer's own table writes. */
+  Foreign: { readonly op: Node.ForeignOp; readonly args: ReadonlyArray<ReadonlyArray<SqlPiece>> }
 }>
 
 export const SqlPiece = Data.taggedEnum<SqlPiece>()
@@ -77,7 +79,13 @@ const isIntAst = (ast: SchemaAST.AST): boolean =>
       ast.types.every(t => isIntAst(t) || SchemaAST.isNull(t) || SchemaAST.isUndefined(t))
     : SchemaAST.isNumber(ast) && (ast.checks ?? []).some(isIntCheck)
 
-const integerOps: ReadonlySet<Node.CoreOpId> = new Set(['num.add', 'num.sub', 'num.mul', 'num.neg'])
+const integerOps: ReadonlySet<string> = new Set<Node.CoreOpId>([
+  'num.add',
+  'num.sub',
+  'num.mul',
+  'num.neg',
+  'null.coalesce',
+])
 
 /** Whether `node` is an integer whatever the row holds, and reads the row. */
 const isIntegerTerm = (node: Node.Node): boolean =>
@@ -87,7 +95,7 @@ const isIntegerTerm = (node: Node.Node): boolean =>
     Call: ({ op, args }) =>
       op.id === 'str.len' ||
       op.id === 'arr.count' ||
-      ((integerOps.has(op.id) || op.id === 'null.coalesce') &&
+      (integerOps.has(op.id) &&
         args.some(isIntegerTerm) &&
         args.every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))),
     If: ({ then, otherwise }) => isIntegerTerm(then) && isIntegerTerm(otherwise),
@@ -298,7 +306,16 @@ export const lowerNode = (
             ? unsupported('cannot lower the whole row to a single SQL column')
             : Result.succeed([SqlPiece.Column({ segments: rel })])
         },
-        Call: ({ op, args }) => sqlOps[op.id](args, ctx),
+        Call: ({ op, args }) => {
+          if (op._tag !== 'Foreign') return sqlOps[op.id](args, ctx)
+          const lowered: Array<Sql> = []
+          for (const arg of args) {
+            const each = ctx.lower(arg)
+            if (Result.isFailure(each)) return each
+            lowered.push(each.success)
+          }
+          return Result.succeed([SqlPiece.Foreign({ op, args: lowered })])
+        },
         // A condition that is null chooses neither branch: `ELSE` would take the second.
         If: ({ cond, then, otherwise }) =>
           Result.flatMap(ctx.lower(cond), c =>
@@ -390,6 +407,23 @@ export const lowerUpdate = <State, Input, Emit>(
     sets.push([write.target, value.success])
   }
   return Result.map(lower(transition.when.node), when => ({ sets, when }))
+}
+
+/** The SQL of a foreign operation for a dialect, from its lowered arguments, in some form of SQL. */
+export interface ForeignSql<S> {
+  readonly version: number
+  readonly sql: (args: ReadonlyArray<S>, dialect: SqlDialect) => S
+}
+
+/** The entry of `table` for a foreign call, refused by name where it has none of the call's version. */
+export const foreignSql = <S>(
+  table: Readonly<Record<string, ForeignSql<S>>>,
+  op: Node.ForeignOp,
+): Result.Result<ForeignSql<S>, SqlUnsupportedError> => {
+  const entry = Object.hasOwn(table, op.id) ? table[op.id] : undefined
+  return entry !== undefined && entry.version === op.version
+    ? Result.succeed(entry)
+    : unsupported(`no SQL is given for the foreign operation ${op.id}@${op.version}`)
 }
 
 /** A literal written into SQL text, for DDL, which takes no parameters. */

@@ -14,6 +14,8 @@ import type * as Expr from './expr.js'
 import {
   bound,
   columnNames,
+  foreignSql,
+  type ForeignSql,
   inlineLiteral,
   lowerCheck,
   lowerUpdate,
@@ -25,17 +27,29 @@ import {
 } from './sqlLowering.js'
 import type { Refused, Transition } from './transition.js'
 
+/**
+ * The Drizzle `SQL` of each foreign operation, by id, from its arguments
+ * rendered as Drizzle `SQL`. A foreign call with no entry of its version is
+ * refused by name.
+ */
+export type ForeignDrizzle = Readonly<Record<string, ForeignSql<SQL>>>
+
 export interface DrizzleOptions {
   readonly dialect?: SqlDialect
   /** As `SqlOptions.rowPrefix`: default `['row']`, and `[]` reads every path as a column. */
   readonly rowPrefix?: ReadonlyArray<string>
   readonly env?: Readonly<Record<string, unknown>>
+  readonly foreign?: ForeignDrizzle
 }
 
 /** Renders pieces as Drizzle `SQL`, reading a path as the table's column of that key (segments joined by `_`). */
 const renderer = (
   table: Table,
-  options: { readonly dialect: SqlDialect; readonly inline: boolean },
+  options: {
+    readonly dialect: SqlDialect
+    readonly inline: boolean
+    readonly foreign: ForeignDrizzle
+  },
 ) => {
   const columns: Readonly<Record<string, SQLChunk>> = getTableColumns(table)
   const key = columnNames(segments => segments.join('_'))
@@ -56,6 +70,12 @@ const renderer = (
           options.inline
             ? Result.map(inlineLiteral(value), text => sql.raw(text))
             : Result.succeed(sql`${bound(value, options.dialect)}`),
+        Foreign: ({ op, args }) =>
+          Result.flatMap(foreignSql(options.foreign, op), entry =>
+            Result.map(Result.all(args.map(render)), rendered =>
+              entry.sql(rendered, options.dialect),
+            ),
+          ),
       })
       if (Result.isFailure(chunk)) return Result.fail(chunk.failure)
       chunks.push(chunk.success)
@@ -78,7 +98,7 @@ export const toCheck = <S extends Schema.Top>(
   const dialect = options?.dialect ?? 'postgres'
   return Result.flatMap(
     lowerCheck(schema, dialect),
-    renderer(table, { dialect, inline: true }).render,
+    renderer(table, { dialect, inline: true, foreign: {} }).render,
   )
 }
 
@@ -91,7 +111,7 @@ export const toWhere = <Env>(
   const dialect = options?.dialect ?? 'postgres'
   return Result.flatMap(
     lowerWhere(expr, { dialect, rowPrefix: options?.rowPrefix ?? ['row'], env: options?.env }),
-    renderer(table, { dialect, inline: false }).render,
+    renderer(table, { dialect, inline: false, foreign: options?.foreign ?? {} }).render,
   )
 }
 
@@ -104,13 +124,17 @@ export const toUpdate = <State, Input, Emit>(
   transition: Transition<State, Input, Emit>,
   input: Input,
   table: Table,
-  options?: { readonly dialect?: SqlDialect },
+  options?: { readonly dialect?: SqlDialect; readonly foreign?: ForeignDrizzle },
 ): Result.Result<
   { readonly set: Readonly<Record<string, SQL>>; readonly where: SQL },
   SqlUnsupportedError | Refused
 > => {
   const dialect = options?.dialect ?? 'postgres'
-  const { column, render } = renderer(table, { dialect, inline: false })
+  const { column, render } = renderer(table, {
+    dialect,
+    inline: false,
+    foreign: options?.foreign ?? {},
+  })
   return Result.flatMap(lowerUpdate(transition, input, dialect), ({ sets, when }) => {
     const set: Record<string, SQL> = {}
     for (const [target, value] of sets) {

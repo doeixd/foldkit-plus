@@ -12,11 +12,13 @@ import type * as Expr from './expr.js'
 import {
   bound,
   columnNames,
+  foreignSql,
   inlineLiteral,
   lowerCheck,
   lowerUpdate,
   lowerWhere,
   SqlPiece,
+  type ForeignSql,
   type Sql,
   type SqlDialect,
   type SqlUnsupportedError,
@@ -25,11 +27,21 @@ import type { Refused, Transition } from './transition.js'
 
 export {
   sqlOps,
+  SqlPiece,
   SqlUnsupportedError,
+  type ForeignSql,
+  type Sql,
   type SqlContext,
   type SqlDialect,
   type SqlLowerer,
 } from './sqlLowering.js'
+
+/**
+ * The SQL of each foreign operation, by id: pieces from the lowered
+ * arguments, which this module renders with the rest. A foreign call with no
+ * entry of its version is refused by name.
+ */
+export type ForeignSqlTable = Readonly<Record<string, ForeignSql<Sql>>>
 
 export interface SqlFragment {
   readonly text: string
@@ -49,6 +61,7 @@ export interface SqlOptions {
   readonly rowPrefix?: ReadonlyArray<string>
   readonly column?: ColumnName
   readonly env?: Readonly<Record<string, unknown>>
+  readonly foreign?: ForeignSqlTable
 }
 
 const quoteIdent = (name: string): string => `"${name.replaceAll('"', '""')}"`
@@ -60,6 +73,7 @@ const renderer = (options: {
   readonly dialect: SqlDialect
   readonly column: ColumnName
   readonly inline: boolean
+  readonly foreign: ForeignSqlTable
 }) => {
   const params: Array<unknown> = []
   const column = columnNames(options.column)
@@ -74,6 +88,11 @@ const renderer = (options: {
           params.push(bound(value, options.dialect))
           return Result.succeed(options.dialect === 'postgres' ? `$${params.length}` : '?')
         },
+        // Pieces, not text: a parameter keeps its place however the entry orders the arguments.
+        Foreign: ({ op, args }) =>
+          Result.flatMap(foreignSql(options.foreign, op), entry =>
+            render(entry.sql(args, options.dialect)),
+          ),
       })
       if (Result.isFailure(part)) return part
       text += part.success
@@ -93,7 +112,12 @@ export const toCheck = <S extends Schema.Top>(
   options?: { readonly dialect?: SqlDialect; readonly column?: ColumnName },
 ): Result.Result<string, SqlUnsupportedError> => {
   const dialect = options?.dialect ?? 'postgres'
-  const { render } = renderer({ dialect, column: options?.column ?? defaultColumn, inline: true })
+  const { render } = renderer({
+    dialect,
+    column: options?.column ?? defaultColumn,
+    inline: true,
+    foreign: {},
+  })
   return Result.map(Result.flatMap(lowerCheck(schema, dialect), render), text => `CHECK (${text})`)
 }
 
@@ -107,6 +131,7 @@ export const toWhere = <Env>(
     dialect,
     column: options?.column ?? defaultColumn,
     inline: false,
+    foreign: options?.foreign ?? {},
   })
   const lowered = lowerWhere(expr, {
     dialect,
@@ -132,6 +157,7 @@ export const toUpdate = <State, Input, Emit>(
     readonly whereId?: {
       readonly [K in keyof State & string]: { readonly column: K; readonly value: State[K] }
     }[keyof State & string]
+    readonly foreign?: ForeignSqlTable
   },
 ): Result.Result<SqlFragment, SqlUnsupportedError | Refused> => {
   const dialect = options?.dialect ?? 'postgres'
@@ -139,6 +165,7 @@ export const toUpdate = <State, Input, Emit>(
     dialect,
     column: options?.column ?? defaultColumn,
     inline: false,
+    foreign: options?.foreign ?? {},
   })
   return Result.flatMap(lowerUpdate(transition, input, dialect), ({ sets, when }) => {
     const assignments: Array<string> = []

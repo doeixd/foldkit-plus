@@ -7,7 +7,7 @@ import { Match, Option } from 'effect'
 import * as Node from '../node.js'
 import * as Verdict from '../verdict.js'
 import * as Interval from './interval.js'
-import { abstractOps } from './ops.js'
+import { abstractOf } from './rowOf.js'
 import {
   findSplittableMatchPath,
   matchCandidates,
@@ -223,7 +223,7 @@ export function decide(this: AbstractState, goal: Node.Node): Verdict.Verdict<ne
       return Verdict.Unknown('match scrutinee unknown')
     },
     Call: call =>
-      Match.valueTags(abstractOps[call.op.id], {
+      Match.valueTags(abstractOf(call.op), {
         Term: () => Verdict.Unknown('not a truth value'),
         Value: () => Verdict.Unknown(`${call.op.id} undecided in Tier 3`),
         Predicate: row => {
