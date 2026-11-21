@@ -225,6 +225,7 @@ export function decide(this: AbstractState, goal: Node.Node): Verdict.Verdict<ne
     Call: call =>
       Match.valueTags(abstractOps[call.op.id], {
         Term: () => Verdict.Unknown('not a truth value'),
+        Value: () => Verdict.Unknown(`${call.op.id} undecided in Tier 3`),
         Predicate: row => {
           if (call.op.nulls === 'strict') {
             const open = call.args.find(arg => !this.hasValue(arg))

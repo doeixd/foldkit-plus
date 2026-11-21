@@ -1,6 +1,7 @@
 /**
- * String primitives (`str.len`, `str.startsWith`, `str.contains`) and derived
- * helper (`Str.isEmpty`). Null-strict: a null string gives null, and text
+ * String primitives (`str.len`, `str.startsWith`, `str.contains`,
+ * `str.lowerAscii`, `str.trim`, the code-point orders `str.lt`, `str.lte`,
+ * `str.gt`, `str.gte`) and derived helper (`Str.isEmpty`). Null-strict: a null string gives null, and text
  * holding a NUL character is refused (`unportable`).
  *
  * `str.len` counts Unicode code points (`[...s].length`) so JavaScript,
@@ -65,6 +66,50 @@ export const containsOp: Node.Op<'str.contains'> = {
   evaluate: textual('str.contains', ([text, part]) => text!.includes(part!)),
 }
 
+export const lowerAsciiOp: Node.Op<'str.lowerAscii'> = {
+  id: 'str.lowerAscii',
+  returns: 'text',
+  nulls: 'strict',
+  evaluate: textual('str.lowerAscii', ([text]) =>
+    text!.replace(/[A-Z]/g, letter => letter.toLowerCase()),
+  ),
+}
+
+/** The white space every database trims alike: space, tab, line feed, carriage return. */
+const EDGE_SPACE = /^[ \t\n\r]+|[ \t\n\r]+$/g
+
+export const trimOp: Node.Op<'str.trim'> = {
+  id: 'str.trim',
+  returns: 'text',
+  nulls: 'strict',
+  evaluate: textual('str.trim', ([text]) => text!.replace(EDGE_SPACE, '')),
+}
+
+/** -1, 0 or 1 as `a` is before, at or after `b` by code point, which UTF-16 order is not. */
+const byCodePoint = (a: string, b: string): number => {
+  const [left, right] = [Array.from(a), Array.from(b)]
+  for (let index = 0; index < Math.min(left.length, right.length); index++) {
+    const [x, y] = [left[index]!.codePointAt(0)!, right[index]!.codePointAt(0)!]
+    if (x !== y) return x < y ? -1 : 1
+  }
+  return Math.sign(left.length - right.length)
+}
+
+const order = <Id extends 'str.lt' | 'str.lte' | 'str.gt' | 'str.gte'>(
+  id: Id,
+  holds: (sign: number) => boolean,
+): Node.Op<Id> => ({
+  id,
+  returns: 'boolean',
+  nulls: 'strict',
+  evaluate: textual(id, ([a, b]) => holds(byCodePoint(a!, b!))),
+})
+
+export const ltOp = order('str.lt', sign => sign < 0)
+export const lteOp = order('str.lte', sign => sign <= 0)
+export const gtOp = order('str.gt', sign => sign > 0)
+export const gteOp = order('str.gte', sign => sign >= 0)
+
 /** Unicode code-point length of a string (always `>= 0`). */
 export const len = <S extends NullableText>(value: S): Expr<EnvOfInput<S>, number | NullOf<S>> =>
   call(lenOp, [value])
@@ -82,6 +127,29 @@ export const contains = <S extends NullableText, Sub extends NullableText>(
   substring: Sub,
 ): Expr<EnvOfInput<S> & EnvOfInput<Sub>, boolean | NullOf<S> | NullOf<Sub>> =>
   call(containsOp, [value, substring])
+
+/** `value` with A to Z lowered and every other character kept: no locale's casing. */
+export const lowerAscii = <S extends NullableText>(
+  value: S,
+): Expr<EnvOfInput<S>, string | NullOf<S>> => call(lowerAsciiOp, [value])
+
+/** `value` without leading or trailing space, tab, line feed or carriage return. */
+export const trim = <S extends NullableText>(value: S): Expr<EnvOfInput<S>, string | NullOf<S>> =>
+  call(trimOp, [value])
+
+type TextOrder = <L extends NullableText, R extends NullableText>(
+  left: L,
+  right: R,
+) => Expr<EnvOfInput<L> & EnvOfInput<R>, boolean | NullOf<L> | NullOf<R>>
+
+/** `left` sorts before `right` by code point (a database's binary, or `COLLATE "C"`, order). */
+export const lt: TextOrder = (left, right) => call(ltOp, [left, right])
+/** `left` sorts before `right`, or is it, by code point. */
+export const lte: TextOrder = (left, right) => call(lteOp, [left, right])
+/** `left` sorts after `right` by code point. */
+export const gt: TextOrder = (left, right) => call(gtOp, [left, right])
+/** `left` sorts after `right`, or is it, by code point. */
+export const gte: TextOrder = (left, right) => call(gteOp, [left, right])
 
 /** Derived helper: `Eq.is(Str.len(s), 0)`; false for a null string, whose length is null. */
 export const isEmpty = <S extends NullableText>(value: S): Expr<EnvOfInput<S>, boolean> =>

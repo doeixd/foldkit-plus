@@ -5,26 +5,30 @@ import * as Node from '../node.js'
 import * as Str from '../ops/str.js'
 import * as Path from '../path.js'
 import type { PathInfo, Shape, Sort } from './shape.js'
+import { textReading } from './text.js'
 
 export type Z3 = Context<'metakit'>
-type ZBool = Bool<'metakit'>
-type ZArith = Arith<'metakit'>
-type ZExpr = ZBool | ZArith
+export type ZBool = Bool<'metakit'>
+export type ZArith = Arith<'metakit'>
+export type ZExpr = ZBool | ZArith
 
 /** What a term is, where the Schema or the operator says: a mismatch is undecided, not a proof. */
-type Kind = 'bool' | 'num' | 'text' | 'null' | 'other'
+export type Kind = 'bool' | 'num' | 'text' | 'null' | 'other'
 
 /**
  * A term as evaluation gives it: a value, null, or a refusal (a number past
- * the safe range). At most one of `isNull` and `refused` is true, and `value`
- * means something only where neither is.
+ * the safe range, text holding a NUL). At most one of `isNull` and `refused`
+ * is true, and `value` means something only where neither is.
  */
-interface Term {
+export interface Term {
   readonly value: ZExpr
   readonly isNull: ZBool
   readonly refused: ZBool
   readonly kind: Kind
 }
+
+/** One primitive's reading, from its operands' terms and nodes. */
+export type Lowerer = (args: ReadonlyArray<Term>, nodes: ReadonlyArray<Node.Node>) => Term
 
 /** Thrown where the lowering cannot say what evaluation would; the proof is then undecided. */
 export class Unsupported extends Error {}
@@ -266,65 +270,31 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       }
     }
   }
-  /** A text predicate the solver cannot read: free, but for the lengths it implies. */
-  const textPredicate =
-    (op: Node.Op<'str.startsWith' | 'str.contains'>) =>
-    ([text, part]: ReadonlyArray<Term>, [textNode, partNode]: ReadonlyArray<Node.Node>): Term => {
-      const id = op.id
-      const known = (node: Node.Node): Option.Option<string> =>
-        Node.$is('Lit')(node) && typeof node.value === 'string'
-          ? Option.some(node.value)
-          : Option.none()
-      const a = known(textNode!)
-      const b = known(partNode!)
-      if (Option.isSome(a) && Option.isSome(b)) {
-        const value = Node.apply(op, [a.value, b.value])
-        // A refusal (a NUL) is added by the caller from the operands.
-        return present(z3.Bool.val(value === true), 'bool')
-      }
-      // Every text begins with and contains the empty one.
-      if (Option.isSome(b) && b.value === '') {
-        return strict('bool', [text!, part!], z3.Bool.val(true))
-      }
-      const key = `${id}:${Node.key(textNode!)}:${Node.key(partNode!)}`
-      let free = opaque.get(key)
-      if (free === undefined) {
-        free = z3.Bool.const(key)
-        opaque.set(key, free)
-        solver.add(z3.Implies(bool(present(free, 'bool')), length(textNode!).ge(length(partNode!))))
-      }
-      return strict('bool', [text!, part!], free)
-    }
   const length = (node: Node.Node): ZArith =>
     Node.$is('Lit')(node) && typeof node.value === 'string'
       ? z3.Int.val(Str.codePointLength(node.value))
       : measure('strLen', node)
 
-  /** Whether `node` may be text holding a NUL: a flag the model sets, where its Schema allows text. */
-  const nulOf = (node: Node.Node): ZBool =>
-    Node.$match(node, {
-      Lit: ({ value }) => z3.Bool.val(Node.holdsNul([value])),
-      Path: ({ segments }) => {
-        const name = Path.format(segments)
-        const info = shape.paths.get(name)
-        const textless =
-          info !== undefined &&
-          (info.sort === 'int' ||
-            info.sort === 'real' ||
-            info.sort === 'bool' ||
-            info.sort === 'struct' ||
-            (info.literals.length > 0 && !Node.holdsNul(info.literals)))
-        return textless ? never : flagVar(`nul:${name}`)
-      },
-      // An operator that gives text refuses a NUL in what it takes.
-      Call: () => never,
-      If: ({ then, otherwise }) => z3.Or(nulOf(then), nulOf(otherwise)),
-      Match: ({ cases, otherwise }) =>
-        z3.Or(never, ...[...cases.map(([, arm]) => arm), ...Option.toArray(otherwise)].map(nulOf)),
-      Opaque: opaqueNode => flagVar(`nul:${Node.key(opaqueNode)}`),
-    })
+  const text = textReading({
+    z3,
+    shape,
+    flagVar,
+    opaque,
+    present,
+    literal,
+    strict: (kind, args, value) => strict(kind, args, value),
+    length,
+    assert: fact => solver.add(fact),
+  })
+  const { nulOf } = text
 
-  type Lowerer = (args: ReadonlyArray<Term>, nodes: ReadonlyArray<Node.Node>) => Term
+  /** A candidate list written as a literal, as SQL's `in` takes one. */
+  const candidatesOf = (id: string, list: Node.Node): ReadonlyArray<unknown> => {
+    if (!Node.$is('Lit')(list) || !Array.isArray(list.value)) {
+      throw new Unsupported(`${id} of candidates that are not a literal array`)
+    }
+    return list.value
+  }
 
   /** The solver's reading of every primitive: a new one fails to compile until it has a row here. */
   const smtOps: Readonly<Record<Node.CoreOpId, Lowerer>> = {
@@ -334,10 +304,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     'eq.is': ([a, b]) => nullSafe([a!, b!], is(a!, b!)),
     'eq.isNot': ([a, b]) => nullSafe([a!, b!], z3.Not(is(a!, b!))),
     'eq.in': ([needle], [, list]) => {
-      if (!Node.$is('Lit')(list!) || !Array.isArray(list.value)) {
-        throw new Unsupported('eq.in of candidates that are not a literal array')
-      }
-      const candidates: ReadonlyArray<unknown> = list.value
+      const candidates = candidatesOf('eq.in', list!)
       return nullSafe(
         [needle!],
         candidates.length === 0
@@ -345,7 +312,26 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
           : z3.Or(...candidates.map(candidate => is(needle!, literal(candidate)))),
       )
     },
+    'eq.equals': ([a, b]) => strict('bool', [a!, b!], sameValue(a!, b!)),
+    'eq.among': ([needle], [, list]) => {
+      const candidates = candidatesOf('eq.among', list!)
+      const present = candidates.filter(item => item !== null && item !== undefined)
+      const matches = z3.Or(never, ...present.map(item => sameValue(needle!, literal(item))))
+      const term = strict('bool', [needle!], matches)
+      // No match against a null candidate is null, not false.
+      return present.length < candidates.length
+        ? { ...term, isNull: z3.Or(term.isNull, z3.And(z3.Not(term.refused), z3.Not(matches))) }
+        : term
+    },
     'null.isNull': ([a]) => nullSafe([a!], a!.isNull),
+    // `b` is read only where `a` is null, so its refusal reaches no other answer.
+    'null.coalesce': ([a, b]) => ({
+      value: expr(z3.If(a!.isNull, ...branches(b!, a!))),
+      isNull: z3.And(z3.Not(a!.refused), a!.isNull, b!.isNull),
+      refused: z3.Or(a!.refused, z3.And(a!.isNull, b!.refused)),
+      kind: mergeKind(a!.kind, b!.kind),
+    }),
+    ...text.rows,
     'ord.lt': compare((a, b) => a.lt(b)),
     'ord.lte': compare((a, b) => a.le(b)),
     'ord.gt': compare((a, b) => a.gt(b)),
@@ -358,8 +344,6 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       return strict('num', [a!], result, unsafe(result))
     },
     'str.len': ([a], [node]) => strict('num', [a!], length(node!)),
-    'str.startsWith': textPredicate(Str.startsWithOp),
-    'str.contains': textPredicate(Str.containsOp),
     'arr.count': ([a], [node]) =>
       strict(
         'num',

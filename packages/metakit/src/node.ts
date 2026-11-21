@@ -1,9 +1,9 @@
 /**
  * The six kinds of node every MetaKit expression is made of, and the closed
- * set of 20 primitive operators (`CoreOpId`).
+ * set of 29 primitive operators (`CoreOpId`).
  *
- * Every tier's table (`sqlOps`, `abstractOps`, `smtOps`, `drizzleOps`) is
- * typed `Record<CoreOpId, ...>`, and `Conformance.coreOps` holds the operator
+ * Every reader's table (`sqlOps`, `abstractOps`, `smtOps`, `opProperties`) is
+ * typed by `CoreOpId`, and `Conformance.coreOps` holds the operator
  * descriptors under the same type, so adding a primitive fails to compile
  * until every reader implements it. Derived helpers (`min`, `max`, `abs`,
  * `clamp`, `between`, `isNotNull`, `implies`) are plain TypeScript functions
@@ -11,7 +11,7 @@
  */
 import { Data, Option, type SchemaAST } from 'effect'
 
-/** The closed set of 20 primitive operators. */
+/** The closed set of 29 primitive operators. */
 export type CoreOpId =
   | 'bool.and'
   | 'bool.or'
@@ -19,7 +19,16 @@ export type CoreOpId =
   | 'eq.is'
   | 'eq.isNot'
   | 'eq.in'
+  | 'eq.equals'
+  | 'eq.among'
   | 'null.isNull'
+  | 'null.coalesce'
+  | 'str.lowerAscii'
+  | 'str.trim'
+  | 'str.lt'
+  | 'str.lte'
+  | 'str.gt'
+  | 'str.gte'
   | 'ord.lt'
   | 'ord.lte'
   | 'ord.gt'
@@ -79,7 +88,7 @@ export const unportable = (at: string): Refusal =>
   })
 
 /** What an operator's result is, which decides the properties that may return an operand of it. */
-export type ValueKind = 'number' | 'boolean'
+export type ValueKind = 'number' | 'boolean' | 'text'
 
 /**
  * An operator's descriptor: its id and its in-memory evaluator. A `Call`
@@ -88,8 +97,8 @@ export type ValueKind = 'number' | 'boolean'
  */
 export interface Op<Id extends CoreOpId = CoreOpId> {
   readonly id: Id
-  /** What a result that is neither null nor a refusal is. */
-  readonly returns: ValueKind
+  /** What a result that is neither null nor a refusal is; `operand`: one of its operands (`null.coalesce`). */
+  readonly returns: ValueKind | 'operand'
   /**
    * `strict`: a null operand gives null and a refused one the refusal, before
    * `evaluate` runs. `own`: `evaluate` decides (Kleene `and`/`or`, null-safe

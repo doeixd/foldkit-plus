@@ -2,7 +2,7 @@
  * MetaKit — an `Env`-indexed calculus of inspectable expressions and
  * single-step transitions over Effect `Schema`.
  *
- * Built on a closed set of 20 primitive operators (`Node.CoreOpId`): `Bool`,
+ * Built on a closed set of 29 primitive operators (`Node.CoreOpId`): `Bool`,
  * `Eq`, `Null`, `Ord`, `Num`, `Str` and `Arr`, with derived helpers (`min`,
  * `max`, `abs`, `clamp`, `between`, `isNotNull`, `implies`) that need no
  * tier implementation of their own.

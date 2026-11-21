@@ -32,11 +32,16 @@ const awkward: ReadonlyArray<unknown> = [
   refused,
 ]
 
-/** The values of an operation's result kind (a finite number, not NaN), null, or a refusal. */
+/**
+ * The values of an operation's result kind (a finite number, not NaN), null,
+ * or a refusal; any value for one that gives an operand back.
+ */
 const ofKind = (op: Node.Op): ReadonlyArray<unknown> => {
   const values: Readonly<Record<Node.Op['returns'], ReadonlyArray<unknown>>> = {
     number: numbers,
     boolean: booleans,
+    text: texts,
+    operand: [...numbers, ...notFinite, ...booleans, ...texts],
   }
   return [...values[op.returns], null, refused]
 }

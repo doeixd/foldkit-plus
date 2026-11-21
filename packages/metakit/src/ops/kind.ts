@@ -59,6 +59,7 @@ const kindOfAst = (ast: SchemaAST.AST): Option.Option<Node.ValueKind> => {
   if (members.length !== 1) return Option.none()
   const only = members[0]!
   if (isFiniteNumber(only)) return Option.some('number')
+  if (SchemaAST.isString(only)) return Option.some('text')
   return SchemaAST.isBoolean(only) ? Option.some('boolean') : Option.none()
 }
 
@@ -77,10 +78,11 @@ export const kindOf = (node: Node.Node): Option.Option<Node.ValueKind> =>
   Node.$match(node, {
     Lit: ({ value }) => {
       if (typeof value === 'number' && Number.isFinite(value)) return Option.some('number' as const)
+      if (typeof value === 'string') return Option.some('text' as const)
       return typeof value === 'boolean' ? Option.some('boolean' as const) : Option.none()
     },
     Path: ({ ast }) => Option.flatMap(ast, kindOfAst),
-    Call: ({ op }) => Option.some(op.returns),
+    Call: ({ op, args }) => (op.returns === 'operand' ? sameKind(args) : Option.some(op.returns)),
     If: ({ then, otherwise }) => sameKind([then, otherwise]),
     Match: ({ cases, otherwise }) =>
       sameKind([...cases.map(([, arm]) => arm), ...Option.toArray(otherwise)]),

@@ -97,9 +97,9 @@ export const toCheck = <S extends Schema.Top>(
   return Result.map(Result.flatMap(lowerCheck(schema, dialect), render), text => `CHECK (${text})`)
 }
 
-/** A boolean `Expr` as a parameterized SQL `WHERE` predicate. */
+/** A boolean `Expr` as a parameterized SQL `WHERE` predicate, which keeps a row only where it is true. */
 export const toWhere = <Env>(
-  expr: Expr.Expr<Env, boolean>,
+  expr: Expr.Expr<Env, boolean | null>,
   options?: SqlOptions,
 ): Result.Result<SqlFragment, SqlUnsupportedError> => {
   const dialect = options?.dialect ?? 'postgres'

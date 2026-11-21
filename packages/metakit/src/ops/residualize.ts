@@ -77,6 +77,7 @@ const applyLaws = (op: Node.Op, args: ReadonlyArray<Node.Node>): Option.Option<N
   // A law that returns an operand holds only where the operand is what the
   // operator would have returned: `x + 0` over text is refused, `x` is not.
   const ofKind = (operand: Node.Node): boolean =>
+    op.returns === 'operand' ||
     Option.match(kindOf(operand), { onNone: () => false, onSome: kind => kind === op.returns })
 
   if (args.length === 1) {

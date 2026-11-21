@@ -98,6 +98,7 @@ export class AbstractState {
         Match.valueTags(abstractOps[term.op.id], {
           Term: ({ range }) => this.bound(id, range),
           Predicate: () => {},
+          Value: () => {},
         })
       }
     }
@@ -144,6 +145,7 @@ export class AbstractState {
         Match.valueTags(abstractOps[op.id], {
           Term: ({ integral }) => integral(args.map(arg => this.isIntNode(arg))),
           Predicate: () => false,
+          Value: () => false,
         }),
       If: ({ then, otherwise }) => this.isIntNode(then) && this.isIntNode(otherwise),
       Match: ({ cases, otherwise }) =>
@@ -172,6 +174,7 @@ export class AbstractState {
           Predicate: ({ measures }) => {
             for (const measure of measures(args)) this.collectTerms(measure)
           },
+          Value: () => {},
         })
       },
       If: ({ cond, then, otherwise }) => {
@@ -202,6 +205,7 @@ export class AbstractState {
   private inRange(node: Node.Call): boolean {
     return Match.valueTags(abstractOps[node.op.id], {
       Predicate: () => true,
+      Value: () => true,
       Term: ({ refuses }) =>
         !refuses ||
         this.unrefused.has(Node.key(node)) ||
@@ -231,11 +235,13 @@ export class AbstractState {
         const settled = (arg: Node.Node): boolean => isRead(arg) || this.hasValue(arg)
         const row = abstractOps[call.op.id]
         if (row.unportable && !call.args.every(arg => this.portable(arg))) return false
+        if (row._tag !== 'Term' && row.valued !== undefined) return row.valued(call.args, this)
         if (call.op.nulls === 'strict') {
           return call.args.every(arg => this.hasValue(arg)) && this.inRange(call)
         }
         return Match.valueTags(row, {
           Term: () => false,
+          Value: () => false,
           Predicate: ({ neverNull }) =>
             call.args.every(arg => (neverNull ? settled(arg) : this.hasValue(arg))),
         })
@@ -276,13 +282,23 @@ export class AbstractState {
             info.kind === 'struct' ||
             (info.kind === 'literal' && !Node.holdsNul(Option.getOrElse(info.literals, () => []))),
         }),
-      Call: () => true,
+      Call: ({ op, args }) => op.returns !== 'operand' || args.every(arg => this.portable(arg)),
       If: ({ then, otherwise }) => this.portable(then) && this.portable(otherwise),
       Match: ({ cases, otherwise }) =>
         cases.every(([, arm]) => this.portable(arm)) &&
         Option.match(otherwise, { onNone: () => true, onSome: arm => this.portable(arm) }),
       Opaque: () => false,
     })
+  }
+
+  /** Record what a strict call that was not null says of its operands: values, or at least not null. */
+  private markOperands(call: Node.Call): void {
+    const row = abstractOps[call.op.id]
+    const takesNaN = row._tag === 'Predicate' && row.takesNaN === true
+    for (const arg of call.args) {
+      if (takesNaN) this.markNotNull(arg)
+      else this.markValued(arg)
+    }
   }
 
   /** Record that an operation refusing text with a NUL took `args` without refusing. */
@@ -317,7 +333,7 @@ export class AbstractState {
       Call: call => {
         this.markPortable(call)
         if (call.op.nulls !== 'strict') return
-        for (const arg of call.args) this.markValued(arg)
+        this.markOperands(call)
         this.keepInRange(call)
       },
       If: ({ cond }) => this.markValued(cond),
@@ -354,6 +370,7 @@ export class AbstractState {
     if (Option.isNone(id) || !this.intVars.has(id.value)) return
     Match.valueTags(abstractOps[call.op.id], {
       Predicate: () => {},
+      Value: () => {},
       Term: ({ refuses }) => {
         if (refuses) this.bound(id.value, SAFE)
       },
@@ -401,6 +418,7 @@ export class AbstractState {
     if (!Node.$is('Call')(node)) return fromZone
     return Match.valueTags(abstractOps[node.op.id], {
       Predicate: () => fromZone,
+      Value: () => fromZone,
       Term: ({ range, forward }) => {
         if (node.args.every(Node.$is('Lit'))) {
           const value = Node.apply(
@@ -464,9 +482,11 @@ export class AbstractState {
   private settle(call: Node.Call, truth: boolean): void {
     Match.valueTags(abstractOps[call.op.id], {
       Term: () => {},
+      // A value of `null.coalesce` that is true says nothing this state holds.
+      Value: () => {},
       Predicate: row => {
         this.markPortable(call)
-        if (call.op.nulls === 'strict') for (const arg of call.args) this.markValued(arg)
+        if (call.op.nulls === 'strict') this.markOperands(call)
         if (truth) row.assume(call.args, this)
         else row.refute(call.args, this)
       },

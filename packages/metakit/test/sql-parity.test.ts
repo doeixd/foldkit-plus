@@ -41,7 +41,27 @@ const seeded = (seed: number) => () => {
 
 const ints = [null, 0, -7, 3, 5, 1, -1, 1_000_000, -1_000_000] as const
 const floats = [null, 0, 0.5, -2.25, 3] as const
-const texts = [null, '', 'a%b_c\\d', '😀x', "O'Brien", 'axb', 'a%', '_', 'x', '😀', 'a'] as const
+const texts = [
+  null,
+  '',
+  'a%b_c\\d',
+  '😀x',
+  "O'Brien",
+  'axb',
+  'a%',
+  '_',
+  'x',
+  '😀',
+  'a',
+  'AbC',
+  'abc',
+  'B',
+  ' x\t',
+  '\r\nx \n',
+  ' x',
+  'Éx',
+  '￿',
+] as const
 const flags = [null, true, false] as const
 const lists = [null, [], ['x'], ['x', 'y']] as const
 const states = [null, 'a', 'b'] as const
@@ -97,11 +117,11 @@ const strict = {
 const nullable = Path.forEnv({ row: Row }).row
 
 const over = (
-  build: (row: typeof strict, maybe: typeof nullable) => Expr.Expr<Env, boolean>,
-): Expr.Expr<Env, boolean> => build(strict, nullable)
+  build: (row: typeof strict, maybe: typeof nullable) => Expr.Expr<Env, boolean | null>,
+): Expr.Expr<Env, boolean | null> => build(strict, nullable)
 
 /** Every operation, with a column in each operand position so each meets null. */
-const predicates: Readonly<Record<string, Expr.Expr<Env, boolean>>> = {
+const predicates: Readonly<Record<string, Expr.Expr<Env, boolean | null>>> = {
   'bool.and': over(row => Bool.and(row.b, row.c)),
   'bool.or': over(row => Bool.or(row.b, row.c)),
   'bool.not': over(row => Bool.not(row.b)),
@@ -173,6 +193,39 @@ const predicates: Readonly<Record<string, Expr.Expr<Env, boolean>>> = {
   'str.contains the empty text': over(row => Str.contains(row.s, '')),
   'str.contains a column': over(row => Str.contains(row.s, row.t)),
 
+  'eq.equals columns': over(row => Eq.equals(row.n, row.m)),
+  'eq.equals a number': over(row => Eq.equals(row.n, 3)),
+  'eq.equals from the left': over(row => Eq.equals(3, row.n)),
+  'eq.equals text columns': over(row => Eq.equals(row.s, row.t)),
+  'eq.equals booleans': over(row => Eq.equals(row.b, row.c)),
+  'eq.equals an enum': over(row => Eq.equals(row.st, 'a')),
+  'eq.among numbers': over(row => Eq.among(row.n, [0, 3, -7])),
+  'eq.among with null': over(row => Eq.among(row.n, [null, 3])),
+  'eq.among only null': over(row => Eq.among(row.n, [null])),
+  'eq.among nothing': over(row => Eq.among(row.n, [])),
+  'eq.among text': over(row => Eq.among(row.s, ['a%', 'x', "O'Brien", ''])),
+  'eq.among of a sum': over(row => Eq.among(Num.add(row.m, 1), [1, 4, null])),
+
+  'null.coalesce columns': over((_, maybe) => Eq.is(Null.coalesce(maybe.n, maybe.m), 3)),
+  'null.coalesce to a number': over((_, maybe) => Ord.gt(Null.coalesce(maybe.n, 0), 0)),
+  'null.coalesce to text': over((_, maybe) => Eq.is(Null.coalesce(maybe.s, maybe.t), 'x')),
+  'null.coalesce of booleans': over((_, maybe) => Eq.is(Null.coalesce(maybe.b, maybe.c), true)),
+
+  'str.lowerAscii columns': over(row => Eq.equals(Str.lowerAscii(row.s), Str.lowerAscii(row.t))),
+  'str.lowerAscii to a literal': over(row => Eq.is(Str.lowerAscii(row.s), 'abc')),
+  'str.lowerAscii keeps what is not ASCII': over(row => Eq.is(Str.lowerAscii(row.s), 'Éx')),
+  'str.trim to a literal': over(row => Eq.is(Str.trim(row.s), 'x')),
+  'str.trim to empty': over(row => Eq.is(Str.len(Str.trim(row.s)), 0)),
+  'str.trim columns': over(row => Eq.equals(Str.trim(row.s), Str.trim(row.t))),
+  'str.lt columns': over(row => Str.lt(row.s, row.t)),
+  'str.lte columns': over(row => Str.lte(row.s, row.t)),
+  'str.gt columns': over(row => Str.gt(row.s, row.t)),
+  'str.gte columns': over(row => Str.gte(row.s, row.t)),
+  'str.lt a literal': over(row => Str.lt(row.s, 'b')),
+  'str.gte from the left': over(row => Str.gte('b', row.s)),
+  'str.lt past the basic plane': over(row => Str.lt(row.s, '😀')),
+  'str.lt of folded text': over(row => Str.lt(Str.lowerAscii(row.s), Str.lowerAscii(row.t))),
+
   'arr.count': over(row => Eq.is(Arr.count(row.tags), 2)),
   'arr.count compared': over(row => Ord.lt(Arr.count(row.tags), 2)),
   'arr.isEmpty': over(row => Arr.isEmpty(row.tags)),
@@ -194,7 +247,7 @@ const cases = Object.entries(predicates).flatMap(([name, predicate]) => [
   [`not (${name})`, Bool.not(predicate)] as const,
 ])
 
-const held = (predicate: Expr.Expr<Env, boolean>): ReadonlyArray<string> =>
+const held = (predicate: Expr.Expr<Env, boolean | null>): ReadonlyArray<string> =>
   rows.filter(row => Expr.eval(predicate, { row }) === true).map(row => row.id)
 
 const pgRows = pgTable('rows', {
@@ -329,5 +382,6 @@ it('holds rows of every kind, so an agreement is not an agreement over nothing',
       return count === 0 || count === rows.length
     })
     .map(([name]) => name)
-  expect(flat).toEqual(['eq.in nothing'])
+  // Never true, by meaning: their negations, null of a null value, separate the rows.
+  expect(flat).toEqual(['eq.in nothing', 'eq.among only null', 'eq.among nothing'])
 })

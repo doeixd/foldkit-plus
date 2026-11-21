@@ -13,7 +13,7 @@ describe('metakit/conformance (Galois & partial-eval soundness)', () => {
 
   it('covers every primitive', () => {
     expect(reports.map(report => report.op)).toEqual(Object.keys(Conformance.coreOps))
-    expect(reports).toHaveLength(20)
+    expect(reports).toHaveLength(29)
   })
 
   it('verifies Tier 2 residualize & judge soundness against Tier 1 eval over Arbitrary environments', () => {

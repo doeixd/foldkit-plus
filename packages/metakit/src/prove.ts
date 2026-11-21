@@ -29,10 +29,13 @@ export interface ProveOptions {
   readonly timeoutMs?: number
 }
 
-/** Prove that every value `schema` accepts satisfies `goal`. Runs Tier 3 first; asks Z3 only where it is undecided. */
+/**
+ * Prove that every value `schema` accepts satisfies `goal`: that it is true,
+ * not null and not refused. Runs Tier 3 first; asks Z3 only where it is undecided.
+ */
 export const invariant = <S extends Schema.Top>(
   schema: S,
-  goal: Expr.Expr<S['Type'], boolean>,
+  goal: Expr.Expr<S['Type'], boolean | null>,
   options?: ProveOptions,
 ): Effect.Effect<Proof, SolverUnavailableError> => {
   const tier3 = AbstractCheck.checkInvariant(schema, goal)

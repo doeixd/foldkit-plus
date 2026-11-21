@@ -48,9 +48,45 @@ export interface PredicateOp {
   readonly refute: (args: ReadonlyArray<Node.Node>, state: AbstractState) => void
   /** Whether the evaluator refuses an operand that is text holding a NUL. */
   readonly unportable: boolean
+  /** Whether the call has a value, where its operands having theirs does not say (`eq.among`). */
+  readonly valued?: (args: ReadonlyArray<Node.Node>, state: AbstractState) => boolean
+  /** Strict, and takes NaN without refusing it: a truth value says only that no operand is null. */
+  readonly takesNaN?: true
 }
 
-export type AbstractOp = TermOp | PredicateOp
+/** A row for a call whose value is text or an operand: no interval, no truth value. */
+export interface ValueOp {
+  readonly _tag: 'Value'
+  /** Whether the evaluator refuses an operand that is text holding a NUL. */
+  readonly unportable: boolean
+  /** Whether the call has a value, for one that is not strict (`null.coalesce`). */
+  readonly valued?: (args: ReadonlyArray<Node.Node>, state: AbstractState) => boolean
+}
+
+export type AbstractOp = TermOp | PredicateOp | ValueOp
+
+/** Text a text operation gives: refused, rather than holding a NUL. */
+const text: ValueOp = { _tag: 'Value', unportable: true }
+
+/** A comparison of text by code point, decided where both sides are literals. */
+const textOrder = (op: Node.Op, reflexive: boolean): PredicateOp => ({
+  _tag: 'Predicate',
+  unportable: true,
+  neverNull: false,
+  measures: none,
+  decide: ([a, b]) => {
+    if (Node.$is('Lit')(a!) && Node.$is('Lit')(b!)) {
+      const value = Node.apply(op, [a.value, b.value])
+      if (value === true) return proved('concrete')
+      if (value === false) return refuted()
+    }
+    // The operands have values here: text sorts at itself.
+    if (Node.key(a!) === Node.key(b!)) return reflexive ? proved('concrete') : refuted()
+    return Verdict.Unknown(`${op.id} undecided in Tier 3`)
+  },
+  assume: () => {},
+  refute: () => {},
+})
 
 const arithmetic = (relation: TermOp['relation'], forward: TermOp['forward']): TermOp => ({
   _tag: 'Term',
@@ -333,6 +369,79 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     },
     refute: () => {},
   },
+  'eq.equals': {
+    _tag: 'Predicate',
+    unportable: true,
+    takesNaN: true,
+    neverNull: false,
+    measures: none,
+    decide: decideEqual,
+    assume: assumeEqual,
+    refute: assumeUnequal,
+  },
+  'eq.among': {
+    _tag: 'Predicate',
+    unportable: true,
+    takesNaN: true,
+    neverNull: false,
+    measures: none,
+    // No match against a null candidate is null, not false.
+    valued: ([needle, candidates], state) =>
+      state.hasValue(needle!) &&
+      Node.$is('Lit')(candidates!) &&
+      Array.isArray(candidates.value) &&
+      candidates.value.every(item => item !== null && item !== undefined),
+    decide: ([needle, candidates], state) => {
+      const known = Node.$is('Lit')(needle!)
+        ? Option.some<unknown>(needle.value)
+        : Node.$is('Path')(needle!) && state.eqFacts.has(Node.key(needle))
+          ? Option.some(state.eqFacts.get(Node.key(needle)))
+          : Option.none()
+      if (Option.isSome(known) && Node.$is('Lit')(candidates!)) {
+        const value = Node.apply(Eq.amongOp, [known.value, candidates.value])
+        if (value === true) return proved('zone')
+        if (value === false) return refuted()
+      }
+      return Verdict.Unknown('membership undecided in Tier 3')
+    },
+    assume: ([needle, candidates], state) => {
+      if (!Node.$is('Lit')(candidates!) || !Array.isArray(candidates.value)) return
+      const present = candidates.value.filter(item => item !== null && item !== undefined)
+      if (present.length === 0) {
+        state.markBottom()
+        return
+      }
+      const numbers = present.filter((item): item is number => typeof item === 'number')
+      const id = state.varOf(needle!)
+      if (Option.isSome(id) && numbers.length === present.length) {
+        state.zone.constrainLower(id.value, Math.min(...numbers))
+        state.zone.constrainUpper(id.value, Math.max(...numbers))
+      }
+    },
+    // False only where no candidate is null.
+    refute: ([, candidates], state) => {
+      if (
+        Node.$is('Lit')(candidates!) &&
+        Array.isArray(candidates.value) &&
+        candidates.value.some(item => item === null || item === undefined)
+      ) {
+        state.markBottom()
+      }
+    },
+  },
+  'null.coalesce': {
+    _tag: 'Value',
+    unportable: false,
+    // A path is never refused, so where it is null the fallback is the answer.
+    valued: ([value, fallback], state) =>
+      state.hasValue(value!) || (isRead(value!) && state.hasValue(fallback!)),
+  },
+  'str.lowerAscii': text,
+  'str.trim': text,
+  'str.lt': textOrder(Str.ltOp, false),
+  'str.lte': textOrder(Str.lteOp, true),
+  'str.gt': textOrder(Str.gtOp, false),
+  'str.gte': textOrder(Str.gteOp, true),
   'null.isNull': {
     _tag: 'Predicate',
     unportable: false,

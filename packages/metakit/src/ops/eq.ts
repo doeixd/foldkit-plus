@@ -1,15 +1,16 @@
 /**
- * Equality and set-membership primitive operators (`eq.is`, `eq.isNot`, `eq.in`).
+ * Equality and set-membership primitive operators: `eq.is`, `eq.isNot` and
+ * `eq.in`, and SQL's `=` and `in` (`eq.equals`, `eq.among`).
  *
- * Equality is null-safe: null equals null and nothing else, so these never
- * give null. Uses Effect `Equal.equals` (with `Object.is` and `±0`
+ * `eq.is`, `eq.isNot` and `eq.in` are null-safe: null equals null and nothing
+ * else, so these never give null; `eq.equals` and `eq.among` give null as SQL does. Uses Effect `Equal.equals` (with `Object.is` and `±0`
  * normalization). SQL lowering emits `IS NOT DISTINCT FROM` / `IS` on nullable
  * columns so JS and SQL never diverge.
  */
 import { Equal, Option } from 'effect'
 import * as Node from '../node.js'
 import type { Expr } from '../path.js'
-import { call, type EnvOfInput, type ExprInput, type ValueOfInput } from './core.js'
+import { call, type EnvOfInput, type ExprInput, type NullOf, type ValueOfInput } from './core.js'
 import { isPortableRead } from './kind.js'
 
 const sameValue = (a: unknown, b: unknown): boolean =>
@@ -64,6 +65,42 @@ export const inOp: Node.Op<'eq.in'> = {
   },
 }
 
+/** SQL's `=`: null where either side is null, and refused for text holding a NUL. */
+export const equalsOp: Node.Op<'eq.equals'> = {
+  id: 'eq.equals',
+  returns: 'boolean',
+  nulls: 'strict',
+  evaluate: args =>
+    Node.holdsNul(args) ? Node.unportable('eq.equals') : sameValue(args[0], args[1]),
+}
+
+/**
+ * SQL's `in`: null for a null value, true for a match, and otherwise null
+ * where a candidate is null and false where none is.
+ */
+export const amongOp: Node.Op<'eq.among'> = {
+  id: 'eq.among',
+  returns: 'boolean',
+  nulls: 'strict',
+  evaluate: ([needle, candidates]) => {
+    if (!Array.isArray(candidates)) {
+      return Node.illTyped('eq.among', 'an array of candidates', candidates)
+    }
+    if (Node.holdsNul([needle, ...candidates])) return Node.unportable('eq.among')
+    const present = candidates.filter(item => item !== null && item !== undefined)
+    if (present.some(item => sameValue(needle, item))) return true
+    return present.length < candidates.length ? null : false
+  },
+  fold: args => {
+    const candidates = args[1]!
+    if (!Node.$is('Lit')(candidates) || !Array.isArray(candidates.value)) return Option.none()
+    const [only] = candidates.value
+    return candidates.value.length === 1 && only !== null && only !== undefined
+      ? Option.some(Node.Call({ op: equalsOp, args: [args[0]!, Node.Lit({ value: only })] }))
+      : Option.none()
+  },
+}
+
 /**
  * Equality between two values of the same type; null equals only null.
  * The right operand is constrained by the left operand's type so literal unions
@@ -85,6 +122,33 @@ export const isNot = <
   left: L,
   right: R,
 ): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean> => call(isNotOp, [left, right])
+
+/**
+ * Equality as SQL's `=` answers it: null where either side is null, so a rule
+ * over a missing value does not hold. `Eq.is` is the equality where null
+ * equals null.
+ */
+export const equals = <
+  L extends ExprInput<never, unknown>,
+  R extends ExprInput<never, NoInfer<ValueOfInput<L>>>,
+>(
+  left: L,
+  right: R,
+): Expr<EnvOfInput<L> & EnvOfInput<R>, boolean | NullOf<L> | NullOf<R>> =>
+  call(equalsOp, [left, right])
+
+/**
+ * Membership as SQL's `in` answers it: null for a null `value`, and null
+ * where nothing matches and a candidate is null. `Eq.oneOf` never gives null.
+ */
+export const among = <
+  X extends ExprInput<never, unknown>,
+  const C extends ReadonlyArray<NoInfer<Exclude<ValueOfInput<X>, null>> | null>,
+>(
+  value: X,
+  candidates: C,
+): Expr<EnvOfInput<X>, boolean | NullOf<X> | (null extends C[number] ? null : never)> =>
+  call(amongOp, [value, candidates])
 
 /** True when `value` equals one of the literal `candidates`. */
 export const inSet = <X extends ExprInput<never, unknown>>(

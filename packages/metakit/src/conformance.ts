@@ -38,7 +38,16 @@ export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
   'eq.is': Eq.isOp,
   'eq.isNot': Eq.isNotOp,
   'eq.in': Eq.inOp,
+  'eq.equals': Eq.equalsOp,
+  'eq.among': Eq.amongOp,
   'null.isNull': Null.isNullOp,
+  'null.coalesce': Null.coalesceOp,
+  'str.lowerAscii': Str.lowerAsciiOp,
+  'str.trim': Str.trimOp,
+  'str.lt': Str.ltOp,
+  'str.lte': Str.lteOp,
+  'str.gt': Str.gtOp,
+  'str.gte': Str.gteOp,
   'ord.lt': Ord.ltOp,
   'ord.lte': Ord.lteOp,
   'ord.gt': Ord.gtOp,
@@ -65,7 +74,16 @@ const operands: Readonly<Record<Node.CoreOpId, ReadonlyArray<Operand>>> = {
   'eq.is': ['value', 'value'],
   'eq.isNot': ['value', 'value'],
   'eq.in': ['number', 'candidates'],
+  'eq.equals': ['value', 'value'],
+  'eq.among': ['number', 'candidates'],
   'null.isNull': ['value'],
+  'null.coalesce': ['value', 'value'],
+  'str.lowerAscii': ['text'],
+  'str.trim': ['text'],
+  'str.lt': ['text', 'text'],
+  'str.lte': ['text', 'text'],
+  'str.gt': ['text', 'text'],
+  'str.gte': ['text', 'text'],
   'ord.lt': ['number', 'number'],
   'ord.lte': ['number', 'number'],
   'ord.gt': ['number', 'number'],
@@ -142,6 +160,7 @@ const texts: ReadonlyArray<Sample> = [
   field('empty text', '', Schema.String),
   field('"ab"', 'ab', Schema.String),
   field('"🚀x"', '🚀x', Schema.String),
+  field('" Ab\\t", upper case between white space', ' Ab\t', Schema.String),
   field('"\\uD83D", half of an astral character', '\uD83D', Schema.String),
   field('"a\\u0000b"', 'a\u0000b', Schema.String),
   field('"ab" or null', 'ab', Schema.NullOr(Schema.String)),
@@ -290,6 +309,8 @@ export const checkOpSoundness = (id: Node.CoreOpId): OpReport => {
         expect(!Verdict.isFalse(verdict) || concrete === false, 'a call decided False is false')
         if (typeof concrete === 'boolean') assumed(concrete)
       },
+      // Text or an operand: what is checked of it is that a value said to be one is.
+      Value: () => {},
       Term: () => {
         if (typeof concrete !== 'number') return
         expect(

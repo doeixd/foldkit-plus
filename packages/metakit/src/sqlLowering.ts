@@ -87,7 +87,7 @@ const isIntegerTerm = (node: Node.Node): boolean =>
     Call: ({ op, args }) =>
       op.id === 'str.len' ||
       op.id === 'arr.count' ||
-      (integerOps.has(op.id) &&
+      ((integerOps.has(op.id) || op.id === 'null.coalesce') &&
         args.some(isIntegerTerm) &&
         args.every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))),
     If: ({ then, otherwise }) => isIntegerTerm(then) && isIntegerTerm(otherwise),
@@ -164,6 +164,16 @@ const byDialect =
   (dialect: SqlDialect): A =>
     dialect === 'postgres' ? postgres : sqlite
 
+/** Text compared by code point: SQLite's default `BINARY`, Postgres's `C` collation. */
+const textOrder =
+  (operator: string): SqlLowerer =>
+  (args, ctx) =>
+    both(args, ctx, (left, right) =>
+      ctx.dialect === 'postgres'
+        ? q`(${left} ${operator} ${right} COLLATE "C")`
+        : q`(${left} ${operator} ${right})`,
+    )
+
 /** An array is a Postgres array or SQLite JSON text; both give null for a null one. */
 const arrayLength = byDialect('cardinality', 'json_array_length')
 
@@ -200,7 +210,44 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
       )
     })
   },
+  'eq.equals': numeric(() => '='),
+  'eq.among': (args, ctx) => {
+    const list = args[1]!
+    if (!Node.$is('Lit')(list) || !Array.isArray(list.value)) {
+      return unsupported('eq.among requires a literal array of candidates in SQL')
+    }
+    const candidates: ReadonlyArray<unknown> = list.value
+    return Result.flatMap(ctx.lower(args[0]!), needle => {
+      if (isIntegerTerm(args[0]!) && candidates.some(isFraction)) return fractionBesideInteger()
+      const items: Array<Sql> = []
+      for (const item of candidates) {
+        const lowered = literal(item)
+        if (Result.isFailure(lowered)) return lowered
+        items.push(lowered.success)
+      }
+      // SQL has no empty `IN ()`: null of a null value, false of any other.
+      if (items.length === 0) return Result.succeed(q`((${needle} IS NULL) AND NULL)`)
+      return Result.succeed(q`(${needle} IN (${joined(items, ', ')}))`)
+    })
+  },
   'null.isNull': (args, ctx) => one(args, ctx, inner => q`(${inner} IS NULL)`),
+  'null.coalesce': (args, ctx) =>
+    Result.flatMap(noFractionBesideInteger(args[0]!, args[1]!), () =>
+      both(args, ctx, (value, fallback) => q`COALESCE(${value}, ${fallback})`),
+    ),
+  // Postgres's `C` collation lowers A to Z alone, as SQLite's `lower` does.
+  'str.lowerAscii': (args, ctx) =>
+    one(args, ctx, s => (ctx.dialect === 'postgres' ? q`lower(${s} COLLATE "C")` : q`lower(${s})`)),
+  'str.trim': (args, ctx) =>
+    one(args, ctx, s =>
+      ctx.dialect === 'postgres'
+        ? q`btrim(${s}, chr(32) || chr(9) || chr(10) || chr(13))`
+        : q`trim(${s}, char(32, 9, 10, 13))`,
+    ),
+  'str.lt': textOrder('<'),
+  'str.lte': textOrder('<='),
+  'str.gt': textOrder('>'),
+  'str.gte': textOrder('>='),
   'ord.lt': numeric(() => '<'),
   'ord.lte': numeric(() => '<='),
   'ord.gt': numeric(() => '>'),

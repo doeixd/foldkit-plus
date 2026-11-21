@@ -82,9 +82,9 @@ export const toCheck = <S extends Schema.Top>(
   )
 }
 
-/** A boolean `Expr` as a Drizzle `SQL` predicate for `.where(...)`. */
+/** A boolean `Expr` as a Drizzle `SQL` predicate for `.where(...)`, which keeps a row only where it is true. */
 export const toWhere = <Env>(
-  expr: Expr.Expr<Env, boolean>,
+  expr: Expr.Expr<Env, boolean | null>,
   table: Table,
   options?: DrizzleOptions,
 ): Result.Result<SQL, SqlUnsupportedError> => {

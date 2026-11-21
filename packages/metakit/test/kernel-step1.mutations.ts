@@ -188,4 +188,95 @@ const text = [
   ),
 ]
 
-export default [...table, ...checks, ...readers, ...text]
+const opsTests = ['packages/metakit/test/kernel-ops.test.ts']
+const parityTests = ['packages/metakit/test/sql-parity.test.ts']
+const conformanceTests = ['packages/metakit/test/conformance.test.ts']
+
+const operations = [
+  mutation(
+    opsTests,
+    'equals answers false of a null',
+    '../src/ops/eq.ts',
+    "id: 'eq.equals',\n  returns: 'boolean',\n  nulls: 'strict',",
+    "id: 'eq.equals',\n  returns: 'boolean',\n  nulls: 'own',",
+  ),
+  mutation(
+    opsTests,
+    'among answers false where no match sits beside a null candidate',
+    '../src/ops/eq.ts',
+    'return present.length < candidates.length ? null : false',
+    'return false',
+  ),
+  mutation(
+    opsTests,
+    'lowerAscii lowers every letter',
+    '../src/ops/str.ts',
+    'text!.replace(/[A-Z]/g, letter => letter.toLowerCase())',
+    'text!.toLowerCase()',
+  ),
+  mutation(
+    opsTests,
+    'trim takes every white space',
+    '../src/ops/str.ts',
+    'const EDGE_SPACE = /^[ \\t\\n\\r]+|[ \\t\\n\\r]+$/g',
+    'const EDGE_SPACE = /^\\s+|\\s+$/g',
+  ),
+  mutation(
+    opsTests,
+    'text is ordered by UTF-16 unit',
+    '../src/ops/str.ts',
+    'evaluate: textual(id, ([a, b]) => holds(byCodePoint(a!, b!))),',
+    'evaluate: textual(id, ([a, b]) => holds(a! < b! ? -1 : a! > b! ? 1 : 0)),',
+  ),
+  mutation(
+    opsTests,
+    'coalesce passes on a refused fallback it does not need',
+    '../src/ops/null.ts',
+    'evaluate: ([value, fallback]) => (value === null ? fallback : value),',
+    'evaluate: ([value, fallback]) =>\n    Node.isRefusal(fallback) ? fallback : value === null ? fallback : value,',
+  ),
+  mutation(
+    opsTests,
+    'partial evaluation asks coalesce for an operand of one kind',
+    '../src/ops/residualize.ts',
+    "op.returns === 'operand' ||",
+    '',
+  ),
+  mutation(
+    parityTests,
+    'SQL trims no carriage return',
+    '../src/sqlLowering.ts',
+    'q`trim(${s}, char(32, 9, 10, 13))`',
+    'q`trim(${s}, char(32, 9, 10))`',
+  ),
+  mutation(
+    parityTests,
+    'SQL answers false of a null value among nothing',
+    '../src/sqlLowering.ts',
+    'return Result.succeed(q`((${needle} IS NULL) AND NULL)`)',
+    'return Result.succeed(q`FALSE`)',
+  ),
+  mutation(
+    conformanceTests,
+    'the checker takes among to have a value beside a null candidate',
+    '../src/abstract/ops.ts',
+    '      candidates.value.every(item => item !== null && item !== undefined),',
+    '      true,',
+  ),
+  mutation(
+    opsTests,
+    'the solver takes coalesce to be null where its value is',
+    '../src/prove/lower.ts',
+    'isNull: z3.And(z3.Not(a!.refused), a!.isNull, b!.isNull),',
+    'isNull: a!.isNull,',
+  ),
+  mutation(
+    opsTests,
+    'the solver takes among beside a null candidate to be false',
+    '../src/prove/lower.ts',
+    'return present.length < candidates.length\n        ?',
+    'return false\n        ?',
+  ),
+]
+
+export default [...table, ...checks, ...readers, ...text, ...operations]
