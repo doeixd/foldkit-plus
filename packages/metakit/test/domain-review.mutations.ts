@@ -152,7 +152,7 @@ export default [
   mutation(
     'sum accepts any contribution',
     aggregates,
-    'if (!isIntegerValued(contribution.node)) {',
+    "if (domains.includes('integers') && !isIntegerValued(contribution.node)) {",
     'if (false) {',
     aggregateTests,
   ),

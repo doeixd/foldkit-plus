@@ -12,7 +12,7 @@ const mutation = (name: string, find: string, replace: string, tests = [blocks])
 export default [
   mutation(
     'a lifted Machine keeps its transitions over the child state',
-    'Transition.lift(at, transition as Transition.Transition<Child, unknown, unknown>),',
+    'Transition.lift(at, transition as Transition.Transition<Child, unknown, unknown, unknown>),',
     'transition,',
     [blocks, surface],
   ),

@@ -8,7 +8,7 @@
  * unless `key` names another. A key no element has changes nothing, and the
  * step returns the list it was given, so a no-op keeps the state's identity.
  */
-import { Option } from 'effect'
+import { Option, SchemaAST } from 'effect'
 import * as Node from './node.js'
 import {
   appendOp,
@@ -50,7 +50,7 @@ type Test<State, Input, Supplied, E> = (
 export type ElementInput<Env, E> =
   | ExprInput<Env, E>
   | (E extends Readonly<Record<string, unknown>>
-      ? { readonly [K in keyof E]: ExprInput<Env, E[K]> }
+      ? { readonly [K in keyof E]: ExprInput<Env, Path.Read<E[K]>> }
       : never)
 
 /** The node of an element: the expression, or a record of field names to values. */
@@ -68,7 +68,7 @@ const elementNodes = (
       }
 
 /** The fields a `patch` sets of an element, each from an expression over it: no other key compiles. */
-export type Patch<Env, E> = { readonly [F in keyof E]?: ExprInput<Env, E[F]> }
+export type Patch<Env, E> = { readonly [F in keyof E]?: ExprInput<Env, Path.Read<E[F]>> }
 
 const write = <State, Input, E, Supplied, W extends Way['_tag']>(
   list: List<State, Input, Supplied, E>,
@@ -85,6 +85,22 @@ const write = <State, Input, E, Supplied, W extends Way['_tag']>(
 /** The path of the key field under the element a body reads. */
 const keyOf = (key: string): Node.Node =>
   Node.Path({ segments: [Node.EACH, key], ast: Option.none() })
+
+/** The fields of a list's element its Schema holds as an Effect `Option`. */
+const optionFields = (list: Node.Node): ReadonlySet<string> =>
+  new Set(
+    Option.match(elementAst(list), {
+      onNone: () => [],
+      onSome: ast =>
+        SchemaAST.isObjects(ast)
+          ? ast.propertySignatures.flatMap(property =>
+              typeof property.name === 'string' && Option.isSome(Path.optionInner(property.type))
+                ? [property.name]
+                : [],
+            )
+          : [],
+    }),
+  )
 
 /** The element `element` gives, and the nodes it is made of. */
 const appended = (list: Node.Node, element: unknown, name: string) => {
@@ -106,10 +122,16 @@ const appended = (list: Node.Node, element: unknown, name: string) => {
   if (given.fields.length === 0)
     throw new Error(`[metakit] Transition.${name}: an element has fields`)
   const values = given.fields.map(([, value]) => value)
+  // A field the element's Schema holds as an `Option` takes the value as some, null as none.
+  const options = optionFields(list)
   return {
     node: Node.Call({
       op: appendOp,
-      args: [list, Node.Lit({ value: given.fields.map(([field]) => field) }), ...values],
+      args: [
+        list,
+        Node.Lit({ value: given.fields.map(([field]) => [field, options.has(field)] as const) }),
+        ...values,
+      ],
     }),
     parts: values,
     field: (key: string): Node.Node => {

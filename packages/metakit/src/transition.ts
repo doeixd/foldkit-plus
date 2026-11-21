@@ -439,19 +439,12 @@ export const run = <State, Input, Emit, Supplied>(
 export const writtenPaths = (write: {
   readonly target: ReadonlyArray<string>
   readonly way: Way
-}): ReadonlyArray<ReadonlyArray<string>> =>
-  Way.$match(write.way, {
-    patch: ({ set: fields }) => fields.map(([field]) => [...write.target, Path.EVERY, field]),
-    patchWhere: ({ set: fields }) => fields.map(([field]) => [...write.target, Path.EVERY, field]),
-    set: () => [write.target],
-    add: () => [write.target],
-    append: () => [write.target],
-    insert: () => [write.target],
-    remove: () => [write.target],
-    removeWhere: () => [write.target],
-    include: () => [write.target],
-    exclude: () => [write.target],
-  })
+}): ReadonlyArray<ReadonlyArray<string>> => {
+  const { way, target } = write
+  return Way.$is('patch')(way) || Way.$is('patchWhere')(way)
+    ? way.set.map(([field]) => [...target, Path.EVERY, field])
+    : [target]
+}
 
 /** The nodes of a transition that read: its guard, each written value, and each emitted record. */
 export const readingNodes = <State, Input, Emit, Supplied>(

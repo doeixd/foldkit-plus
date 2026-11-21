@@ -105,10 +105,11 @@ const order = <Id extends 'str.lt' | 'str.lte' | 'str.gt' | 'str.gte'>(
   evaluate: textual(id, ([a, b]) => holds(byCodePoint(a!, b!))),
 })
 
-export const ltOp = order('str.lt', sign => sign < 0)
-export const lteOp = order('str.lte', sign => sign <= 0)
-export const gtOp = order('str.gt', sign => sign > 0)
-export const gteOp = order('str.gte', sign => sign >= 0)
+// Pure: a page that names no text order keeps none.
+export const ltOp = /* @__PURE__ */ order('str.lt', sign => sign < 0)
+export const lteOp = /* @__PURE__ */ order('str.lte', sign => sign <= 0)
+export const gtOp = /* @__PURE__ */ order('str.gt', sign => sign > 0)
+export const gteOp = /* @__PURE__ */ order('str.gte', sign => sign >= 0)
 
 /** Unicode code-point length of a string (always `>= 0`). */
 export const len = <S extends NullableText>(value: S): Expr<EnvOfInput<S>, number | NullOf<S>> =>

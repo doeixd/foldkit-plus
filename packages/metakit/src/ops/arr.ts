@@ -44,9 +44,11 @@ const refusedOf = (args: ReadonlyArray<unknown>): Node.Refusal | undefined =>
 
 /**
  * `arr.append(list, element)`: the list with the element at the end. Called
- * as `arr.append(list, names, ...values)` the element is the record of those
- * field names to those values. A null list gives null; a null element is
- * appended as it is, since a list may hold null.
+ * as `arr.append(list, fields, ...values)` the element is the record of
+ * those fields to those values, each field a `[name, option]` pair: where
+ * `option` is true the element's Schema holds it as an Effect `Option`, which
+ * takes the value as some and null as none. A null list gives null; a null
+ * element is appended as it is, since a list may hold null.
  */
 export const appendOp: Node.Op<'arr.append'> = {
   id: 'arr.append',
@@ -59,11 +61,15 @@ export const appendOp: Node.Op<'arr.append'> = {
     if (list === null) return null
     if (!Array.isArray(list)) return Node.illTyped('arr.append', 'an array', list)
     if (rest.length === 1) return [...list, rest[0]]
-    const [names, ...values] = rest
-    if (!Array.isArray(names) || names.length !== values.length) {
-      return Node.illTyped('arr.append', 'field names, one per value', names)
+    const [fields, ...values] = rest
+    if (!Array.isArray(fields) || fields.length !== values.length) {
+      return Node.illTyped('arr.append', 'a field per value', fields)
     }
-    return [...list, Object.fromEntries(names.map((name, index) => [name, values[index]]))]
+    const record = fields.map(([name, option]: readonly [string, boolean], index) => {
+      const value = values[index] ?? null
+      return [name, option ? Option.fromNullOr(value) : value] as const
+    })
+    return [...list, Object.fromEntries(record)]
   },
 }
 
@@ -122,8 +128,9 @@ const setOp = <Id extends 'arr.include' | 'arr.exclude'>(id: Id): Node.Op<Id> =>
   },
 })
 
-export const includeOp: Node.Op<'arr.include'> = setOp('arr.include')
-export const excludeOp: Node.Op<'arr.exclude'> = setOp('arr.exclude')
+// Pure: a page that names neither keeps neither, nor what orders a set.
+export const includeOp: Node.Op<'arr.include'> = /* @__PURE__ */ setOp('arr.include')
+export const excludeOp: Node.Op<'arr.exclude'> = /* @__PURE__ */ setOp('arr.exclude')
 
 /** The element type of a list expression. */
 export type ElementOf<L> =
@@ -282,13 +289,17 @@ const numeric =
  * without it): 0 over none; a null value adds nothing; an integer total
  * past ±(2^53−1) is refused.
  */
-export const sum: NumericFold<number> = numeric('sum') as NumericFold<number>
+export const sum: NumericFold<number> = /* @__PURE__ */ numeric('sum') as NumericFold<number>
 
 /** The least `value` of the elements that pass `test`: null over none, skipping a null value. */
-export const min: NumericFold<number | null> = numeric('min') as NumericFold<number | null>
+export const min: NumericFold<number | null> = /* @__PURE__ */ numeric('min') as NumericFold<
+  number | null
+>
 
 /** The greatest `value` of the elements that pass `test`: null over none, skipping a null value. */
-export const max: NumericFold<number | null> = numeric('max') as NumericFold<number | null>
+export const max: NumericFold<number | null> = /* @__PURE__ */ numeric('max') as NumericFold<
+  number | null
+>
 
 /** The first element that passes `test`, or `value` of it: null where none does. */
 export function find<L extends NullableItems, R extends ExprInput<never, boolean | null>>(

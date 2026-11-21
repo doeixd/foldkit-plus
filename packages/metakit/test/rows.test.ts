@@ -255,9 +255,18 @@ describe('the list operations a write makes', () => {
     expect(Node.isRefusal(mixed) && mixed.reason).toBe('ill-typed')
   })
 
-  it('append adds the element, or the record of names to values, and null of a null list', () => {
+  it('append adds the element, or the record of fields to values, and null of a null list', () => {
     expect(Node.apply(Arr.appendOp, [['a'], null])).toEqual(['a', null])
-    expect(Node.apply(Arr.appendOp, [[], ['id', 'n'], 'x', 1])).toEqual([{ id: 'x', n: 1 }])
+    const fields = [
+      ['id', false],
+      ['note', true],
+    ]
+    expect(Node.apply(Arr.appendOp, [[], fields, 'x', null])).toEqual([
+      { id: 'x', note: Option.none() },
+    ])
+    expect(Node.apply(Arr.appendOp, [[], fields, 'x', 'n'])).toEqual([
+      { id: 'x', note: Option.some('n') },
+    ])
     expect(Node.apply(Arr.appendOp, [null, 'a'])).toBe(null)
   })
 })

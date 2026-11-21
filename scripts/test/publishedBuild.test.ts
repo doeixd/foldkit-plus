@@ -434,6 +434,50 @@ test.each([
 )
 
 /**
+ * A page that runs transitions through a machine and reads their footprints
+ * keeps no partial evaluation: `can`, `canDispatch` and `affordances` are a
+ * module of their own, and the reads walker is `ops/reads`. The second page
+ * asks `Machine.canDispatch` and keeps it, so the first can fail.
+ */
+test('a page running transitions keeps no ops/residualize unless it asks what a partial state allows', async () => {
+  const root = scratchIn('metakit', 'published-')
+  made.push(root)
+  const index = await buildPublished('metakit', root)
+  const page = (asked: string) =>
+    [
+      `import { Schema } from 'effect'`,
+      `import { Bool, Transition } from 'pkg'`,
+      `import * as Machine from 'pkg/machine'`,
+      `const State = Schema.Struct({ n: Schema.Int, todos: Schema.Array(Schema.Struct({ id: Schema.String, done: Schema.Boolean })) })`,
+      `const Added = Transition.make({ state: State, input: Schema.Struct({ id: Schema.String }), apply: ({ state, input }) => [Transition.add(state.n, 1), Transition.patch(state.todos, input.id, todo => ({ done: Bool.not(todo.done) }))], emits: ({ input }) => [Transition.emit('Added', { id: input.id })] })`,
+      `const machine = Machine.make({ state: State, transitions: { Added } })`,
+      `export const used = [machine.update, machine.footprints, Transition.footprint(Added)${asked}]`,
+    ].join('\n')
+  const kept = async (source: string, entries: readonly [string, string]) =>
+    (
+      await pageModules(root, source, [
+        { find: 'pkg/machine', replacement: entries[1] },
+        { find: 'pkg', replacement: entries[0] },
+      ])
+    )
+      .filter(({ length }) => length > 0)
+      .map(({ id }) => id)
+  const built = [index, join(dirname(index), 'machine.js')] as const
+  const source = [
+    join(packages, 'metakit', 'src', 'index.ts'),
+    join(packages, 'metakit', 'src', 'machine.ts'),
+  ] as const
+  const residualize = /\/ops\/residualize\.(js|ts)$/
+  for (const entries of [built, source]) {
+    const running = await kept(page(''), entries)
+    expect(running.some(id => /\/transition\.(js|ts)$/.test(id))).toBe(true)
+    expect(running.filter(id => residualize.test(id) || /\/can\.(js|ts)$/.test(id))).toEqual([])
+    const asking = await kept(page(', Machine.canDispatch'), entries)
+    expect(asking.some(id => residualize.test(id))).toBe(true)
+  }
+}, 240_000)
+
+/**
  * `foldkit-remote-server` checks a writer's store on every server, so
  * `metakit/store` is that one module: no expression, transition or walk code.
  * Broken by hand: a read of `rulesOf` from `./expr.js` inside `mount` turned
