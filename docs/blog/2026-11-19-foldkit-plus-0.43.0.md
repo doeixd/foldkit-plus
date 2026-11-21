@@ -108,7 +108,7 @@ can clear a search field before a second press closes the surrounding dialog.
 Explore the building blocks in the
 [Primitives gallery](https://foldkit-plus.pages.dev/primitives).
 
-![The Primitives gallery showing interactive keyboard, focus, motion, and device building blocks.](/blog/2026-11-18-foldkit-plus-0-41/primitives-gallery.png "Interactive building blocks in the Primitives gallery")
+![The Primitives gallery showing interactive keyboard, focus, motion, and device building blocks.](/blog/2026-11-19-foldkit-plus-0-43/primitives-gallery.png "Interactive building blocks in the Primitives gallery")
 
 ## Describe your records once
 
@@ -381,7 +381,7 @@ edit any post, while only the author can delete it. Read
 for the full mental model, including how guards compile into SQL and verify
 with `Laws`.
 
-![Chirp signed in as Ada Lovelace: her own post shows both Edit and Delete buttons, while Grace Hopper's post below it shows Edit because Ada is an admin and no Delete.](/blog/2026-11-18-foldkit-plus-0-41/chirp-guard.png "Chirp shows different actions for posts by different authors")
+![Chirp signed in as Ada Lovelace: her own post shows both Edit and Delete buttons, while Grace Hopper's post below it shows Edit because Ada is an admin and no Delete.](/blog/2026-11-19-foldkit-plus-0-43/chirp-guard.png "Chirp shows different actions for posts by different authors")
 
 ## Putting an event-sourced server behind Remote
 
@@ -453,7 +453,7 @@ lists every change.
 - [The registry demo](https://foldkit-registry-demo.pages.dev/), for offline
   edits across two devices: press *Go offline* on one, edit, then *Go online*.
 
-![The widget showcase in a dark scheme: a Toolbar with Bold, Italic, Strikethrough and Link, a Mute toggle, a left, center and right toggle group, an accordion with Billing, Team and API keys, and a Delete project button.](/blog/2026-11-18-foldkit-plus-0-41/widgets-dark.png "The widget demo in a dark scheme")
+![The widget showcase in a dark scheme: a Toolbar with Bold, Italic, Strikethrough and Link, a Mute toggle, a left, center and right toggle group, an accordion with Billing, Team and API keys, and a Delete project button.](/blog/2026-11-19-foldkit-plus-0-43/widgets-dark.png "The widget demo in a dark scheme")
 
 Next we are giving dialogs and popovers the same one-call drawing other
 components have, and teaching the checker to settle rules that compare two
