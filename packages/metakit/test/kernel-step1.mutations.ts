@@ -314,7 +314,7 @@ const foreign = [
     foreignTests,
     'judge answers of a foreign call it holds no implementation of as missing environment',
     '../src/ops/residualize.ts',
-    'const unimplemented = foreignCalls(residual).find(op => !Object.hasOwn(foreign, op.id))',
+    'const unimplemented = foreignCalls(residual).find(\n    op => !Object.hasOwn(foreign, op.id) || foreign[op.id]!.version !== op.version,\n  )',
     'const unimplemented = foreignCalls(residual).find(() => false)',
   ),
   mutation(

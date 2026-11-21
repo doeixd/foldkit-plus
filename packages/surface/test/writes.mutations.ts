@@ -16,8 +16,8 @@ export default [
   // The matcher under-reports: a view is kept although a declared write reaches it.
   edit(
     'no declared Message draws a view again',
-    '      const redrawnBy = affectedTags(',
-    '      const redrawnBy: Array<Tag> = []; void affectedTags(',
+    '      // by every transition that writes at least one path.\n      const redrawnBy = affectedTags(',
+    '      // by every transition that writes at least one path.\n      const redrawnBy: Array<Tag> = []; void affectedTags(',
   ),
   edit(
     'a projection that names no path is given as reading none',
@@ -65,7 +65,7 @@ export default [
   ),
   edit(
     'store contracts passed to Writes.of are ignored',
-    '  for (const contract of options?.contracts ?? []) {\n    for (const tag of contract.messages) addWrites(tag, contract.owns)\n  }',
+    '  for (const contract of options?.contracts ?? []) {\n    for (const tag of contract.messages) addWrites(tag, contract.owns)\n    registeredPaths.push(...contract.owns)\n  }',
     '  for (const _contract of []) {}',
   ),
   edit(
@@ -108,18 +108,18 @@ export default [
 
   check(
     'an undeclared write is not reported',
-    'if (paths.length > 0) report(',
+    'if (undeclared.length > 0) report(',
     'if (false) report(',
   ),
   check(
     'a declared write is reported as undeclared',
-    ' || declared.some(write => isPrefix(write, path))',
-    '',
+    '!declared.value.some(write => isPrefix(write, path))',
+    'true',
   ),
   check(
     'a write declared below a change covers it',
-    'declared.some(write => isPrefix(write, path))',
-    'declared.some(write => isPrefix(path, write))',
+    '!declared.value.some(write => isPrefix(write, path))',
+    '!declared.value.some(write => isPrefix(path, write))',
   ),
   check('a struct is compared whole, not by its fields', '  if (walk) {', '  if (false) {'),
   check(

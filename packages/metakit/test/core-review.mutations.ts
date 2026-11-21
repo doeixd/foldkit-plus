@@ -199,8 +199,8 @@ const checker = [
     conformance,
     'a path that is not null is taken to hold no NaN',
     abstractOps,
-    'state.markNotNull(term)',
-    'state.markValued(term)',
+    'if (literal === null) {\n    state.markNotNull(term)',
+    'if (literal === null) {\n    state.markValued(term)',
   ),
 ]
 

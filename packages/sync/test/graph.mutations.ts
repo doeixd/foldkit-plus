@@ -21,8 +21,8 @@ export default [
     edits: [
       {
         file: '../../surface/src/graph.ts',
-        find: ': written.some(each => overlaps(each, at))',
-        replace: ': true',
+        find: ': modelDirect)',
+        replace: ': true)',
       },
     ],
     tests,
