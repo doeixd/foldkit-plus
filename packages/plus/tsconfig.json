@@ -150,6 +150,7 @@
       "foldkit-plus/metakit/machine": ["./src/metakit/machine.ts"],
       "foldkit-plus/metakit/policy": ["./src/metakit/policy.ts"],
       "foldkit-plus/metakit/prove": ["./src/metakit/prove.ts"],
+      "foldkit-plus/metakit/relation": ["./src/metakit/relation.ts"],
       "foldkit-plus/metakit/sql": ["./src/metakit/sql.ts"],
       "foldkit-plus/metakit/store": ["./src/metakit/store.ts"],
       "foldkit-plus/metakit/temporal": ["./src/metakit/temporal.ts"],
@@ -313,6 +314,7 @@
       "metakit/machine": ["../metakit/src/machine.ts"],
       "metakit/policy": ["../metakit/src/policy.ts"],
       "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/relation": ["../metakit/src/relation.ts"],
       "metakit/sql": ["../metakit/src/sql.ts"],
       "metakit/store": ["../metakit/src/store.ts"],
       "metakit/temporal": ["../metakit/src/temporal.ts"]

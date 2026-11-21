@@ -61,6 +61,7 @@
       "metakit/machine": ["../metakit/src/machine.ts"],
       "metakit/policy": ["../metakit/src/policy.ts"],
       "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/relation": ["../metakit/src/relation.ts"],
       "metakit/sql": ["../metakit/src/sql.ts"],
       "metakit/store": ["../metakit/src/store.ts"],
       "metakit/temporal": ["../metakit/src/temporal.ts"]

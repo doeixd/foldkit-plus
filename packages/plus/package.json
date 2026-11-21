@@ -383,6 +383,11 @@
       "types": "./dist/metakit/build.d.mts",
       "import": "./dist/metakit/build.mjs"
     },
+    "./metakit/relation": {
+      "foldkit-plus:source": "./src/metakit/relation.ts",
+      "types": "./dist/metakit/relation.d.mts",
+      "import": "./dist/metakit/relation.mjs"
+    },
     "./mirror": {
       "foldkit-plus:source": "./src/mirror.ts",
       "types": "./dist/mirror.d.mts",
