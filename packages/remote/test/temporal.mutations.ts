@@ -173,13 +173,13 @@ export default [
   edit(
     'a read answered beside a pending write keeps nothing',
     '../src/model.ts',
-    'kept: keptOver(capabilities, model, message.result.entities, held, message.now),',
+    'kept: capabilities.keeps(model, message.result.entities, held, message.now),',
     'kept: model.kept,',
   ),
   edit(
     'a page answered beside a pending write keeps nothing',
     '../src/model.ts',
-    ': keptOver(capabilities, model, payload, read.held, message.now ?? 0),',
+    ': capabilities.keeps(model, payload, read.held, message.now ?? 0),',
     ': model.kept,',
   ),
   edit(

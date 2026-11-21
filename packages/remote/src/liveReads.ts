@@ -5,7 +5,7 @@
  * keeps none of it.
  */
 import { Duration, Effect, Match, Option, Stream } from 'effect'
-import type { Install, LiveCapability } from './capability.js'
+import type { Capabilities, Install, LiveCapability } from './capability.js'
 import { RemoteClient, remoteError } from './client.js'
 import type { LiveOptions } from './index.js'
 import type { ConnectionSpec } from './query.js'
@@ -176,11 +176,14 @@ const heldRevisions: LiveCapability['heldRevisions'] = (store, requirements) =>
     })
     .slice(0, MAX_READ_AFTER)
 
+/** `Capabilities.keeps` for a domain that reads live. */
+export const keepsRead: Capabilities['keeps'] = (model, rows, held, now) =>
+  keepRead(model.kept, model.entities, rows, held, model.mutations.pending, now)
+
 export const liveReads: LiveCapability = {
   applyEntity: applyEntityEvent,
   applyConnection: applyConnectionEvent,
   awaitEchoes,
-  keepRead,
   settleKept,
   policy,
   stream,
@@ -191,4 +194,5 @@ export const liveReads: LiveCapability = {
 export const installLive: Install = capabilities => {
   installLayers(capabilities)
   capabilities.live = Option.some(liveReads)
+  capabilities.keeps = keepsRead
 }

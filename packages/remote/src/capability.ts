@@ -26,7 +26,6 @@ import type {
   applyConnectionEvent,
   applyEntityEvent,
   awaitEchoes,
-  keepRead,
   settleKept,
 } from './liveEvents.js'
 import type { Kept } from './kept.js'
@@ -60,6 +59,17 @@ export interface Capabilities {
   writes: Option.Option<WriteCapability>
   /** Live streams and their events; installed by a live read (`foldkit-remote/live`). */
   live: Option.Option<LiveCapability>
+  /**
+   * `model.kept` once a read is about to write `rows`, less those it `held`;
+   * the live capability replaces it with `keepRead` (#480), so a domain
+   * without live reads never loads that code or the call to it.
+   */
+  keeps: (
+    model: RemoteModel,
+    rows: Schema.Schema.Type<typeof ReadBatchResult>['entities'],
+    held: ReadonlySet<EntityKey>,
+    now: number,
+  ) => Kept
   /** What a list's body does on the client; installed by a query declared with a body (`Query.define`). */
   bodies: Option.Option<BodyCapability>
   /** Read-after tokens (#544); installed by a Mutation the domain registers, whose answers hold rows to them. */
@@ -71,6 +81,7 @@ export const noCapabilities = (domain: string): Capabilities => ({
   layers: Option.none(),
   writes: Option.none(),
   live: Option.none(),
+  keeps: model => model.kept,
   bodies: Option.none(),
   readAfter: Option.none(),
 })
@@ -252,8 +263,6 @@ export interface LiveCapability {
   readonly applyConnection: typeof applyConnectionEvent
   /** What a write's answer leaves the streams to send back (#485). */
   readonly awaitEchoes: typeof awaitEchoes
-  /** What a read answered beside a pending write keeps of the fields it moved (#480). */
-  readonly keepRead: typeof keepRead
   /** What an answer does to the values kept from before a stream's patches (#498, #499). */
   readonly settleKept: typeof settleKept
   /**

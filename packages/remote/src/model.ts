@@ -1475,20 +1475,6 @@ const answeredSince = (
   return next ?? echoes
 }
 
-/** `model.kept` once a read is about to write `rows`, less those it `held` (`keepRead`). */
-const keptOver = (
-  capabilities: Capabilities,
-  model: RemoteModel,
-  rows: Schema.Schema.Type<typeof ReadBatchResult>['entities'],
-  held: ReadonlySet<EntityKey>,
-  now: number,
-): Kept =>
-  Option.match(capabilities.live, {
-    onNone: () => model.kept,
-    onSome: live =>
-      live.keepRead(model.kept, model.entities, rows, held, model.mutations.pending, now),
-  })
-
 /** `requests` marked to be read again, as `Data.refresh` marks them; none, the Model it was given. */
 const askedAgain = (
   capabilities: Capabilities,
@@ -1977,7 +1963,7 @@ const reduceRemote = (
           message.generation,
         ),
         entities: read.store,
-        kept: keptOver(capabilities, model, message.result.entities, held, message.now),
+        kept: capabilities.keeps(model, message.result.entities, held, message.now),
         echoes: answeredSince(
           model.echoes,
           held.size === 0
@@ -2483,7 +2469,7 @@ const reduceRemote = (
         kept:
           requests.length === 0
             ? model.kept
-            : keptOver(capabilities, model, payload, read.held, message.now ?? 0),
+            : capabilities.keeps(model, payload, read.held, message.now ?? 0),
         connections: {
           ...model.connections,
           [message.connection]:
