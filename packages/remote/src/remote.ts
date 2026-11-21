@@ -44,7 +44,14 @@ import { assertRegistered } from './registered.js'
 import type { WhyReader } from './whyReasons.js'
 import { withInner } from './inner.js'
 import { liveAskOf, liveEntry } from './liveEntry.js'
-import { askedOf, askedUnion, resolvedOf, type NamedProjection } from './active.js'
+import {
+  askedOf,
+  askedUnion,
+  readsNothing,
+  readsOf,
+  resolvedOf,
+  type NamedProjection,
+} from './active.js'
 
 import { inspectEntity, inspectRemote } from './inspect.js'
 import type { LiveEvent } from './liveState.js'
@@ -147,6 +154,7 @@ import {
   observeEntry,
   memoizedResolved,
   refusalOf,
+  storePaths,
   assertOwnedBy,
   isQueryRef,
   targetProjections,
@@ -942,7 +950,12 @@ export const observe = <
   toMessage: (message: RemoteMessage) => Message = identityMessage as never,
   options: ObserveOptions<AppModel> = {},
 ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> =>
-  observeEntry(bound, () => askedOf(surface.projection(params)), toMessage, options)
+  observeEntry(
+    bound,
+    { of: () => askedOf(surface.projection(params)), reads: readsNothing },
+    toMessage,
+    options,
+  )
 
 // A domain's Subscription entries are unbranded so an application can spread
 // them into its own `Subscription.make`; wiring hands them over as a branded record.
@@ -1741,7 +1754,7 @@ const bindDomain = <
         RemoteData<Page<Value>>,
         unknown
       >,
-      dependencies: [],
+      dependencies: storePaths(store),
       metadata: RemoteConnections.of(requirement),
       ref,
       selection: select as Selection<Value, string>,
@@ -1801,15 +1814,16 @@ const bindDomain = <
         persisting.set(entry, combinePersist(persisting.get(entry), persist))
       const policy = policyOf(key)
       policies.set(entry, new Map(policies.get(entry)).set(key, policy))
-      const asked = (model: AppModel) =>
+      const ask = (model: AppModel) =>
         askedUnion(resolvedAt(model).map(({ projection }) => projection))
+      const asked = { of: ask, reads: readsOf(entry) }
       entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, {
         ...options,
         policy,
       })
       entries[`${key}.live`] = liveEntry(
         bound,
-        model => liveAskOf(asked(model)),
+        model => liveAskOf(ask(model)),
         identityMessage,
         options,
       )

@@ -48,7 +48,7 @@ import {
 import { assertRegistered } from './registered.js'
 import type { Can, CapabilityChecks, CapabilityRequest } from './can.js'
 import { parsedQueryRequest } from './queryRequest.js'
-import { resolvedOf, type Asked, type NamedProjection } from './active.js'
+import { resolvedOf, type Asked, type AskedRead, type NamedProjection } from './active.js'
 
 import type { RemoteInspection } from './inspect.js'
 import type { LiveCursor } from './liveState.js'
@@ -1072,7 +1072,7 @@ export const selectReader = <AppModel, Store extends RemoteModel, Names extends 
   const handles = recent<string, Projection<AppModel, RemoteData<Value>>>(HANDLES_KEPT)
   const make = (id: string): Projection<AppModel, RemoteData<Value>> => ({
     Model,
-    dependencies: [],
+    dependencies: storePaths(bound.store),
     metadata: RemoteRequirements.of({ ...relation, id }),
     read: (root: AppModel): RemoteData<Value> => {
       const store = storeOf(bound, root)
@@ -1387,6 +1387,17 @@ export const defineRemote = <
 }
 
 /** Binds a Remote domain to its store's location in the application Model. */
+/**
+ * The Model path of a domain's store, as a Projection declares what it reads
+ * (#588): every read of the domain consults only what lives under that field
+ * (rows, pending layers and overlays, pages, in-flight marks, failures), and
+ * none reads the clock, so a Projection over it is the same while the field
+ * is. A raw optic (`ModelRef.fromOptic`) names no path and claims nothing,
+ * which a Projection reads as "something no path names".
+ */
+export const storePaths = (store: { readonly dependency: ReadonlyArray<string> }) =>
+  store.dependency.length === 0 ? [] : [store.dependency]
+
 export const bindRemote = <
   AppModel,
   Store extends RemoteModel,
@@ -1414,8 +1425,8 @@ export const bindRemote = <
       // A generated field reference knows its application and its path; a raw
       // optic (`ModelRef.fromOptic`) knows neither, so it claims nothing.
       owner: (store as { readonly owner?: object }).owner,
-      owns: store.dependency.length === 0 ? [] : [store.dependency],
-      observes: store.dependency.length === 0 ? [] : [store.dependency],
+      owns: storePaths(store),
+      observes: storePaths(store),
       messages: [],
       metadata: [],
       // Its declared writes, as written; `Graph.of` derives their laws when asked.
@@ -1940,7 +1951,7 @@ let readEntries = 0
  */
 export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   bound: BoundRemote<AppModel, Store>,
-  askedOf: (model: AppModel) => Asked,
+  asked: AskedRead<AppModel>,
   toMessage: (message: RemoteMessage) => Message,
   options: ObserveOptions<AppModel>,
 ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> => {
@@ -1966,6 +1977,18 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     RemoteModel,
     Map<string, { readonly until: number; readonly dependencies: ReadDependencies }>
   >()
+  // The last plan with what it was worked out from, checked before the ask is
+  // worked out again: a Message that touched neither the store nor what the
+  // ask reads (typing in a field) costs a few comparisons.
+  let last:
+    | {
+        readonly remote: RemoteModel
+        readonly policy: RemotePolicy
+        readonly reads: ReadonlyArray<unknown>
+        readonly until: number
+        readonly dependencies: ReadDependencies
+      }
+    | undefined
   return {
     dependenciesSchema: Schema.Struct({
       requirements: Schema.Array(ReadRequest),
@@ -1995,14 +2018,31 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     modelToDependencies: model => {
       const policy = policyAt(options.policy, model)
       const remote = bound.store.get(model)
-      const asked = askedOf(model)
-      // A policy picked from the Model can change while the Remote model does not.
-      const askedKey = stableStringify([policy, asked])
+      const reads = asked.reads(model)
       const at = now()
+      if (
+        last !== undefined &&
+        last.remote === remote &&
+        last.policy === policy &&
+        at < last.until &&
+        Option.isSome(reads) &&
+        reads.value.length === last.reads.length &&
+        reads.value.every((value, index) => value === last!.reads[index])
+      )
+        return last.dependencies
+      const ask = asked.of(model)
+      // A policy picked from the Model can change while the Remote model does not.
+      const askedKey = stableStringify([policy, ask])
       let byAsked = planned.get(remote)
       const known = byAsked?.get(askedKey)
-      if (known !== undefined && at < known.until) return known.dependencies
-      const plan = planAsked(bound, remote, asked, RemotePolicy.toPlan(policy, at))
+      const remember = (until: number, dependencies: ReadDependencies) => {
+        last = Option.isSome(reads)
+          ? { remote, policy, reads: reads.value, until, dependencies }
+          : undefined
+        return dependencies
+      }
+      if (known !== undefined && at < known.until) return remember(known.until, known.dependencies)
+      const plan = planAsked(bound, remote, ask, RemotePolicy.toPlan(policy, at))
       const tokens = readAfterIn(bound[Capability])
       const { now: due, later } = tokens.waiting(remote.entities, plan.requirements)
       const { requirements, after } = tokens.withTokens(remote.entities, due)
@@ -2039,8 +2079,9 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
         byAsked = new Map()
         planned.set(remote, byAsked)
       }
-      byAsked.set(askedKey, { until: plan.expires?.at ?? Infinity, dependencies })
-      return dependencies
+      const until = plan.expires?.at ?? Infinity
+      byAsked.set(askedKey, { until, dependencies })
+      return remember(until, dependencies)
     },
     dependenciesToStream: ({
       requirements,
