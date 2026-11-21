@@ -146,7 +146,10 @@ const addDeclaredConstraints =
  *   current state (`machine.canDispatch`). A guard that needs the input to
  *   decide, or reads an opaque term, is `Unknown` and stays available;
  * - a call whose input the guard refuses in that state is refused before
- *   dispatch, as `CapabilityUnavailableError`, after `authorize`.
+ *   dispatch, as `CapabilityUnavailableError`, after `authorize`;
+ * - a tool given `authorize` is always available, and its guard is asked only
+ *   after `authorize` allows the call: a caller it refuses gets the same list
+ *   and the same answer whatever the state.
  *
  * Give the Message it dispatches by its key in `expose`; `update` applies the
  * transition when that Message arrives (`machine.update`).
@@ -207,7 +210,10 @@ export const machineTools = <
         input,
         toMessage: declared.toMessage ?? ((decoded: unknown) => decoded),
         authorize: declared.authorize,
-        available,
+        // Availability is asked before `authorize` and shown in the tool list,
+        // so with `authorize` it would tell a refused caller what the state is:
+        // the tool is then always listed, and `applies` runs the whole guard.
+        ...(declared.authorize === undefined ? { available } : {}),
         applies: ({ input: decoded, model }: { readonly input: unknown; readonly model: Model }) =>
           allows(model, decoded) || refused,
         [refineInputJsonSchema]: refine,

@@ -132,7 +132,7 @@ A call is checked in this order, and the first failure is the answer:
 3. Is this caller allowed (`authorize`, below)?
 4. Does the guard allow this input in this state?
 
-The guard runs after `authorize`, so a caller who may not use the tool learns nothing about the account from the answer.
+The guard runs after `authorize`. Step 1 is asked before it, and it also decides what the tool list shows, so a tool with no `authorize` tells every caller whether the state allows it. A tool you give `authorize` (below) skips step 1: it is always listed, and its whole guard is asked at step 4. A caller `authorize` refuses then sees the same list and gets the same `AuthorizationError` whether the account is open or frozen, and learns nothing about the account. A caller it allows, calling `pay` on a frozen account, is refused at step 4 with the message above.
 
 ## Send a different Message, or limit who may call
 
@@ -162,7 +162,7 @@ TellerAgent.expose(PayMessage, {
 
 - `name` replaces the default tool name.
 - `toMessage` makes the Message's fields from the decoded input. Without it, the input is sent as the Message's fields unchanged.
-- `authorize` receives that caller as `principal`, typed as `Teller`, and runs before the guard.
+- `authorize` receives that caller as `principal`, typed as `Teller`, and runs before the guard. With it the tool is never hidden: hiding `pay` while the account is frozen would show the account's state to callers who may not pay.
 
 ## Next
 

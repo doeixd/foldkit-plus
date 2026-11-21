@@ -229,6 +229,26 @@ describe('calling a tool', () => {
     )
   })
 
+  it('answers a caller authorize refuses alike whatever the state, listing and calling', async () => {
+    const refused = { canPay: false }
+    const [whenOpen, whenFrozen] = [bank(open, refused), bank(frozen, refused)]
+    expect(whenFrozen.available()).toContain('pay')
+    expect(whenFrozen.available().includes('pay')).toBe(whenOpen.available().includes('pay'))
+    const answer = await failureOf(whenOpen.call('pay', { amount: 100 }))
+    expect(answer.tag).toBe('AgentAuthorizationError')
+    expect(await failureOf(whenFrozen.call('pay', { amount: 100 }))).toEqual(answer)
+    expect(whenFrozen.dispatched).toEqual([])
+  })
+
+  it('refuses a caller authorize allows by the guard, state-only part included', async () => {
+    const app = bank(frozen)
+    expect(await failureOf(app.call('pay', { amount: 100 }))).toEqual({
+      tag: 'AgentCapabilityUnavailableError',
+      message: '"pay" does not allow this input in the current state',
+    })
+    expect(app.dispatched).toEqual([])
+  })
+
   // The model chooses the name: one of `Object.prototype`'s is a failure, never a thrown TypeError.
   it.each(['constructor', '__proto__', 'toString'])(
     'refuses a call named %s, which is no tool',

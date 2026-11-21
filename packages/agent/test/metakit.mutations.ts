@@ -18,6 +18,17 @@ export default [
     tests,
   },
   {
+    name: 'a tool with authorize shows the state through its availability',
+    edits: [
+      {
+        file: tools,
+        find: '...(declared.authorize === undefined ? { available } : {}),',
+        replace: 'available,',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a call is not checked against the guard',
     edits: [{ file: tools, find: 'allows(model, decoded) || refused', replace: 'true' }],
     tests,
