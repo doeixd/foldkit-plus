@@ -62,7 +62,7 @@ const update = (model: Model, message: Message): Model => {
 }
 ```
 
-`AccountMachine.update(state, { _tag, input })` returns a pair: the next state, then any value the transition emits (none here). When the guard refuses, the state is the one you gave it, so `update` returns the Model unchanged. `defineMessageUnion` declares the Messages, and `Message.match` picks the arm for the Message's tag.
+`AccountMachine.update(state, { _tag, input })` returns a pair: the next state, then the list of records the transition emits (empty here). When the guard refuses, the state is the one you gave it, so `update` returns the Model unchanged. `defineMessageUnion` declares the Messages, and `Message.match` picks the arm for the Message's tag.
 
 `machineTools` takes your agent builder (`Agent.forModel<Model>()`, which fixes your Model's type for every callback), the machine, and a function that reads the machine's state out of your Model. It returns one function per transition, named as the machine names them. Call one with a description and put the result under the Message it sends:
 

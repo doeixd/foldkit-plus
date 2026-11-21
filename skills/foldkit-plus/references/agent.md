@@ -249,7 +249,7 @@ const Bank = BankAgent.make({
 
 - `Tools` is keyed by the machine's transitions (`Tools.Frezee` is a type error); the tool name defaults to the key in snake_case (`freeze`). Pass `{ name, description, toMessage, authorize }` instead of a string to rename, map onto a differently shaped Message, or limit callers. The Message's fields must match the input, or `toMessage` must make them: a type error otherwise.
 - The parameter schema is Effect's JSON Schema plus `Inspect.toJsonSchema`'s bounds and `x-metakit-domain` (Money, Decimal, CalendarDay); the tighter bound wins.
-- `available` is `canDispatch(key, { state })` not `False`. `Unknown` (needs the input, or an opaque term) stays offered. After `authorize`, the call runs the guard on state and decoded input; a refusal is `AgentCapabilityUnavailableError` ("does not allow this input in the current state") and nothing is dispatched.
+- `available` is `Machine.canDispatch(machine, key, { state })` not `False`. `Unknown` (needs the input, or an opaque term) stays offered. After `authorize`, the call runs the guard on state and decoded input; a refusal is `AgentCapabilityUnavailableError` ("does not allow this input in the current state") and nothing is dispatched.
 - False means hidden from MCP `tools/list` and unregistered from WebMCP; Agent Native and the A2A card keep listing it and refuse the call.
 - A tool given `authorize` has no `available`: it is always listed and its whole guard runs after `authorize`, so a caller `authorize` refuses sees the same list and the same `AgentAuthorizationError` whatever the state.
 - `update` must apply the same transition for that Message (`machine.update(model.account, { _tag, input })`), or the tool checks a rule `update` does not run.

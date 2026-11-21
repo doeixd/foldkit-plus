@@ -199,7 +199,7 @@ void pruned
 
 `metakit` deliberately stops at single-step, synchronous expressions and transitions:
 
-- **I/O, concurrency, retries, and services** stay in `Effect` (`Transition` emits pure data via `emits` for your Effect runtime to execute).
+- **I/O, concurrency, retries, and services** stay in `Effect` (a `Transition` returns the records listed in `emits`, each `Transition.emit(tag, fields)`, for your Effect runtime to turn into Commands).
 - **Encoding, decoding, and bidirectional codecs** stay in `effect/Schema`.
 - **Rendering and layout** stay in your UI layer.
 

@@ -94,11 +94,11 @@ export const AccountMachine = Machine.make({
 })
 
 const frozen = { id: 'a1', balance: 50_000, reserved: 10_000, status: 'frozen' as const }
-const affordances = AccountMachine.affordances(frozen)
+const affordances = Machine.affordances(AccountMachine, frozen)
 // affordances -> { available: [], disabled: ['Withdraw', 'Freeze'], pending: [] }
 ```
 
-`affordances` sorts every transition into `available` (its guard is true now), `disabled` (false now) or `pending` (it still needs input). On an open account, `Freeze` is `available` (its guard needs no input) and `Withdraw` is `pending` (it needs `input.amount`). On a frozen account, both are `disabled` without a separate UI check. To turn that into a button, put `disabled` on the button whose Message tag is in the `disabled` list.
+`Machine.affordances` sorts every transition into `available` (its guard is true now), `disabled` (false now) or `pending` (it still needs input). On an open account, `Freeze` is `available` (its guard needs no input) and `Withdraw` is `pending` (it needs `input.amount`). On a frozen account, both are `disabled` without a separate UI check. To turn that into a button, put `disabled` on the button whose Message tag is in the `disabled` list.
 
 ## 4. Prove that every transition preserves the schema invariants
 

@@ -100,7 +100,7 @@ const household = Graph.analyze(HouseholdMachine, {
 
 What to expect from a composed machine:
 
-- **A part that is not there refuses its messages.** `savings` may be null: `SavingsWithdraw` is refused while it is, and `affordances` lists it as `disabled`. A key that is absent (an optional field) is refused the same way when dispatched, and reads as `pending` in `affordances`, which takes a missing key to mean "not known yet".
+- **A part that is not there refuses its messages.** `savings` may be null: `SavingsWithdraw` is refused while it is, and `Machine.affordances` lists it as `disabled`. A key that is absent (an optional field) is refused the same way when dispatched, and reads as `pending` in `Machine.affordances`, which takes a missing key to mean "not known yet".
 - **Two transitions cannot share a tag.** `Checking` with `Withdraw` and an own transition named `CheckingWithdraw` do not compile, and `Machine.compose` throws naming both. The name `''` keeps a part's tags as they are.
 - **A composed machine is a machine.** Lift it again under a larger model, prove it with `Prove.machine`, or give it to `Graph.analyze`.
 

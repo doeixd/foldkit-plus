@@ -117,30 +117,34 @@ REFUTED Withdraw [PIN BROKEN]
 - **Partial evaluation (`Expr.residualize`, `Expr.judge`, `Transition.can`)** folds known environment slices into a three-valued `Verdict` (`True`, `False`, or `Unknown` with a reason), keeping missing (`Unknown`) fields separate from runtime `null`.
 - **Escape hatch (`Expr.opaque`)** wraps arbitrary JavaScript with optional declared `reads`; it runs in `Expr.eval` and degrades soundly to `Unknown` in static checkers. `Transition.opaque` does the same for a whole step, declared by the paths it reads and writes.
 - **Supplied values** are what a transition cannot make: `Transition.make({ …, supplied: { now: Schema.Int } })` reads the time as `supplied.now`, and whoever runs the step passes it once (`Transition.run(t, state, input, { now })`), so the step stays a function of its arguments and a proof holds for every time.
+- **Lists** are read by asking a question of each element: `Arr.any(state.todos, todo => todo.done)` (also `every`, `count`, `sum`, `min`, `max`, `find`, `keep`). You write the test as an arrow over a path for the element; what is kept is the expression it returns, so SQL, the checker and `Expr.reads` (which names `todos.*.done`) see it. A list is written by a named way: `Transition.insert` (unless an element has the key), `remove`, `removeWhere`, `patch`, `patchWhere`, `append`, and `include` and `exclude` over a sorted set. A key no element has gives back the state it was given.
+- **Commands as data:** `emits: ({ state }) => [Transition.emit('Saved', { id: state.id }, { when: … })]` lists the records a step returns beside its state, read over the state before it; your runtime turns each into a Command.
+- **Whether two transitions swap order** is `Transition.commutes(a, b)`: `True` where their footprints and the ways they write say so (two `add`s to a bounded integer, a `patch` and a `remove` of fields apart), otherwise `Unknown` with a `walk` obligation, a test that runs both orders. It never answers `False`.
 
 ## Subpaths by where code runs
 
 | Import | Runs in | Purpose |
 | --- | --- | --- |
-| `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 29-op core (`Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr` + derived helpers) with what each op keeps (`opProperties`), operations your application defines (`Node.foreign`), and synchronous Interval + Zone checks (`Abstract`). A path to an `Option` field reads as its value or null. |
+| `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 32-op core (`Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr` + derived helpers), the folds over a list (`Arr.any`, `Arr.sum`, …), what each op, fold and way of writing keeps (`opProperties`, `foldProperties`, `writeProperties`), operations your application defines (`Node.foreign`), and synchronous Interval + Zone checks (`Abstract`). A path to an `Option` field reads as its value or null. |
+| `metakit/relation` | Browser / server | Questions asked of the rows of another kind pointing at a row (`Relation.any`, `every`, `count`, `sum`, `min`, `max`), held under the row as `{ rows, whole }`; SQL writes each as a correlated subquery. |
 | `metakit/domain` | Browser / server | Currency-safe `Money`, fixed-scale `Decimal` (`Decimal.mul` and `Money.mul` round half-even, in memory only), timezone-free `CalendarDay`, `OrderedEnum`, and `Domain.domainOf`. |
-| `metakit/aggregates` | Browser / server | `Rows.sum` (of integers), `Rows.count` (O(1) group deltas) and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any` (semilattice). Imports no SQL. |
+| `metakit/aggregates` | Browser / server | `Rows.sum` (of integers) and `Rows.count`, kept by O(1) deltas, and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any`, which rescan on a delete of the extreme. Imports no SQL. |
 | `metakit/aggregates/sql` | Server | `RowsSql.toSql(aggregate, options)`: an aggregate as a SQL expression. |
-| `metakit/machine` | Browser / server | Declarative state machine (`dispatch`, TEA `update`, `canDispatch`, `affordances`, `footprints`); `lift` and `compose` build a parent machine from child machines. |
+| `metakit/machine` | Browser / server | Declarative state machine (`dispatch`, TEA `update`, which returns the records a step emits, and `footprints`); `Machine.canDispatch(machine, tag, partial)` and `Machine.affordances(machine, state)` ask what a partial state allows; `lift` and `compose` build a parent machine from child machines. |
 | `metakit/inspect` | Browser / server | Form `fieldSpecs` and an enriched `toJsonSchema`, read straight off the Schema. |
 | `metakit/graph` | Build / SSR / planner | Static `Graph.analyze` (`affectedBy`, `deadBindings`), SSR `Graph.pruneStatic`, and `Graph.queryReadiness`. |
 | `metakit/policy` | Browser / server | Named rules over a row and a principal (`Policy.make`), and the synchronous `checkImplication` and `checkConsistent`. |
 | `metakit/store` | Server | What a store guarantees of concurrent writes (`StoreCapabilities`), and `Store.mount`, which throws where a store is set up to hold a rule it cannot. |
 | `metakit/temporal` | Dev / CI only | `Temporal.requirements` (what each rule needs of its store), `Temporal.obligations` (the pairs of transitions whose order a proof leaves open), and `Temporal.walk`, which runs a scenario's steps in seeded orders. |
-| `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` as text for Postgres and SQLite. A predicate selects the rows `Expr.eval` holds true, null included. |
+| `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` as text for Postgres and SQLite. A predicate selects the rows `Expr.eval` holds true, null included; rows related to a row are read from the tables you give as `relations`, and a list in a column is refused by name. |
 | `metakit/drizzle` | Server (optional `drizzle-orm`) | `Drizzle.toCheck`, `Drizzle.toWhere`, `Drizzle.toUpdate`: the same lowering as Drizzle `SQL` over a Drizzle table. |
 | `metakit/prove` | Dev / CI only (optional `z3-solver`) | `Prove.invariant`, `Prove.transition`, `Prove.policy`, `Prove.machine` (pinning, `allowUnknown`, replayed counterexamples). |
-| `metakit/conformance` | Dev / CI only | `checkOpSoundness` holds each of the 29 operators to one answer from evaluation, partial evaluation and the Tier 3 checker over null, absent keys, NaN, the ends of the safe integer range and text holding a NUL; `checkAllProperties` checks what `opProperties` declares against the evaluator; `checkResidualizeSoundness` does the same for an expression of yours over values sampled from its Schema. |
+| `metakit/conformance` | Dev / CI only | `checkOpSoundness` holds each of the 32 operators to one answer from evaluation, partial evaluation and the Tier 3 checker over null, absent keys, NaN, the ends of the safe integer range and text holding a NUL; `checkAllProperties`, `checkAllFoldProperties` and `checkAllWriteProperties` check what the property tables declare against the evaluator; `checkResidualizeSoundness` does the same for an expression of yours over values sampled from its Schema. |
 | `metakit/build` | Browser / server | The functions over nodes (`wrap`, `toNode`, `call`, `evalNode`, `residualizeNode`, `judgeNode`, `readsOfNode`), for a language that builds its own constructors on metakit. |
 
 ## When to use something else
 
-- **Time, concurrency, retries, and I/O:** use `Effect` directly. `Transition` is strictly single-step and synchronous; it emits pure command data (`emits`) rather than running effects.
+- **Time, concurrency, retries, and I/O:** use `Effect` directly. `Transition` is strictly single-step and synchronous; it returns records describing Commands (`emits`) rather than running effects.
 - **Bidirectional URL or cookie codecs:** use `effect/Schema` transformations; `Expr` is one-way.
 - **UI trees, layout, and styling:** keep DOM/CSS structure in your UI layer and embed `Expr` / `Transition` where you need derived values or disabled states.
 
