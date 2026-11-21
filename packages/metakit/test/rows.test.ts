@@ -181,6 +181,12 @@ describe('a fold over a list, read statically', () => {
     expect(Expr.reads(Arr.find(state.items, () => true))).toEqual(Option.some([['state', 'items']]))
   })
 
+  it('a `*` segment meets any one segment, so a write of one element meets a read of all', () => {
+    expect(Path.isPrefix(['todos', '*'], ['todos', '3', 'title'])).toBe(true)
+    expect(Path.meets(['todos', '3', 'title'], ['todos', '*', 'title'])).toBe(true)
+    expect(Path.meets(['todos', '*', 'title'], ['todos', '*', 'done'])).toBe(false)
+  })
+
   it('shows the fold, its source and its body', () => {
     expect(
       Expr.show(

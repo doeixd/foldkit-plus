@@ -153,6 +153,17 @@ describe('the ways of writing a list', () => {
     expect(Result.getOrThrow(Transition.run(Cleared, start, {})).todos).toEqual([todo('b')])
     const none = model([todo('b')])
     expect(Result.getOrThrow(Transition.run(Cleared, none, {}))).toBe(none)
+    // A test that is null does not pass: the todo stays.
+    const Unsure = Transition.make({
+      state: Model,
+      input: None,
+      apply: ({ state }) => [
+        Transition.removeWhere(state.todos, each =>
+          Expr.when(each.completed, { then: null, else: false }),
+        ),
+      ],
+    })
+    expect(Result.getOrThrow(Transition.run(Unsure, start, {}))).toBe(start)
   })
 
   it('include and exclude keep a sorted set, and give it back unchanged', () => {
@@ -487,25 +498,29 @@ const alike = (left: Outcome, right: Outcome): boolean =>
 
 describe('every pair Transition.commutes calls commuting gives one outcome in either order', () => {
   const pairs = entries.flatMap(a => entries.map(b => [a, b] as const))
-  const commuting = pairs.filter(([a, b]) => Verdict.isTrue(a.commutesWith(b)))
+  const commuting = () => pairs.filter(([a, b]) => Verdict.isTrue(a.commutesWith(b)))
 
   it('calls some pairs commuting and leaves others to a walk', () => {
-    expect(commuting.length).toBeGreaterThan(15)
-    expect(commuting.length).toBeLessThan(pairs.length)
+    expect(commuting().length).toBeGreaterThan(15)
+    expect(commuting().length).toBeLessThan(pairs.length)
   })
 
-  it.each(commuting.map(([a, b]) => [`${a.name} then ${b.name}`, a, b] as const))(
-    '%s',
-    (_, a, b) => {
+  // One test over every pair, so a change to what commutes changes no test's name.
+  it('runs both orders of each, over seeded states and inputs', () => {
+    const parted: Array<string> = []
+    for (const [a, b] of commuting()) {
       for (const state of states) {
         for (const runA of a.runs) {
           for (const runB of b.runs) {
-            expect(alike(then(runA(state), runB), then(runB(state), runA))).toBe(true)
+            if (!alike(then(runA(state), runB), then(runB(state), runA))) {
+              parted.push(`${a.name} then ${b.name}`)
+            }
           }
         }
       }
-    },
-  )
+    }
+    expect([...new Set(parted)]).toEqual([])
+  })
 
   it('a walk finds a pair left Unknown that does not commute: a toggle and a clear', () => {
     const start = model([todo('a')])
