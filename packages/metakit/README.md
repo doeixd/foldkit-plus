@@ -131,7 +131,7 @@ REFUTED Withdraw [PIN BROKEN]
 | `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` as text for Postgres and SQLite. A predicate selects the rows `Expr.eval` holds true, null included. |
 | `metakit/drizzle` | Server (optional `drizzle-orm`) | `Drizzle.toCheck`, `Drizzle.toWhere`, `Drizzle.toUpdate`: the same lowering as Drizzle `SQL` over a Drizzle table. |
 | `metakit/prove` | Dev / CI only (optional `z3-solver`) | `Prove.invariant`, `Prove.transition`, `Prove.policy`, `Prove.machine` (pinning, `allowUnknown`, replayed counterexamples). |
-| `metakit/conformance` | Dev / CI only | Property tests checking forward/backward interval soundness and `residualize` parity via `Arbitrary.schema`. |
+| `metakit/conformance` | Dev / CI only | `checkOpSoundness` holds each of the 20 operators to one answer from evaluation, partial evaluation and the Tier 3 checker over null, absent keys, NaN and the ends of the safe integer range; `checkResidualizeSoundness` does the same for an expression of yours over values sampled from its Schema. |
 
 ## When to use something else
 
