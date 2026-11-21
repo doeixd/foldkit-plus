@@ -74,7 +74,9 @@ export interface Declarations<Fields extends Schema.Struct.Fields, Model, FieldK
    * Whether `transition` would go through with the values entered so far as
    * its input, and `state` (the part of it known) as its state: `True` or
    * `False` once the values its guard reads are known, `Unknown` while one is
-   * missing or not valid yet, or the guard calls an opaque function.
+   * missing or not valid yet, or the guard calls an opaque function. `False`
+   * too for known values the guard cannot be evaluated over (a sum past
+   * ±(2^53−1)): the transition refuses them.
    */
   readonly can: <State, Emit>(
     model: Model,
@@ -84,7 +86,8 @@ export interface Declarations<Fields extends Schema.Struct.Fields, Model, FieldK
   /**
    * The input Schema's own rules over several keys (`Expr.refine` on the
    * struct) that the values entered so far break. A rule is broken only when
-   * it is `False`: one reading a key not entered or not valid yet is
+   * it is `False`, or cannot be evaluated over the values entered (the Schema
+   * rejects those too): one reading a key not entered or not valid yet is
    * undecided, and not here. A rule on one key is that key's own validation,
    * which `form.field` already shows.
    */
@@ -243,6 +246,19 @@ const controlFor = (domain: Domain.DomainMetadata): Option.Option<Control> =>
   )
 
 /**
+ * A verdict with a refused evaluation made `False`. metakit refuses to
+ * evaluate some known values (an integer result past ±(2^53−1)) and judges
+ * that `Unknown`, with an `unsupported` obligation; a value not known yet is
+ * `Unknown` with another. The first is decided: the Schema's rule and
+ * `Transition.step` reject those values, whatever is entered later.
+ */
+const refusedIsFalse = (verdict: Verdict.Verdict<never>): Verdict.Verdict<never> =>
+  Verdict.isUnknown(verdict) &&
+  Option.exists(verdict.obligation, ({ kind }) => kind === 'unsupported')
+    ? Verdict.False()
+    : verdict
+
+/**
  * A form's declarations: each key's constraint and the input's rules over
  * several keys, read once here; whether a guarded transition would go through
  * with the values entered so far; and which of those rules they break.
@@ -299,7 +315,9 @@ const of = <Fields extends Schema.Struct.Fields, Model, FieldKey extends string>
   const broken = (model: Model): typeof rules => {
     if (Option.isSome(last) && last.value.model === model) return last.value.broken
     const values = known(model)
-    const found = rules.filter(({ failure }) => Verdict.isFalse(Expr.judge(failure.rule, values)))
+    const found = rules.filter(({ failure }) =>
+      Verdict.isFalse(refusedIsFalse(Expr.judge(failure.rule, values))),
+    )
     last = Option.some({ model, broken: found })
     return found
   }
@@ -307,10 +325,12 @@ const of = <Fields extends Schema.Struct.Fields, Model, FieldKey extends string>
   return {
     constraints,
     can: (model, transition, state) =>
-      Transition.can(transition, {
-        input: known(model),
-        ...(state === undefined ? {} : { state }),
-      }),
+      refusedIsFalse(
+        Transition.can(transition, {
+          input: known(model),
+          ...(state === undefined ? {} : { state }),
+        }),
+      ),
     failures: model => broken(model).map(({ failure }) => failure),
     field: (model, key) => {
       const field = form.field(model, key)

@@ -266,3 +266,63 @@ describe('Rules over several keys', () => {
     })
   })
 })
+
+/**
+ * A product past ±(2^53−1) is one metakit refuses to evaluate. The Schema's
+ * rule and `Transition.run` both reject such values, so it is decided: not
+ * something a value entered later could turn into a yes.
+ */
+describe('A rule or guard whose evaluation is refused', () => {
+  const Order = Schema.Struct({ quantity: Schema.Int, price: Schema.Int }).pipe(
+    Expr.refine($ => Num.lte(Num.mul($.quantity, $.price), 1_000_000), {
+      message: 'Too large an order',
+    }),
+  )
+  const OrderForm = Form.make('Order', Form.input(Order))
+  const order = () => Declared.of(OrderForm)
+  const entered = (...edits: ReadonlyArray<readonly ['quantity' | 'price', string]>) =>
+    edits.reduce(
+      (model, [key, value]) =>
+        OrderForm.bundle.update(model, OrderForm.Message.Changed({ key, value }), undefined).model,
+      OrderForm.initial,
+    )
+  const huge = String(Number.MAX_SAFE_INTEGER)
+  const overflowing = entered(['quantity', huge], ['price', '2'])
+
+  it('is what the Schema refuses too', () => {
+    expect(Schema.is(Order)({ quantity: Number.MAX_SAFE_INTEGER, price: 2 })).toBe(false)
+  })
+
+  it('is a failure of the rule, shown on the keys it reads', () => {
+    expect(
+      order()
+        .failures(overflowing)
+        .map(failure => failure.keys),
+    ).toEqual([['quantity', 'price']])
+    expect(order().field(overflowing, 'price')).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['Too large an order'],
+    })
+  })
+
+  it('is still undecided while a key the rule reads is not entered', () => {
+    expect(order().failures(entered(['quantity', huge]))).toEqual([])
+  })
+
+  const Stock = Schema.Struct({ held: Schema.Int })
+  const Restock = Transition.make({
+    state: Stock,
+    input: Order,
+    when: ({ state, input }) => Num.lte(Num.add(state.held, input.quantity), 5_000),
+    apply: ({ state, input }) => [Transition.set(state.held, Num.add(state.held, input.quantity))],
+  })
+
+  it('makes `can` False, as `Transition.run` refuses it; a missing value stays Unknown', () => {
+    const full = { held: Number.MAX_SAFE_INTEGER }
+    const model = entered(['quantity', '1'], ['price', '2'])
+    expect(order().can(model, Restock, full)._tag).toBe('False')
+    expect(Transition.run(Restock, full, { quantity: 1, price: 2 })._tag).toBe('Failure')
+    expect(order().can(entered(['price', '2']), Restock, full)._tag).toBe('Unknown')
+    expect(order().can(model, Restock, { held: 10 })._tag).toBe('True')
+  })
+})

@@ -466,12 +466,14 @@ const refused = Verdict.isFalse(can(WithdrawForm.initial, Withdraw, { balance: M
 - `can` is three-valued. `Unknown` (a value the guard reads is not typed or not
   valid yet, no state given, an opaque term) is neither allowed nor refused:
   set `aria-disabled` only on `False`, and run the `Transition` in `update`
-  on submit.
+  on submit. Known values the guard cannot be evaluated over (an integer
+  result past ±(2^53−1)) are `False`, as `Transition.run` refuses them.
 - The transition's input must be the form's value type exactly; a key the form
   lacks is a type error.
 - `failures(model)`: the input struct's own `Expr.refine` rules (not a single
-  key's, which `form.field` shows) that are `False` on the decoded values, as
-  `{ keys, rule, message: Option }`; undecided is not a failure.
+  key's, which `form.field` shows) that are `False` on the decoded values, or
+  refuse to evaluate over them (the Schema rejects those too), as
+  `{ keys, rule, message: Option }`; undecided (a key missing) is not a failure.
   `field(model, key)` is `form.field` plus those messages after the key's own
   errors. A rule with no message makes `Declared.of` throw unless you pass
   `unworded: failure => string`. `FormView` reads `form.field` unless given

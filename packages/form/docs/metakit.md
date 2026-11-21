@@ -142,7 +142,10 @@ The answer has three values, not two:
 
 - **`True`**: every value the guard reads is known, and it holds.
 - **`False`**: it fails, whatever the unknown values turn out to be. A frozen
-  account is `False` before an amount is typed.
+  account is `False` before an amount is typed. So is a guard that cannot be
+  worked out over the values it has: metakit refuses a whole-number result
+  past ±(2^53−1), where JavaScript numbers stop being exact, and the
+  transition refuses the same values.
 - **`Unknown`**: the guard reads a value that is not typed yet, does not
   decode yet, or comes from an opaque function. A draft that does not read as
   an amount is `Unknown`, not `False`.
@@ -184,7 +187,9 @@ stay.failures(typed) // [{ keys: ['arrives', 'leaves'], rule, message: Option.so
 stay.field(typed, 'leaves') // { _tag: 'Invalid', value: '2026-03-01', errors: ['Leave after you arrive'] }
 ```
 
-A rule is broken only when it is `False`. While `leaves` is empty, or holds
+A rule is broken when it is `False`, or when it cannot be worked out over the
+values entered (a product past ±(2^53−1)), which the Schema rejects on submit
+too. While `leaves` is empty, or holds
 text that is not a date, the rule is undecided and nothing is reported. A rule
 on one key (`Schema.isGreaterThan(0)` on `guests`) is left to that key's own
 validation, which `form.field` already shows.

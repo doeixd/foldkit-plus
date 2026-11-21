@@ -15,6 +15,21 @@ const edit = (
 
 export default [
   edit(
+    'a refused evaluation is left undecided',
+    "Option.exists(verdict.obligation, ({ kind }) => kind === 'unsupported')",
+    'false',
+  ),
+  edit(
+    'a value not entered yet is taken as refused',
+    "Option.exists(verdict.obligation, ({ kind }) => kind === 'unsupported')",
+    'true',
+  ),
+  edit(
+    'a guard refused over the values entered leaves `can` Unknown',
+    '      refusedIsFalse(\n        Transition.can(',
+    '      (verdict => verdict)(\n        Transition.can(',
+  ),
+  edit(
     'an exclusive lower bound of a whole key is shown as it is',
     'n => Math.floor(n) + 1',
     'n => n',
@@ -100,7 +115,7 @@ export default [
   ),
   edit(
     'a rule still undecided is reported as broken',
-    'Verdict.isFalse(Expr.judge(failure.rule, values))',
+    'Verdict.isFalse(refusedIsFalse(Expr.judge(failure.rule, values)))',
     '!Verdict.isTrue(Expr.judge(failure.rule, values))',
   ),
   edit(
