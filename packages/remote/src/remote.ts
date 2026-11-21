@@ -1814,9 +1814,41 @@ const bindDomain = <
         persisting.set(entry, combinePersist(persisting.get(entry), persist))
       const policy = policyOf(key)
       policies.set(entry, new Map(policies.get(entry)).set(key, policy))
-      const ask = (model: AppModel) =>
-        askedUnion(resolvedAt(model).map(({ projection }) => projection))
-      const asked = { of: ask, storeOnly: storeOnly(entry), reads: askReads(entry) }
+      const entryReads = askReads(entry)
+      const valueAt = (root: unknown, path: ReadonlyArray<string>): unknown => {
+        let cursor = root
+        for (const segment of path) {
+          if (cursor === null || typeof cursor !== 'object' || !Object.hasOwn(cursor, segment))
+            return undefined
+          cursor = (cursor as Record<string, unknown>)[segment]
+        }
+        return cursor
+      }
+      let lastAsk:
+        | {
+            readonly remote: Store
+            readonly values: ReadonlyArray<unknown>
+            readonly result: ReturnType<typeof askedUnion>
+          }
+        | undefined
+      const ask = (model: AppModel) => {
+        if (entryReads !== undefined) {
+          const remote = bound.store.get(model)
+          const values = entryReads.map(path => valueAt(model, path))
+          if (
+            lastAsk !== undefined &&
+            lastAsk.remote === remote &&
+            values.every((v, i) => Object.is(v, lastAsk!.values[i]))
+          ) {
+            return lastAsk.result
+          }
+          const result = askedUnion(resolvedAt(model).map(({ projection }) => projection))
+          lastAsk = { remote, values, result }
+          return result
+        }
+        return askedUnion(resolvedAt(model).map(({ projection }) => projection))
+      }
+      const asked = { of: ask, storeOnly: storeOnly(entry), reads: entryReads }
       entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, {
         ...options,
         policy,

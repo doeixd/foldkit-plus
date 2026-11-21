@@ -514,7 +514,12 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
       childView === undefined
         ? null
         : Option.match(link.read(parent), {
-            onNone: () => null,
+            onNone: () => {
+              // Drop any kept drawing while absent so a later Some(m2) at the
+              // same pathEpoch never serves the pre-hide VNode (#586).
+              kept.delete(slotId)
+              return null
+            },
             onSome: model => {
               // A view drawn without inputs takes none: handing it some would
               // shift its builder to the third argument.

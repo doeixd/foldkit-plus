@@ -114,7 +114,7 @@ export const capabilityOf = <Model>(
       Verdict.match(answer(request).can, {
         False: ({ witness }) =>
           Option.match(witness, {
-            onNone: allowed,
+            onNone: () => false,
             onSome: refusal =>
               CanRefusal.match(refusal, {
                 Forbidden: ({ reason }) =>
@@ -134,7 +134,7 @@ export const capabilityOf = <Model>(
       return Verdict.match(can, {
         False: ({ witness }) =>
           Option.match(witness, {
-            onNone: allowed,
+            onNone: () => false,
             onSome: refusal =>
               CanRefusal.match(refusal, {
                 // `authorize` refused it before `applies` is asked.

@@ -437,4 +437,57 @@ describe('unified dependency graph (graph.dependencies)', () => {
     // Durable transition durable:CreatedTodo writes model:todos -> affects sync:todos.capped only.
     expect(graph.dependencies.affectedBy('durable:CreatedTodo')).toEqual(['sync:todos.capped'])
   })
+
+  it('tracks opaque and partially unnamed Surfaces as unknown readers instead of dropping them', () => {
+    const Opaque = Surface.make(App, 'Opaque', {
+      model: () => Projection.fromReader(Schema.String, model => model.filter),
+      messages: [],
+    })
+    const Mixed = Surface.make(App, 'Mixed', {
+      model: ({ model }) =>
+        Projection.struct({
+          todos: model.todos,
+          extra: Projection.fromReader(Schema.String, root => root.filter),
+        }),
+      messages: [],
+    })
+    const ChangedFilter = Transition.make({
+      state: Model,
+      input: Schema.Struct({ filter: Schema.String }),
+      apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
+    })
+    const machine = Machine.make({ state: Model, transitions: { ChangedFilter } })
+    const graph = Graph.of(Module.make(App, [Opaque, Mixed]), { machine })
+
+    expect(graph.dependencies.unknowns().readers).toEqual(['surface:Opaque', 'surface:Mixed'])
+    expect(graph.dependencies.affectedBy('message:ChangedFilter')).toEqual([
+      'surface:Opaque',
+      'surface:Mixed',
+    ])
+  })
+
+  it('reports transition-declared-twice without crashing when two contracts share a write name across entities', () => {
+    const otherShop: Contract = {
+      kind: 'remote',
+      name: 'otherShop',
+      owner: App.owner,
+      owns: [],
+      observes: [],
+      messages: [],
+      metadata: [],
+      laws: {
+        entities: [
+          {
+            name: 'Sell',
+            write: Write.update(
+              Entity.input(Order, Schema.Struct({ id: Schema.String, paid: Schema.Number })),
+              { id: 'id' },
+            ),
+          },
+        ],
+      },
+    }
+    const findings = Graph.validate(Module.make(App, [shop, otherShop]))
+    expect(findings.some(finding => finding.rule === 'transition-declared-twice')).toBe(true)
+  })
 })

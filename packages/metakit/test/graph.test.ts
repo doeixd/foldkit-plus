@@ -372,6 +372,68 @@ describe('metakit/graph', () => {
       // overlaps detects writer-writer interaction
       expect(g.overlaps('EditNote', 'ToggleTheme')).toEqual([])
       expect(g.overlaps('EditNote', 'OpaqueReducer').length).toBeGreaterThan(0)
+      // writersOf traverses RowToModelLink backwards (model -> row)
+      expect(g.writersOf(Graph.modelPath(['remote', 'notes']))).toEqual([
+        'EditNote',
+        'OpaqueReducer',
+      ])
+    })
+
+    it('handles bridged overlaps, empty targets, and unknown writer.reads accurately', () => {
+      const g = Graph.build({
+        writers: [
+          {
+            id: 'EditNote',
+            kind: 'write',
+            writes: [Graph.knownEdge(Graph.rowPath('Note', ['title']), 'derived')],
+          },
+          {
+            id: 'ReadNotes',
+            kind: 'transition',
+            writes: [Graph.knownEdge(Graph.modelPath(['ui', 'summary']), 'derived')],
+            reads: [Graph.knownEdge(Graph.modelPath(['remote', 'notes']), 'derived')],
+          },
+          {
+            id: 'UnknownWrite',
+            kind: 'reducer',
+            writes: [Graph.unknownEdge()],
+          },
+          {
+            id: 'NoOp',
+            kind: 'transition',
+            writes: [],
+            reads: [],
+          },
+          {
+            id: 'UnknownReadWriter',
+            kind: 'transition',
+            writes: [Graph.knownEdge(Graph.modelPath(['ui', 'flag']), 'derived')],
+            reads: [Graph.unknownEdge()],
+          },
+        ],
+        readers: [
+          {
+            id: 'Unrelated',
+            kind: 'projection',
+            reads: [Graph.knownEdge(Graph.modelPath(['other']), 'derived')],
+          },
+        ],
+        links: [
+          {
+            row: Graph.rowPath('Note', []),
+            model: Graph.modelPath(['remote', 'notes']),
+            knowledge: 'derived',
+          },
+        ],
+      })
+
+      // Bridged write -> read overlap between EditNote and ReadNotes
+      expect(g.overlaps('EditNote', 'ReadNotes').some(r => r.kind === 'bridged')).toBe(true)
+      // UnknownWrite vs NoOp (empty targets) must NOT false-positive
+      expect(g.overlaps('UnknownWrite', 'NoOp')).toEqual([])
+      // UnknownReadWriter appears in unknowns().writers, yet its known writes stay precise
+      expect(g.unknowns().writers).toEqual(['UnknownWrite', 'UnknownReadWriter'])
+      expect(g.affectedBy('UnknownReadWriter')).toEqual([])
     })
 
     it('builds a 500-node graph under 5 ms at definition time', () => {

@@ -11,7 +11,7 @@
 import { Option, type Schema } from 'effect'
 import { createLazy, type Html } from 'foldkit/html'
 import type { MessageUnion } from 'foldkit/message'
-import { affectedTags } from 'metakit/graph/match'
+import { affectedTags, pathsOverlap } from 'metakit/graph/match'
 import type { Machine } from 'metakit/machine'
 import {
   Metadata,
@@ -136,14 +136,14 @@ const of = <
     const fp = machine.footprints[tag as Tag]
     addWrites(tag, fp?.writes ?? [])
   }
-  const hasContractsOrWriters =
-    (options?.contracts !== undefined && options.contracts.length > 0) ||
-    (options?.writers !== undefined && Object.keys(options.writers).length > 0)
+  const registeredPaths: Array<ReadonlyArray<string>> = []
   for (const contract of options?.contracts ?? []) {
     for (const tag of contract.messages) addWrites(tag, contract.owns)
+    registeredPaths.push(...contract.owns)
   }
   for (const [tag, paths] of Object.entries(options?.writers ?? {})) {
     addWrites(tag, paths)
+    registeredPaths.push(...paths)
   }
   const footprints: Record<string, { readonly writes: ReadonlyArray<ReadonlyArray<string>> }> =
     Object.create(null)
@@ -186,12 +186,20 @@ const of = <
       const name = surface.name
       const projection = surface.projection(params)
       // A projection carrying metadata reads through a planner (a Remote read):
-      // unless its store-owning contracts/writers are registered here, its paths
-      // decide nothing and every Message that writes draws it again.
+      // keep `Option.none()` unless every path it reads is covered by a
+      // registered contract/writer (otherwise an unregistered planner would be
+      // skipped stalely when another unrelated contract is registered).
+      const candidate = pathsRead(projection)
+      const coveredByRegistered =
+        Option.isSome(candidate) &&
+        candidate.value.length > 0 &&
+        candidate.value.every(readPath =>
+          registeredPaths.some(regPath => pathsOverlap(readPath, regPath)),
+        )
       const reads =
-        !hasContractsOrWriters && Metadata.summarize(projection.metadata).length > 0
+        Metadata.summarize(projection.metadata).length > 0 && !coveredByRegistered
           ? Option.none()
-          : pathsRead(projection)
+          : candidate
       // A read that names no path (`Option.none()`) is conservatively affected
       // by every transition that writes at least one path.
       const redrawnBy = affectedTags(

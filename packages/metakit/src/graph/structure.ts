@@ -224,12 +224,15 @@ export const build = (config: {
   const readerTrie = emptyTrie<string>()
   const writerTrie = emptyTrie<string>()
   const linkRowTrie = emptyTrie<RowToModelLink>()
+  const linkModelTrie = emptyTrie<RowToModelLink>()
 
-  const unknownWriters = new Set<string>()
+  const unknownWriteWriters = new Set<string>()
+  const unknownAnyWriters = new Set<string>()
   const unknownReaders = new Set<string>()
 
   for (const link of links) {
     trieInsert(linkRowTrie, addressKeySegments(link.row), link)
+    trieInsert(linkModelTrie, addressKeySegments(link.model), link)
   }
 
   for (const w of config.writers) {
@@ -240,9 +243,15 @@ export const build = (config: {
     writerOrder.push(w.id)
     for (const edge of w.writes) {
       if (isUnknownEdge(edge)) {
-        unknownWriters.add(w.id)
+        unknownWriteWriters.add(w.id)
+        unknownAnyWriters.add(w.id)
       } else if (Option.isSome(edge.path)) {
         trieInsert(writerTrie, addressKeySegments(edge.path.value), w.id)
+      }
+    }
+    for (const edge of w.reads ?? []) {
+      if (isUnknownEdge(edge)) {
+        unknownAnyWriters.add(w.id)
       }
     }
   }
@@ -281,15 +290,22 @@ export const build = (config: {
   }
 
   const writersOf = (path: PathAddress): ReadonlyArray<string> => {
-    const hit = new Set<string>(unknownWriters)
-    trieQueryOverlap(writerTrie, addressKeySegments(path), hit)
+    const hit = new Set<string>(unknownWriteWriters)
+    const segs = addressKeySegments(path)
+    trieQueryOverlap(writerTrie, segs, hit)
+    // Follow any row -> model bridge links whose model side overlaps `path`
+    const bridged = new Set<RowToModelLink>()
+    trieQueryOverlap(linkModelTrie, segs, bridged)
+    for (const link of bridged) {
+      trieQueryOverlap(writerTrie, addressKeySegments(link.row), hit)
+    }
     return orderWriters(hit)
   }
 
   const affectedBy = (writerId: string): ReadonlyArray<string> => {
     const w = writerMap.get(writerId)
     if (w === undefined || w.writes.length === 0) return []
-    if (unknownWriters.has(writerId)) {
+    if (unknownWriteWriters.has(writerId)) {
       // An unknown write can affect every reader in the graph
       return [...readerOrder]
     }
@@ -343,7 +359,7 @@ export const build = (config: {
   }
 
   const unknowns = () => ({
-    writers: orderWriters(unknownWriters),
+    writers: orderWriters(unknownAnyWriters),
     readers: orderReaders(unknownReaders),
   })
 
@@ -361,6 +377,7 @@ export const build = (config: {
     if (a === undefined || b === undefined) return []
     const reasons: Array<OverlapReason> = []
     const checkPair = (writes: ReadonlyArray<PathEdge>, targets: ReadonlyArray<PathEdge>): void => {
+      if (targets.length === 0) return
       for (const we of writes) {
         if (isUnknownEdge(we)) {
           reasons.push({ kind: 'unknown-write', write: we })
@@ -375,6 +392,15 @@ export const build = (config: {
           const tp = te.path as Option.Some<PathAddress>
           if (addressesOverlap(wp.value, tp.value)) {
             reasons.push({ kind: 'direct', write: we, read: te })
+          }
+        }
+        // Bridged row -> model links
+        for (const link of links) {
+          if (!addressesOverlap(wp.value, link.row)) continue
+          for (const te of targets) {
+            if (Option.isSome(te.path) && addressesOverlap(link.model, te.path.value)) {
+              reasons.push({ kind: 'bridged', write: we, link, read: te })
+            }
           }
         }
       }

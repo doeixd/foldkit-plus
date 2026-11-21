@@ -1970,7 +1970,8 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   const valueAtPath = (root: unknown, path: ReadonlyArray<string>): unknown => {
     let cursor = root
     for (const key of path) {
-      if (cursor === null || typeof cursor !== 'object') return undefined
+      if (cursor === null || typeof cursor !== 'object' || !Object.hasOwn(cursor, key))
+        return undefined
       cursor = (cursor as Record<string, unknown>)[key]
     }
     return cursor

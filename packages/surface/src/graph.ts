@@ -16,8 +16,10 @@ import {
   knownEdge,
   modelPath,
   rowPath,
+  unknownEdge,
   type DependencyGraph,
   type PathAddress,
+  type PathEdge,
   type ReaderNode,
   type RowToModelLink,
   type WriterNode,
@@ -237,7 +239,7 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
     if (kept) edges.set(keyOf(made), made)
   }
 
-  const surfaceReaders: Array<ReaderNode> = []
+  const surfaceReadersMap = new Map<string, Array<PathEdge>>()
   const links: Array<RowToModelLink> = []
   const seenLinks = new Set<string>()
 
@@ -247,12 +249,16 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
       node(GraphNode.Owner({ kind: contract.kind, name: contract.name }))
       for (const path of contract.owns) edge(GraphEdge.Owns({ owner: label, path }))
     }
-    if (contract.kind === 'surface' && contract.observes.length > 0) {
-      surfaceReaders.push({
-        id: label,
-        kind: 'projection',
-        reads: contract.observes.map(path => knownEdge(modelPath(path), 'declared')),
-      })
+    if (contract.kind === 'surface') {
+      const existing = surfaceReadersMap.get(label) ?? []
+      const edges: Array<PathEdge> = [
+        ...existing,
+        ...contract.observes.map(path => knownEdge(modelPath(path), 'declared')),
+      ]
+      if (contract.unnamed === true || contract.observes.length === 0) {
+        edges.push(unknownEdge())
+      }
+      surfaceReadersMap.set(label, edges)
     }
     if (contract.closed === true) {
       const law = `closure:${contract.name}`
@@ -305,7 +311,7 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
     }
     for (const entity of contractEntities) {
       for (const owned of contract.owns) {
-        const linkKey = `${entity}->${owned.join('.')}`
+        const linkKey = JSON.stringify([entity, owned])
         if (seenLinks.has(linkKey)) continue
         seenLinks.add(linkKey)
         links.push({
@@ -334,15 +340,23 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
 
   // Build the unified metakit DependencyGraph from contract transitions, machine
   // transitions, laws, surface observations, and remote row->model links.
-  const depWriters: Array<WriterNode> = transitionNodes.map(transition => ({
-    id: transition.id,
-    kind: transition.kind === 'write' ? 'write' : 'transition',
-    writes: (writes.get(transition.id) ?? []).map(at => knownEdge(toAddress(at), 'declared')),
-  }))
+  // Deduplicate writer ids so duplicate declarations still assemble and let
+  // `Graph.validate` report `transition-declared-twice`.
+  const depWritersMap = new Map<string, WriterNode>()
+  for (const transition of transitionNodes) {
+    if (depWritersMap.has(transition.id)) continue
+    depWritersMap.set(transition.id, {
+      id: transition.id,
+      kind: transition.kind === 'write' ? 'write' : 'transition',
+      writes: (writes.get(transition.id) ?? []).map(at => knownEdge(toAddress(at), 'declared')),
+    })
+  }
   if (options.machine !== undefined) {
     for (const [tag, footprint] of Object.entries(options.machine.footprints)) {
-      depWriters.push({
-        id: `message:${tag}`,
+      const id = `message:${tag}`
+      if (depWritersMap.has(id)) continue
+      depWritersMap.set(id, {
+        id,
         kind: 'transition',
         writes: footprint.writes.map(path => knownEdge(modelPath(path), 'derived')),
       })
@@ -354,10 +368,14 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
       kind: 'rule' as const,
       reads: (reads.get(law.id) ?? []).map(at => knownEdge(toAddress(at), 'declared')),
     })),
-    ...surfaceReaders,
+    ...[...surfaceReadersMap.entries()].map(([id, readEdges]) => ({
+      id,
+      kind: 'projection' as const,
+      reads: readEdges,
+    })),
   ]
   const dependencies = buildDependencyGraph({
-    writers: depWriters,
+    writers: [...depWritersMap.values()],
     readers: depReaders,
     links,
   })

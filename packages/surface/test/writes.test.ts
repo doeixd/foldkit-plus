@@ -194,6 +194,20 @@ describe('a Surface whose projection carries metadata', () => {
       { name: 'StoreRef', reads: Option.some([['note']]), redrawnBy: ['Noted'] },
       { name: 'Planned', reads: Option.some([['note']]), redrawnBy: ['Noted'] },
     ])
+
+    // Registering an UNRELATED contract (owning ['count']) must NOT disable the
+    // metadata fallback for Planned (which reads unregistered ['note']).
+    const withUnrelated = Writes.of(App, Declared, {
+      contracts: [{ messages: ['Counted'], owns: [['count']] }],
+    })
+    withUnrelated.rootView(Planned, undefined, (note, h) => h.p([], [note]))
+    expect(withUnrelated.regions()).toEqual([
+      {
+        name: 'Planned',
+        reads: Option.none(),
+        redrawnBy: ['Renamed', 'Counted', 'Deposited', 'Moved', 'Sneaked'],
+      },
+    ])
   })
 })
 

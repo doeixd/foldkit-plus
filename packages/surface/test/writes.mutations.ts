@@ -60,7 +60,7 @@ export default [
   ),
   edit(
     'a projection carrying metadata is kept by the paths it names',
-    '!hasContractsOrWriters && Metadata.summarize(projection.metadata).length > 0',
+    'Metadata.summarize(projection.metadata).length > 0 && !coveredByRegistered',
     'false',
   ),
   edit(

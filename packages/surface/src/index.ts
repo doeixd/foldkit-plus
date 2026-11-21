@@ -1794,6 +1794,7 @@ export const Surface = {
       messages: messageTags(surface),
       metadata: Metadata.summarize(projection.metadata),
       ...(surface.closed ? { closed: true as const } : {}),
+      ...(unnamed(projection) ? { unnamed: true as const } : {}),
     }
   },
 
@@ -1842,6 +1843,8 @@ export interface Contract {
   readonly metadata: readonly MetadataSummary[]
   /** A Surface declared `closed: true`; absent for any other contract. */
   readonly closed?: true
+  /** A Surface whose projection reads something no path names; absent when all reads are named. */
+  readonly unnamed?: true | undefined
   /**
    * The laws the contract holds and the transitions that can break them, as
    * the declarations themselves: `Graph.of` derives their nodes and edges
