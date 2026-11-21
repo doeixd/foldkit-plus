@@ -66,6 +66,7 @@
       "foldkit-mixins-crud/recipes": ["../mixins-crud/src/recipes.ts"],
       "foldkit-mixins-data-grid": ["../mixins-data-grid/src/index.ts"],
       "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
+      "foldkit-mixins-form/declared": ["../mixins-form/src/declared.ts"],
       "foldkit-mixins-form/recipes": ["../mixins-form/src/recipes.ts"],
       "foldkit-mixins-form/ui": ["../mixins-form/src/ui.ts"],
       "foldkit-mixins-richtext": ["../mixins-richtext/src/index.ts"],
@@ -146,6 +147,8 @@
       "foldkit-plus/metakit/policy": ["./src/metakit/policy.ts"],
       "foldkit-plus/metakit/prove": ["./src/metakit/prove.ts"],
       "foldkit-plus/metakit/sql": ["./src/metakit/sql.ts"],
+      "foldkit-plus/metakit/store": ["./src/metakit/store.ts"],
+      "foldkit-plus/metakit/temporal": ["./src/metakit/temporal.ts"],
       "foldkit-plus/mirror": ["./src/mirror.ts"],
       "foldkit-plus/mixins": ["./src/mixins.ts"],
       "foldkit-plus/mixins-builder": ["./src/mixins-builder.ts"],
@@ -153,6 +156,7 @@
       "foldkit-plus/mixins-crud/recipes": ["./src/mixins-crud/recipes.ts"],
       "foldkit-plus/mixins-data-grid": ["./src/mixins-data-grid.ts"],
       "foldkit-plus/mixins-form": ["./src/mixins-form.ts"],
+      "foldkit-plus/mixins-form/declared": ["./src/mixins-form/declared.ts"],
       "foldkit-plus/mixins-form/recipes": ["./src/mixins-form/recipes.ts"],
       "foldkit-plus/mixins-form/ui": ["./src/mixins-form/ui.ts"],
       "foldkit-plus/mixins-richtext": ["./src/mixins-richtext.ts"],
@@ -302,6 +306,7 @@
       "metakit/policy": ["../metakit/src/policy.ts"],
       "metakit/prove": ["../metakit/src/prove.ts"],
       "metakit/sql": ["../metakit/src/sql.ts"],
+      "metakit/store": ["../metakit/src/store.ts"],
       "metakit/temporal": ["../metakit/src/temporal.ts"]
     }
   },

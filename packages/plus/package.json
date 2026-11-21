@@ -338,6 +338,16 @@
       "types": "./dist/metakit/policy.d.mts",
       "import": "./dist/metakit/policy.mjs"
     },
+    "./metakit/store": {
+      "foldkit-plus:source": "./src/metakit/store.ts",
+      "types": "./dist/metakit/store.d.mts",
+      "import": "./dist/metakit/store.mjs"
+    },
+    "./metakit/temporal": {
+      "foldkit-plus:source": "./src/metakit/temporal.ts",
+      "types": "./dist/metakit/temporal.d.mts",
+      "import": "./dist/metakit/temporal.mjs"
+    },
     "./metakit/sql": {
       "foldkit-plus:source": "./src/metakit/sql.ts",
       "types": "./dist/metakit/sql.d.mts",
@@ -452,6 +462,11 @@
       "foldkit-plus:source": "./src/mixins-form/recipes.ts",
       "types": "./dist/mixins-form/recipes.d.mts",
       "import": "./dist/mixins-form/recipes.mjs"
+    },
+    "./mixins-form/declared": {
+      "foldkit-plus:source": "./src/mixins-form/declared.ts",
+      "types": "./dist/mixins-form/declared.d.mts",
+      "import": "./dist/mixins-form/declared.mjs"
     },
     "./mixins-form": {
       "foldkit-plus:source": "./src/mixins-form.ts",

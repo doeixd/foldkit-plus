@@ -19,6 +19,7 @@
       "metakit/policy": ["../../packages/metakit/src/policy.ts"],
       "metakit/prove": ["../../packages/metakit/src/prove.ts"],
       "metakit/sql": ["../../packages/metakit/src/sql.ts"],
+      "metakit/store": ["../../packages/metakit/src/store.ts"],
       "metakit/temporal": ["../../packages/metakit/src/temporal.ts"]
     }
   },

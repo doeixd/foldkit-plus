@@ -4061,6 +4061,9 @@ importers:
       foldkit-remote:
         specifier: workspace:*
         version: link:../remote
+      metakit:
+        specifier: workspace:*
+        version: link:../metakit
     devDependencies:
       '@effect/platform-browser':
         specifier: ^4.1.4
