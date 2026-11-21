@@ -1,7 +1,7 @@
 /**
  * Looks for the form view's Slots over the shipped tokens, from
  * `foldkit-mixins-form/recipes`: `Style.forSlots(FieldSlots)(Field({}))` and
- * `Style.forSlots(FormSlots)(Form({}))`. Text, number, date, amount, select and the relation
+ * `Style.forSlots(FormSlots)(Form({}))`. Text, number, select and the relation
  * picker's search box take `foldkit-mixins-ui`'s own field looks, so a form drawn
  * with the plain renderers and one drawn with `UiForm.renderers` look the same.
  */
@@ -50,8 +50,6 @@ export const Field = Style.recipeFor(FieldSlots)({
     error: said(ref.error.ink),
     text: input,
     number: input,
-    date: input,
-    decimal: input,
     multiline: Recipes.Textarea({}).textarea,
     select: Recipes.Select({}).select,
     toggle: box,

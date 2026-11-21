@@ -261,10 +261,6 @@ export const FieldSlots = Slots.define({
   text: Slot.make(textual),
   multiline: Slot.make(textual),
   number: Slot.make(textual),
-  /** A `CalendarDay` key's `type="date"` input. */
-  date: Slot.make(textual),
-  /** A `Money` or `Decimal` key's amount input. */
-  decimal: Slot.make(textual),
   toggle: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click, Event.Blur],
@@ -589,69 +585,11 @@ export interface FieldAttrs {
   readonly autocapitalize?: string | undefined
   /** Off by default for an `email`, `tel` or `url` type, where a correction is a wrong address. */
   readonly spellcheck?: boolean | undefined
-  /** The lowest, highest and stepped value, as the control shows it: the date and amount inputs set them. */
+  /** The lowest, highest and stepped value, as the control shows it: read by the renderers of `foldkit-mixins-form/declared`. */
   readonly min?: string | undefined
   readonly max?: string | undefined
   readonly step?: string | undefined
 }
-
-/** The input attributes of one key's declaration, each none when it says nothing. */
-export interface DeclaredAttributes {
-  readonly inputMode: Maybe.Option<string>
-  readonly min: Maybe.Option<string>
-  readonly max: Maybe.Option<string>
-  readonly step: Maybe.Option<string>
-}
-
-/**
- * What `Declared.of(form)` from `foldkit-form/metakit` gives, as the view reads
- * it. Structural, so this package imports no metakit module: `field` is the
- * form's own with the messages of a rule over several keys added, and
- * `constraints` gives the date and amount inputs their bounds and step.
- */
-export interface DeclaredForm<Key extends string, Model> {
-  readonly field: (model: Model, key: Key) => FieldValidation.Field<Draft>
-  readonly constraints: { readonly [K in Key]?: { readonly attributes: DeclaredAttributes } }
-}
-
-/**
- * Each key's `attrs` as the view draws it: what its declaration implies, then
- * the `attrs` the application gave for the key, which win.
- */
-const attrsOf = <Key extends string, Model>(
-  given: { readonly [K in Key]?: FieldAttrs } | undefined,
-  declared: DeclaredForm<Key, Model> | undefined,
-): ((key: Key) => FieldAttrs) => {
-  const made = new Map<Key, FieldAttrs>()
-  return key => {
-    const known = made.get(key)
-    if (known !== undefined) return known
-    const derived =
-      declared !== undefined && Object.hasOwn(declared.constraints, key)
-        ? declared.constraints[key]?.attributes
-        : undefined
-    const attrs: FieldAttrs = {
-      ...(derived === undefined
-        ? {}
-        : {
-            inputMode: Maybe.getOrUndefined(derived.inputMode),
-            min: Maybe.getOrUndefined(derived.min),
-            max: Maybe.getOrUndefined(derived.max),
-            step: Maybe.getOrUndefined(derived.step),
-          }),
-      ...given?.[key],
-    }
-    made.set(key, attrs)
-    return attrs
-  }
-}
-
-/** The form's own `field`, or the declared form's, which adds the messages of its rules over several keys. */
-const fieldOf = <Key extends string, Model>(
-  form: { readonly field: (model: Model, key: Key) => FieldValidation.Field<Draft> },
-  declared: DeclaredForm<Key, Model> | undefined,
-): ((model: Model, key: Key) => FieldValidation.Field<Draft>) =>
-  declared === undefined ? (model, key) => form.field(model, key) : declared.field
 
 /**
  * Per-key overrides for `FormView.fields`. `overrides` draw through the
@@ -666,7 +604,7 @@ export interface FieldsOptions<Key extends string, Changed> {
   readonly styles?: { readonly [K in Key]?: NamedStyle<typeof FieldSlots> } | undefined
   /**
    * What one key's element takes beyond the base field view. The text,
-   * multiline, number, date, and amount renderers read them for a base field view, and a
+   * multiline, and number renderers read them for a base field view, and a
    * per-key override is handed them as its own `attrs` too, so it decides what
    * to do with them; a bundle-backed kind drawn by `bundleRenderer` reads none.
    * Passing `field` draws through the base view directly, skipping both
@@ -739,11 +677,8 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
     readonly renderers?: Renderers<Message>
     /** What one key's element takes beyond the base field view. */
     readonly attrs?: { readonly [K in Key]?: FieldAttrs }
-    /** The declared form: its constraints give each key's `min`, `max`, `step` and keypad, beneath `attrs`. */
-    readonly declared?: DeclaredForm<NoInfer<Key>, NoInfer<Model>>
   } = {},
 ): FieldView<Key, Message> => {
-  const attrsFor = attrsOf(options.attrs, options.declared)
   // No prototype: a kind named `constructor` or `toString` has a renderer only if given one.
   const renderers: Renderers<Message> = Object.assign(
     Object.create(null),
@@ -809,7 +744,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         blurred,
         bundle,
         state,
-        attrs: attrsFor(key),
+        attrs: options.attrs?.[key] ?? {},
         slots,
         h,
       })
@@ -928,22 +863,11 @@ export const FormView = {
       readonly field?: FieldView<Key, Message>
       /** Renderers by kind, for the field view this makes. With `field` given, give them to `FormView.field`. */
       readonly renderers?: Renderers<Message>
-      /**
-       * `Declared.of(form)` from `foldkit-form/metakit`: each key is read through its
-       * `field`, so a rule over several keys shows its message beside them, and
-       * through its `constraints`, which give the date and amount inputs their
-       * bounds. With `field` given, give it to `FormView.field` too.
-       */
-      readonly declared?: DeclaredForm<NoInfer<Key>, NoInfer<Model>>
     } = {},
   ): SlotView.SlotView<typeof FormSlots, FormInput<Model, Key, ControlKey, PickerKey>, Message> => {
     const fieldView =
       options.field ??
-      field(form, {
-        ...(options.renderers === undefined ? {} : { renderers: options.renderers }),
-        ...(options.declared === undefined ? {} : { declared: options.declared }),
-      })
-    const read = fieldOf(form, options.declared)
+      field(form, options.renderers === undefined ? {} : { renderers: options.renderers })
     type Make = (payload: object) => unknown
     return SlotView.forMessages<Message>().define(
       FormSlots,
@@ -1105,7 +1029,7 @@ export const FormView = {
 
         const top: Walk<Message> = {
           controls: form.controls,
-          field: key => read(input.model, key as Key),
+          field: key => form.field(input.model, key as Key),
           controlField: key => form.control(key as never).field(input.model),
           rows: key => form.rows(input.model, key as never),
           search: key => form.search(input.model, key as Key),
@@ -1220,8 +1144,6 @@ export const FormView = {
       readonly field?: FieldView<Key, FormMessage>
       /** Renderers by kind, for the field views this makes. */
       readonly renderers?: Renderers<FormMessage>
-      /** As for `define`: the declared form's `field` and constraints. */
-      readonly declared?: DeclaredForm<NoInfer<Key>, NoInfer<Model>>
     } & FieldsOptions<Key, FormMessage> = {},
   ): {
     readonly view: SlotView.SlotView<
@@ -1233,13 +1155,15 @@ export const FormView = {
   } => {
     const base =
       options.field ??
-      field(form, {
-        ...(options.renderers === undefined ? {} : { renderers: options.renderers }),
-        ...(options.attrs === undefined ? {} : { attrs: options.attrs }),
-        ...(options.declared === undefined ? {} : { declared: options.declared }),
-      })
-    const attrsFor = attrsOf(options.attrs, options.declared)
-    const read = fieldOf(form, options.declared)
+      field(
+        form,
+        options.renderers === undefined && options.attrs === undefined
+          ? {}
+          : {
+              ...(options.renderers === undefined ? {} : { renderers: options.renderers }),
+              ...(options.attrs === undefined ? {} : { attrs: options.attrs }),
+            },
+      )
     const styled = new Map<Key, FieldView<Key, FormMessage>>()
     const viewOf = (key: Key): FieldView<Key, FormMessage> => {
       const known = styled.get(key)
@@ -1262,7 +1186,7 @@ export const FormView = {
           changed: changedOf(form, input.control.key, input.send),
           toggled: toggledOf(form, input.control.key, input.send),
           blurred: blurredOf(form, input.control.key, input.send),
-          attrs: attrsFor(input.control.key),
+          attrs: options.attrs?.[input.control.key] ?? {},
         },
         h,
       )
@@ -1274,7 +1198,6 @@ export const FormView = {
           (input: FieldInput<Key>, _slots, h) => drawn(input, h),
           { name: `${form.bundle.name}Fields` },
         ),
-        ...(options.declared === undefined ? {} : { declared: options.declared }),
       }),
       field: (<M>(
         control: FormControl<Key>,
@@ -1283,7 +1206,7 @@ export const FormView = {
         h: HtmlBuilder<M> | HtmlBuilder<FormMessage>,
         override?: FieldOverride<Key, FormMessage, M>,
       ): Html => {
-        const state = read(model, control.key)
+        const state = form.field(model, control.key)
         if (override !== undefined)
           return override(
             {
@@ -1295,7 +1218,7 @@ export const FormView = {
               changed: value => form.Message.Changed({ key: control.key, value }),
               toggled: toggledOf(form, control.key, undefined),
               blurred: form.Message.Blurred({ key: control.key }),
-              attrs: attrsFor(control.key),
+              attrs: options.attrs?.[control.key] ?? {},
             },
             h as HtmlBuilder<M>,
           )

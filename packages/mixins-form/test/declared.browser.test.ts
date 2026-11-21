@@ -10,14 +10,15 @@ import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
+import { DeclaredView } from '../src/declared.js'
 import { FormView } from '../src/index.js'
-import { declared, Stay, type StayMessage, type StayModel } from './declaredFixture.js'
+import { declared, stay, Stay, type StayMessage, type StayModel } from './declaredFixture.js'
 
 let model: StayModel = Stay.initial
 
 afterEach(() => document.body.replaceChildren())
 
-const mount = async (view = FormView.define(Stay, { declared })) => {
+const mount = async (view = FormView.fields(stay.form, stay.options).view) => {
   model = Stay.initial
   const container = document.createElement('div')
   container.id = 'declared-form'
@@ -85,12 +86,8 @@ it('reads an amount typed as 12.50 as 1250 whole cents, and refuses one with a c
 })
 
 it('has the browser enforce the amount’s bounds and step once the caller makes it a number input', async () => {
-  const handle = await mount(
-    FormView.define(Stay, {
-      declared,
-      field: FormView.field(Stay, { declared, attrs: { deposit: { type: 'number' } } }),
-    }),
-  )
+  const numbered = DeclaredView.of(Stay, declared, { attrs: { deposit: { type: 'number' } } })
+  const handle = await mount(FormView.fields(numbered.form, numbered.options).view)
   try {
     const deposit = input('deposit')
     expect(deposit.type).toBe('number')

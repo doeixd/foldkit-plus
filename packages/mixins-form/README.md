@@ -266,15 +266,16 @@ Fields.field(control, formModel, control.key, h, (input, draw) =>
 
 ### Draw days and amounts from a metakit declaration
 
-A day typed as `2026-03-05` wants a date picker, an amount typed as `12.50` wants a decimal keypad, and both want the limits your Schema already states. [metakit](../metakit/README.md) is a library that keeps Schema rules as data a program can read, and `Declared.inputs(schema)` from `foldkit-form/metakit` ([the guide](../form/docs/metakit.md)) gives its `CalendarDay` keys a control that holds a `YYYY-MM-DD` draft and its `Money` and `Decimal` keys one that holds an amount in whole units. `FormView` draws the first as `input type="date"` and the second as a text input with `inputmode="decimal"` (text, like `Number`, so `"12."` can be typed), with no renderer of yours.
+A day typed as `2026-03-05` wants a date picker, an amount typed as `12.50` wants a decimal keypad, and both want the limits your Schema already states. [metakit](../metakit/README.md) is a library that keeps Schema rules as data a program can read, and `Declared.inputs(schema)` from `foldkit-form/metakit` ([the guide](../form/docs/metakit.md)) gives its `CalendarDay` keys a control that holds a `YYYY-MM-DD` draft and its `Money` and `Decimal` keys one that holds an amount in whole units. `FormView` has no renderer for either: `DeclaredView.of`, from `foldkit-mixins-form/declared`, brings them, so a form view that uses neither carries none of their code.
 
-Pass `Declared.of(form)` as `declared` to add what the Schema says: the `min`, `max` and `step` it declares go on those inputs, and a rule over several keys ("leave after you arrive") shows its message beside every key it reads, where each key's own errors show, marked `aria-invalid` and named in `aria-describedby` the same way:
+`DeclaredView.of(form, Declared.of(form))` gives back the form and the options to draw it with. The first control is drawn as `input type="date"` and the second as a text input with `inputmode="decimal"` (text, like `Number`, so `"12."` can be typed). The `min`, `max` and `step` the Schema declares go on those inputs and on `Number` ones, and a rule over several keys ("leave after you arrive") shows its message beside every key it reads, where each key's own errors show, marked `aria-invalid` and named in `aria-describedby` the same way:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
 import { Form } from 'foldkit-form'
 import { Declared } from 'foldkit-form/metakit'
 import { FormView } from 'foldkit-mixins-form'
+import { DeclaredView } from 'foldkit-mixins-form/declared'
 import { Expr } from 'metakit'
 import { CalendarDay } from 'metakit/domain'
 -->
@@ -287,15 +288,18 @@ const StayInput = Schema.Struct({
 )
 const Stay = Form.make('Stay', Form.input(StayInput), { inputs: Declared.inputs(StayInput) })
 
-const StayView = FormView.define(Stay, { declared: Declared.of(Stay) })
+const stay = DeclaredView.of(Stay, Declared.of(Stay))
+const StayView = FormView.fields(stay.form, stay.options).view
 ```
 
-With `2026-03-05` typed for `arrives` and `2026-03-01` for `leaves`, "Leave after you arrive" is drawn under both inputs; typing a later `leaves` removes it. Without `declared` the form reads its own `field`, which shows that rule only among the form's own `errors`, after a submit.
+With `2026-03-05` typed for `arrives` and `2026-03-01` for `leaves`, "Leave after you arrive" is drawn under both inputs; typing a later `leaves` removes it. Drawn from `Stay` itself the form reads its own `field`, which shows that rule only among the form's own `errors`, after a submit.
 
-- **`declared` is structural.** `FormView` reads only its `field` and `constraints[key].attributes`, so this package imports no metakit module. Pass it to `FormView.define`, `FormView.fields` and `FormView.field`; with a styled `field` given to `define`, give `declared` to `FormView.field` too, as with `renderers`.
-- **`attrs` win.** `FormView.fields(form, { attrs: { deposit: { max: '500.00' } } })` replaces the declared `max` for that key; `inputMode` is taken from the declaration the same way.
-- **The amount is text.** Its `min`, `max` and `step` are on the element but the browser checks them only for `type="number"`; pass `attrs: { deposit: { type: 'number' } }` to have it enforce them, at the cost of a number input refusing a half-typed `"12."`.
-- **Slots and styles.** The date input is the `date` Slot and the amount input the `decimal` Slot of `FieldSlots`; `Field({})` from `foldkit-mixins-form/recipes` styles both like a text input, and `UiForm.renderers` draws both through `foldkit-mixins-ui`'s Input.
+- **What it gives.** `stay.form` is the form with its `field` replaced by the declared one, which adds the rules' messages; pass it wherever you passed the form. `stay.options` is `{ attrs, renderers }`, for `FormView.fields` and `FormView.field`; `FormView.define` takes no `attrs`, so give it `field: FormView.field(stay.form, stay.options)`.
+- **It reads shapes.** `DeclaredView.of` reads only the declarations' `field` and `constraints[key].attributes`, so neither entry of this package imports a metakit module.
+- **`attrs` win.** `DeclaredView.of(form, declared, { attrs: { deposit: { max: '500.00' } } })` replaces the declared `max` for that key; `inputMode` is taken from the declaration the same way.
+- **Text inputs do not check bounds.** The amount input and a `Number` input are `type="text"`: their `min`, `max` and `step` are on the element, for a script or a stylesheet to read, and the browser ignores them. Pass `attrs: { deposit: { type: 'number' } }` to make the amount a number input, which the browser holds to them, at the cost of refusing a half-typed `"12."`. The date input is checked by the browser as it stands.
+- **Slots and styles.** The date and amount inputs are drawn by the `Text` renderer and a `Number` input by the `Number` renderer, so they are the `text` and `number` Slots of `FieldSlots` and take their styles. Pass `renderers: UiForm.renderers()` to `DeclaredView.of` to draw all three through `foldkit-mixins-ui`'s Input.
+- **Without it.** A form with a `CalendarDay` or `Decimal` control drawn by `FormView` alone throws when the key is drawn, naming the kind that has no renderer.
 
 ### Validation summaries, pending checks, and submit states
 

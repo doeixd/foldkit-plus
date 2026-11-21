@@ -258,6 +258,24 @@ test.each([
 )
 
 /**
+ * The date and amount renderers and the declared attrs live in
+ * `foldkit-mixins-form/declared`: a page that draws a form with the main entry
+ * keeps none of that module, built or source.
+ */
+test('a page drawing a form keeps none of foldkit-mixins-form/declared, built or source', async () => {
+  const root = scratchIn('mixins-form', 'published-')
+  made.push(root)
+  const page = `import { FormView } from 'pkg'\nexport const used = FormView.define`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('mixins-form', root))
+  const source = await kept(join(packages, 'mixins-form', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/index\.m?js$/.test(id))).toBe(true)
+  expect(source.some(id => id.endsWith('/mixins-form/src/index.ts'))).toBe(true)
+  expect([...built, ...source].filter(id => /\/declared\.(m?js|ts)$/.test(id))).toEqual([])
+}, 240_000)
+
+/**
  * Declared writes are read through `foldkit-surface/writes`, so a page with a
  * Surface and no declared writes keeps no metakit and no lazy slot; and the
  * development check is a file of its own, which a page that reaches it only

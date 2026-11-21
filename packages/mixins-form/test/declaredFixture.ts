@@ -3,6 +3,7 @@ import { Form } from 'foldkit-form'
 import { Declared } from 'foldkit-form/metakit'
 import { Expr, Ord } from 'metakit'
 import { CalendarDay, Money } from 'metakit/domain'
+import { DeclaredView } from '../src/declared.js'
 
 const Usd = Money.make('USD')
 
@@ -26,6 +27,8 @@ export const StayInput = Schema.Struct({
 
 export const Stay = Form.make('Stay', Form.input(StayInput), { inputs: Declared.inputs(StayInput) })
 export const declared = Declared.of(Stay)
+/** The form and its declarations as `FormView` takes them. */
+export const stay = DeclaredView.of(Stay, declared)
 
 export type StayModel = typeof Stay.initial
 export type StayMessage = typeof Stay.Message.Type

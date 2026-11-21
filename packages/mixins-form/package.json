@@ -37,6 +37,11 @@
       "types": "./dist/recipes.d.mts",
       "import": "./dist/recipes.mjs"
     },
+    "./declared": {
+      "foldkit-plus:source": "./src/declared.ts",
+      "types": "./dist/declared.d.mts",
+      "import": "./dist/declared.mjs"
+    },
     ".": {
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",

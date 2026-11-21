@@ -455,14 +455,20 @@ const refused = Verdict.isFalse(can(WithdrawForm.initial, Withdraw, { balance: M
 - `Declared.inputs(schema)` gives `CalendarDay` and `Money`/`Decimal` keys
   controls (`Declared.CalendarDay`, `Declared.Decimal`) that read those drafts;
   without it a `Money` key gets `Number` and fails the integer check on `12.50`.
-  `foldkit-mixins-form` draws them with no renderer of yours: `CalendarDay` as
-  `input type="date"` (Slot `date`), `Decimal` as a text input with
-  `inputmode="decimal"` (Slot `decimal`; `attrs: { key: { type: 'number' } }`
-  makes the browser enforce its bounds). Pass `declared: Declared.of(form)` to
-  `FormView.define`, `fields` and `field` to put each constraint's `min`, `max`,
-  `step` and `inputMode` on its input (an `attrs` entry for the key wins) and a
-  rule over several keys beside each key it reads (below). It is structural:
-  `foldkit-mixins-form` imports no metakit.
+  `FormView` alone has no renderer for them (it throws naming the kind).
+  `DeclaredView.of(form, Declared.of(form), { attrs?, renderers? })` from
+  `foldkit-mixins-form/declared` returns `{ form, options: { attrs, renderers } }`:
+  `FormView.fields(view.form, view.options)`, or `FormView.field` likewise
+  (`define` takes `field: FormView.field(view.form, view.options)`). It draws
+  `CalendarDay` as `input type="date"` and `Decimal` as a text input with
+  `inputmode="decimal"`, both through the `Text` renderer (Slot `text`), puts
+  each constraint's `min`, `max`, `step` and `inputMode` on those and on
+  `Number` inputs (an `attrs` entry for the key wins), and reads the form
+  through `declared.field`, so a rule over several keys shows beside each key
+  it reads (below). A text input ignores `min`/`max`/`step`:
+  `attrs: { key: { type: 'number' } }` makes the amount a number input the
+  browser checks. It reads the declarations by shape: no entry of
+  `foldkit-mixins-form` imports metakit, and the main entry carries none of this.
 - `can` is three-valued. `Unknown` (a value the guard reads is not typed or not
   valid yet, no state given, an opaque term) is neither allowed nor refused:
   set `aria-disabled` only on `False`, and run the `Transition` in `update`
@@ -476,8 +482,8 @@ const refused = Verdict.isFalse(can(WithdrawForm.initial, Withdraw, { balance: M
   `{ keys, rule, message: Option }`; undecided (a key missing) is not a failure.
   `field(model, key)` is `form.field` plus those messages after the key's own
   errors. A rule with no message makes `Declared.of` throw unless you pass
-  `unworded: failure => string`. `FormView` reads `form.field` unless given
-  `declared: Declared.of(form)`, which shows these messages beside their keys
+  `unworded: failure => string`. `FormView` reads `form.field`; the form
+  `DeclaredView.of` returns reads the declared one, which shows these messages beside their keys
   with the same `aria-invalid` and `aria-describedby` as the key's own errors.
 - Required stays `controlsByKey[key].required` (does an empty draft decode),
   not the constraint's `optional` (may the key be left out).
