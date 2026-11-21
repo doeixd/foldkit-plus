@@ -97,7 +97,7 @@ const bad = Schema.decodeUnknownResult(Account)({
 
 // Postgres CHECK constraint
 const check = Result.getOrThrow(Sql.toCheck(Account, { dialect: 'postgres' }))
-// check.text -> ((("balance" >= 0) AND ("reserved" >= 0)) AND ("reserved" <= "balance"))
+// check -> CHECK ((((("balance" >= 0) AND ("reserved" >= 0)) AND ("reserved" <= "balance"))) IS TRUE)
 
 // Form field bounds & JSON Schema
 const specs = Inspect.fieldSpecs(Account)
@@ -157,11 +157,11 @@ If someone removes `Num.lte(input.amount, Num.sub(state.balance, state.reserved)
 
 ```text
 REFUTED Withdraw [PIN BROKEN]
-  before:   {"id":0,"balance":0,"reserved":0,"status":"open","promoEnabled":false}
+  before:   {"id":"model-string:0","balance":0,"reserved":0,"status":"open","promoEnabled":false}
   input:    {"amount":1}
-  after:    {"id":0,"balance":-1,"reserved":0,"status":"open","promoEnabled":false}
+  after:    {"id":"model-string:0","balance":-1,"reserved":0,"status":"open","promoEnabled":false}
   violated: (((balance >= 0) && (reserved >= 0)) && (reserved <= balance))
-  repro:    Transition.run(Withdraw, {"id":0,"balance":0,"reserved":0,"status":"open","promoEnabled":false}, {"amount":1})
+  repro:    Transition.run(Withdraw, {"id":"model-string:0","balance":0,"reserved":0,"status":"open","promoEnabled":false}, {"amount":1})
 ```
 
 When a transition genuinely needs arbitrary JavaScript (such as a third-party fraud callback), `Expr.opaque` lets it live beside declarative transitions while degrading soundly to `Unknown`—never fabricating a fake proof.

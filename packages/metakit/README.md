@@ -87,7 +87,7 @@ const canWithdraw = Transition.can(Withdraw, { state: frozen })
 
 // 3. Postgres CHECK constraint generated from the exact same invariant:
 const check = Result.getOrThrow(Sql.toCheck(Account, { dialect: 'postgres' }))
-// check.text -> ((("balance" >= 0) AND ("reserved" >= 0)) AND ("reserved" <= "balance"))
+// check -> CHECK ((((("balance" >= 0) AND ("reserved" >= 0)) AND ("reserved" <= "balance"))) IS TRUE)
 
 // 4. Synchronous Zone proof (no Z3 boot needed) that Withdraw preserves all invariants:
 const proof = await Effect.runPromise(Prove.transition(Account, Withdraw))
@@ -102,11 +102,11 @@ If someone weakens `Withdraw`'s guard by removing `Num.lte(input.amount, Num.sub
 
 ```text
 REFUTED Withdraw [PIN BROKEN]
-  before:   {"id":0,"balance":0,"reserved":0,"status":"open"}
+  before:   {"id":"model-string:0","balance":0,"reserved":0,"status":"open"}
   input:    {"amount":1}
-  after:    {"id":0,"balance":-1,"reserved":0,"status":"open"}
+  after:    {"id":"model-string:0","balance":-1,"reserved":0,"status":"open"}
   violated: (((balance >= 0) && (reserved >= 0)) && (reserved <= balance))
-  repro:    Transition.run(Withdraw, {"id":0,"balance":0,"reserved":0,"status":"open"}, {"amount":1})
+  repro:    Transition.run(Withdraw, {"id":"model-string:0","balance":0,"reserved":0,"status":"open"}, {"amount":1})
 ```
 
 ## What the example did
@@ -122,14 +122,15 @@ REFUTED Withdraw [PIN BROKEN]
 | Import | Runs in | Purpose |
 | --- | --- | --- |
 | `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 20-op core (`Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr` + derived helpers), and synchronous Interval + Zone checks (`Abstract`). |
-| `metakit/domain` | Browser / server | Currency-safe `Money`, fixed-scale `Decimal` (half-even rounding), timezone-free `CalendarDay`, `OrderedEnum`, and `Domain.domainOf`. |
-| `metakit/aggregates` | Browser / server | `Rows.sum`, `Rows.count` (O(1) group deltas) and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any` (semilattice). |
+| `metakit/domain` | Browser / server | Currency-safe `Money`, fixed-scale `Decimal` (`Decimal.mul` and `Money.mul` round half-even, in memory only), timezone-free `CalendarDay`, `OrderedEnum`, and `Domain.domainOf`. |
+| `metakit/aggregates` | Browser / server | `Rows.sum` (of integers), `Rows.count` (O(1) group deltas) and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any` (semilattice). Imports no SQL. |
+| `metakit/aggregates/sql` | Server | `RowsSql.toSql(aggregate, options)`: an aggregate as a SQL expression. |
 | `metakit/machine` | Browser / server | Declarative state machine (`dispatch`, TEA `update`, `canDispatch`, `affordances`, `footprints`). |
 | `metakit/inspect` | Browser / server | Form `fieldSpecs` and an enriched `toJsonSchema`, read straight off the Schema. |
 | `metakit/graph` | Build / SSR / planner | Static `Graph.analyze` (`affectedBy`, `deadBindings`), SSR `Graph.pruneStatic`, and `Graph.queryReadiness`. |
-| `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` for Postgres and SQLite with NULL-safe equality. |
-| `metakit/drizzle` | Server (optional `drizzle-orm`) | `Drizzle.toCheck`, `Drizzle.toWhere`, `Drizzle.toUpdate` returning Drizzle `SQL` ASTs. |
-| `metakit/prove` | Dev / CI only | `Prove.invariant`, `Prove.transition`, `Prove.policy`, `Prove.machine` (pinning, `allowUnknown`, counterexample witnesses). |
+| `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` as text for Postgres and SQLite. A predicate selects the rows `Expr.eval` holds true, null included. |
+| `metakit/drizzle` | Server (optional `drizzle-orm`) | `Drizzle.toCheck`, `Drizzle.toWhere`, `Drizzle.toUpdate`: the same lowering as Drizzle `SQL` over a Drizzle table. |
+| `metakit/prove` | Dev / CI only (optional `z3-solver`) | `Prove.invariant`, `Prove.transition`, `Prove.policy`, `Prove.machine` (pinning, `allowUnknown`, replayed counterexamples). |
 | `metakit/conformance` | Dev / CI only | Property tests checking forward/backward interval soundness and `residualize` parity via `Arbitrary.schema`. |
 
 ## When to use something else

@@ -74,7 +74,7 @@ const pruned = Graph.pruneStatic(bindings, { promoEnabled: false })
 
 ## Gate dependent queries (`Graph.queryReadiness`)
 
-For a cascading filter over `{ row, params }`, `Graph.queryReadiness(expr, partialEnv)` partially evaluates the predicate and reports whether any non-row paths remain unbound.
+For a cascading filter over `{ row, params }`, `Graph.queryReadiness(expr, partialEnv)` partially evaluates the predicate and reports whether any non-row paths remain unbound. It is ready only when none do and what is left lowers to SQL: a predicate SQL refuses (an `Expr.opaque` term over the row, a fraction beside an integer column) has nothing `missing` and names the reason in `unsupported`.
 
 ```ts
 import { Result } from 'effect'
@@ -95,7 +95,8 @@ const filter = Expr.in({ row: City, params: Params }, ({ row, params }) =>
 )
 
 const step1 = Graph.queryReadiness(filter, { params: { countryId: 'US' } })
-// step1 -> { ready: false, missing: Some([['params', 'all'], ['params', 'regionId']]), residual }
+// step1 -> { ready: false, missing: Some([['params', 'all'], ['params', 'regionId']]),
+//            unsupported: None, residual }
 
 const step2 = Graph.queryReadiness(filter, { params: { all: true } })
 // step2 -> { ready: true, residual } (short-circuited: countryId and regionId are not required)

@@ -43,8 +43,8 @@ Because the invariant is data rather than a closure, `metakit/sql` compiles it t
 import * as Sql from 'metakit/sql'
 
 const check = Result.getOrThrow(Sql.toCheck(Account, { dialect: 'postgres' }))
-// check.text ->
-//   ((("balance" >= 0) AND ("reserved" >= 0)) AND ("reserved" <= "balance"))
+// check ->
+//   CHECK ((((("balance" >= 0) AND ("reserved" >= 0)) AND ("reserved" <= "balance"))) IS TRUE)
 
 const openHigh = Expr.in({ row: Account }, ({ row }) =>
   Expr.all(Eq.is(row.status, 'open'), Num.gte(row.balance, 20_000)),
@@ -54,7 +54,7 @@ const where = Result.getOrThrow(Sql.toWhere(openHigh, { dialect: 'postgres', row
 // where.params -> ['open', 20000]
 ```
 
-`Eq.is` compiles to `IS NOT DISTINCT FROM` in Postgres (`IS` in SQLite), so nullable columns match JavaScript equality.
+The check ends in `IS TRUE` because a rule holds only where it is true: a comparison of a null is null in SQL and in `Expr.eval` alike, and the check then fails as the Schema refuses the value. `Eq.is` compiles to `IS NOT DISTINCT FROM` in Postgres (`IS` in SQLite), so it answers of a null column as it does in memory. The same predicate selects the same rows on both databases and in `Expr.eval`.
 
 ## 3. Declare a guarded transition and disable actions early
 
