@@ -51,9 +51,9 @@ export const invariant = <S extends Schema.Top>(
  * input its input Schema accepts and a guard that holds, a state the Schema
  * still accepts.
  */
-export const transition = <S extends Schema.Top, I, Emit>(
+export const transition = <S extends Schema.Top, I, Emit, Supplied>(
   stateSchema: S,
-  tr: Transition.Transition<S['Type'], I, Emit>,
+  tr: Transition.Transition<S['Type'], I, Emit, Supplied>,
   options?: ProveOptions,
 ): Effect.Effect<Proof, SolverUnavailableError> =>
   Effect.map(

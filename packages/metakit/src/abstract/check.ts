@@ -16,7 +16,7 @@ import * as Node from '../node.js'
 import * as Bool from '../ops/bool.js'
 import * as Null from '../ops/null.js'
 import * as Path from '../path.js'
-import type { Transition } from '../transition.js'
+import type { Transition, TransitionEnv } from '../transition.js'
 import * as Verdict from '../verdict.js'
 import { collectFields, pathKey, type FieldInfo } from './fields.js'
 import { AbstractState } from './state.js'
@@ -100,33 +100,42 @@ export const checkInvariant = <S extends Schema.Top>(
 }
 
 /**
- * Tier 3 synchronous check: does `transition` leave a state `stateSchema`
- * admits? Every rule on the Schema must hold of the state after the writes,
- * and every written value must be one its field's Schema takes: its type, its
- * bounds, whether it is an integer, a literal of its enumeration, or null.
+ * What a step of `transition` from a state `stateSchema` admits lets the
+ * checker assume: the rules of the state, the input and the supplied values,
+ * the guard, `extra`, and that no written value was refused. `goals` are
+ * collected into the state's terms. None where the assumptions contradict,
+ * so no step is taken.
  */
-export const checkTransition = <S extends Schema.Top, I, Emit>(
+const stepState = <S extends Schema.Top, I, Emit, Sup>(
   stateSchema: S,
-  transition: Transition<S['Type'], I, Emit>,
-): Verdict.Verdict<never> => {
+  transition: Transition<S['Type'], I, Emit, Sup>,
+  extra: ReadonlyArray<Node.Node>,
+  goals: (
+    writes: ReadonlyArray<Write>,
+    preInvariants: ReadonlyArray<Node.Node>,
+  ) => ReadonlyArray<Node.Node>,
+) => {
   const fields = new Map<string, FieldInfo>()
   collectFields(stateSchema.ast, ['state'], fields)
   const preInvariants = rulesUnder(stateSchema, ['state'], fields)
 
-  const inputInvariants: Array<Node.Node> = []
-  if (Option.isSome(transition.inputSchema)) {
-    const inputSchema = transition.inputSchema.value
-    collectFields(inputSchema.ast, ['input'], fields)
-    inputInvariants.push(...rulesUnder(inputSchema, ['input'], fields))
+  const otherInvariants: Array<Node.Node> = []
+  const slices: ReadonlyArray<readonly [string, Option.Option<Schema.Top>]> = [
+    ['input', transition.inputSchema],
+    ['supplied', transition.suppliedSchema],
+  ]
+  for (const [slice, schema] of slices) {
+    if (Option.isNone(schema)) continue
+    collectFields(schema.value.ast, [slice], fields)
+    otherInvariants.push(...rulesUnder(schema.value, [slice], fields))
   }
 
   const writes: ReadonlyArray<Write> = transition.writes.map(eq => ({
     target: eq.target,
     value: eq.value.node,
   }))
-  const postGoals = preInvariants.map(inv => afterWrites(inv, writes))
-
-  const hypotheses = [...preInvariants, ...inputInvariants, transition.when.node]
+  const postGoals = goals(writes, preInvariants)
+  const hypotheses = [...preInvariants, ...otherInvariants, transition.when.node, ...extra]
   const state = new AbstractState(
     [...hypotheses, ...postGoals, ...writes.map(write => write.value)],
     fields,
@@ -134,7 +143,66 @@ export const checkTransition = <S extends Schema.Top, I, Emit>(
   for (const hypothesis of hypotheses) state.assume(hypothesis)
   // A write whose value is refused refuses the transition, so no state follows it.
   for (const write of writes) state.assumeEvaluated(write.value)
-  if (!state.propagate()) return proved('zone')
+  return { state, fields, writes, postGoals, reachable: state.propagate() }
+}
+
+/** The environment a goal of `checkGoal` reads: a step's, and the state it leaves as `next`. */
+export interface GoalEnv<State, Input, Supplied> extends TransitionEnv<State, Input, Supplied> {
+  readonly next: State
+}
+
+/**
+ * Tier 3 synchronous check of one goal about one step of `transition`: in
+ * every step from a state `stateSchema` admits, with the input and supplied
+ * values their Schemas admit, where the guard and each of `assume` hold, does
+ * `goal` hold? `goal` reads the state before as `state` and the state the
+ * writes leave as `next`.
+ */
+export const checkGoal = <S extends Schema.Top, I, Emit, Sup>(
+  stateSchema: S,
+  transition: Transition<S['Type'], I, Emit, Sup>,
+  options: {
+    readonly assume?: ReadonlyArray<Expr.Expr<TransitionEnv<S['Type'], I, Sup>, boolean | null>>
+    readonly goal: Expr.Expr<GoalEnv<S['Type'], I, Sup>, boolean | null>
+  },
+): Verdict.Verdict<never> => {
+  const { state, postGoals, reachable } = stepState(
+    stateSchema,
+    transition,
+    (options.assume ?? []).map(each => each.node),
+    writes => [
+      Node.substitutePaths(options.goal.node, segments =>
+        segments[0] === 'next'
+          ? Option.some(
+              afterWrites(
+                Node.Path({ segments: ['state', ...segments.slice(1)], ast: Option.none() }),
+                writes,
+              ),
+            )
+          : Option.none(),
+      ),
+    ],
+  )
+  return reachable ? state.entails(postGoals[0]!) : proved('zone')
+}
+
+/**
+ * Tier 3 synchronous check: does `transition` leave a state `stateSchema`
+ * admits? Every rule on the Schema must hold of the state after the writes,
+ * and every written value must be one its field's Schema takes: its type, its
+ * bounds, whether it is an integer, a literal of its enumeration, or null.
+ */
+export const checkTransition = <S extends Schema.Top, I, Emit, Sup>(
+  stateSchema: S,
+  transition: Transition<S['Type'], I, Emit, Sup>,
+): Verdict.Verdict<never> => {
+  const { state, fields, writes, postGoals, reachable } = stepState(
+    stateSchema,
+    transition,
+    [],
+    (writes, preInvariants) => preInvariants.map(inv => afterWrites(inv, writes)),
+  )
+  if (!reachable) return proved('zone')
 
   let overall: Verdict.Verdict<never> = proved('zone')
   for (const { target, value } of writes) {

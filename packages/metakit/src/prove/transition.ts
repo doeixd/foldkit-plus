@@ -45,7 +45,7 @@ const project = (written: Node.Node, rest: ReadonlyArray<string>): Node.Node =>
  */
 const afterWrites = (
   rule: Node.Node,
-  writes: ReadonlyArray<Transition.WriteEquation<never, never>>,
+  writes: ReadonlyArray<Transition.WriteEquation<never, never, unknown, never>>,
 ): Node.Node =>
   Node.substitutePaths(rule, segments => {
     if (segments[0] !== 'state') return Option.none()
@@ -109,9 +109,9 @@ const mayBeNull = (node: Node.Node, shape: Shape): boolean =>
     Opaque: () => true,
   })
 
-export const proveTransition = <State, Input, Emit>(
+export const proveTransition = <State, Input, Emit, Supplied>(
   stateSchema: Schema.Codec<State>,
-  tr: Transition.Transition<State, Input, Emit>,
+  tr: Transition.Transition<State, Input, Emit, Supplied>,
   options: ProveOptions | undefined,
 ): Effect.Effect<
   { readonly verdict: Proof; readonly replay: Option.Option<Replay> },
@@ -119,6 +119,8 @@ export const proveTransition = <State, Input, Emit>(
 > => {
   const slices: Array<Slice> = [[['state'], stateSchema]]
   if (Option.isSome(tr.inputSchema)) slices.push([['input'], tr.inputSchema.value])
+  // A supplied value is any its Schema admits: the proof holds for every time and id.
+  if (Option.isSome(tr.suppliedSchema)) slices.push([['supplied'], tr.suppliedSchema.value])
   const tier3 = AbstractCheck.checkTransition(stateSchema, tr)
   if (Verdict.isTrue(tier3)) return Effect.succeed({ verdict: tier3, replay: Option.none() })
 
@@ -150,7 +152,13 @@ export const proveTransition = <State, Input, Emit>(
     refute(slices, [tr.when.node], goals, options, env => {
       const before = at(env, ['state']) as State
       const input = (at(env, ['input']) ?? {}) as Input
-      const stepped = Transition.run(tr, before, input)
+      const supplied = (at(env, ['supplied']) ?? {}) as Supplied
+      const stepped = Transition.run(
+        tr as Transition.Transition<State, Input, Emit, unknown>,
+        before,
+        input,
+        supplied,
+      )
       if (Result.isFailure(stepped) || Schema.is(stateSchema)(stepped.success)) return false
       replayed = Option.some({ before, input, after: stepped.success })
       return true

@@ -16,23 +16,30 @@ import * as Verdict from './verdict.js'
 
 type AnyTransition<State> = {
   readonly _tag: 'Transition'
-  readonly when: Expr.Expr<Transition.TransitionEnv<State, never>, boolean>
-  readonly writes: ReadonlyArray<Transition.WriteEquation<State, never, unknown>>
+  readonly when: Expr.Expr<Transition.TransitionEnv<State, never, never>, boolean>
+  readonly writes: ReadonlyArray<Transition.WriteEquation<State, never, unknown, never>>
 }
 
 type TransitionInput<T> = T extends {
-  readonly when: Expr.Expr<Transition.TransitionEnv<never, infer I>, boolean>
+  readonly when: Expr.Expr<Transition.TransitionEnv<never, infer I, never>, boolean>
 }
   ? I
   : never
 type TransitionEmit<T> = T extends { readonly _emit?: () => infer E } ? E : never
+type TransitionSupplied<T> = T extends { readonly _supplied?: () => infer S } ? S : never
 
-/** Tagged message union derived from a `Record<Tag, Transition>` map. */
+/**
+ * Tagged message union derived from a `Record<Tag, Transition>` map. A
+ * transition that declares supplied values carries them in its message, so a
+ * replay runs it with the values the first run was given.
+ */
 export type MessageOf<Transitions extends Readonly<Record<string, unknown>>> = {
   readonly [K in keyof Transitions & string]: {
     readonly _tag: K
     readonly input: TransitionInput<Transitions[K]>
-  }
+  } & ([keyof TransitionSupplied<Transitions[K]>] extends [never]
+    ? unknown
+    : { readonly supplied: TransitionSupplied<Transitions[K]> })
 }[keyof Transitions & string]
 
 export type EmitOf<Transitions extends Readonly<Record<string, unknown>>> = TransitionEmit<
@@ -109,9 +116,11 @@ export const make = <
   // names a member of `Object.prototype`, not a transition.
   const transitionOf = (
     tag: string,
-  ): Option.Option<Transition.Transition<State, unknown, unknown>> =>
+  ): Option.Option<Transition.Transition<State, unknown, unknown, unknown>> =>
     Object.hasOwn(config.transitions, tag)
-      ? Option.some(config.transitions[tag] as Transition.Transition<State, unknown, unknown>)
+      ? Option.some(
+          config.transitions[tag] as Transition.Transition<State, unknown, unknown, unknown>,
+        )
       : Option.none()
 
   const dispatch: Machine<State, Transitions>['dispatch'] = (state, message) =>
@@ -119,7 +128,12 @@ export const make = <
       onNone: () =>
         Result.fail(new Transition.Refused({ reason: `unknown message "${message._tag}"` })),
       onSome: tr =>
-        Transition.step(tr, state, message.input) as Result.Result<
+        Transition.step(
+          tr,
+          state,
+          message.input,
+          'supplied' in message ? message.supplied : {},
+        ) as Result.Result<
           { readonly state: State; readonly emit: Option.Option<EmitOf<Transitions>> },
           Transition.Refused
         >,

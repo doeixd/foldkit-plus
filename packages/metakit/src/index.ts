@@ -10,6 +10,7 @@
 export * as Node from './node.js'
 export * as Verdict from './verdict.js'
 export * as Path from './path.js'
+export type { EnvOf, PathAccessor } from './path.js'
 export * as Expr from './expr.js'
 export * as Transition from './transition.js'
 export * as Bool from './ops/bool.js'

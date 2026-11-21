@@ -340,4 +340,58 @@ const foreign = [
   ),
 ]
 
-export default [...table, ...checks, ...readers, ...text, ...operations, ...foreign]
+const suppliedTests = ['packages/metakit/test/supplied.test.ts']
+
+const transitions = [
+  mutation(
+    suppliedTests,
+    'a supplied value its Schema refuses is taken',
+    '../src/transition.ts',
+    '!accepts(transition.suppliedSchema.value)(given)',
+    'false',
+  ),
+  mutation(
+    suppliedTests,
+    'a machine runs a message without its supplied values',
+    '../src/machine.ts',
+    "'supplied' in message ? message.supplied : {},",
+    '{},',
+  ),
+  mutation(
+    suppliedTests,
+    'Transition.add sets the amount',
+    '../src/transition.ts',
+    'value: wrap(Node.Call({ op: addOp, args: [target.node, toNode(amount)] })),',
+    'value: wrap(toNode(amount)),',
+  ),
+  mutation(
+    suppliedTests,
+    'an opaque step may write a path it does not declare',
+    '../src/transitionOpaque.ts',
+    'if (!isPlainObject(before) || !isPlainObject(after)) return Option.some(at)',
+    'if (!isPlainObject(before) || !isPlainObject(after)) return Option.none()',
+  ),
+  mutation(
+    suppliedTests,
+    'a goal reads the state before as the state after',
+    '../src/abstract/check.ts',
+    "segments[0] === 'next'\n          ? Option.some(\n              afterWrites(",
+    "segments[0] === 'next'\n          ? Option.some(\n              ((node: Node.Node, _: unknown) => node)(",
+  ),
+  mutation(
+    suppliedTests,
+    'the checker takes no rule of the supplied values',
+    '../src/abstract/check.ts',
+    "    ['supplied', transition.suppliedSchema],\n",
+    '',
+  ),
+  mutation(
+    suppliedTests,
+    'a proof replays a step without the supplied values it found',
+    '../src/prove/transition.ts',
+    "const supplied = (at(env, ['supplied']) ?? {}) as Supplied",
+    'const supplied = {} as Supplied',
+  ),
+]
+
+export default [...table, ...checks, ...readers, ...text, ...operations, ...foreign, ...transitions]

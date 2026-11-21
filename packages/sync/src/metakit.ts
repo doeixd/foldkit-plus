@@ -55,7 +55,8 @@ const transition = <Shared, Message>(
       return expression === undefined ? [] : [expression as Expr.Expr<Model<Shared>, boolean>]
     })
     const state = Schema.Struct({ model: shared }).pipe(Expr.refine(() => Expr.all(...known)))
-    const environment = Schema.Struct({ state, input })
+    // A durable transition is supplied nothing: its replay must need no value of its own.
+    const environment = Schema.Struct({ state, input, supplied: Schema.Struct({}) })
     if (Verdict.isTrue(Abstract.checkInvariant(environment, Bool.not(declared.when))))
       return Option.some('has an unreachable guard')
     if (
