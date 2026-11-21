@@ -17,14 +17,7 @@ import { Projection, Surface, type Surface as SurfaceType } from 'foldkit-surfac
 import type * as Update from 'foldkit/update'
 import { Writes, WritesCheck } from 'foldkit-surface/writes'
 import { Message, Model, initialModel, makeUpdate } from './app.js'
-import { todoMachine } from './machine.js'
-
-/**
- * The application's own transitions. The assembly routes the mirrors'
- * Messages before `own` ever sees them, so the fallback only sees another
- * mirror's `MirrorRestored`, which is correctly ignored.
- */
-const ownUpdate = makeUpdate(model => model, todoMachine)
+import { makeMachine, type TodoMachine } from './machine.js'
 
 export const App = Surface.application({
   Model,
@@ -40,6 +33,16 @@ export const App = Surface.application({
 export const Filters = Mirror.url(App, { name: 'filters', fields: [App.model.filter] })
 /** The composer's draft survives a reload; restored only while the draft is still empty. */
 export const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.model.draft] })
+
+/** Every Message's transition (`machine.ts`), the mirrors' steps declared by what they read and write. */
+export const todoMachine: TodoMachine = makeMachine({ url: Filters.reduce, restored: Prefs.reduce })
+
+/**
+ * The application's own transitions. The assembly routes the mirrors'
+ * Messages before `own` ever sees them, so the fallback only sees another
+ * mirror's `MirrorRestored`, which its step ignores.
+ */
+const ownUpdate = makeUpdate(todoMachine)
 
 const Page = Bundle.parent({ Model, Message })
 

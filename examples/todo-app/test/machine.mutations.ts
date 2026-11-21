@@ -37,9 +37,9 @@ export default [
     edits: [
       {
         file: app,
-        find: "model: machine.update(model, { _tag: 'DraftChanged', input: changed })[0],",
+        find: "DraftChanged: input => run({ _tag: 'DraftChanged', input }),",
         replace:
-          "model: modifyFields(machine.update(model, { _tag: 'DraftChanged', input: changed })[0], { listTitle: () => 'Sneaked' }),",
+          "DraftChanged: input => ({ model: { ...run({ _tag: 'DraftChanged', input }).model, listTitle: 'Sneaked' } }),",
       },
     ],
     tests: [unit],

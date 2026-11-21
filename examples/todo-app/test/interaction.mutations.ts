@@ -3,6 +3,7 @@
  * `pnpm mutate examples/todo-app/test/interaction.mutations.ts`.
  */
 const app = '../src/app.ts'
+const machine = '../src/machine.ts'
 const network = '../src/network.ts'
 const unit = 'examples/todo-app/test/interaction.test.ts'
 const gate = 'examples/todo-app/test/network.test.ts'
@@ -10,13 +11,23 @@ const gate = 'examples/todo-app/test/network.test.ts'
 export default [
   {
     name: 'a restore puts back a todo that is already there',
-    edits: [{ file: app, find: 'model.todos.some(({ id }) => id === todo.id)', replace: 'false' }],
+    edits: [
+      {
+        file: machine,
+        find: 'Transition.insert(state.todos, input.todo)',
+        replace: 'Transition.append(state.todos, input.todo)',
+      },
+    ],
     tests: [unit],
   },
   {
     name: 'an expiry clears an offer made for another todo',
     edits: [
-      { file: app, find: 'Option.exists(model.undo, todo => todo.id === id)', replace: 'true' },
+      {
+        file: machine,
+        find: 'when: ({ state, input }) => Eq.equals(state.undo.id, input.id),',
+        replace: '',
+      },
     ],
     tests: [unit],
   },
@@ -24,9 +35,9 @@ export default [
     name: 'a delete keeps nothing to offer back',
     edits: [
       {
-        file: app,
-        find: 'undo: () => Option.some(todo) }',
-        replace: 'undo: () => Option.none() }',
+        file: machine,
+        find: 'Arr.find(state.todos, todo => Eq.is(todo.id, input.id)),\n      ),',
+        replace: 'null,\n      ),',
       },
     ],
     tests: [unit],
@@ -35,16 +46,22 @@ export default [
     name: 'Enter in the editor leaves focus where it was',
     edits: [
       {
-        file: app,
-        find: 'commands: [...(committed.commands ?? []), focusTitle(id)],',
-        replace: 'commands: committed.commands,',
+        file: machine,
+        find: 'EditingSubmitted: endsEdit(Message.EditingSubmitted, true),',
+        replace: 'EditingSubmitted: endsEdit(Message.EditingSubmitted, false),',
       },
     ],
     tests: [unit],
   },
   {
     name: 'Escape in the editor leaves focus where it was',
-    edits: [{ file: app, find: 'onSome: id => [focusTitle(id)],', replace: 'onSome: () => [],' }],
+    edits: [
+      {
+        file: machine,
+        find: "Transition.emit('Focus', { id: state.editingId }, { when: Null.isNotNull(state.editingId) }),",
+        replace: '',
+      },
+    ],
     tests: [unit],
   },
   {
@@ -52,9 +69,8 @@ export default [
     edits: [
       {
         file: app,
-        find: "model: machine.update(model, { _tag: 'SyncStatusChanged', input: status })[0],",
-        replace:
-          "model: { ...machine.update(model, { _tag: 'SyncStatusChanged', input: status })[0] },",
+        find: 'return commands.length === 0 ? { model: next } : { model: next, commands }',
+        replace: 'return { model: { ...next }, commands }',
       },
     ],
     tests: [unit],

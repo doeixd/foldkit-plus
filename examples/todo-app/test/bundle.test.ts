@@ -28,7 +28,15 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // graph, kind, machine, eq, verdict, expr, core), 1.1 kB of `foldkit-surface/writes`, and
 // 1.1 kB of the declarations; the verifier (`writesCheck`) stays out of the build. Ceiling that
 // plus about 1%, rounded up to the next 500 bytes.
-const CEILING = 171_000
+// 171,558 bytes on 2026-11-21, from 169,292: every Message is declared (`machine.ts`), and
+// `update` runs the machine for each and turns the records it emits into Commands. The page
+// lost `ops/residualize`, `verdict`, `expr` and `kind` (step 3 of the unification plan moved
+// `can` and the reads walker off it) and gained `ops/rows` (evaluation of a fold), the list
+// writes (`transitionLists`, `ops/arr`), `transitionOpaque` (the mirrors' two steps),
+// `ops/str`, `ops/bool` and `ops/null`: 18.2 kB minified of `metakit` in all, which every
+// page of the application runs as its `update`. Ceiling that plus about 1%, rounded up to the
+// next 500 bytes.
+const CEILING = 173_500
 
 clientBudget({
   name: 'todo-app',

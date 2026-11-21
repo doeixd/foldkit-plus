@@ -18,6 +18,7 @@ import {
   Footer,
   Header,
   assembled,
+  todoMachine,
   update,
   writes,
 } from '../src/surface.js'
@@ -129,14 +130,27 @@ describe('declared writes', () => {
     expect(writes.declared(Message.SyncStatusChanged({ pending: 1, failed: false }))).toEqual(
       Option.some([['pending'], ['syncFailed']]),
     )
-    // No Transition: nothing is known of what it writes.
-    expect(writes.declared(Message.ToggledTodo({ id: 'a' }))).toEqual(Option.none())
+    // A patch writes the field it sets of every todo.
+    expect(writes.declared(Message.ToggledTodo({ id: 'a' }))).toEqual(
+      Option.some([['todos', '*', 'completed']]),
+    )
+    // A mirror's step is declared by the paths it names.
+    expect(writes.declared(Message.UrlChanged({ url }))).toEqual(Option.some([['filter']]))
   })
 
   it('matches each Surface of the page to the Messages declared to write what it reads', () => {
+    const listEdits = [
+      'SubmittedTodo',
+      'RestoredTodo',
+      'ToggledTodo',
+      'RenamedTodo',
+      'PrioritySet',
+      'DeletedTodo',
+      'ClearedCompleted',
+    ]
     expect(appRegions.map(region => [region.name, region.redrawnBy])).toEqual([
-      ['Header', []],
-      ['Composer', ['DraftChanged']],
+      ['Header', [...listEdits, 'RenamedList']],
+      ['Composer', ['DraftChanged', 'DraftSubmitted', 'MirrorRestored']],
       [
         'Board',
         [
@@ -145,11 +159,40 @@ describe('declared writes', () => {
           'EditingCommitted',
           'EditingSubmitted',
           'EditingStopped',
+          'EditingStarted',
+          ...listEdits,
+          'UrlChanged',
         ],
       ],
       ['Connection', ['OfflineSet', 'SyncStatusChanged']],
-      ['Footer', ['UndoRequested']],
+      ['Footer', ['DeleteRequested', 'UndoRequested', 'UndoExpired', ...listEdits]],
     ])
+  })
+
+  it('declares a transition for every Message of the application', () => {
+    expect(new Set(Object.keys(todoMachine.transitions))).toEqual(new Set(Object.keys(tags)))
+  })
+
+  it('turns the records a step emits into its Commands', () => {
+    const names = (model: Model, message: Message) =>
+      (update(model, message).commands ?? []).map(command => command.name)
+    const withTodos = [
+      Message.SubmittedTodo({ id: 'a', title: 'Milk', createdAt: 1 }),
+      Message.SubmittedTodo({ id: 'b', title: 'Eggs', createdAt: 2 }),
+    ].reduce((model, message) => update(model, message).model, initialModel)
+    expect(names(withTodos, Message.DeleteRequested({ id: 'a' }))).toEqual([
+      'foldkit-sync/fact',
+      'Focus',
+      'ExpireUndo',
+    ])
+    // A todo that is not there is no delete, and nothing is offered back.
+    expect(names(withTodos, Message.DeleteRequested({ id: 'z' }))).toEqual([])
+    const editing = update(withTodos, Message.EditingStarted({ id: 'b' })).model
+    expect(names(editing, Message.EditingSubmitted())).toEqual(['Rename', 'Focus'])
+    expect(names(editing, Message.EditingCommitted())).toEqual(['Rename'])
+    expect(names({ ...editing, editDraft: '  ' }, Message.EditingCommitted())).toEqual([])
+    expect(names(initialModel, Message.RequestedTodo({ title: ' Tea ' }))).toEqual(['MintTodo'])
+    expect(names(initialModel, Message.RequestedTodo({ title: '  ' }))).toEqual([])
   })
 
   it('ends an edit only where one is going on', () => {
@@ -191,7 +234,7 @@ afterEach(() => {
 })
 
 describe('what a Message draws again', () => {
-  it('draws only the Surfaces that read a field it declares, and all for a Message with no Transition', async () => {
+  it('draws only the Surfaces that read a field a Message declares it writes', async () => {
     const draws = { Header: 0, Composer: 0, Board: 0, Connection: 0, Footer: 0 }
     const header = writes.rootView(Header, undefined, ({ listTitle }, h) => {
       draws.Header++
@@ -267,10 +310,10 @@ describe('what a Message draws again', () => {
       await vi.waitFor(() => expect(text('board')).toBe('active'))
       expect(draws).toEqual({ Header: 1, Composer: 2, Board: 2, Connection: 1, Footer: 1 })
 
-      // `RenamedList` keeps its hand-written arm: nothing is known of what it writes.
+      // The list's title is the Header's alone.
       press('renamed')
       await vi.waitFor(() => expect(text('header')).toBe('Groceries'))
-      expect(draws).toEqual({ Header: 2, Composer: 3, Board: 3, Connection: 2, Footer: 2 })
+      expect(draws).toEqual({ Header: 2, Composer: 2, Board: 2, Connection: 1, Footer: 1 })
     } finally {
       handle.dispose()
     }
