@@ -128,6 +128,8 @@ REFUTED Withdraw [PIN BROKEN]
 | `metakit/machine` | Browser / server | Declarative state machine (`dispatch`, TEA `update`, `canDispatch`, `affordances`, `footprints`). |
 | `metakit/inspect` | Browser / server | Form `fieldSpecs` and an enriched `toJsonSchema`, read straight off the Schema. |
 | `metakit/graph` | Build / SSR / planner | Static `Graph.analyze` (`affectedBy`, `deadBindings`), SSR `Graph.pruneStatic`, and `Graph.queryReadiness`. |
+| `metakit/policy` | Browser / server | Authorization policies (`Policy.make`, `allow`, `can`) and synchronous Tier 3 `checkImplication` / `checkConsistent`. |
+| `metakit/temporal` | Server / CI | Setup-time store capability refusals (`checkStoreCapabilities`, `assertStoreCapabilities`) and seeded interleaving walks (`emitWalkObligations`, `runWalk`). |
 | `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` as text for Postgres and SQLite. A predicate selects the rows `Expr.eval` holds true, null included. |
 | `metakit/drizzle` | Server (optional `drizzle-orm`) | `Drizzle.toCheck`, `Drizzle.toWhere`, `Drizzle.toUpdate`: the same lowering as Drizzle `SQL` over a Drizzle table. |
 | `metakit/prove` | Dev / CI only (optional `z3-solver`) | `Prove.invariant`, `Prove.transition`, `Prove.policy`, `Prove.machine` (pinning, `allowUnknown`, replayed counterexamples). |

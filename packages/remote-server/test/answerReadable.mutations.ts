@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'entities: sent.map(patch => ({',
-        replace: 'entities: outcome.entities.map(patch => ({',
+        find: 'entities: sent.map(patch => {',
+        replace: 'entities: outcome.entities.map(patch => {',
       },
     ],
     tests,
