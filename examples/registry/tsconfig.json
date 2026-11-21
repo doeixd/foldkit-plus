@@ -24,6 +24,7 @@
       "foldkit-example-site/phone-audit": ["../site/src/phoneAudit.ts"],
       "foldkit-guard": ["../../packages/guard/src/index.ts"],
       "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
+      "foldkit-guard/check": ["../../packages/guard/src/check.ts"],
       "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],
       "foldkit-guard/media": ["../../packages/guard/src/media.ts"],
       "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
@@ -61,6 +62,7 @@
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../../packages/remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../../packages/remote-server/src/port.ts"],
+      "foldkit-remote/aggregate": ["../../packages/remote/src/aggregate.ts"],
       "foldkit-remote/filter": ["../../packages/remote/src/filter.ts"],
       "foldkit-remote/live": ["../../packages/remote/src/live.ts"],
       "foldkit-remote/outbox": ["../../packages/remote/src/outbox.ts"],
@@ -70,10 +72,12 @@
       "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
       "foldkit-remote/why": ["../../packages/remote/src/why.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-surface/writes": ["../../packages/surface/src/writes.ts"],
       "foldkit-sync": ["../../packages/sync/src/index.ts"],
       "foldkit-sync/do": ["../../packages/sync/src/do.ts"],
       "foldkit-sync/entity": ["../../packages/sync/src/entity.ts"],
       "foldkit-sync/journal": ["../../packages/sync/src/journal.ts"],
+      "foldkit-sync/metakit": ["../../packages/sync/src/metakit.ts"],
       "foldkit-sync/remote": ["../../packages/sync/src/remote.ts"]
     }
   },

@@ -16,6 +16,7 @@
       "foldkit-form/metakit": ["../form/src/metakit.ts"],
       "foldkit-guard": ["../guard/src/index.ts"],
       "foldkit-guard/agent": ["../guard/src/agent.ts"],
+      "foldkit-guard/check": ["../guard/src/check.ts"],
       "foldkit-guard/drizzle": ["../guard/src/drizzle.ts"],
       "foldkit-guard/media": ["../guard/src/media.ts"],
       "foldkit-guard/server": ["../guard/src/server.ts"],
@@ -27,6 +28,7 @@
       "foldkit-remote-server": ["../remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../remote-server/src/port.ts"],
+      "foldkit-remote/aggregate": ["../remote/src/aggregate.ts"],
       "foldkit-remote/filter": ["../remote/src/filter.ts"],
       "foldkit-remote/live": ["../remote/src/live.ts"],
       "foldkit-remote/outbox": ["../remote/src/outbox.ts"],
@@ -35,7 +37,8 @@
       "foldkit-remote/port": ["../remote/src/port.ts"],
       "foldkit-remote/testing": ["../remote/src/testing.ts"],
       "foldkit-remote/why": ["../remote/src/why.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"]
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/writes": ["../surface/src/writes.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],

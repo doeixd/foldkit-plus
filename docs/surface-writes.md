@@ -103,7 +103,7 @@ A part of the page that shows an old value kept a drawing it should not have. Th
 <!-- docs-check
 declare global {
   interface ImportMeta {
-    readonly env: { readonly DEV: boolean }
+    readonly env?: { readonly DEV?: boolean }
   }
 }
 -->
@@ -112,7 +112,7 @@ declare global {
 import { WritesCheck } from 'foldkit-surface/writes'
 
 const checkedUpdate = writes.track(
-  import.meta.env.DEV
+  import.meta.env?.DEV === true
     ? WritesCheck.verify(writes, appUpdate, { surfaces: [Header, Tally] })
     : appUpdate,
 )
@@ -133,7 +133,7 @@ Options:
 - `report` decides what happens to a finding. Left out, it is `WritesCheck.fail`, which throws, so a test that sends the Message fails. Pass `WritesCheck.warn` to log a warning and carry on, which suits a running development server. Pass your own function to send findings elsewhere.
 - `surfaces` is the list of Surfaces to hold to their `closed` promise. Left out, only the declared writes are checked.
 
-The check walks the Model on every Message, so keep it behind `import.meta.env.DEV` as above. A production build then leaves the check's code out of the page.
+The check walks the Model on every Message, so keep it behind `import.meta.env?.DEV === true` as above. A production build then leaves the check's code out of the page.
 
 ## Next
 

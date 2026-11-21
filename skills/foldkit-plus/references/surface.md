@@ -362,7 +362,7 @@ Surface's projection reads.
 <!-- docs-check standalone
 declare global {
   interface ImportMeta {
-    readonly env: { readonly DEV: boolean }
+    readonly env?: { readonly DEV?: boolean }
   }
 }
 -->
@@ -394,7 +394,7 @@ const writes = Writes.of(App, Machine.make({ state: Model, transitions: { Counte
 // Kept through `Counted`, which writes `count`; drawn again by `Renamed`, which has no transition.
 const header = Surface.rootView(Header, undefined, drawHeader, { writes })
 const update = writes.track(
-  import.meta.env.DEV ? WritesCheck.verify(writes, appUpdate, { surfaces: [Header] }) : appUpdate,
+  import.meta.env?.DEV === true ? WritesCheck.verify(writes, appUpdate, { surfaces: [Header] }) : appUpdate,
 )
 ```
 
@@ -417,7 +417,7 @@ const update = writes.track(
   rebuilt equal is no change) and an `OutsideWrite` (a `closed: true` Surface
   in `surfaces` changed by a Message outside its `messages`). `report` defaults
   to `WritesCheck.fail` (throws); `WritesCheck.warn` logs through
-  `Diagnostics.report`. Reach it only under `import.meta.env.DEV`, which also
+  `Diagnostics.report`. Reach it only under `import.meta.env?.DEV === true`, which also
   leaves its module out of a production build.
 - `pathsRead(projection)` (from `foldkit-surface`) is the Model paths a
   Projection reads as an `Option`: none when it reads what no path names.

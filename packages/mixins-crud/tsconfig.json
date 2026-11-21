@@ -34,6 +34,7 @@
       "foldkit-mixins/utilities": ["../mixins/src/utilities.ts"],
       "foldkit-mixins/vite": ["../mixins/src/vite.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-remote/aggregate": ["../remote/src/aggregate.ts"],
       "foldkit-remote/filter": ["../remote/src/filter.ts"],
       "foldkit-remote/live": ["../remote/src/live.ts"],
       "foldkit-remote/outbox": ["../remote/src/outbox.ts"],
@@ -42,7 +43,8 @@
       "foldkit-remote/port": ["../remote/src/port.ts"],
       "foldkit-remote/testing": ["../remote/src/testing.ts"],
       "foldkit-remote/why": ["../remote/src/why.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"]
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/writes": ["../surface/src/writes.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],

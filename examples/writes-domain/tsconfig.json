@@ -13,6 +13,7 @@
       "foldkit-example-writes/server": ["../writes/src/server.ts"],
       "foldkit-guard": ["../../packages/guard/src/index.ts"],
       "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
+      "foldkit-guard/check": ["../../packages/guard/src/check.ts"],
       "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],
       "foldkit-guard/media": ["../../packages/guard/src/media.ts"],
       "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
@@ -28,6 +29,7 @@
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../../packages/remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../../packages/remote-server/src/port.ts"],
+      "foldkit-remote/aggregate": ["../../packages/remote/src/aggregate.ts"],
       "foldkit-remote/filter": ["../../packages/remote/src/filter.ts"],
       "foldkit-remote/live": ["../../packages/remote/src/live.ts"],
       "foldkit-remote/outbox": ["../../packages/remote/src/outbox.ts"],
@@ -40,7 +42,8 @@
       "foldkit-ssr/client": ["../../packages/ssr/src/client.ts"],
       "foldkit-ssr/loader": ["../../packages/ssr/src/loader.ts"],
       "foldkit-ssr/vite": ["../../packages/ssr/src/vite.ts"],
-      "foldkit-surface": ["../../packages/surface/src/index.ts"]
+      "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-surface/writes": ["../../packages/surface/src/writes.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],

@@ -21,7 +21,8 @@
       "foldkit-mixins/theme/runtime": ["./src/theme/runtime.ts"],
       "foldkit-mixins/utilities": ["./src/utilities.ts"],
       "foldkit-mixins/vite": ["./src/vite.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"]
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/writes": ["../surface/src/writes.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts", "tsdown.config.ts"],

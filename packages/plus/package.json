@@ -238,6 +238,11 @@
       "types": "./dist/guard/media.d.mts",
       "import": "./dist/guard/media.mjs"
     },
+    "./guard/check": {
+      "foldkit-plus:source": "./src/guard/check.ts",
+      "types": "./dist/guard/check.d.mts",
+      "import": "./dist/guard/check.mjs"
+    },
     "./host": {
       "foldkit-plus:source": "./src/host.ts",
       "types": "./dist/host.d.mts",
@@ -538,6 +543,11 @@
       "types": "./dist/remote.d.mts",
       "import": "./dist/remote.mjs"
     },
+    "./remote/aggregate": {
+      "foldkit-plus:source": "./src/remote/aggregate.ts",
+      "types": "./dist/remote/aggregate.d.mts",
+      "import": "./dist/remote/aggregate.mjs"
+    },
     "./remote/filter": {
       "foldkit-plus:source": "./src/remote/filter.ts",
       "types": "./dist/remote/filter.d.mts",
@@ -723,6 +733,11 @@
       "types": "./dist/surface.d.mts",
       "import": "./dist/surface.mjs"
     },
+    "./surface/writes": {
+      "foldkit-plus:source": "./src/surface/writes.ts",
+      "types": "./dist/surface/writes.d.mts",
+      "import": "./dist/surface/writes.mjs"
+    },
     "./sync": {
       "foldkit-plus:source": "./src/sync.ts",
       "types": "./dist/sync.d.mts",
@@ -747,6 +762,11 @@
       "foldkit-plus:source": "./src/sync/remote.ts",
       "types": "./dist/sync/remote.d.mts",
       "import": "./dist/sync/remote.mjs"
+    },
+    "./sync/metakit": {
+      "foldkit-plus:source": "./src/sync/metakit.ts",
+      "types": "./dist/sync/metakit.d.mts",
+      "import": "./dist/sync/metakit.mjs"
     }
   },
   "files": [

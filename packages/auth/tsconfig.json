@@ -15,6 +15,7 @@
       "foldkit-remote-server": ["../remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../remote-server/src/port.ts"],
+      "foldkit-remote/aggregate": ["../remote/src/aggregate.ts"],
       "foldkit-remote/filter": ["../remote/src/filter.ts"],
       "foldkit-remote/live": ["../remote/src/live.ts"],
       "foldkit-remote/outbox": ["../remote/src/outbox.ts"],
@@ -28,10 +29,12 @@
       "foldkit-ssr/loader": ["../ssr/src/loader.ts"],
       "foldkit-ssr/vite": ["../ssr/src/vite.ts"],
       "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/writes": ["../surface/src/writes.ts"],
       "foldkit-sync": ["../sync/src/index.ts"],
       "foldkit-sync/do": ["../sync/src/do.ts"],
       "foldkit-sync/entity": ["../sync/src/entity.ts"],
       "foldkit-sync/journal": ["../sync/src/journal.ts"],
+      "foldkit-sync/metakit": ["../sync/src/metakit.ts"],
       "foldkit-sync/remote": ["../sync/src/remote.ts"]
     }
   },

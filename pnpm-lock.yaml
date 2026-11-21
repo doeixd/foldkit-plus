@@ -3956,6 +3956,9 @@ importers:
       foldkit-surface:
         specifier: workspace:*
         version: link:../surface
+      metakit:
+        specifier: workspace:*
+        version: link:../metakit
     devDependencies:
       '@effect/platform-browser':
         specifier: ^4.1.4
@@ -4282,6 +4285,9 @@ importers:
       foldkit-metadata:
         specifier: workspace:*
         version: link:../metadata
+      metakit:
+        specifier: workspace:*
+        version: link:../metakit
     devDependencies:
       '@effect/platform-browser':
         specifier: ^4.1.4
