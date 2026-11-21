@@ -9,8 +9,10 @@
     "paths": {
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
+      "foldkit-entity/lowering": ["../entity/src/lowering.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-surface": ["./src/index.ts"],
+      "foldkit-surface/declared": ["./src/declared.ts"],
       "foldkit-surface/writes": ["./src/writes.ts"],
       "metakit": ["../metakit/src/index.ts"],
       "metakit/aggregates": ["../metakit/src/aggregates.ts"],

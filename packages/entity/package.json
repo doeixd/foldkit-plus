@@ -31,6 +31,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./lowering": {
+      "foldkit-plus:source": "./src/lowering.ts",
+      "types": "./dist/lowering.d.ts",
+      "import": "./dist/lowering.js"
+    },
     "./conformance": {
       "foldkit-plus:source": "./src/conformance/index.ts",
       "types": "./dist/conformance/index.d.ts",

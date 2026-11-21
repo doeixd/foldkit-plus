@@ -10,6 +10,7 @@
       "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
+      "foldkit-entity/lowering": ["../entity/src/lowering.ts"],
       "foldkit-form": ["./src/index.ts"],
       "foldkit-form/metakit": ["./src/metakit.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],

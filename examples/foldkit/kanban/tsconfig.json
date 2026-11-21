@@ -22,6 +22,7 @@
       "foldkit-mixins/utilities": ["../../../packages/mixins/src/utilities.ts"],
       "foldkit-mixins/vite": ["../../../packages/mixins/src/vite.ts"],
       "foldkit-surface": ["../../../packages/surface/src/index.ts"],
+      "foldkit-surface/declared": ["../../../packages/surface/src/declared.ts"],
       "foldkit-surface/writes": ["../../../packages/surface/src/writes.ts"]
     }
   },

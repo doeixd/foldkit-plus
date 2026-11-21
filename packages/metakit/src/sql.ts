@@ -23,6 +23,7 @@ import {
 import type { Refused, Transition } from './transition.js'
 
 export {
+  lowerNode,
   sqlOps,
   SqlPiece,
   SqlUnsupportedError,
@@ -32,7 +33,7 @@ export {
   type SqlDialect,
   type SqlLowerer,
 } from './sqlLowering.js'
-export type { ForeignSql } from './sqlRender.js'
+export { relatedSubquery, type ForeignSql } from './sqlRender.js'
 
 /**
  * Where the rows related to a row through a relation are: their table, the

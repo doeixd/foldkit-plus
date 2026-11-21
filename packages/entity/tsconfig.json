@@ -9,6 +9,7 @@
     "paths": {
       "foldkit-entity": ["./src/index.ts"],
       "foldkit-entity/conformance": ["./src/conformance/index.ts"],
+      "foldkit-entity/lowering": ["./src/lowering.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "metakit": ["../metakit/src/index.ts"],
       "metakit/aggregates": ["../metakit/src/aggregates.ts"],

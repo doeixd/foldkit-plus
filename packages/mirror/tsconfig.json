@@ -11,6 +11,7 @@
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mirror": ["./src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/declared": ["../surface/src/declared.ts"],
       "foldkit-surface/writes": ["../surface/src/writes.ts"]
     }
   },

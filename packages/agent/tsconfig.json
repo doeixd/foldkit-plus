@@ -11,6 +11,7 @@
       "foldkit-agent/metakit": ["./src/metakit.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/declared": ["../surface/src/declared.ts"],
       "foldkit-surface/writes": ["../surface/src/writes.ts"],
       "metakit": ["../metakit/src/index.ts"],
       "metakit/aggregates": ["../metakit/src/aggregates.ts"],

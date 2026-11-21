@@ -53,6 +53,7 @@
       "foldkit-richtext-dom/view": ["../../packages/richtext-dom/src/view.ts"],
       "foldkit-richtext-markdown": ["../../packages/richtext-markdown/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-surface/declared": ["../../packages/surface/src/declared.ts"],
       "foldkit-surface/writes": ["../../packages/surface/src/writes.ts"],
       "foldkit-sync": ["../../packages/sync/src/index.ts"],
       "foldkit-sync/do": ["../../packages/sync/src/do.ts"],

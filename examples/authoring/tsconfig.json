@@ -47,6 +47,7 @@
       "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
       "foldkit-remote/why": ["../../packages/remote/src/why.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-surface/declared": ["../../packages/surface/src/declared.ts"],
       "foldkit-surface/writes": ["../../packages/surface/src/writes.ts"]
     }
   },

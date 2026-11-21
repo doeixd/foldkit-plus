@@ -9,6 +9,7 @@
     "paths": {
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
+      "foldkit-entity/lowering": ["../entity/src/lowering.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote-drizzle": ["./src/index.ts"],
@@ -26,6 +27,7 @@
       "foldkit-remote/testing": ["../remote/src/testing.ts"],
       "foldkit-remote/why": ["../remote/src/why.ts"],
       "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/declared": ["../surface/src/declared.ts"],
       "foldkit-surface/writes": ["../surface/src/writes.ts"],
       "metakit": ["../metakit/src/index.ts"],
       "metakit/aggregates": ["../metakit/src/aggregates.ts"],

@@ -116,10 +116,40 @@ const kernel: ReadonlyMap<
 ])
 
 /**
- * A call, translated. A collation reaches no operation: an operator that
- * compares text itself (`collation: 'required'`) is given its text arguments
- * folded as the call's collation folds them.
+ * A call of a primitive operator over translated arguments. A collation
+ * reaches no operation: an operator that compares text itself
+ * (`collation: 'required'`) is given its text arguments folded as the call's
+ * collation folds them.
  */
+export const callOperator = (
+  operator: OperatorDescriptor,
+  args: ReadonlyArray<Node.Node>,
+  collation: Option.Option<Collation>,
+  foreign: Map<string, OperatorDescriptor>,
+): Node.Node => {
+  const fold = (arg: Node.Node): Node.Node =>
+    Option.match(collation, { onNone: () => arg, onSome: each => folded(each, arg) })
+  const built = kernel.get(operator)
+  if (built !== undefined) return built(args, fold)
+  const known = foreign.get(nameOf(operator))
+  if (known !== undefined && known !== operator) {
+    throw new Error(
+      `[foldkit-entity] lower: two declarations of ${nameOf(operator)} are called; a foreign operation is one declaration`,
+    )
+  }
+  foreign.set(nameOf(operator), operator)
+  return Node.Call({
+    op: foreignOpOf(operator),
+    args:
+      operator.collation === 'required'
+        ? args.map((arg, position) =>
+            storedKind(operator.input[position]!) === 'text' ? fold(arg) : arg,
+          )
+        : args,
+  })
+}
+
+/** A call, translated: what its operator's body builds, or the operator over its arguments. */
 export const lowerCall = (
   call: CallExpr<unknown> | TestPredicate,
   lower: (node: Operandish) => Node.Node,
@@ -128,30 +158,7 @@ export const lowerCall = (
   const expansion: Option.Option<Operandish> = call.expansion
   return Option.match(expansion, {
     onSome: lower,
-    onNone: () => {
-      const { operator } = call
-      const fold = (arg: Node.Node): Node.Node =>
-        Option.match(call.collation, { onNone: () => arg, onSome: each => folded(each, arg) })
-      const args = call.args.map(lower)
-      const built = kernel.get(operator)
-      if (built !== undefined) return built(args, fold)
-      const known = foreign.get(nameOf(operator))
-      if (known !== undefined && known !== operator) {
-        throw new Error(
-          `[foldkit-entity] lower: two declarations of ${nameOf(operator)} are called; a foreign operation is one declaration`,
-        )
-      }
-      foreign.set(nameOf(operator), operator)
-      return Node.Call({
-        op: foreignOpOf(operator),
-        args:
-          operator.collation === 'required'
-            ? args.map((arg, position) =>
-                storedKind(operator.input[position]!) === 'text' ? fold(arg) : arg,
-              )
-            : args,
-      })
-    },
+    onNone: () => callOperator(call.operator, call.args.map(lower), call.collation, foreign),
   })
 }
 
