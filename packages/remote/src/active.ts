@@ -3,7 +3,7 @@
  * the store: shared by the read entries and `foldkit-remote/why`.
  */
 import { Option } from 'effect'
-import { pathsRead, type ActiveSurface, type Projection, type SurfaceSource } from 'foldkit-surface'
+import { type ActiveSurface, type Projection, type SurfaceSource } from 'foldkit-surface'
 import type { ActiveEntry } from './index.js'
 import { stableStringify } from './query.js'
 import {
@@ -42,22 +42,21 @@ export const storeOnly = <AppModel>(entry: ActiveEntry<AppModel>): boolean =>
 
 /**
  * The declared Model paths beyond the store that decide what `entry` asks, or
- * `undefined` when unknown (`Surface.at`, families with opaque parents).
+ * `undefined` when unknown (`Surface.at`, families, a Site node that reads the
+ * viewer: its activation names the route, not everything the ask reads).
  */
 export const askReads = <AppModel>(
   entry: ActiveEntry<AppModel>,
 ): ReadonlyArray<ReadonlyArray<string>> | undefined => {
   if (storeOnly(entry)) return []
-  if ('activation' in entry && entry.activation !== undefined && !('from' in entry)) {
+  // `readsBeyondActivation` is what a Site node that reads the viewer carries:
+  // its `activation` labels the route, but the viewer decides the ask too.
+  if (
+    'activation' in entry &&
+    entry.activation !== undefined &&
+    !('readsBeyondActivation' in entry)
+  )
     return [entry.activation.path]
-  }
-  if ('from' in entry && entry.from !== undefined) {
-    const from = entry.from as ActiveEntry<AppModel>
-    if (storeOnly(from) && 'projection' in from && typeof from.projection === 'function') {
-      const deps = pathsRead(from.projection())
-      return Option.isSome(deps) ? deps.value : undefined
-    }
-  }
   return undefined
 }
 
