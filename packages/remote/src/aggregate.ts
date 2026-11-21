@@ -269,8 +269,8 @@ interface Inputs {
 interface State<Row> {
   inputs: Inputs
   readonly members: Map<EntityKey, Member<Row>>
-  /** Every edge of the connection, shown or not, while nothing is pending. */
-  edges: ReadonlySet<EntityKey>
+  /** Every edge of the connection, shown or not: made when nothing is pending and first needed. */
+  edges: ReadonlySet<EntityKey> | undefined
   readonly fold: Fold<Row>
   unjudged: number
   unassembled: number
@@ -460,7 +460,7 @@ export function aggregated<Value>(
     const state: State<Value> = {
       inputs,
       members: new Map(),
-      edges: edgesOf(),
+      edges: undefined,
       fold: foldOf(aggregate),
       unjudged: 0,
       unassembled: 0,
@@ -527,18 +527,32 @@ export function aggregated<Value>(
       was.connection === inputs.connection
     const rejudge: EntityKey[] = []
     if (quiet) {
-      // Nothing pending and the same pages: a row is shown unless deleted.
+      // Nothing pending and the same pages: a row is shown unless deleted, so
+      // a row not shown before is a deleted row of the list or no row of it.
       for (const key of changed) {
-        if (!state.edges.has(key)) continue
-        if (isTombstone(visible, key)) swap(state, key, undefined)
-        else rejudge.push(key)
+        if (state.members.has(key)) {
+          if (isTombstone(visible, key)) swap(state, key, undefined)
+          else rejudge.push(key)
+        } else if (isTombstone(was.entities, key) && !isTombstone(visible, key)) {
+          if ((state.edges ??= edgesOf()).has(key)) rejudge.push(key)
+        }
       }
     } else {
+      // A list shows a row once, so when every member is still shown none left,
+      // and the common case (a pending write over a row) builds no set.
       const shown = shownKeys()
-      const now = new Set(shown)
-      for (const key of [...state.members.keys()]) if (!now.has(key)) swap(state, key, undefined)
-      for (const key of shown) if (!state.members.has(key) || changed.has(key)) rejudge.push(key)
-      state.edges = edgesOf()
+      let stayed = 0
+      for (const key of shown) {
+        const member = state.members.has(key)
+        if (member) stayed += 1
+        if (!member || changed.has(key)) rejudge.push(key)
+      }
+      if (stayed < state.members.size) {
+        const now = new Set(shown)
+        for (const key of [...state.members.keys()]) if (!now.has(key)) swap(state, key, undefined)
+      }
+      // Made again when the quiet path next needs it, from the pages it will read.
+      state.edges = undefined
     }
     if (rejudge.length > 0) {
       const judge = judgedAmong(rejudge)
