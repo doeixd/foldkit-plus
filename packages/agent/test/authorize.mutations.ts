@@ -18,4 +18,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'an authorize hook that dies crashes the call instead of refusing it',
+    edits: [
+      {
+        file,
+        find: '.pipe(Effect.catchDefect(() => Effect.succeed(false as const)))',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an applies hook that throws crashes the call instead of refusing it',
+    edits: [
+      {
+        file,
+        find: '          } catch {\n            return false\n          }',
+        replace: '          } finally {\n          }',
+      },
+    ],
+    tests,
+  },
 ]

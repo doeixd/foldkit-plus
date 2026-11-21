@@ -259,6 +259,49 @@ describe('AgentRuntime.messages.dispatch', () => {
     expect(host.dispatched).toEqual([{ _tag: 'RequestedCreateTodo', title: 'y' }])
   })
 
+  describe('a capability check that throws', () => {
+    const attempt = (hooks: {
+      readonly authorize?: () => never | Effect.Effect<boolean>
+      readonly applies?: () => never
+    }) => {
+      const definition = Agent.make({
+        messages: Agent.expose(MessageUnion, {
+          RequestedCreateTodo: {
+            name: 'create_todo',
+            description: 'Create a todo',
+            ...hooks,
+          },
+        }),
+      })
+      const bound = Agent.bind({ definition, host: host.host })
+      return failureOf(bound.messages.dispatch('create_todo', { title: 'x' }, invocation()))
+    }
+    const secret = () => {
+      throw new Error('internal detail')
+    }
+
+    it('refuses in authorize, without the thrown message, and dispatches nothing', () => {
+      const failure = attempt({ authorize: secret })
+      expect(failure._tag).toBe('AgentAuthorizationError')
+      expect(JSON.stringify(failure)).not.toContain('internal detail')
+      expect(host.dispatched).toEqual([])
+    })
+
+    it('refuses in authorize when its Effect dies', () => {
+      expect(attempt({ authorize: () => Effect.die(new Error('internal detail')) })._tag).toBe(
+        'AgentAuthorizationError',
+      )
+      expect(host.dispatched).toEqual([])
+    })
+
+    it('refuses in applies, as a capability that does not apply', () => {
+      const failure = attempt({ applies: secret })
+      expect(failure._tag).toBe('AgentCapabilityUnavailableError')
+      expect(JSON.stringify(failure)).not.toContain('internal detail')
+      expect(host.dispatched).toEqual([])
+    })
+  })
+
   it('carries the invocation through to the result', () => {
     const result = Effect.runSync(
       runtime.messages.dispatch('create_todo', { title: 'x' }, invocation('mcp')),
