@@ -24,6 +24,7 @@ import { gtOp, gteOp, ltOp, lteOp } from './ops/ord.js'
 import * as Str from './ops/str.js'
 import * as Path from './path.js'
 import * as Policy from './policy.js'
+import * as Temporal from './temporal.js'
 import * as Transition from './transition.js'
 import * as Verdict from './verdict.js'
 
@@ -1107,6 +1108,12 @@ export interface MachineProofEntry<Tag extends string = string> {
 export interface MachineProofReport<Tag extends string = string> {
   readonly ok: boolean
   readonly entries: ReadonlyArray<MachineProofEntry<Tag>>
+  /**
+   * What no entry proves: each pair of transitions whose order matters, to be
+   * shown by a walk (`Temporal.discharge`). They do not move `ok`; assert
+   * `Temporal.undischarged(report.obligations, discharges)` is empty.
+   */
+  readonly obligations: ReadonlyArray<Temporal.WalkObligation<`${Tag}/${Tag}`, Tag>>
   /** Human-readable multi-line verification summary. */
   readonly format: () => string
 }
@@ -1240,10 +1247,16 @@ export const machine = <State, Transitions extends Readonly<Record<string, unkno
 
       entries.push({ tag, status, pinned, pinBroken, allowedReason, verdict, witness })
     }
+    const obligations = Temporal.obligations(m)
     return {
       ok,
       entries,
-      format: () => entries.map(formatEntry).join('\n'),
+      obligations,
+      format: () =>
+        [
+          ...entries.map(formatEntry),
+          ...obligations.map(owed => `OBLIGATION (walk) ${owed.name}: ${owed.detail}`),
+        ].join('\n'),
     }
   })
 }

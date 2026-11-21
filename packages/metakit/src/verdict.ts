@@ -18,16 +18,13 @@ export interface ProofEvidence {
 
 export const Proved = (tier: ProofTier): ProofEvidence => ({ _tag: 'Proved', tier })
 
-/** A remaining verification goal handed off when a lower tier returns `Unknown` or crosses a protocol boundary. */
+/**
+ * A goal left to something else: a higher tier when a lower one returns
+ * `Unknown`, or, for `walk`, a test that runs steps in several orders
+ * (`metakit/temporal`).
+ */
 export interface Obligation {
-  readonly kind:
-    | 'missing-env'
-    | 'opaque'
-    | 'nonlinear'
-    | 'budget'
-    | 'unsupported'
-    | 'walk'
-    | 'store-capability'
+  readonly kind: 'missing-env' | 'opaque' | 'nonlinear' | 'budget' | 'unsupported' | 'walk'
   readonly detail: string
 }
 

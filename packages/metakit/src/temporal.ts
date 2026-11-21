@@ -1,200 +1,302 @@
 /**
- * Temporal and concurrency obligation layer (`metakit/temporal`).
+ * What a single-step proof cannot cover (`metakit/temporal`).
  *
- * Single-step proving (Tiers 3–4) stops at the network and transaction
- * boundary. This module covers the protocol layer above Tier 4:
- *   1. Setup-time store capability refusals (`checkStoreCapabilities`,
- *      `assertStoreCapabilities`) — refuse to mount cross-row aggregate
- *      invariants on stores that lack parent-row locking or required isolation.
- *   2. Interleaving obligations (`emitWalkObligations`) and a deterministic
- *      seeded interleaving harness (`runWalk`) discharging `Obligation(kind: 'walk')`
- *      for optimistic / async protocols (out-of-order responses, rollback,
- *      stale-response suppression).
+ * `Prove.transition` shows one step keeps a rule, from any valid state. Two
+ * things lie outside it:
+ *
+ * 1. **What the store must do.** A rule holds across concurrent writers only
+ *    if the store runs them as the proof assumes. `requirements` reads which
+ *    capability each declared rule needs, and `mount` throws where a store
+ *    that cannot give one is asked to hold the rule.
+ * 2. **What the order of events must not change.** Two transitions that touch
+ *    the same state can be answered in either order. `obligations` names each
+ *    such pair as an obligation of kind `walk`, `walk` runs a scenario's steps
+ *    in seeded orders and checks a property after every step, and
+ *    `undischarged` lists the obligations no passing walk covers.
  */
-import { Data, Option, Result } from 'effect'
+import { Data, Option } from 'effect'
+import type { Aggregate } from './aggregates.js'
+import * as Expr from './expr.js'
+import type { Machine } from './machine.js'
+import * as Transition from './transition.js'
 import type * as Verdict from './verdict.js'
 
-export type IsolationLevel = 'eventual' | 'read-committed' | 'repeatable-read' | 'serializable'
+/**
+ * How a store runs concurrent writes. `serializable`: as if one at a time.
+ * `read-committed`: each statement reads what has committed, so two writers
+ * can each read a value the other is about to change. `eventual`: replicas
+ * accept writes apart and merge them later.
+ */
+export type Isolation = 'eventual' | 'read-committed' | 'serializable'
 
-const ISOLATION_RANK: Readonly<Record<IsolationLevel, number>> = {
-  eventual: 0,
-  'read-committed': 1,
-  'repeatable-read': 2,
-  serializable: 3,
-}
-
-/** Capabilities declared by a persistence store or adapter at mount time. */
+/** What a store or adapter declares it guarantees. */
 export interface StoreCapabilities {
+  /** What a refusal calls the store (`Postgres`, `memory`). */
   readonly name: string
-  readonly supportsParentRowLock: boolean
-  readonly isolation: IsolationLevel
-  readonly supportsAtomicCompareAndSwap?: boolean
-}
-
-/** A cross-row or aggregate consistency requirement declared by a domain/transition. */
-export interface CrossRowRequirement {
-  readonly id: string
-  readonly kind: 'group-aggregate' | 'semilattice-aggregate' | 'multi-row-invariant'
-  readonly aggregate?: {
-    readonly algebra: 'group' | 'semilattice'
-    readonly requiresRescanOnDelete: boolean
-  }
-  readonly requiresParentRowLock?: boolean
-  readonly minIsolation?: IsolationLevel
-}
-
-export interface CapabilityViolation {
-  readonly requirementId: string
-  readonly reason: string
-  readonly obligation: Verdict.Obligation
-}
-
-export class StoreCapabilityError extends Data.TaggedError('StoreCapabilityError')<{
-  readonly store: string
-  readonly violations: ReadonlyArray<CapabilityViolation>
-}> {
-  override get message(): string {
-    const lines = this.violations.map(v => `  - [${v.requirementId}] ${v.reason}`)
-    return `[metakit] Store "${this.store}" cannot satisfy cross-row requirements:\n${lines.join('\n')}`
-  }
-}
-
-const defaultMinIsolation = (req: CrossRowRequirement): IsolationLevel => {
-  if (req.minIsolation !== undefined) return req.minIsolation
-  if (req.kind === 'semilattice-aggregate' || req.aggregate?.requiresRescanOnDelete === true) {
-    return 'repeatable-read'
-  }
-  return 'read-committed'
+  readonly isolation: Isolation
+  /**
+   * Whether a write locks the row its rule's rows hang on (an account, for a
+   * rule over its entries) until it commits, so writers of one parent wait
+   * for each other.
+   */
+  readonly parentRowLock: boolean
 }
 
 /**
- * Verify that `store` satisfies every `CrossRowRequirement`.
+ * What a rule needs of its store. `row-atomic`: a guard and the writes it
+ * admits apply to one row as one step. `parent-serialized`: writers of the
+ * rows under one parent run one at a time.
+ */
+export type Capability = 'row-atomic' | 'parent-serialized'
+
+const given: Readonly<Record<Capability, (store: StoreCapabilities) => boolean>> = {
+  'row-atomic': store => store.isolation !== 'eventual',
+  'parent-serialized': store =>
+    store.isolation === 'serializable' ||
+    (store.isolation === 'read-committed' && store.parentRowLock),
+}
+
+const meaning: Readonly<Record<Capability, string>> = {
+  'row-atomic': 'a guard and its writes apply to one row as one step',
+  'parent-serialized': 'writers of the rows under one parent run one at a time',
+}
+
+/** Whether `store` gives `capability`. */
+export const gives = (store: StoreCapabilities, capability: Capability): boolean =>
+  given[capability](store)
+
+/** One declared rule, the capability it needs and why. */
+export interface Requirement<Rule extends string = string> {
+  readonly rule: Rule
+  readonly needs: Capability
+  readonly because: string
+}
+
+type Tagged = Pick<Aggregate<unknown>, '_tag'>
+
+/**
+ * The capability each declared rule needs, by the rule's key.
  *
- * A cross-row aggregate invariant (e.g. `Rows.sum` balance conservation) needs
- * either parent-row locking OR `serializable` isolation, plus at least the
- * requirement's minimum isolation level.
+ * - An aggregate (`Rows.sum`, `Rows.count`, …) reads every row under one
+ *   parent, so two writers that each read a value admitting them can together
+ *   break a rule over it: it needs `parent-serialized`.
+ * - A transition that reads the state it writes, or writes a state whose
+ *   Schema carries rules, needs `row-atomic`: its proof assumes the state the
+ *   guard read is the state the writes land on. A transition that writes
+ *   nothing needs nothing.
+ *
+ * Throws for a key declared as both a transition and an aggregate.
  */
-export const checkStoreCapabilities = (
-  store: StoreCapabilities,
-  requirements: ReadonlyArray<CrossRowRequirement>,
-): Result.Result<void, StoreCapabilityError> => {
-  const violations: Array<CapabilityViolation> = []
-
-  for (const req of requirements) {
-    const needsLock = req.requiresParentRowLock ?? true
-    const minIso = defaultMinIsolation(req)
-
-    if (needsLock && !store.supportsParentRowLock && store.isolation !== 'serializable') {
-      const reason = `requires parent-row locking (or serializable isolation) for ${req.kind}, but "${store.name}" has supportsParentRowLock=false and isolation="${store.isolation}"`
-      violations.push({
-        requirementId: req.id,
-        reason,
-        obligation: { kind: 'store-capability', detail: `${req.id}: ${reason}` },
-      })
-    }
-
-    if (ISOLATION_RANK[store.isolation] < ISOLATION_RANK[minIso]) {
-      const reason = `requires isolation >= "${minIso}" for ${req.kind}, but "${store.name}" provides "${store.isolation}"`
-      violations.push({
-        requirementId: req.id,
-        reason,
-        obligation: { kind: 'store-capability', detail: `${req.id}: ${reason}` },
+export const requirements = <
+  State = never,
+  Transitions extends Readonly<Record<string, unknown>> = {},
+  Aggregates extends Readonly<Record<string, Tagged>> = {},
+>(declared: {
+  readonly machine?: Machine<State, Transitions>
+  readonly aggregates?: Aggregates
+}): ReadonlyArray<Requirement<(keyof Transitions & string) | (keyof Aggregates & string)>> => {
+  type Rule = (keyof Transitions & string) | (keyof Aggregates & string)
+  const out: Array<Requirement<Rule>> = []
+  const machine = declared.machine
+  if (machine !== undefined) {
+    const ruled = Expr.rulesOf(machine.stateSchema).length > 0
+    for (const [tag, { reads, writes }] of Object.entries(footprintsOf(machine))) {
+      if (writes.length === 0) continue
+      const readsState = Option.match(reads, { onNone: () => true, onSome: r => r.length > 0 })
+      if (!readsState && !ruled) continue
+      out.push({
+        rule: tag as Rule,
+        needs: 'row-atomic',
+        because: readsState
+          ? 'it writes from the state it read'
+          : "it writes a state whose Schema's rules it must keep",
       })
     }
   }
-
-  if (violations.length > 0) {
-    return Result.fail(new StoreCapabilityError({ store: store.name, violations }))
-  }
-  return Result.succeed(undefined)
-}
-
-/**
- * Setup-time mount guard: throws `StoreCapabilityError` loudly if `store`
- * cannot enforce any declared `CrossRowRequirement`.
- */
-export const assertStoreCapabilities = (
-  store: StoreCapabilities,
-  requirements: ReadonlyArray<CrossRowRequirement>,
-): void => {
-  const res = checkStoreCapabilities(store, requirements)
-  if (Result.isFailure(res)) {
-    throw res.failure
-  }
-}
-
-export type ConcurrencyPolicy = 'latest' | 'queue' | 'drop' | 'optimistic-rollback'
-
-export interface AsyncActionSpec {
-  readonly tag: string
-  readonly concurrency: ConcurrencyPolicy
-  readonly optimistic?: boolean
-}
-
-/**
- * Emit structured `Obligation(kind: 'walk')` records for optimistic and async
- * actions whose correctness depends on network interleaving rather than
- * single-step static proofs.
- */
-export const emitWalkObligations = (
-  specs: ReadonlyArray<AsyncActionSpec>,
-): ReadonlyArray<Verdict.Obligation> => {
-  const out: Array<Verdict.Obligation> = []
-  for (const spec of specs) {
-    if (spec.concurrency === 'latest') {
-      out.push({
-        kind: 'walk',
-        detail: `${spec.tag} (concurrency: latest): out-of-order stale response must not overwrite a newer in-flight or committed write`,
-      })
-    } else if (spec.concurrency === 'optimistic-rollback') {
-      out.push({
-        kind: 'walk',
-        detail: `${spec.tag} (concurrency: optimistic-rollback): rejected optimistic write must restore last committed state without losing newer accepted writes`,
-      })
-    } else if (spec.concurrency === 'queue') {
-      out.push({
-        kind: 'walk',
-        detail: `${spec.tag} (concurrency: queue): queued writes must settle in FIFO order regardless of network jitter`,
-      })
-    } else {
-      out.push({
-        kind: 'walk',
-        detail: `${spec.tag} (concurrency: drop): duplicate triggers while in flight must be ignored until settled`,
-      })
+  for (const key of Object.keys(declared.aggregates ?? {})) {
+    if (machine !== undefined && Object.hasOwn(machine.transitions, key)) {
+      throw new Error(
+        `[metakit] Temporal.requirements: "${key}" names both a transition and an aggregate`,
+      )
     }
-    if (spec.optimistic === true && spec.concurrency !== 'optimistic-rollback') {
-      out.push({
-        kind: 'walk',
-        detail: `${spec.tag} (optimistic): optimistic preview must converge with server response and recover on rejection`,
-      })
-    }
+    out.push({
+      rule: key as Rule,
+      needs: 'parent-serialized',
+      because: 'it reads every row under one parent',
+    })
   }
   return out
 }
 
-/** A single step in a deterministic interleaving trace. */
-export type WalkEvent<Action, Response> =
-  | { readonly kind: 'send'; readonly seq: number; readonly action: Action }
-  | { readonly kind: 'respond'; readonly seq: number; readonly response: Response }
-  | { readonly kind: 'reject'; readonly seq: number; readonly reason: string }
-
-export interface WalkFailure<State, Action, Response> {
-  readonly scenario: string
-  readonly stepIndex: number
-  readonly reason: string
-  readonly trace: ReadonlyArray<WalkEvent<Action, Response>>
-  readonly state: State
+/** A store asked to hold rules it cannot. */
+export class StoreRefused extends Data.TaggedError('StoreRefused')<{
+  readonly store: StoreCapabilities
+  /** The rules the store cannot hold; never empty. */
+  readonly refused: ReadonlyArray<Requirement>
+}> {
+  override get message(): string {
+    const { name, isolation, parentRowLock } = this.store
+    const lines = this.refused.map(
+      ({ rule, needs, because }) => `  - "${rule}" needs ${needs} (${meaning[needs]}): ${because}`,
+    )
+    return `[metakit] store "${name}" (${isolation}, ${parentRowLock ? 'locks' : 'does not lock'} the parent row) cannot hold:\n${lines.join('\n')}`
+  }
 }
 
-export interface WalkReport<State, Action, Response> {
-  readonly ok: boolean
-  readonly seed: number
-  readonly scenariosRun: number
-  readonly discharged: ReadonlyArray<Verdict.Obligation>
-  readonly failure: Option.Option<WalkFailure<State, Action, Response>>
+/** The requirements `store` cannot give. */
+export const refused = <Rule extends string>(
+  store: StoreCapabilities,
+  needed: ReadonlyArray<Requirement<Rule>>,
+): ReadonlyArray<Requirement<Rule>> => needed.filter(({ needs }) => !gives(store, needs))
+
+/**
+ * Call where a store is set up: throws `StoreRefused`, naming each rule, the
+ * capability it needs and the store, when `store` cannot hold one of `needed`.
+ */
+export const mount = (store: StoreCapabilities, needed: ReadonlyArray<Requirement>): void => {
+  const cannot = refused(store, needed)
+  if (cannot.length > 0) throw new StoreRefused({ store, refused: cannot })
 }
 
-const mulberry32 = (seed: number): (() => number) => {
+/**
+ * Something to show by running steps in several orders: `detail` says what,
+ * `over` names the Messages or transitions whose order is in question.
+ */
+export interface WalkObligation<Name extends string = string, Over extends string = string>
+  extends Verdict.Obligation {
+  readonly kind: 'walk'
+  readonly name: Name
+  readonly over: ReadonlyArray<Over>
+}
+
+/** A walk obligation a check of your own emits. */
+export const obligation = <const Name extends string, const Over extends string>(declared: {
+  readonly name: Name
+  readonly shows: string
+  readonly over: ReadonlyArray<Over>
+}): WalkObligation<Name, Over> => ({
+  kind: 'walk',
+  name: declared.name,
+  detail: declared.shows,
+  over: declared.over,
+})
+
+type Paths = ReadonlyArray<ReadonlyArray<string>>
+
+interface Footprint {
+  readonly reads: Option.Option<Paths>
+  readonly writes: Paths
+}
+
+/** Each transition's reads of the state and its writes, from the state. */
+const footprintsOf = <State, Transitions extends Readonly<Record<string, unknown>>>(
+  machine: Machine<State, Transitions>,
+): Readonly<Record<string, Footprint>> =>
+  Object.fromEntries(
+    Object.entries(machine.transitions).map(([tag, transition]) => {
+      const { stateReads, writes } = Transition.footprint(
+        transition as Transition.Transition<State, unknown, unknown>,
+      )
+      return [tag, { reads: stateReads, writes }]
+    }),
+  )
+
+/** Whether one path is the other or lies inside it. */
+const overlaps = (left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean =>
+  left.length <= right.length
+    ? left.every((segment, at) => segment === right[at])
+    : overlaps(right, left)
+
+/** Whether what `writer` writes is something `other` reads or writes. */
+const disturbs = (writer: Footprint, other: Footprint): boolean =>
+  writer.writes.some(
+    written =>
+      other.writes.some(path => overlaps(written, path)) ||
+      Option.match(other.reads, {
+        onNone: () => true,
+        onSome: reads => reads.some(path => overlaps(written, path)),
+      }),
+  )
+
+/**
+ * One walk obligation for each pair of `machine`'s transitions whose order
+ * matters: one writes what the other reads or writes (a transition that writes
+ * pairs with itself). Each step is proved alone, so every order keeps the
+ * state's rules; what no step proves is that answers arriving in another order
+ * than the steps were sent leave the same state. Transitions that touch
+ * disjoint state commute and get none.
+ */
+export const obligations = <State, Transitions extends Readonly<Record<string, unknown>>>(
+  machine: Machine<State, Transitions>,
+): ReadonlyArray<
+  WalkObligation<
+    `${keyof Transitions & string}/${keyof Transitions & string}`,
+    keyof Transitions & string
+  >
+> => {
+  type Tag = keyof Transitions & string
+  const prints = Object.entries(footprintsOf(machine)) as ReadonlyArray<readonly [Tag, Footprint]>
+  return prints.flatMap(([first, a], at) =>
+    prints
+      .slice(at)
+      .filter(([, b]) => disturbs(a, b) || disturbs(b, a))
+      .map(([second]) => ({
+        kind: 'walk' as const,
+        name: `${first}/${second}` as const,
+        detail: `answers to ${first} and ${second} arriving in either order leave the state their sending order leaves`,
+        over: [first, second],
+      })),
+  )
+}
+
+/** One step of a scenario: a send, an answer, a reconnect. */
+export interface Step<State, Name extends string, Of extends string = never> {
+  readonly name: Name
+  /** The Message or transition this step is an instance of: what an obligation's `over` names. */
+  readonly of?: Of
+  /** The steps that must have run before this one (an answer after its send). */
+  readonly after?: ReadonlyArray<NoInfer<Name>>
+  readonly run: (state: State) => State
+}
+
+/** Steps a walk orders, and what must hold after each. */
+export interface Scenario<State, Name extends string, Of extends string = never> {
+  readonly initial: () => State
+  readonly steps: ReadonlyArray<Step<State, Name, Of>>
+  /** Asked after every step, with the steps run so far: a reason when the property is broken. */
+  readonly holds: (state: State, ran: ReadonlyArray<Name>) => Option.Option<string>
+}
+
+/**
+ * What a walk found. `Broken` carries the `seed` whose order broke the
+ * property (`walk(scenario, { seed, runs: 1 })` runs it again), that order up
+ * to the failing step, and the fewest of its steps that still break it.
+ */
+export type WalkResult<Name = string> = Data.TaggedEnum<{
+  Held: { readonly seed: number; readonly runs: number }
+  Broken: {
+    readonly seed: number
+    readonly interleaving: ReadonlyArray<Name>
+    readonly minimal: ReadonlyArray<Name>
+    readonly reason: string
+  }
+}>
+
+interface WalkResultDefinition extends Data.TaggedEnum.WithGenerics<1> {
+  readonly taggedEnum: WalkResult<this['A']>
+}
+
+export const WalkResult = Data.taggedEnum<WalkResultDefinition>()
+
+export interface WalkOptions {
+  /** The first order's seed; each further run adds one. `1` unless given. */
+  readonly seed?: number
+  /** How many orders to try. `200` unless given. */
+  readonly runs?: number
+}
+
+/** A small seeded generator (mulberry32): the same seed gives the same orders everywhere. */
+const generator = (seed: number): (() => number) => {
   let a = seed >>> 0
   return () => {
     a = (a + 0x6d2b79f5) | 0
@@ -205,193 +307,146 @@ const mulberry32 = (seed: number): (() => number) => {
 }
 
 /**
- * Deterministic seeded interleaving runner discharging `Obligation(kind: 'walk')`.
+ * Run `scenario`'s steps in `runs` seeded orders, each respecting every
+ * step's `after`, asking `holds` after every step. The first broken order
+ * stops the walk.
  *
- * Always executes explicit adversarial schedules first:
- *   1. Out-of-order response (`send(0), send(1), respond(1), respond(0)`) —
- *      directly tests stale-response suppression (`#480`).
- *   2. First-rejected, second-accepted (`send(0), send(1), reject(0), respond(1)`).
- *   3. First-accepted, second-rejected (`send(0), send(1), respond(0), reject(1)`).
- *   4. All-rejected rollback (`send(0), send(1), reject(1), reject(0)`).
- * Plus `randomRuns` (default `20`) seeded random send/respond/reject interleavings.
+ * Throws for a scenario no order can run: two steps of one name, an `after`
+ * naming no step, or steps waiting on each other.
  */
-export const runWalk = <State, Action, Response>(config: {
-  readonly seed?: number
-  readonly randomRuns?: number
-  readonly obligations?: ReadonlyArray<Verdict.Obligation>
-  readonly initial: () => State
-  readonly actions: ReadonlyArray<Action>
-  readonly send: (state: State, seq: number, action: Action) => State
-  readonly serverResult: (seq: number, action: Action) => Response
-  readonly onResponse: (state: State, seq: number, response: Response) => State
-  readonly onReject: (state: State, seq: number, reason: string) => State
-  /** Checked after EVERY event in every schedule. Return `Option.some(reason)` to fail. */
-  readonly invariant: (
-    state: State,
-    history: ReadonlyArray<WalkEvent<Action, Response>>,
-  ) => Option.Option<string>
-  /** Checked after all in-flight actions have settled. Return `Option.some(reason)` to fail. */
-  readonly finalCheck?: (
-    state: State,
-    history: ReadonlyArray<WalkEvent<Action, Response>>,
-  ) => Option.Option<string>
-}): WalkReport<State, Action, Response> => {
-  const seed = config.seed ?? 0x5eed1234
-  const randomRuns = config.randomRuns ?? 20
-  const obligations = config.obligations ?? []
-
-  if (config.actions.length === 0) {
-    return {
-      ok: true,
-      seed,
-      scenariosRun: 0,
-      discharged: obligations,
-      failure: Option.none(),
+export const walk = <State, Name extends string, Of extends string = never>(
+  scenario: Scenario<State, Name, Of>,
+  options?: WalkOptions,
+): WalkResult<Name> => {
+  type S = Step<State, Name, Of>
+  const { steps } = scenario
+  const names = new Set<Name>()
+  for (const step of steps) {
+    if (names.has(step.name)) {
+      throw new Error(`[metakit] Temporal.walk: two steps are named "${step.name}"`)
+    }
+    names.add(step.name)
+  }
+  for (const step of steps) {
+    const unknown = (step.after ?? []).find(name => !names.has(name))
+    if (unknown !== undefined) {
+      throw new Error(
+        `[metakit] Temporal.walk: step "${step.name}" runs after "${unknown}", which is no step`,
+      )
     }
   }
 
-  const runSchedule = (
-    scenario: string,
-    events: ReadonlyArray<WalkEvent<Action, Response>>,
-  ): Option.Option<WalkFailure<State, Action, Response>> => {
-    let state = config.initial()
-    const history: Array<WalkEvent<Action, Response>> = []
-    for (let i = 0; i < events.length; i++) {
-      const ev = events[i]!
-      if (ev.kind === 'send') {
-        state = config.send(state, ev.seq, ev.action)
-      } else if (ev.kind === 'respond') {
-        state = config.onResponse(state, ev.seq, ev.response)
-      } else {
-        state = config.onReject(state, ev.seq, ev.reason)
+  /** One seeded order of every step, each after the steps it waits on. */
+  const orderOf = (seed: number): ReadonlyArray<S> => {
+    const next = generator(seed)
+    const ran = new Set<Name>()
+    const waiting = [...steps]
+    const order: Array<S> = []
+    while (waiting.length > 0) {
+      const ready = waiting.filter(step => (step.after ?? []).every(name => ran.has(name)))
+      if (ready.length === 0) {
+        throw new Error(
+          `[metakit] Temporal.walk: steps ${waiting.map(step => `"${step.name}"`).join(', ')} wait on each other`,
+        )
       }
-      history.push(ev)
-      const invFail = config.invariant(state, history)
-      if (Option.isSome(invFail)) {
-        return Option.some({
-          scenario,
-          stepIndex: i,
-          reason: invFail.value,
-          trace: history,
-          state,
-        })
-      }
+      const step = ready[Math.floor(next() * ready.length)]!
+      waiting.splice(waiting.indexOf(step), 1)
+      ran.add(step.name)
+      order.push(step)
     }
-    if (config.finalCheck !== undefined) {
-      const finFail = config.finalCheck(state, history)
-      if (Option.isSome(finFail)) {
-        return Option.some({
-          scenario,
-          stepIndex: events.length - 1,
-          reason: finFail.value,
-          trace: history,
-          state,
-        })
+    return order
+  }
+
+  /** The steps of `order` up to the first after which the property is broken, and why. */
+  const broken = (
+    order: ReadonlyArray<S>,
+  ): Option.Option<{ readonly ran: ReadonlyArray<S>; readonly reason: string }> => {
+    let state = scenario.initial()
+    const ran: Array<Name> = []
+    for (const [at, step] of order.entries()) {
+      state = step.run(state)
+      ran.push(step.name)
+      const reason = scenario.holds(state, ran)
+      if (Option.isSome(reason)) {
+        return Option.some({ ran: order.slice(0, at + 1), reason: reason.value })
       }
     }
     return Option.none()
   }
 
-  const schedules: Array<{
-    readonly name: string
-    readonly events: ReadonlyArray<WalkEvent<Action, Response>>
-  }> = []
-
-  const a0 = config.actions[0]!
-  const a1 = config.actions[1] ?? a0
-  const r0 = config.serverResult(0, a0)
-  const r1 = config.serverResult(1, a1)
-
-  // Explicit adversarial schedules
-  schedules.push(
-    {
-      name: 'out-of-order-stale-response',
-      events: [
-        { kind: 'send', seq: 0, action: a0 },
-        { kind: 'send', seq: 1, action: a1 },
-        { kind: 'respond', seq: 1, response: r1 },
-        { kind: 'respond', seq: 0, response: r0 },
-      ],
-    },
-    {
-      name: 'first-rejected-second-accepted',
-      events: [
-        { kind: 'send', seq: 0, action: a0 },
-        { kind: 'send', seq: 1, action: a1 },
-        { kind: 'reject', seq: 0, reason: '503' },
-        { kind: 'respond', seq: 1, response: r1 },
-      ],
-    },
-    {
-      name: 'first-accepted-second-rejected',
-      events: [
-        { kind: 'send', seq: 0, action: a0 },
-        { kind: 'send', seq: 1, action: a1 },
-        { kind: 'respond', seq: 0, response: r0 },
-        { kind: 'reject', seq: 1, reason: '409' },
-      ],
-    },
-    {
-      name: 'all-rejected-out-of-order',
-      events: [
-        { kind: 'send', seq: 0, action: a0 },
-        { kind: 'send', seq: 1, action: a1 },
-        { kind: 'reject', seq: 1, reason: '503' },
-        { kind: 'reject', seq: 0, reason: '503' },
-      ],
-    },
-  )
-
-  // Seeded random interleavings
-  const rng = mulberry32(seed)
-  for (let run = 0; run < randomRuns; run++) {
-    const events: Array<WalkEvent<Action, Response>> = []
-    let nextSeq = 0
-    const inFlight: Array<{ readonly seq: number; readonly action: Action }> = []
-    while (nextSeq < config.actions.length || inFlight.length > 0) {
-      const canSend = nextSeq < config.actions.length
-      const canSettle = inFlight.length > 0
-      if (canSend && (!canSettle || rng() < 0.55)) {
-        const action = config.actions[nextSeq]!
-        events.push({ kind: 'send', seq: nextSeq, action })
-        inFlight.push({ seq: nextSeq, action })
-        nextSeq++
-      } else {
-        const idx = Math.floor(rng() * inFlight.length)
-        const item = inFlight.splice(idx, 1)[0]!
-        if (rng() < 0.25) {
-          events.push({ kind: 'reject', seq: item.seq, reason: 'network-error' })
-        } else {
-          events.push({
-            kind: 'respond',
-            seq: item.seq,
-            response: config.serverResult(item.seq, item.action),
-          })
-        }
-      }
+  /** `failing` without each step that nothing left waits on and the break does not need. */
+  const shrunk = (failing: {
+    readonly ran: ReadonlyArray<S>
+    readonly reason: string
+  }): { readonly ran: ReadonlyArray<S>; readonly reason: string } => {
+    for (const step of failing.ran) {
+      const rest = failing.ran.filter(other => other !== step)
+      if (rest.some(other => (other.after ?? []).includes(step.name))) continue
+      const still = broken(rest)
+      if (Option.isSome(still)) return shrunk(still.value)
     }
-    schedules.push({ name: `seeded-run-${run}`, events })
+    return failing
   }
 
-  for (let s = 0; s < schedules.length; s++) {
-    const sched = schedules[s]!
-    const fail = runSchedule(sched.name, sched.events)
-    if (Option.isSome(fail)) {
-      return {
-        ok: false,
+  const first = options?.seed ?? 1
+  const runs = options?.runs ?? 200
+  for (let run = 0; run < runs; run++) {
+    const seed = first + run
+    const failing = broken(orderOf(seed))
+    if (Option.isSome(failing)) {
+      const least = shrunk(failing.value)
+      return WalkResult.Broken({
         seed,
-        scenariosRun: s + 1,
-        discharged: [],
-        failure: fail,
-      }
+        interleaving: failing.value.ran.map(step => step.name),
+        minimal: least.ran.map(step => step.name),
+        reason: least.reason,
+      })
     }
   }
+  return WalkResult.Held({ seed: first, runs })
+}
 
-  return {
-    ok: true,
-    seed,
-    scenariosRun: schedules.length,
-    discharged: obligations,
-    failure: Option.none(),
+/** A walk run for one obligation, and what it found. */
+export interface Discharge<Name extends string = string> {
+  readonly obligation: Name
+  readonly result: WalkResult
+}
+
+/**
+ * Walk `scenario` for `obligation`. Throws when the scenario has no step for
+ * one of the obligation's `over` (a pair of one transition needs two steps of
+ * it): such a walk would pass having shown nothing about it.
+ */
+export const discharge = <Name extends string, Over extends string, State, StepName extends string>(
+  obligation: WalkObligation<Name, Over>,
+  scenario: Scenario<State, StepName, NoInfer<Over>>,
+  options?: WalkOptions,
+): Discharge<Name> => {
+  const available = scenario.steps.flatMap(step => (step.of === undefined ? [] : [step.of]))
+  for (const needed of obligation.over) {
+    const at = available.indexOf(needed)
+    if (at < 0) {
+      throw new Error(
+        `[metakit] Temporal.discharge: obligation "${obligation.name}" is over ${obligation.over.join(', ')}, but the scenario has too few steps of "${needed}"`,
+      )
+    }
+    available.splice(at, 1)
   }
+  return { obligation: obligation.name, result: walk(scenario, options) }
+}
+
+/**
+ * The obligations no walk that held covers: assert it is empty in a test. A
+ * discharge naming no obligation of the list is a type error.
+ */
+export const undischarged = <Name extends string, Over extends string>(
+  owed: ReadonlyArray<WalkObligation<Name, Over>>,
+  discharges: ReadonlyArray<Discharge<NoInfer<Name>>>,
+): ReadonlyArray<WalkObligation<Name, Over>> => {
+  const held = new Set(
+    discharges
+      .filter(({ result }) => WalkResult.$is('Held')(result))
+      .map(({ obligation: name }) => name),
+  )
+  return owed.filter(({ name }) => !held.has(name))
 }
