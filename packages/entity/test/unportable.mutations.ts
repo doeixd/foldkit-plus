@@ -4,7 +4,6 @@
  * test fails for every one.
  */
 const evaluate = '../src/evaluate.ts'
-const compile = '../../remote-drizzle/src/compile.ts'
 const unportable = ['packages/entity/test/unportable.test.ts']
 const sql = ['packages/remote-drizzle/test/conformance.test.ts']
 
@@ -32,30 +31,14 @@ export default [
     tests: unportable,
   },
   {
-    name: 'SQL compares a NaN parameter',
+    name: 'SQL binds a NaN parameter',
     edits: [
       {
-        file: compile,
-        find: '  }\n  refuseNaN(query, [left, right])\n  const symbol',
-        replace: '  }\n  const symbol',
+        file: '../../metakit/src/sqlLowering.ts',
+        find: "if (typeof value === 'number' && !Number.isFinite(value)) {",
+        replace: 'if (false) {',
       },
     ],
-    tests: sql,
-  },
-  {
-    name: 'SQL tests equality with a NaN parameter',
-    edits: [
-      {
-        file: compile,
-        find: '      }\n      refuseNaN(query, [left, right])\n      // Drizzle',
-        replace: '      }\n      // Drizzle',
-      },
-    ],
-    tests: sql,
-  },
-  {
-    name: 'SQL tests membership in a list holding NaN',
-    edits: [{ file: compile, find: '      refuseNaN(query, [value, ...among])', replace: '' }],
     tests: sql,
   },
 ]

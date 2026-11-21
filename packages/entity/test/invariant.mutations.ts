@@ -99,9 +99,9 @@ export default [
   ),
   edit(
     'the compiler reads the row after as the row before',
-    'Object.hasOwn(target.next ?? {}, node.field.key)',
+    'Object.hasOwn(target.next ?? {}, key)',
     'false',
-    '../../remote-drizzle/src/compile.ts',
+    '../../remote-drizzle/src/render.ts',
   ),
   edit('a field after needs no operation', "found.operations.add('next')", '', '../src/expr.ts'),
   // Dropping the read instead fails every declaration as reading nothing after, before a test runs.

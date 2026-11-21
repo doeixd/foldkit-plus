@@ -29,15 +29,9 @@ export default [
   ),
   edit(
     'SQL searches a title from its start only',
-    '../../../packages/remote-drizzle/src/compile.ts',
-    'const pattern = `%${escapeLike(search)}%`',
-    'const pattern = `${escapeLike(search)}%`',
-  ),
-  edit(
-    'SQL reads like wildcards in what was typed',
-    '../../../packages/remote-drizzle/src/compile.ts',
-    'const pattern = `%${escapeLike(search)}%`',
-    'const pattern = `%${search}%`',
+    '../../../packages/metakit/src/sqlLowering.ts',
+    '(${s}, ${sub}) > 0)',
+    '(${s}, ${sub}) = 1)',
   ),
   edit(
     'a page says it holds every comment when it holds some',
