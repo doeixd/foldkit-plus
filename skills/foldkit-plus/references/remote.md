@@ -909,6 +909,16 @@ different answers; an input every interpreter refuses (text holding NUL) is
 empty and incomplete, never a throw. It creates no connection, so nothing new is retained or
 fetched.
 
+A total, count, minimum or every/any over those same rows, kept from the rows
+that change: `aggregated` (see "A kept aggregate over a loaded list" at the end).
+
+Remote reads (`Data.get`, `Data.query`, live reads, `Data.confirmed`) declare
+the store's field as their `dependencies`, so `Projection.derive` and
+`SlotView.region` over them skip while that field is the same object; a domain
+on a raw optic declares none and is read every time. A read entry for a bare
+Surface or `Remote.observe` reuses its plan without building the Surface's
+projection while the store is unchanged.
+
 Local execution is not a second authority: `matching` and `filtered` conclude
 from held facts (this row matches) and never claim the whole dataset (the list
 is these rows) unless the connection is terminal at both ends (`complete`).
@@ -1635,6 +1645,56 @@ Met in applications on this stack: what failed, and what to do instead.
 - **One `drizzle-orm` per install.** The Drizzle adapters peer on it; a second
   copy, resolved with other optional peers, makes the application's tables
   fail to type-check against the adapter. Count the copies in the lockfile.
+
+## A kept aggregate over a loaded list
+
+`aggregated(Data, model, over, aggregate, { where, input })` from
+`foldkit-remote/aggregate` folds a `metakit/aggregates` value (`Rows.sum`,
+`count`, `min`, `max`, `every`, `any`) over exactly the rows `filtered` gives
+(`where` optional: every row of the list), returning `{ value, complete }` with
+`filtered`'s `complete`. It keeps the value between calls and moves it by the
+rows that changed (a write, a live patch, a pending write and its rollback, a
+row entering or leaving `where`); it adds everything up again after a restored
+snapshot, a viewer change, a Model older than the last, about a thousand
+unread store writes, or any store change when `where` or the Selection reads
+another row.
+
+<!-- docs-check standalone
+import { Schema as S } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Entity, Expr, Order } from 'foldkit-entity'
+import { Query, Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+const Invoice = Entity.define('Invoice', S.Struct({ id: S.String, cents: S.Int, status: S.String }))
+const All = Query.define('All', {}, () => Query.from(Invoice).pipe(Query.orderBy(Order.asc(Invoice.fields.id))))
+const Unpaid = Query.define('Unpaid', {}, () =>
+  Query.from(Invoice).pipe(Query.where(Expr.eq(Invoice.fields.status, 'unpaid')), Query.orderBy(Order.asc(Invoice.fields.id))),
+)
+const Model = S.Struct({ remote: Remote.Model })
+const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+const Data = Remote.make({ model: App.model.remote, entities: [Invoice], queries: [All, Unpaid] })
+const invoices = Data.query(All, {}, { select: Entity.select(Invoice, { cents: true }), first: 50 })
+declare const model: typeof Model.Type
+-->
+
+```ts
+import { Schema } from 'effect'
+import * as Rows from 'metakit/aggregates'
+import { aggregated } from 'foldkit-remote/aggregate'
+
+// Once, at module level: the kept value belongs to this aggregate value.
+const UnpaidCents = Rows.sum(Schema.Struct({ cents: Schema.Int }), $ => $.cents)
+const { value, complete } = aggregated(Data, model, invoices, UnpaidCents, {
+  where: Unpaid,
+  input: {},
+})
+```
+
+Mistakes: an aggregate made in the view is new each render and adds up from
+nothing every time; `Rows.sum` over a `Schema.Number` field throws (only
+integer contributions keep exact deltas); the aggregate's row may name fewer
+fields than the list selects, never one it does not select (a type error).
+Guide: [aggregates.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/remote/docs/aggregates.md).
 
 ## See also
 

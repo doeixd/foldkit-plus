@@ -307,6 +307,38 @@ test('a page keeps no metakit for a Surface without declared writes, and no writ
   }
 }, 240_000)
 
+/**
+ * Remote's kept aggregates read metakit's types only, from an entry of their
+ * own: a page reading Remote keeps neither that entry nor metakit, and one
+ * reading `foldkit-remote/aggregate` keeps no metakit. Broken by hand: a
+ * value import of `metakit/aggregates` read at the top of `src/aggregate.ts`
+ * turned the second row red, and an import of `aggregated` read at the top of
+ * `src/remote.ts` the first.
+ */
+test.each([
+  ['index', `import { Remote } from 'pkg'\nexport const used = Remote.make`, 'remote'],
+  ['aggregate', `import { aggregated } from 'pkg'\nexport const used = aggregated`, 'aggregate'],
+] as const)(
+  'a page reading foldkit-remote/%s keeps no metakit module, built or source',
+  async (file, page, kept) => {
+    const root = scratchIn('remote', 'published-')
+    made.push(root)
+    const modules = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const index = await buildPublished('remote', root)
+    const built = await modules(join(dirname(index), `${file}.js`))
+    const source = await modules(join(packages, 'remote', 'src', `${file}.ts`))
+    expect(built.some(id => id.endsWith(`/dist/${kept}.js`))).toBe(true)
+    expect(source.some(id => id.endsWith(`/remote/src/${kept}.ts`))).toBe(true)
+    const forbidden =
+      file === 'index'
+        ? /\/metakit\/(src|dist)\/|\/(dist|remote\/src)\/aggregate\.(js|ts)$/
+        : /\/metakit\/(src|dist)\//
+    expect([...built, ...source].filter(id => forbidden.test(id))).toEqual([])
+  },
+  120_000,
+)
+
 test('a page reading only Expr.eval and Num.lte from metakit keeps no sql, prove, conformance, z3, or zone modules', async () => {
   const root = scratchIn('metakit', 'published-')
   made.push(root)
