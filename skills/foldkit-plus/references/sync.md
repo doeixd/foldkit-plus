@@ -273,17 +273,13 @@ What the document must always be, whoever changes it, is a **law**, not an
 `authorize` rule: a predicate over the snapshot an operation leaves.
 
 ```ts
-import { Arr, Num, Path } from 'metakit'
-
-const shared = Projection.pick(App.model.todos)
-const { model } = Path.forEnv({ model: shared.schema })
 const Capped = forApplication(App).make({
   documentId: DocumentId.make('capped'),
-  shared,
+  shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [Message.CreatedTodo]),
   laws: {
     atMost100Todos: {
-      holds: Num.lte(Arr.count(model.todos), 100),
+      holds: ({ after }) => after.todos.length <= 100,
       message: 'A list holds 100 todos',
       path: ['todos'],
     },
@@ -291,20 +287,55 @@ const Capped = forApplication(App).make({
 })
 ```
 
-The expression sees the proposed shared snapshot as `model`. Use a
-`holds({ before, after })` callback when the rule needs the previous snapshot too.
+`holds` sees the snapshot before the operation and the one after it. To write
+it as a metakit expression instead, wrap the expression in `Declared.holds`
+from `foldkit-sync/metakit`; it sees the snapshot after as `model`. That
+subpath is the only part of `foldkit-sync` that imports metakit, so a page
+that writes its laws as callbacks carries none of it.
 
-To replay an edit from a single declaration, put a metakit `Transition.make`
-under its Message tag in `make({ transitions })`. Use `Schema.Struct({ model:
-shared.schema })` for its state and the variant constructor, such as
-`Message.CreatedTodo`, for its input. The mount
-applies it to the shared projection in place of your `update`, and the journal
-uses it for replay. A Message whose guard (`when`) is false is refused: the
-replica's `submit` fails and the journal rejects the operation. Tags
-without a declaration follow the existing reducer. At definition time, `make`
-rejects a guard it proves unreachable or a transition it finds violates a
-shared-state invariant. An undecided check lets the declaration proceed. The
-journal still checks each document law on admission.
+To replay an edit from a single declaration, wrap a metakit `Transition.make`
+in `Declared.transition` and put it under its Message tag in
+`make({ transitions })`. Use `Schema.Struct({ model: shared.schema })` for its
+state and the variant constructor, such as `Message.ClearedTodos`, for its
+input.
+
+```ts
+import { Arr, Num, Path, Transition } from 'metakit'
+import { Declared } from 'foldkit-sync/metakit'
+
+const shared = Projection.pick(App.model.todos)
+const { model } = Path.forEnv({ model: shared.schema })
+const Clearable = forApplication(App).make({
+  documentId: DocumentId.make('clearable'),
+  shared,
+  durable: MessageSet.make(App, [Message.CreatedTodo, Message.ClearedTodos]),
+  laws: {
+    atMost100Todos: {
+      holds: Declared.holds(Num.lte(Arr.count(model.todos), 100)),
+      message: 'A list holds 100 todos',
+    },
+  },
+  transitions: {
+    ClearedTodos: Declared.transition(
+      Transition.make({
+        state: Schema.Struct({ model: shared.schema }),
+        input: Message.ClearedTodos,
+        when: ({ state }) => Arr.nonEmpty(state.model.todos),
+        apply: ({ state }) => [Transition.set(state.model.todos, [])],
+      }),
+    ),
+  },
+})
+```
+
+The mount applies a declared transition to the shared projection in place of
+your `update`, and the journal uses it for replay. A Message whose guard
+(`when`) is false is refused: the replica's `submit` fails and the journal
+rejects the operation. Tags without a declaration follow the existing reducer.
+At definition time, `make` rejects a guard proved unreachable under the laws
+written with `Declared.holds`, or a transition proved to break one. An
+undecided check lets the declaration proceed. The journal still checks each
+document law on admission.
 
 The journal judges every operation after `reduce` (`journalContract()` carries
 `judge`), `appendAsServer` and reactions included; a broken law is

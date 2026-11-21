@@ -104,8 +104,10 @@ export const Todo = TodoFields.pipe(
 ## Attaching
 
 To check whether someone allowed to update a row can also read a particular
-member, call `Guards.check(Todo, 'ownerId')` on the Entity returned by
-`Guards.attach`. The `consistent` verdict is false for a provably unreachable
+member, call `GuardCheck.policy(Todo, 'ownerId')` on the Entity returned by
+`Guards.attach`. `GuardCheck` comes from `foldkit-guard/check`, an entry of its
+own because the prover behind it is large: use it in a test or a development
+script, not in a page. The `consistent` verdict is false for a provably unreachable
 Update. An unknown `consistent` verdict leaves reachability open. A true
 `implication` means every allowed Update on a valid row also
 passes the row and member Read rules. Check both verdicts because an
