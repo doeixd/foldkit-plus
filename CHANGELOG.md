@@ -52,6 +52,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-site` and `foldkit-remote`: a Site node that reads the viewer re-plans its read when only the viewer changes; Remote no longer reuses a read plan on a route label alone.
+- `foldkit-remote`: `Data.can` answers `No(Invalid)` for an input its Schema cannot encode instead of throwing. A capability's `authorize` and `applies` refuse when asking throws or a `No` names no refusal, and `Data.available` is false then.
+- `foldkit-agent`: an `authorize` or `applies` hook that throws, or whose Effect dies, refuses the call (`AgentAuthorizationError`, `AgentCapabilityUnavailableError`) without the thrown message, instead of crashing the invocation.
 - `metakit`: a lone surrogate is U+FFFD to every reader, as the database stores it, so `Prove.invariant` no longer proves two texts unequal that evaluation finds equal. A write to a string field with checks is proved to fit only for minimum and maximum length and `Text`: writing `Str.trim(a)` to a non-empty field is no longer proved.
 - `foldkit-remote`: a read answered while a write is pending no longer loses to that write's late answer. When the read brought a field a value other than the one the answer names (another writer's later change), the answer is written and the field is read again, as it already was for a live patch. Applies where the domain reads live.
 - `foldkit-surface`: `Projection.of` names a nested projection's paths from the key it is under.
