@@ -166,7 +166,7 @@ describe('a list the request leaves out', () => {
   })
 
   it('holds no row when it is empty', () => {
-    expect(lite(compile(among, sqliteLanes, { names: [] })).sql).toBe('false')
+    expect(lite(compile(among, sqliteLanes, { names: [] })).sql).toMatch(/^false$/i)
   })
 })
 

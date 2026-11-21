@@ -6,7 +6,6 @@
 const compile = '../src/compile.ts'
 const lowering = '../src/lowering.ts'
 const sqlLowering = '../../metakit/src/sqlLowering.ts'
-const properties = '../../metakit/src/properties.ts'
 const tests = [
   'packages/remote-drizzle/test/compile.test.ts',
   'packages/remote-drizzle/test/conformance.test.ts',
@@ -17,23 +16,12 @@ const rewrites = '../src/rewrites.ts'
 
 export default [
   {
-    name: 'a decisive operand does not decide the whole',
+    name: 'nothing is settled: the request is not bound into the translation',
     edits: [
       {
-        file: properties,
-        find: "    absorbing: { value: true, result: true, side: 'both', unlessRefused: true },\n",
-        replace: '',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a settled operand reaches the database as a constant',
-    edits: [
-      {
-        file: properties,
-        find: "    identity: { value: false, side: 'both' },\n    absorbing: { value: true",
-        replace: '    absorbing: { value: true',
+        file: lowering,
+        find: '    envFor(node, lowered, target, input),\n    readsStored',
+        replace: '    {},\n    readsStored',
       },
     ],
     tests,
