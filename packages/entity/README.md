@@ -763,14 +763,14 @@ Expr.show(Expr.sub(Product.fields.cents, price.discount)) // '(Product.cents - $
 ```
 
 They are the kernel's primitive operators `number.add` and `number.subtract`,
-in `Operators.kernel` and every binding's SQL kernel: `+` and `-` in memory, in
-SQLite and in Postgres, and conformance cases hold the three to one answer. A
-null on either side gives null; a text operand is a type error where it is
-passed. A comparison, an order term, an invariant, a write's `when` and its
-`compute` read one as any number, and a sum of integers computes an integer
-field. Past what a double holds the readers part: memory and SQLite give an
-infinity, and Postgres refuses the statement as out of range (two integer
-columns add as integers there).
+which every memory table runs and every binding's SQL kernel holds: `+` and `-`
+in memory, in SQLite and in Postgres, and conformance cases hold the three to
+one answer. A null on either side gives null; a text operand is a type error
+where it is passed. A comparison, an order term, an invariant, a write's `when`
+and its `compute` read one as any number, and a sum of integers computes an
+integer field. An integer sum past 2^53 - 1, where a double no longer holds
+every integer, is refused in memory (a `QueryEvaluateError`), as Postgres
+refuses the statement; SQLite alone gives a real there.
 
 ### Reading across relations: `Expr.path` and `Expr.exists`
 
@@ -1843,7 +1843,9 @@ refused where it is written.
   `evaluate`, `evaluateEach`, `decided`, `truthOver`, `Entity.judge`,
   `Entity.judgeInput(input, value, { operators })` and
   `Entity.check(entity, { operators })` each take the table, `Operators.kernel`
-  by default.
+  by default. That one implements nothing: every table runs the kernel's own
+  `Text.startsWith`, `Expr.add` and `Expr.sub`, and refuses an implementation
+  of one.
 - **Null is strict by default.** A null argument gives null (unknown for a
   predicate) and the implementation never sees one. `nulls: 'handled'`
   operators are implemented with `Operators.implementHandlingNulls` and answer
@@ -1872,8 +1874,16 @@ refused where it is written.
   row causes (an operator the table lacks, an input the body reads holding a
   NUL, order keys of different kinds) still refuses it. A client judging the
   rows it holds wants the second.
-- **NUL is refused** in any text argument, and an implementation that throws
-  is reported as a `QueryEvaluateError` naming its operator.
+- **NUL is refused** in any text argument, and an implementation that throws,
+  or answers a kind other than its output's (text for a number), is reported as
+  a `QueryEvaluateError` naming its operator; its `refusal` holds what was
+  refused. A refusal decides before null: `contains` of stored text holding a
+  NUL is refused even beside a null search.
+- **An implementation is told no collation.** An operator declared
+  `collation: 'required'` is given its text arguments folded as the call's
+  collation folds them, and `{ collation }` is always none.
+- **A write refuses text holding a NUL** where its input is decoded
+  (`Entity.input`'s schema), naming the key, so no stored row holds one.
 
 ### Laws, and holding an implementation to them
 

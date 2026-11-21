@@ -565,8 +565,13 @@ In memory, `Operators.memory(Operators.implement(op, (a, b, { collation }) => â€
 is a table passed to `evaluate(body, input, rows, { operators })`, `Entity.judge`,
 `judgeInput` (`{ operators }`) and `Entity.check(entity, { operators })` (which throws where it is made
 for an operator the table lacks); `Operators.kernel` is the
-default and holds `Text.startsWith(text, prefix, { collation? })`, `Expr.add` and
-`Expr.sub` (as does every binding's SQL kernel). A strict operator
+default and implements nothing: every table runs `Text.startsWith(text, prefix,
+{ collation? })`, `Expr.add` and `Expr.sub` as metakit's own operations (as
+every binding's SQL kernel holds them) and refuses an implementation of one. An
+implementation is told no collation: a `'required'` operator is given its text
+folded. The judge runs through metakit, so a refusal (NUL, an integer past
+2^53 - 1, an answer of the wrong kind) throws `QueryEvaluateError` with its
+`refusal`, and an Entity's input refuses text holding a NUL where it is decoded. A strict operator
 (the default) never sees a null; `nulls: 'handled'` with
 `Operators.implementHandlingNulls` does. `collation: 'operands'` makes a text result
 carry its operands' collation; `'required'` refuses text with none. A body calling an
