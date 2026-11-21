@@ -118,7 +118,7 @@ export const AccountPanel = App.surface('AccountPanel', {
 export const Owner = App.surface('Owner', {
   model: ({ model }) => ({ owner: model.account.owner }),
 })
-/** Reads through a function that names no path, as a Remote read does. */
+/** Reads through a function that names no path. */
 export const Loose = App.surface('Loose', {
   model: () => Projection.fromReader(Schema.String, (model: Model) => model.note),
 })
@@ -128,8 +128,8 @@ export type Draws = Map<string, number>
 
 /**
  * The application's parts made afresh: the writes hold which Model is the
- * current one, so each test has its own. `skip: false` draws with no writes,
- * as `Surface.rootView` does without the option.
+ * current one, so each test has its own. `skip: false` draws with
+ * `Surface.rootView`, which keeps nothing.
  */
 export const make = (
   options: { readonly skip?: boolean } = {},
@@ -145,56 +145,34 @@ export const make = (
     draws.set(name, next)
     return next
   }
-  const given = options.skip === false ? {} : { writes }
+  const rootView: typeof writes.rootView =
+    options.skip === false ? Surface.rootView : writes.rootView
   // Each drawing says which one it is, so a kept one is told from a new one on the page.
-  const header = Surface.rootView(
-    Header,
-    undefined,
-    (model, h) =>
-      h.h1([h.Id('header'), h.DataAttribute('drawn', String(drawn('Header')))], [model.title]),
-    given,
+  const header = rootView(Header, undefined, (model, h) =>
+    h.h1([h.Id('header'), h.DataAttribute('drawn', String(drawn('Header')))], [model.title]),
   )
-  const tally = Surface.rootView(
-    Tally,
-    undefined,
-    (model, h) =>
-      h.button(
-        [
-          h.Id('tally'),
-          h.DataAttribute('drawn', String(drawn('Tally'))),
-          h.OnClick(Message.Counted()),
-        ],
-        [String(model.count)],
-      ),
-    given,
+  const tally = rootView(Tally, undefined, (model, h) =>
+    h.button(
+      [
+        h.Id('tally'),
+        h.DataAttribute('drawn', String(drawn('Tally'))),
+        h.OnClick(Message.Counted()),
+      ],
+      [String(model.count)],
+    ),
   )
-  const account = Surface.rootView(
-    AccountPanel,
-    undefined,
-    (model, h) => {
-      drawn('AccountPanel')
-      return h.p([h.Id('account')], [`${model.account.owner}: ${model.account.balance}`])
-    },
-    given,
-  )
-  const owner = Surface.rootView(
-    Owner,
-    undefined,
-    (model, h) => {
-      drawn('Owner')
-      return h.p([h.Id('owner')], [model.owner])
-    },
-    given,
-  )
-  const loose = Surface.rootView(
-    Loose,
-    undefined,
-    (note, h) => {
-      drawn('Loose')
-      return h.p([h.Id('loose')], [note])
-    },
-    given,
-  )
+  const account = rootView(AccountPanel, undefined, (model, h) => {
+    drawn('AccountPanel')
+    return h.p([h.Id('account')], [`${model.account.owner}: ${model.account.balance}`])
+  })
+  const owner = rootView(Owner, undefined, (model, h) => {
+    drawn('Owner')
+    return h.p([h.Id('owner')], [model.owner])
+  })
+  const loose = rootView(Loose, undefined, (note, h) => {
+    drawn('Loose')
+    return h.p([h.Id('loose')], [note])
+  })
   const view = (model: Model, h: HtmlBuilder<Message>): Html =>
     h.main(
       [],

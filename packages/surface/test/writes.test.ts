@@ -6,12 +6,12 @@
  * slot is what hands a kept drawing back.
  */
 import { Option, Schema } from 'effect'
-import type { HtmlBuilder } from 'foldkit/html'
+import { inertHtml as h, type HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { Transition } from 'metakit'
 import * as Machine from 'metakit/machine'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { pathsRead, Projection } from '../src/index.js'
+import { Metadata, pathsRead, Projection } from '../src/index.js'
 import { Writes } from '../src/writes.js'
 import { App, Declared, initial, make, Message, Model, update } from './writesFixture.js'
 
@@ -55,6 +55,17 @@ describe('which declared Messages draw a Surface again', () => {
     expect(pathsRead(Projection.struct({ title: App.model.title, loose }))).toEqual(Option.none())
   })
 
+  it('reads a projection nested under a key of `Projection.of` from that key', () => {
+    const owner = Projection.fromReader(
+      Schema.String,
+      (account: Model['account']) => account.owner,
+      { dependencies: [['owner']] },
+    )
+    expect(pathsRead(Projection.of(Model)({ account: owner }))).toEqual(
+      Option.some([['account', 'owner']]),
+    )
+  })
+
   it('gives the paths a Message is declared to write, and none without a transition', () => {
     expect(writes.declared(Message.Deposited({ amount: 1 }))).toEqual(
       Option.some([['account', 'balance']]),
@@ -72,36 +83,59 @@ it('refuses a transition no Message of the application names', () => {
   ).toThrow('the transition "constructor" is not named by a Message of this application')
 })
 
+/** Reads the title, as `Header` does: a second view of it for the tests that break one. */
+const Titled = App.surface('Titled', { model: ({ model }) => ({ title: model.title }) })
+
 describe('where there is no runtime frame', () => {
   it('draws every time, since no lazy slot can keep a drawing', () => {
     const writes = Writes.of(App, Declared)
     let draws = 0
-    const view = writes.region(
-      'Bare',
-      { dependencies: [['title']] },
-      (_root: Model, _h: undefined) => {
-        draws++
-        return null
-      },
-    )
-    view(initial, undefined)
-    view(initial, undefined)
+    const view = writes.rootView(Titled, undefined, () => {
+      draws++
+      return null
+    })
+    view(initial, h)
+    view(initial, h)
     expect(draws).toBe(2)
   })
 
   it('lets a drawing that throws throw, drawn once', () => {
     const writes = Writes.of(App, Declared)
     let draws = 0
-    const view = writes.region(
-      'Bare',
-      { dependencies: [['title']] },
-      (_root: Model, _h: undefined) => {
-        draws++
-        throw new Error('the drawing broke')
-      },
-    )
-    expect(() => view(initial, undefined)).toThrow('the drawing broke')
+    const view = writes.rootView(Titled, undefined, () => {
+      draws++
+      throw new Error('the drawing broke')
+    })
+    expect(() => view(initial, h)).toThrow('the drawing broke')
     expect(draws).toBe(1)
+  })
+})
+
+describe('a Surface whose projection carries metadata', () => {
+  // What a planner reads by, as `foldkit-remote` names the rows a read asks for.
+  const Asked = Metadata.key<string>('asked', {
+    merge: values => values,
+    summarize: value => value,
+  })
+  const Planned = App.surface('Planned', {
+    model: () =>
+      Projection.fromReader(Schema.String, (model: Model) => model.note, {
+        dependencies: [['note']],
+        metadata: Asked.of('note'),
+      }),
+  })
+
+  it('is drawn again by every transition that writes, whatever path it names', () => {
+    expect(pathsRead(Planned.projection())).toEqual(Option.some([['note']]))
+    const writes = Writes.of(App, Declared)
+    writes.rootView(Planned, undefined, (note, h) => h.p([], [note]))
+    expect(writes.regions()).toEqual([
+      {
+        name: 'Planned',
+        reads: Option.none(),
+        redrawnBy: ['Renamed', 'Counted', 'Deposited', 'Moved', 'Sneaked'],
+      },
+    ])
   })
 })
 
@@ -142,15 +176,11 @@ const mount = async (
 ) => {
   const app = make(options)
   let brokenDraws = 0
-  const broken = app.writes.region(
-    'Broken',
-    { dependencies: [['title']] },
-    (root: Model, h: HtmlBuilder<Message>) => {
-      brokenDraws++
-      if (root.title === 'Renamed') throw new Error('the drawing broke')
-      return h.p([], ['whole'])
-    },
-  )
+  const broken = app.writes.rootView(Titled, undefined, (model, h) => {
+    brokenDraws++
+    if (model.title === 'Renamed') throw new Error('the drawing broke')
+    return h.p([], ['whole'])
+  })
   const container = document.createElement('div')
   container.id = 'writes'
   document.body.appendChild(container)

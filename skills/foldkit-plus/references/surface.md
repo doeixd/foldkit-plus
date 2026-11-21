@@ -392,21 +392,31 @@ const Counted = Transition.make({
 })
 const writes = Writes.of(App, Machine.make({ state: Model, transitions: { Counted } }))
 // Kept through `Counted`, which writes `count`; drawn again by `Renamed`, which has no transition.
-const header = Surface.rootView(Header, undefined, drawHeader, { writes })
+const header = writes.rootView(Header, undefined, drawHeader)
 const update = writes.track(
   import.meta.env?.DEV === true ? WritesCheck.verify(writes, appUpdate, { surfaces: [Header] }) : appUpdate,
 )
 ```
 
+- `writes.rootView(surface, params, render)` is `Surface.rootView` with the
+  drawing kept: same arguments, same view type. `Surface.rootView` itself takes
+  no `writes`, so a page that declares none carries nothing of this.
 - `writes.track(update)` wraps the outermost `update`, once: it notes which
   Message made each Model. Without it every view draws every time.
 - Nothing is kept on a guess. A Message with no Transition, a Model `track` did
   not see made (the first, a restored one), a projection that names no path
-  (`Projection.fromReader`, a `true` pick in `Projection.of`, a Remote read), a
+  (`Projection.fromReader`, a `true` pick in `Projection.of`), a projection
+  that carries metadata (a `foldkit-remote` read, whatever path it names), a
   server render and a view called outside the runtime all draw again.
+- A value derived from a Remote read (`Projection.derive`) or a plain field
+  reference into the Remote store carries no metadata: it is kept by the
+  store's path, so a Message with a Transition whose `update` also writes the
+  store must declare that write (`WritesCheck.verify` reports it otherwise).
 - Paths match by prefix both ways: a write to `account` or to
   `account.owner.name` draws a reader of `account.owner`; a write to
   `account.balance` does not.
+- A projection nested under a key of `Projection.of` names its paths from that
+  key (`account.owner`, not `owner`).
 - A renderer reads only its Model, and each `rootView` result stands at one
   position of the tree.
 - `writes.regions()` lists each view's `reads` (an `Option`, none when no path
@@ -421,10 +431,6 @@ const update = writes.track(
   leaves its module out of a production build.
 - `pathsRead(projection)` (from `foldkit-surface`) is the Model paths a
   Projection reads as an `Option`: none when it reads what no path names.
-- The `writes` option's type is `DeclaredWrites<Root>` (from `foldkit-surface`):
-  one method, `region(name, projection, draw)`, which gives `draw` back kept.
-  `Writes.of` is its only maker; `rootView` calls it with the Surface's name
-  and projection.
 - `Closure` is `reads` and `violations` only; the closed-Surface half of the
   check is inside `WritesCheck.verify`.
 

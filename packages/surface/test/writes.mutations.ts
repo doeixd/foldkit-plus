@@ -59,14 +59,24 @@ export default [
     'if (true) {',
   ),
   edit(
-    'rootView ignores the writes',
-    'return options?.writes === undefined',
-    'return true',
+    'the view the writes make keeps no drawing',
+    '          return lazy(counted, [all, region.own, h])',
+    '          return drawn(root, h)',
+  ),
+  edit(
+    'a projection carrying metadata is kept by the paths it names',
+    'Metadata.summarize(projection.metadata).length > 0 ? Option.none() : pathsRead(projection)',
+    'pathsRead(projection)',
+  ),
+  edit(
+    'a projection nested under a key keeps paths from the nested value',
+    'dependencies.push(...nested.dependencies.map(path => [key, ...path]))',
+    'dependencies.push(...nested.dependencies)',
     '../src/index.ts',
   ),
   edit(
     'a server render keeps drawings',
-    '        if ((globalThis as Record<symbol, unknown>)[SERVER_RENDER] === true) return draw(root, h)\n',
+    '        if ((globalThis as Record<symbol, unknown>)[SERVER_RENDER] === true) return drawn(root, h)\n',
     '',
   ),
   edit(
@@ -76,7 +86,7 @@ export default [
   ),
   edit(
     'no drawing where there is no runtime frame',
-    '          return draw(root, h)\n        }\n      }',
+    '          return drawn(root, h)\n        }\n      }',
     '          throw error\n        }\n      }',
   ),
   edit(

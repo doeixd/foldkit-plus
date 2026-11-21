@@ -529,7 +529,8 @@ export const Projection = {
         } else {
           const nested = choice as Projection<unknown, unknown>
           picked[key] = nested.Model
-          dependencies.push(...nested.dependencies)
+          // The nested projection reads from the field's value, so its paths start under the key.
+          dependencies.push(...nested.dependencies.map(path => [key, ...path]))
           metadata.push(nested.metadata)
           parts.push(nested)
           readers.push([key, root => nested.read(propertyReader(root, key))])
@@ -1096,17 +1097,7 @@ type ViewBuilder<Message> = Omit<HtmlBuilder<Message>, keyof HtmlBuilder<never> 
 /** A renderer for a Surface's projected Model, with its Message set narrowed. */
 export type Renderer<Model, Message> = (model: Model, h: ViewBuilder<Message>) => Html
 
-/** What each Message is declared to write, as `Surface.rootView`'s `writes` takes it: `Writes.of` (`foldkit-surface/writes`) makes one. */
-export interface DeclaredWrites<Root> {
-  /** `draw`, kept while no Message since its last drawing was declared to write a path `reads` depends on. */
-  readonly region: <Builder>(
-    name: string,
-    reads: { readonly dependencies: DependencyTree },
-    draw: (root: Root, h: Builder) => Html,
-  ) => (root: Root, h: Builder) => Html
-}
-
-/** The Model paths a Projection reads, or none when it reads something no path names (a `fromReader`, a Remote read). */
+/** The Model paths a Projection reads, or none when it reads something no path names (a `fromReader`, a raw optic). */
 export const pathsRead = (projection: {
   readonly dependencies: DependencyTree
 }): Option.Option<DependencyTree> =>
@@ -1745,17 +1736,11 @@ export const Surface = {
    * The application boundary: consume the Root Model, project it, and hand the
    * projected Model to the renderer. `Subset` rejects a Surface whose Messages
    * the application builder cannot route.
-   *
-   * With `writes` (`Writes.of`, `foldkit-surface/writes`) the drawing is kept while no
-   * Message since is declared to write a path the projection reads. A Message with no
-   * declaration, an unseen Model and a projection reading no path (a Remote read) all
-   * draw again. `render` must read only its Model; the view stands at one position.
    */
   rootView: <Root, Model, Message, Params>(
     surface: Surface<Root, Model, Message, Params>,
     params: Params,
     render: Renderer<Model, Message>,
-    options?: { readonly writes?: DeclaredWrites<Root> },
   ): (<AppMessage>(
     root: Root,
     h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
@@ -1763,11 +1748,10 @@ export const Surface = {
     const projection = surface.projection(params)
     // Sound narrowing: the renderer can only construct this Surface's Messages,
     // and `Subset` guarantees the application builder accepts them.
-    const draw = (root: Root, h: unknown): Html =>
-      render(projection.read(root), h as ViewBuilder<Message>)
-    return options?.writes === undefined
-      ? draw
-      : options.writes.region(surface.name, projection, draw)
+    return <AppMessage>(
+      root: Root,
+      h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
+    ): Html => render(projection.read(root), h as unknown as ViewBuilder<Message>)
   },
 
   /**

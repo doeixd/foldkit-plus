@@ -7,7 +7,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Transition } from 'metakit'
 import * as Machine from 'metakit/machine'
-import { pathsRead, Surface, type DeclaredWrites, type DependencyTree } from '../src/index.js'
+import { pathsRead, Surface, type DependencyTree } from '../src/index.js'
 import { Writes, WritesCheck, type RegionFacts, type WriteDiagnostic } from '../src/writes.js'
 import { App, Declared, Header, Message, Model, transitions, update } from './writesFixture.js'
 
@@ -45,12 +45,11 @@ pathsRead(Header.projection())
 // @ts-expect-error a Surface is not a Projection: ask its projection
 pathsRead(Header)
 
-// It is what `Surface.rootView` takes, and the view keeps its type.
-const _declared: DeclaredWrites<Model> = writes
-const header = Surface.rootView(Header, undefined, (model, h) => h.h1([], [model.title]), {
-  writes,
-})
+// Its `rootView` gives the view `Surface.rootView` gives, with the renderer's Model inferred.
+const header = writes.rootView(Header, undefined, (model, h) => h.h1([], [model.title]))
 const _view: (model: Model, h: HtmlBuilder<Message>) => Html = header
+const plain = Surface.rootView(Header, undefined, (model, h) => h.h1([], [model.title]))
+expectTrue<Equal<typeof header, typeof plain>>()
 
 // Writes of another application's Model are refused.
 const Other = Schema.Struct({ other: Schema.String })
@@ -70,7 +69,7 @@ const otherWrites = Writes.of(
   }),
 )
 // @ts-expect-error these writes are of another Model
-Surface.rootView(Header, undefined, (model, h) => h.h1([], [model.title]), { writes: otherWrites })
+otherWrites.rootView(Header, undefined, (model, h) => h.h1([], [model.title]))
 
 // A transition must be named by a Message of the application.
 Writes.of(

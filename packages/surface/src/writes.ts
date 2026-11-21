@@ -15,11 +15,13 @@ import { Expr, Path } from 'metakit'
 import { analyze } from 'metakit/graph'
 import type { Machine } from 'metakit/machine'
 import {
+  Metadata,
   pathsRead,
+  Surface,
   type AppScope,
-  type DeclaredWrites,
   type DependencyTree,
   type Invalid,
+  type Renderer,
 } from './index.js'
 import { messageTag, tagOf } from './messageTags.js'
 
@@ -41,7 +43,21 @@ export interface RegionFacts<Tag extends string> {
 }
 
 /** The writes of an application's Messages, as `Writes.of` makes them from a Machine. */
-export interface Writes<Root, Message, Tag extends string> extends DeclaredWrites<Root> {
+export interface Writes<Root, Message, Tag extends string> {
+  /**
+   * `Surface.rootView`, with the drawing kept while no Message since it was
+   * made is declared to write a path the Surface's projection reads: the
+   * projection is not read and Foldkit does not compare the tree. A Message
+   * with no transition, a Model `track` did not see made, and a projection
+   * that names no path or reads through a planner (a `foldkit-remote` read)
+   * all draw again. `render` must read only its Model, and the view, made
+   * once at module level, stands at one position of the tree.
+   */
+  readonly rootView: <Model, ViewMessage, Params>(
+    surface: Surface<Root, Model, ViewMessage, Params>,
+    params: Params,
+    render: Renderer<Model, ViewMessage>,
+  ) => ReturnType<typeof Surface.rootView<Root, Model, ViewMessage, Params>>
   /** The Model paths `message`'s transition sets; none for a Message with no transition. */
   readonly declared: (message: Message) => Option.Option<DependencyTree>
   /**
@@ -123,12 +139,15 @@ const of = <
       return result
     },
 
-    region: <Builder>(
-      name: string,
-      projection: { readonly dependencies: DependencyTree },
-      draw: (root: Root, h: Builder) => Html,
-    ) => {
-      const reads = pathsRead(projection)
+    rootView: (surface, params, render) => {
+      const draw = Surface.rootView(surface, params, render)
+      const name = surface.name
+      const projection = surface.projection(params)
+      // A projection carrying metadata reads through a planner (a Remote read):
+      // what it shows also moves with Messages no transition is written for, so
+      // its paths decide nothing and every Message that writes draws it again.
+      const reads =
+        Metadata.summarize(projection.metadata).length > 0 ? Option.none() : pathsRead(projection)
       // A read that names no path is an opaque term with no declared reads,
       // which `analyze` holds affected by every transition that writes.
       const run = (): void => undefined
@@ -149,12 +168,15 @@ const of = <
       const lazy = createLazy()
       // The slot compares its arguments, and the Model is new on every Message.
       let latest: Root
-      const counted = (_all: number, _own: number, h: Builder): Html => {
+      // The builder is the application's, which the type `Surface.rootView`
+      // gives the view checks at each call: here it is only handed on.
+      const drawn = (root: Root, h: unknown): Html => draw(root, h as never)
+      const counted = (_all: number, _own: number, h: unknown): Html => {
         started++
-        return draw(latest, h)
+        return drawn(latest, h)
       }
-      return (root: Root, h: Builder): Html => {
-        if ((globalThis as Record<symbol, unknown>)[SERVER_RENDER] === true) return draw(root, h)
+      return (root: Root, h: unknown): Html => {
+        if ((globalThis as Record<symbol, unknown>)[SERVER_RENDER] === true) return drawn(root, h)
         // A Model with an unknown past: drawn, and the counts are true of it from here.
         if (!isCurrent(root)) {
           all++
@@ -166,7 +188,7 @@ const of = <
           return lazy(counted, [all, region.own, h])
         } catch (error) {
           if (started !== before) throw error
-          return draw(root, h)
+          return drawn(root, h)
         }
       }
     },
@@ -179,13 +201,13 @@ const of = <
 export const Writes = {
   /**
    * The writes of an application's Messages, from a `metakit` Machine over its
-   * Model whose transitions are named by Message tags. Give it to
-   * `Surface.rootView` as `writes`, and wrap `update` with its `track`.
+   * Model whose transitions are named by Message tags. Make each view with
+   * its `rootView`, and wrap `update` with its `track`.
    *
    * @example
    * ```ts
    * const writes = Writes.of(App, Machine.make({ state: Model, transitions: { Renamed, Counted } }))
-   * const header = Surface.rootView(Header, undefined, drawHeader, { writes })
+   * const header = writes.rootView(Header, undefined, drawHeader)
    * const update = writes.track(appUpdate)
    * ```
    */

@@ -312,7 +312,7 @@ The Surface's `Model` type is the projected record (`{ todos, selectedTodoId }`)
 
 ### Draw a Surface only when a Message writes what it reads
 
-Foldkit runs every view after every Message. `Surface.rootView(surface, params, render, { writes })` keeps the Surface's last drawing until a Message is declared to write a field the Surface reads: `render` does not run and Foldkit does not compare the drawing with the page. `writes` comes from `Writes.of` in `foldkit-surface/writes`, which takes one declared transition per Message, and `WritesCheck.verify` checks those declarations against what `update` changes while you develop. [Draw only the parts of a page a Message can change](../../docs/surface-writes.md) shows both.
+Foldkit runs every view after every Message. `writes.rootView(surface, params, render)` is `Surface.rootView` that keeps the Surface's last drawing until a Message is declared to write a field the Surface reads: `render` does not run and Foldkit does not compare the drawing with the page. `writes` comes from `Writes.of` in `foldkit-surface/writes`, which takes one declared transition per Message, and `WritesCheck.verify` checks those declarations against what `update` changes while you develop. [Draw only the parts of a page a Message can change](../../docs/surface-writes.md) shows both.
 
 ### `Surface.make`, the explicit form
 
