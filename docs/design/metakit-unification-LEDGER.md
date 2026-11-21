@@ -242,6 +242,7 @@ Add a row per phase and per budget it touches. Keep the earlier rows.
 | Phase 3 gate (`examples/todo-app`) | `tsc -b examples/todo-app` | none | 3.034 s (`21bbb5355`) | 2,114,035 own instantiations; `bundle.test.ts` brotli budget green |
 | Phase 3 gate (`examples/foldkit/domains-plus`) | Counted Message gap list | none | 41 own Messages (`21bbb5355`) | 19 pure declarable (13 no-op/completion + 3 Command-emitting + 3 state/list) + 22 confined `Transition.opaque` (13 widget-delegating + 9 search/URL/remote); >=3/4 gate holds with widget/opaque transitions |
 | Phase 1, step 5 (`66d25a4ed`, `b61064cb4`, `12a8b4f7b`) | the six Remote and entity page budgets | pre-step-5 ceilings below | raised by the readings below (+300) | entity's judge on metakit through the translation layer; see "Owed by step 10" |
+| Lean judge (`103e5f790`) | the six Remote and entity page budgets | the step-5 readings below | 331 to 606 brotli lower each; ceilings lowered to reading +300 | the page judges without partial evaluation; see "After the lean judge" |
 
 ## Owed by step 10
 
@@ -259,3 +260,26 @@ Step 5 put entity's in-memory judge on metakit through a translation layer (`low
 The forecast is not met: deleting the layer is expected to return about 0.6 to 1.9 kB of the 7.4 to 8.0 kB (estimated from minified size at each page's brotli ratio, 0.275 to 0.277; not a build with the modules removed). Registry, minified: `lower` 2,332, `lowerEnv` 2,536, `lowerOperator` 2,072 (6,940, about 1,900 B brotli if all three go; `lowerEnv` and `lowerOperator` may survive as the environment and foreign-operator code the direct constructors still need, leaving `lower` alone at about 640 B). What stays after step 10 is metakit's own code the page runs (22.5 kB minified: `ops/residualize` 3,886, `node` 3,608, `ops/rows` 2,766, `ops/kind` 2,641, `properties` 1,947, `ops/eval` 1,619, `ops/residualizeRows` 1,207, `ops/str` 1,081, the rest about 3.8 kB), plus entity's `rowOrder`, `judgeRun`, `queryErrors`, `pins` (4.4 kB), against the old `evaluate.js` that went (10.9 kB). Reachable waste in that code, not yet removed (minified, from reading the sources; the `properties` and `kind` figures are esbuild minifications of the pieces): `ops/rows` and `ops/residualizeRows` (3,973, no page budgeted here calls `Expr.exists`), the part of `properties` that only the checker, aggregates and transitions read (about 1,150), `ops/kind`'s `isInteger` and the length bounds of `textChecksOf` (about 450). Together about 5.6 kB minified, 1.5 kB brotli. Even with that and the whole layer gone, about 4 kB of the debt would remain unless `expr.js` (27.6 kB minified) shrinks when its constructors build metakit nodes directly.
 
 The kernel note's prototype (25,300 against 32,639 brotli) measured a page with three temporary constructors and none of `expr.js` (21,360 minified, all of entity's other constructors, `Query`, relations, ordering, dependencies, `show`), and with `ops/rows`, `residualizeRows`, `properties` and the larger `kind` and `node` absent (8,028 of metakit against 22.5 kB now). It replaced all of entity's expression code with three constructors; the real page keeps all of it.
+
+### After the lean judge (2026-11-21, `103e5f790`)
+
+A page now judges held rows with `judgeNode` and `settleNode` (`ops/judge.ts`), which evaluate with "not yet known" as a value and never build the expression partial evaluation leaves. The rules are stated once (`ops/laws.ts`, `ops/partial.ts`, `ops/partialRows.ts`) and read by both readers; `residualizeNode` stays for `Graph.pruneStatic`, `queryReadiness`, SQL statements and `Expr.residualize`, none of which a budgeted page loads. One meaning is held by two differentials against `residualSettled` of `metakit/conformance` (16,000 seeded random expressions in metakit; every judgement entity's tests make, 646 tests' worth) and `packages/metakit/test/lean-judge.mutations.ts`. Each page measured with `scripts/bundle-report.mjs` against fresh `dist`s, before and after, in one tree:
+
+| Budget | Target | Before (step 5) | After | Ceiling now | Still owed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| cloudflare | 224,500 | 232,465 | 231,859 | 232,159 | 7,359 |
+| cms | 164,500 | 171,911 | 171,580 | 171,880 | 7,080 |
+| reference | 252,300 | 260,108 | 259,576 | 259,876 | 7,276 |
+| auth | 228,500 | 235,875 | 235,368 | 235,668 | 6,868 |
+| registry | 262,300 | 269,797 | 269,371 | 269,671 | 7,071 |
+| entity | 222,000 | 229,410 | 228,876 | 229,176 | 6,876 |
+
+A cloudflare reading of 241,406 reported earlier on 2026-11-21 was not reproduced: the page read 232,465 at `e40e4ffd6` and 231,859 after, and its budget test passes, with no package more than 0.1 kB apart between the two. `bundle-report.mjs` rebuilds a stale `dist` itself, and on this day its rebuild of `foldkit-plus` left `dist/mixins/foundations.mjs` out (the reference page failed to build until `pnpm --filter foldkit-plus build`), so a reading taken over such a `dist` measures another program.
+
+Registry, minified, metakit's share went from 22,564 to 20,024 bytes: `ops/residualize` (3,899), `ops/residualizeRows` (1,212), `properties` (1,948) and most of `ops/reads` (685 to 182) left, `node` fell 3,622 to 2,007 (`Node.key` is no longer reached), `ops/kind` 2,654 to 2,245 (the length bounds of `textChecksOf` moved to `ops/textChecks.ts`), `ops/eq` lost its folds (819 to 689); `ops/judge` (2,844), `ops/laws` (2,575), `ops/partialRows` (1,185) and `ops/partial` (626) came in. `isInteger` was already tree-shaken off every page, so moving it saved nothing.
+
+Not removed: `ops/rows` (2,773) and the `Rows` reading. Registering them from the `Rows` constructors and `Expr.exists` would not take them off: `Expr` is one object, so every page that names it keeps `existsOf` (found in the registry bundle) and with it whatever `existsOf` imports. It holds once step 10 splits `expr.ts` into named exports; then `ops/rows`, `ops/partialRows` and the `Rows` case of `ops/eval` (about 4.2 kB minified, about 1.15 kB brotli) can arrive only with `exists`.
+
+The Worker bundles, raw bytes, after (neither ceiling raised; the coordinator decides those): `examples/foldkit/domains-plus` 3,328,366 against 3,277,700 (it read about 3,333,078 after step 5); `examples/cloudflare` 4,636,820 against 4,577,000 (it read 4,636,226 before this change in another tree, with about 19 kB of step 8's `remote-drizzle` lowering in it; not measured before and after in one tree here, so the +594 is not attributed). A Worker carries both readers.
+
+**Forecast for step 10 on top**, from minified sizes at a 0.275 brotli ratio, not a build: deleting `lower`, `lowerEnv` and `lowerOperator` (6,927 minified in registry) returns 0.6 to 1.9 kB; the `Rows` reading off pages that do not call `exists`, once `expr.ts` is split, about 1.15 kB more. That leaves about 3.8 to 5.6 kB of each page's debt, unless the split of `expr.js` (27.7 kB minified) itself returns it.

@@ -51,8 +51,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // `lowerOperator.ts`), so the page carries metakit's node, partial evaluation and operation modules
 // (22.5 kB minified) and the layer on top of them, against the old `evaluate.js` it replaced. Step 10
 // deletes the layer; forecast after it, estimated from minified size at this page's brotli ratio: 258,200 to 259,500.
+// -532 on 2026-11-21, still TEMPORARY: 259,576 measured. The page judges with metakit's lean judge
+// (103e5f790): no partial evaluation, property table or reads walker, and `Node.key` left it.
 // Step 10 of the unification plan must bring this back to 252,300. Owed: docs/design/metakit-unification-LEDGER.md.
-const CEILING = 260_408
+const CEILING = 259_876
 
 clientBudget({
   name: 'reference',
