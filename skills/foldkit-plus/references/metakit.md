@@ -76,6 +76,9 @@ void proof
 ## Main exports by subpath
 
 - `metakit`: `Path`, `Expr`, `Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr`, `Transition`, `Verdict`, `Abstract`
+- `Expr.evalResult(expr, env)` gives the value, null (an operand was null or its key absent), or the `Node.Refusal` of an integer past 2^53 − 1, a non-finite number, an operand of the wrong type or a `Match` value no case names. `Expr.eval` returns the value and throws the refusal. `Expr.holds(rule, env)` is true only where the rule evaluates to true. An operator takes a nullable operand and its result type then includes `null`.
+- `Transition.run` and `Transition.step` refuse (`Refused`) an input that is not a value of the input Schema, a guard that is not true, and a written value that is refused. `Transition.make` throws for two writes where one target is under the other; `Transition.set` takes its type from the target, so a wider value does not compile. `Transition.lift(path, transition)` is refused where the model holds no child at `path`. `Transition.footprint` gives `reads` from `{ state, input }`, and `stateReads` and `writes` from the state.
+- `Abstract.checkTransition(stateSchema, transition)` is `True` only where every rule holds after the writes and every written value is one its field's Schema takes (bounds, also inside `NullOr`; being an integer; a literal of the enumeration; not null). `Abstract.checkInvariant` and it answer `True` for "evaluates to true in every admitted environment" and `False` for "evaluates to false in every one".
 - `Expr.rulesOf(schema)` lists each `Expr.refine` and Effect numeric bound with the property path it sits on (`at`, `[]` for the schema itself) and its `message` annotation as an `Option`, so a form can show the message beside the field. `Expr.refinementsOf` gives the expressions alone. Neither reads a check inside `Schema.optional` or `Schema.NullOr`.
 - `metakit/domain`: `Money`, `Decimal`, `CalendarDay`, `OrderedEnum`, `Domain`. `Decimal.format(value, { scale })` and `Money.format(amount, code, { scale })` take the value's own scale. `Decimal.mul` and `Money.mul` multiply exactly and round half-even; they are evaluated in memory only (SQL refuses them, the checkers read them as unknown). `CalendarDay.toIso` and `fromIso` return a `Result` over years 0001 to 9999 (`CalendarDay.earliest` to `CalendarDay.latest`).
 - `metakit/aggregates`: `sum` (of an integer expression), `count`, `min`, `max`, `every`, `any`. It imports no SQL.
@@ -87,7 +90,7 @@ void proof
 - `metakit/drizzle`: `toCheck`, `toWhere`, `toUpdate`, each over a Drizzle table; the same lowering as `metakit/sql`.
 - `metakit/policy`: `make` builds named boolean rules over a row and a principal. `checkConsistent` looks for an unreachable rule and `checkImplication` checks whether one rule implies another.
 - `metakit/prove`: `invariant`, `transition`, `policy`, `machine`, `policyConsistent`, `policyImplies`. The last two accept policy definitions from `metakit/policy` or `Guards.check` and escalate undecided checks to Z3. Each takes `{ timeoutMs }` (default 10,000) and fails with `SolverUnavailableError` when a goal needs `z3-solver` and it is not installed. A `False` carries an environment that was replayed through the Schemas and the evaluator; an assignment that does not replay is `Unknown`.
-- `metakit/conformance`: `checkOpSoundness`, `checkResidualizeSoundness`
+- `metakit/conformance`: `checkOpSoundness(id)` and `checkAllOps()` hold each primitive operator to one answer from evaluation, partial evaluation and the Tier 3 checker over null, absent keys, NaN and the ends of the safe range; `checkResidualizeSoundness` does so for an expression over sampled values; `coreOps` is every operator's descriptor.
 
 ## See also
 
