@@ -6,7 +6,7 @@
  * only where `import.meta.env.DEV` holds carries none of it.
  */
 import { Effect, Equal, Option } from 'effect'
-import { Closure, type ClosedSurfaces } from './closure.js'
+import { movedOutside, type ClosedSurfaces } from './closure.js'
 import { Diagnostics, type Diagnostic } from './diagnostics.js'
 import type { DependencyTree } from './index.js'
 import { tagOf } from './messageTags.js'
@@ -120,7 +120,7 @@ const verify = <Root, Message, Return extends { readonly model: Root }>(
     readonly report?: (diagnostic: WriteDiagnostic) => void
   } = {},
 ): ((model: Root, message: Message) => Return) => {
-  const outside = Closure.outside<Root, Message>(options.surfaces ?? [])
+  const outside = movedOutside<Root, Message>(options.surfaces ?? [])
   const report = options.report ?? fail
   return (model, message) => {
     const result = update(model, message)

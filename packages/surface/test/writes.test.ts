@@ -11,6 +11,7 @@ import * as Runtime from 'foldkit/runtime'
 import { Transition } from 'metakit'
 import * as Machine from 'metakit/machine'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { pathsRead, Projection } from '../src/index.js'
 import { Writes } from '../src/writes.js'
 import { App, Declared, initial, make, Message, Model, update } from './writesFixture.js'
 
@@ -46,6 +47,14 @@ describe('which declared Messages draw a Surface again', () => {
     expect(regions['Loose']?.reads).toEqual(Option.none())
   })
 
+  it('reads a Projection composed of an unnamed read as unnamed, and a struct of fields by its paths', () => {
+    const title = Projection.struct({ title: App.model.title, owner: App.model.account.owner })
+    expect(pathsRead(title)).toEqual(Option.some([['title'], ['account', 'owner']]))
+    const loose = Projection.fromReader(Schema.String, (model: Model) => model.note)
+    expect(pathsRead(loose)).toEqual(Option.none())
+    expect(pathsRead(Projection.struct({ title: App.model.title, loose }))).toEqual(Option.none())
+  })
+
   it('gives the paths a Message is declared to write, and none without a transition', () => {
     expect(writes.declared(Message.Deposited({ amount: 1 }))).toEqual(
       Option.some([['account', 'balance']]),
@@ -67,10 +76,14 @@ describe('where there is no runtime frame', () => {
   it('draws every time, since no lazy slot can keep a drawing', () => {
     const writes = Writes.of(App, Declared)
     let draws = 0
-    const view = writes.region('Bare', Option.some([['title']]), (_root: Model, _h: undefined) => {
-      draws++
-      return null
-    })
+    const view = writes.region(
+      'Bare',
+      { dependencies: [['title']] },
+      (_root: Model, _h: undefined) => {
+        draws++
+        return null
+      },
+    )
     view(initial, undefined)
     view(initial, undefined)
     expect(draws).toBe(2)
@@ -79,10 +92,14 @@ describe('where there is no runtime frame', () => {
   it('lets a drawing that throws throw, drawn once', () => {
     const writes = Writes.of(App, Declared)
     let draws = 0
-    const view = writes.region('Bare', Option.some([['title']]), (_root: Model, _h: undefined) => {
-      draws++
-      throw new Error('the drawing broke')
-    })
+    const view = writes.region(
+      'Bare',
+      { dependencies: [['title']] },
+      (_root: Model, _h: undefined) => {
+        draws++
+        throw new Error('the drawing broke')
+      },
+    )
     expect(() => view(initial, undefined)).toThrow('the drawing broke')
     expect(draws).toBe(1)
   })
@@ -127,7 +144,7 @@ const mount = async (
   let brokenDraws = 0
   const broken = app.writes.region(
     'Broken',
-    Option.some([['title']]),
+    { dependencies: [['title']] },
     (root: Model, h: HtmlBuilder<Message>) => {
       brokenDraws++
       if (root.title === 'Renamed') throw new Error('the drawing broke')

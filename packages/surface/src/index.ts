@@ -1104,15 +1104,26 @@ export type Renderer<Model, Message> = (model: Model, h: ViewBuilder<Message>) =
 export interface DeclaredWrites<Root> {
   /**
    * `draw`, kept while no Message since its last drawing was declared to write
-   * a path in `reads`. None for `reads` is a region that reads what no path
-   * names: every Message that changes the Model draws it again.
+   * a path `reads` depends on. Where `reads` reads what no path names
+   * (`pathsRead` gives none), every Message that changes the Model draws it again.
    */
   readonly region: <Builder>(
     name: string,
-    reads: Option.Option<DependencyTree>,
+    reads: { readonly dependencies: DependencyTree },
     draw: (root: Root, h: Builder) => Html,
   ) => (root: Root, h: Builder) => Html
 }
+
+/**
+ * The Model paths a Projection reads, or none when it reads something no path
+ * names (a `Projection.fromReader`, a Remote read, anything composed of one):
+ * nothing can be decided for it from paths. A function of its own, not a
+ * member of `Projection`, so a page that never asks does not carry it.
+ */
+export const pathsRead = (projection: {
+  readonly dependencies: DependencyTree
+}): Option.Option<DependencyTree> =>
+  unnamed(projection) ? Option.none() : Option.some(projection.dependencies)
 
 /** `unknown` when `Sub` is a subtype of `Super`, `never` otherwise. */
 type Subset<Sub, Super> = [Sub] extends [Super] ? unknown : never
@@ -1772,11 +1783,7 @@ export const Surface = {
       render(projection.read(root), h as ViewBuilder<Message>)
     return options?.writes === undefined
       ? draw
-      : options.writes.region(
-          surface.name,
-          unnamed(projection) ? Option.none() : Option.some(projection.dependencies),
-          draw,
-        )
+      : options.writes.region(surface.name, projection, draw)
   },
 
   /**

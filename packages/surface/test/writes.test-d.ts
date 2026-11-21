@@ -7,7 +7,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Transition } from 'metakit'
 import * as Machine from 'metakit/machine'
-import { Surface, type DeclaredWrites, type DependencyTree } from '../src/index.js'
+import { pathsRead, Surface, type DeclaredWrites, type DependencyTree } from '../src/index.js'
 import { Writes, WritesCheck, type RegionFacts, type WriteDiagnostic } from '../src/writes.js'
 import { App, Declared, Header, Message, Model, transitions, update } from './writesFixture.js'
 
@@ -38,6 +38,12 @@ writes.declared(Message.Counted())
 writes.declared('Counted')
 // @ts-expect-error not a Message of this application
 writes.declared({ _tag: 'Elsewhere' })
+
+// The paths a Projection reads are an Option, never a bare list that may be empty for two reasons.
+expectTrue<Equal<ReturnType<typeof pathsRead>, Option.Option<DependencyTree>>>()
+pathsRead(Header.projection())
+// @ts-expect-error a Surface is not a Projection: ask its projection
+pathsRead(Header)
 
 // It is what `Surface.rootView` takes, and the view keeps its type.
 const _declared: DeclaredWrites<Model> = writes

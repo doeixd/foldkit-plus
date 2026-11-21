@@ -170,12 +170,13 @@ const violations = <Root, Message>(
 /**
  * The `Outside` half of `violations`, which runs no `update`: the closed Surfaces a Message
  * outside their `messages` moved from `before` to `after`. What a check on every Message of
- * a running application can afford (`WritesCheck.verify`).
+ * a running application can afford (`WritesCheck.verify`). Not a member of `Closure`, so a
+ * page that reads `Closure` does not carry it.
  */
-const outside = <Root, Message>(
+export const movedOutside = <Root, Message>(
   surfaces: ClosedSurfaces<Root>,
 ): ((before: Root, message: Message, after: Root) => ReadonlyArray<ClosureViolation>) => {
-  const closed = closedOf(surfaces, 'Closure.outside')
+  const closed = closedOf(surfaces, 'WritesCheck.verify')
   return (before, message, after) =>
     closed.flatMap(surface =>
       // tag-check: open, `Message` is the application's own, which this cannot name
@@ -184,4 +185,4 @@ const outside = <Root, Message>(
 }
 
 /** Checks that a projection is closed under `update`: `Closure.reads` names what it still depends on. */
-export const Closure = { reads, violations, outside }
+export const Closure = { reads, violations }

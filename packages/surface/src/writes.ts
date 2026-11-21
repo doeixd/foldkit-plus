@@ -14,7 +14,13 @@ import type { MessageUnion } from 'foldkit/message'
 import { Expr, Path } from 'metakit'
 import { analyze } from 'metakit/graph'
 import type { Machine } from 'metakit/machine'
-import type { AppScope, DeclaredWrites, DependencyTree, Invalid } from './index.js'
+import {
+  pathsRead,
+  type AppScope,
+  type DeclaredWrites,
+  type DependencyTree,
+  type Invalid,
+} from './index.js'
 import { messageTag, tagOf } from './messageTags.js'
 
 export {
@@ -119,9 +125,10 @@ const of = <
 
     region: <Builder>(
       name: string,
-      reads: Option.Option<DependencyTree>,
+      projection: { readonly dependencies: DependencyTree },
       draw: (root: Root, h: Builder) => Html,
     ) => {
+      const reads = pathsRead(projection)
       // A read that names no path is an opaque term with no declared reads,
       // which `analyze` holds affected by every transition that writes.
       const run = (): void => undefined

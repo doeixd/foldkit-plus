@@ -419,8 +419,14 @@ const update = writes.track(
   to `WritesCheck.fail` (throws); `WritesCheck.warn` logs through
   `Diagnostics.report`. Reach it only under `import.meta.env.DEV`, which also
   leaves its module out of a production build.
-- `Closure.outside(surfaces)` is the half of `Closure.violations` that runs no
-  `update`: `(before, message, after) => ClosureViolation[]`, `Outside` only.
+- `pathsRead(projection)` (from `foldkit-surface`) is the Model paths a
+  Projection reads as an `Option`: none when it reads what no path names.
+- The `writes` option's type is `DeclaredWrites<Root>` (from `foldkit-surface`):
+  one method, `region(name, projection, draw)`, which gives `draw` back kept.
+  `Writes.of` is its only maker; `rootView` calls it with the Surface's name
+  and projection.
+- `Closure` is `reads` and `violations` only; the closed-Surface half of the
+  check is inside `WritesCheck.verify`.
 
 ## Gotchas
 

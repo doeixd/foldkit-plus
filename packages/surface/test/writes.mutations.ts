@@ -26,8 +26,8 @@ export default [
   ),
   edit(
     'a projection that names no path is given as reading none',
-    'unnamed(projection) ? Option.none() : Option.some(projection.dependencies),',
-    'Option.some(projection.dependencies),',
+    '  unnamed(projection) ? Option.none() : Option.some(projection.dependencies)',
+    '  Option.some(projection.dependencies)',
     '../src/index.ts',
   ),
   edit(
