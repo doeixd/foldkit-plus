@@ -49,7 +49,7 @@ export default [
     edits: [
       {
         file: machine,
-        find: 'when: ({ state }) => Eq.isNot(state.editingId, noId),',
+        find: 'when: ({ state }) => Eq.isNot(state.editingId, null),',
         replace: '',
       },
     ],
@@ -60,8 +60,8 @@ export default [
     edits: [
       {
         file: machine,
-        find: 'when: ({ state }) => Eq.isNot(state.editingId, noId),',
-        replace: 'when: ({ state }) => Eq.is(state.editingId, noId),',
+        find: 'when: ({ state }) => Eq.isNot(state.editingId, null),',
+        replace: 'when: ({ state }) => Eq.is(state.editingId, null),',
       },
     ],
     tests: [unit],

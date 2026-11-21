@@ -53,18 +53,17 @@ const lookupPartial = (
 ): Option.Option<unknown> => {
   let current: unknown = partial
   for (const segment of segments) {
-    if (
-      current === null ||
-      current === undefined ||
-      typeof current !== 'object' ||
-      !Object.hasOwn(current, segment)
-    ) {
+    current = Path.readable(current)
+    // A none is a value: what is read through it is null.
+    if (current === null) return Option.some(null)
+    if (current === undefined || typeof current !== 'object' || !Object.hasOwn(current, segment)) {
       return Option.none()
     }
     const next = (current as Record<string, unknown>)[segment]
     if (next === undefined) return Option.none()
     current = next
   }
+  current = Path.readable(current)
   return current === undefined || !isWhole(current, ast) ? Option.none() : Option.some(current)
 }
 

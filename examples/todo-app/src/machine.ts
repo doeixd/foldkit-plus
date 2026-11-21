@@ -12,33 +12,32 @@
  * Not declared, and why (the kernel is missing what each needs):
  * - `UrlChanged`, `MirrorRestored`: the mirror's reducer reads a URL and a
  *   record of stored strings by a key.
- * - `DraftSubmitted`, `RenamedList`: they test `trim()` of text, and there is
- *   no `Str.trim`.
+ * - `DraftSubmitted`, `RenamedList`: they test `trim()` of text (`Str.trim`)
+ *   and are not declared yet.
  * - `SubmittedTodo`, `RestoredTodo`: append to a list unless an element has
  *   the id.
  * - `ToggledTodo`, `RenamedTodo`, `PrioritySet`: change the element with an id.
  * - `DeletedTodo`, `ClearedCompleted`: keep the elements that a test passes.
- * - `EditingStarted`: wraps the Message's id in an `Option` and reads the title of
- *   the element with that id.
- * - `DeleteRequested`: reads the element with an id into an `Option`.
- * - `UndoExpired`: tests a field of the todo inside an `Option`.
+ * - `EditingStarted`: reads the title of the element with the Message's id.
+ * - `DeleteRequested`: reads the element with an id.
+ * - `UndoExpired`: tests a field of the todo in `undo` (read as nullable) and
+ *   is not declared yet.
+ *
+ * A path to an `Option` field reads as its value or null, and a write of null
+ * stores `Option.none()`.
  */
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import { Eq, Transition } from 'metakit'
 import * as Machine from 'metakit/machine'
-import { Message, Model, type Todo } from './app.js'
-
-// `Transition.set(path, Option.none())` does not infer the type of the empty Option.
-const noId = Option.none<string>()
-const noTodo = Option.none<Todo>()
+import { Message, Model } from './app.js'
 
 const stopsEditing = Transition.make({
   state: Model,
   input: Schema.Struct({}),
   // Nothing is being edited: nothing changes, as the hand-written arm had it.
-  when: ({ state }) => Eq.isNot(state.editingId, noId),
+  when: ({ state }) => Eq.isNot(state.editingId, null),
   apply: ({ state }) => [
-    Transition.set(state.editingId, noId),
+    Transition.set(state.editingId, null),
     Transition.set(state.editDraft, ''),
   ],
 })
@@ -81,14 +80,14 @@ export const transitions = {
     state: Model,
     input: Message.EditingStopped,
     apply: ({ state }) => [
-      Transition.set(state.editingId, noId),
+      Transition.set(state.editingId, null),
       Transition.set(state.editDraft, ''),
     ],
   }),
   UndoRequested: Transition.make({
     state: Model,
     input: Message.UndoRequested,
-    apply: ({ state }) => [Transition.set(state.undo, noTodo)],
+    apply: ({ state }) => [Transition.set(state.undo, null)],
   }),
   // Only Commands: the Model never changes.
   RequestedTodo: Transition.make({ state: Model, input: Message.RequestedTodo, apply: () => [] }),

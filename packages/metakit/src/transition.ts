@@ -284,9 +284,45 @@ export const step = <State, Input, Emit, Supplied>(
   }
   let nextState = state
   for (const { target, value } of computed) {
-    nextState = Path.set(Path.make<State, unknown>(target), nextState, value)
+    const written = writeAt(nextState, target, value)
+    if (Result.isFailure(written)) return Result.fail(written.failure)
+    nextState = written.success
   }
   return Result.succeed({ state: nextState, emit })
+}
+
+/**
+ * `state` with `value` at `target`. Where the field holds an `Option`, the
+ * value is stored as `Option.some(value)`, and null as `Option.none()`; one
+ * that reads as the value already leaves `state` as it was. A write inside
+ * an `Option` is refused: it has no field to write until it holds a value.
+ */
+const writeAt = <State>(
+  state: State,
+  target: ReadonlyArray<string>,
+  value: unknown,
+): Result.Result<State, Refused> => {
+  const inside = target
+    .slice(0, -1)
+    .findIndex((_, index) =>
+      Option.exists(Path.get(Path.make<State, unknown>(target.slice(0, index + 1)), state), held =>
+        Option.isOption(held),
+      ),
+    )
+  if (inside !== -1) {
+    return Result.fail(
+      new Refused({
+        reason: `"${Path.format(target)}" is inside the Option at "${Path.format(target.slice(0, inside + 1))}": write the whole value`,
+      }),
+    )
+  }
+  const path = Path.make<State, unknown>(target)
+  const held = Path.get(path, state)
+  if (Option.isNone(held) || !Option.isOption(held.value)) {
+    return Result.succeed(Path.set(path, state, value))
+  }
+  if (Object.is(Path.readable(held.value), value)) return Result.succeed(state)
+  return Result.succeed(Path.set(path, state, value === null ? Option.none() : Option.some(value)))
 }
 
 /**

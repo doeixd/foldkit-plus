@@ -5,7 +5,7 @@
  * brand and `node` field), so paths drop straight into expressions while
  * `Transition.set` requires a `Path` as its write target.
  */
-import { Option, SchemaAST } from 'effect'
+import { Option, Predicate, SchemaAST } from 'effect'
 import type { Schema } from 'effect'
 import * as Node from './node.js'
 
@@ -130,40 +130,74 @@ export const isPrefix = (prefix: ReadonlyArray<string>, target: ReadonlyArray<st
 export const format = (segments: ReadonlyArray<string>): string =>
   segments.length === 0 ? '$' : segments.join('.')
 
+/** What a path reads where the value is an Effect `Option`: its value, or null for none. */
+export type Read<A> = [A] extends [Option.Option<infer T>] ? T | null : A
+
+/** `null` where a read of `A` may give null: a null, an absent key, or a none. */
+type NullIn<A> = null extends A ? null : undefined extends A ? null : never
+
 /**
  * Recursive typed accessor for an environment value `A`: every plain object
  * property (including TypeScript `interface`s) becomes a nested
  * `PathAccessor<Env, A[K]>`, and every level is itself a `Path<Env, A>`.
+ * An `Option` reads as its value or null, and a field under a value that may
+ * be null may be null too, as evaluation reads it.
  *
  * A field named as a member of `Path` itself (`node`, `segments`, `ast`) is
  * not reached by its name, which reads the member: compose it,
  * `Path.compose(parent, Path.field('segments'))`.
  */
-export type PathAccessor<Env, A> = Path<Env, A> &
-  ([A] extends [((...args: never) => unknown) | ReadonlyArray<unknown> | Date]
-    ? unknown
-    : [A] extends [object]
-      ? {
-          readonly [K in Exclude<keyof A & string, keyof Path<unknown, unknown>>]: PathAccessor<
-            Env,
-            A[K]
-          >
-        }
-      : unknown)
+export type PathAccessor<Env, A> = Path<Env, Read<A>> & Fields<Env, Read<A>>
+
+type Fields<Env, A> = [NonNullable<A>] extends [
+  ((...args: never) => unknown) | ReadonlyArray<unknown> | Date,
+]
+  ? unknown
+  : [NonNullable<A>] extends [object]
+    ? {
+        readonly [
+          K in Exclude<keyof NonNullable<A> & string, keyof Path<unknown, unknown>>
+        ]: PathAccessor<Env, NonNullable<A>[K] | NullIn<A>>
+      }
+    : unknown
+
+/** The value's Schema, where `ast` declares an Effect `Option` (`Schema.Option`, `Schema.OptionFromNullOr`). */
+export const optionInner = (ast: SchemaAST.AST): Option.Option<SchemaAST.AST> =>
+  SchemaAST.isDeclaration(ast) &&
+  Predicate.isObject(ast.annotations?.representation) &&
+  ast.annotations.representation['id'] === 'effect/schema/Option' &&
+  ast.typeParameters.length === 1
+    ? Option.some(ast.typeParameters[0]!)
+    : Option.none()
+
+const admitsNull = (ast: SchemaAST.AST): boolean =>
+  SchemaAST.isNull(ast) ||
+  SchemaAST.isUndefined(ast) ||
+  (SchemaAST.isUnion(ast) && ast.types.some(admitsNull))
+
+/** The struct a path into `ast` reads fields of: through an `Option` and a null or absent alternative. */
+const structOf = (ast: SchemaAST.AST): Option.Option<SchemaAST.Objects> => {
+  const inner = optionInner(ast)
+  if (Option.isSome(inner)) return structOf(inner.value)
+  if (SchemaAST.isObjects(ast)) return Option.some(ast)
+  if (!SchemaAST.isUnion(ast)) return Option.none()
+  const present = ast.types.filter(member => !admitsNull(member))
+  return present.length === 1 ? structOf(present[0]!) : Option.none()
+}
 
 const propertyAsts = (ast: Option.Option<SchemaAST.AST>): ReadonlyMap<string, SchemaAST.AST> => {
   const map = new Map<string, SchemaAST.AST>()
-  if (Option.isNone(ast)) return map
-  const current = ast.value
-  if (SchemaAST.isObjects(current)) {
-    for (const prop of current.propertySignatures) {
-      if (typeof prop.name === 'string') {
-        map.set(prop.name, prop.type)
-      }
-    }
+  const struct = Option.flatMap(ast, structOf)
+  if (Option.isNone(struct)) return map
+  for (const prop of struct.value.propertySignatures) {
+    if (typeof prop.name === 'string') map.set(prop.name, prop.type)
   }
   return map
 }
+
+/** What evaluation reads of a held value: an `Option`'s value, or null for none. */
+export const readable = (value: unknown): unknown =>
+  Option.isOption(value) ? Option.getOrNull(value) : value
 
 /**
  * Build a `PathAccessor<Env, A>` rooted at `segments` from an Effect `Schema`
@@ -192,6 +226,12 @@ export const accessor = <Env, A>(
       let child = children.get(prop)
       if (child === undefined) {
         const childAst = Option.fromUndefinedOr(props.get(prop))
+        // An `Option` of a nullable value: its none and its some of null would read alike.
+        if (Option.exists(Option.flatMap(childAst, optionInner), admitsNull)) {
+          throw new Error(
+            `[metakit] Path: "${prop}" is an Option of a value that may be null, which a path cannot tell from none`,
+          )
+        }
         child = accessor<Env, unknown>([...segments, prop], childAst)
         children.set(prop, child)
       }

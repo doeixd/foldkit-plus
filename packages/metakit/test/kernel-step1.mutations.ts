@@ -394,4 +394,67 @@ const transitions = [
   ),
 ]
 
-export default [...table, ...checks, ...readers, ...text, ...operations, ...foreign, ...transitions]
+const optionTests = ['packages/metakit/test/option-paths.test.ts']
+
+const options = [
+  mutation(
+    optionTests,
+    'evaluation reads an Option as the Option',
+    '../src/path.ts',
+    'Option.isOption(value) ? Option.getOrNull(value) : value',
+    'value',
+  ),
+  mutation(
+    optionTests,
+    'partial evaluation takes a read through a none as unknown',
+    '../src/ops/residualize.ts',
+    'if (current === null) return Option.some(null)',
+    'if (current === null) return Option.none()',
+  ),
+  mutation(
+    optionTests,
+    'a write to an Option field stores the bare value',
+    '../src/transition.ts',
+    'value === null ? Option.none() : Option.some(value)',
+    'value',
+  ),
+  mutation(
+    optionTests,
+    'a write of what an Option already holds makes a new state',
+    '../src/transition.ts',
+    'if (Object.is(Path.readable(held.value), value)) return Result.succeed(state)',
+    '',
+  ),
+  mutation(
+    optionTests,
+    'a write inside an Option is taken',
+    '../src/transition.ts',
+    'if (inside !== -1) {',
+    'if (false) {',
+  ),
+  mutation(
+    optionTests,
+    'a path to an Option of a nullable value is made',
+    '../src/path.ts',
+    'if (Option.exists(Option.flatMap(childAst, optionInner), admitsNull)) {',
+    'if (false) {',
+  ),
+  mutation(
+    optionTests,
+    'the checker reads an Option field as the Option',
+    '../src/abstract/fields.ts',
+    'if (Option.isSome(inner)) {\n    collectFields(',
+    'if (false) {\n    collectFields(',
+  ),
+]
+
+export default [
+  ...table,
+  ...checks,
+  ...readers,
+  ...text,
+  ...operations,
+  ...foreign,
+  ...transitions,
+  ...options,
+]

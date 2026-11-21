@@ -9,10 +9,13 @@
  */
 import { Option } from 'effect'
 import * as Node from '../node.js'
+import { readable } from '../path.js'
 
+/** The value at `segments`: null where a step is absent, and an `Option` read as its value or null. */
 const readSegments = (env: unknown, segments: ReadonlyArray<string>): unknown => {
   let current: unknown = env
   for (const segment of segments) {
+    current = readable(current)
     if (
       current === null ||
       current === undefined ||
@@ -23,6 +26,7 @@ const readSegments = (env: unknown, segments: ReadonlyArray<string>): unknown =>
     }
     current = (current as Record<string, unknown>)[segment]
   }
+  current = readable(current)
   return current === undefined ? null : current
 }
 

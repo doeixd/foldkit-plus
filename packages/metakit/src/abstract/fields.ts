@@ -1,6 +1,7 @@
-import { Option, Predicate, SchemaAST } from 'effect'
+import { Option, Predicate, Schema, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import { isFiniteNumber, isInteger, present } from '../ops/kind.js'
+import { optionInner } from '../path.js'
 import * as Interval from './interval.js'
 
 /** The integers a double holds exactly, which arithmetic must stay within or be refused. */
@@ -94,6 +95,12 @@ export const collectFields = (
   fields: Map<string, FieldInfo>,
   under = false,
 ): void => {
+  // A path reads an `Option` as its value or null, and a write of null stores a none.
+  const inner = optionInner(ast)
+  if (Option.isSome(inner)) {
+    collectFields(Schema.NullOr(Schema.make(inner.value)).ast, prefix, fields, under)
+    return
+  }
   const members = present(ast)
   const nullable = under || members.length !== flat(ast).length || SchemaAST.isOptional(ast)
   const base: FieldInfo = {

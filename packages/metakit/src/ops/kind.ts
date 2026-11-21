@@ -5,6 +5,7 @@
  */
 import { Option, SchemaAST } from 'effect'
 import * as Node from '../node.js'
+import { optionInner } from '../path.js'
 
 const FINITE: ReadonlySet<string> = new Set(['effect/schema/isInt', 'effect/schema/isFinite'])
 
@@ -20,9 +21,11 @@ const declares = (
     )
   })
 
-/** The members of `ast` other than null and undefined. */
+/** The members of `ast` other than null and undefined; an `Option`'s are its value's, which a path reads. */
 export const present = (ast: SchemaAST.AST): ReadonlyArray<SchemaAST.AST> => {
   if (SchemaAST.isUnion(ast)) return ast.types.flatMap(present)
+  const inner = optionInner(ast)
+  if (Option.isSome(inner)) return present(inner.value)
   return SchemaAST.isNull(ast) || SchemaAST.isUndefined(ast) ? [] : [ast]
 }
 
