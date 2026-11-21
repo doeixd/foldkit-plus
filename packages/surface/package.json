@@ -36,6 +36,11 @@
       "foldkit-plus:source": "./src/writes.ts",
       "types": "./dist/writes.d.ts",
       "import": "./dist/writes.js"
+    },
+    "./declared": {
+      "foldkit-plus:source": "./src/declared.ts",
+      "types": "./dist/declared.d.ts",
+      "import": "./dist/declared.js"
     }
   },
   "files": [
