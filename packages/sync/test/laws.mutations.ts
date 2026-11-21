@@ -85,8 +85,20 @@ export default [
     edits: [
       {
         file: '../src/metakit.ts',
-        find: '({ after }) => Expr.eval(expression, { model: after })',
-        replace: '({ before }) => Expr.eval(expression, { model: before })',
+        find: '({ after }) =>\n    Result.getOrElse(Expr.evalResult(expression, { model: after })',
+        replace:
+          '({ before }) =>\n    Result.getOrElse(Expr.evalResult(expression, { model: before })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a law metakit refuses to evaluate over a snapshot holds of it',
+    edits: [
+      {
+        file: '../src/metakit.ts',
+        find: '() => false) === true',
+        replace: '() => true) === true',
       },
     ],
     tests,

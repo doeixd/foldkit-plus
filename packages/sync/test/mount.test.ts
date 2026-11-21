@@ -24,7 +24,7 @@ import {
   type Replica,
   type Storage,
 } from '../src/index.js'
-import { Declared } from '../src/metakit.js'
+import { SyncDeclared } from '../src/metakit.js'
 import { unconfirmedEdits } from '../src/mount.js'
 import { memoryStorage } from './memoryStorage.js'
 
@@ -233,7 +233,7 @@ describe('Sync.mount', () => {
       shared,
       durable: MessageSet.make(App, [Message.CreatedTodo]),
       transitions: {
-        CreatedTodo: Declared.transition(
+        CreatedTodo: SyncDeclared.transition(
           Transition.make({
             state: Schema.Struct({ model: shared.schema }),
             input: Message.CreatedTodo,

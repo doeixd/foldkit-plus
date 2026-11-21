@@ -288,20 +288,22 @@ const Capped = forApplication(App).make({
 ```
 
 `holds` sees the snapshot before the operation and the one after it. To write
-it as a metakit expression instead, wrap the expression in `Declared.holds`
-from `foldkit-sync/metakit`; it sees the snapshot after as `model`. That
+it as a metakit expression instead, wrap the expression in `SyncDeclared.holds`
+from `foldkit-sync/metakit`; it sees the snapshot after as `model`, and holds
+only where the expression is true: a snapshot it is null over, or cannot be
+evaluated over (an integer result past ±(2^53−1)), breaks the law. That
 subpath is the only part of `foldkit-sync` that imports metakit, so a page
 that writes its laws as callbacks carries none of it.
 
 To replay an edit from a single declaration, wrap a metakit `Transition.make`
-in `Declared.transition` and put it under its Message tag in
+in `SyncDeclared.transition` and put it under its Message tag in
 `make({ transitions })`. Use `Schema.Struct({ model: shared.schema })` for its
 state and the variant constructor, such as `CounterMessage.Incremented`, for
 its input. A counter that stops at 10:
 
 ```ts
 import { Num, Path, Transition } from 'metakit'
-import { Declared } from 'foldkit-sync/metakit'
+import { SyncDeclared } from 'foldkit-sync/metakit'
 
 const Counter = Schema.Struct({ count: Schema.Number })
 const CounterMessage = defineMessageUnion({ Incremented: {} })
@@ -318,10 +320,10 @@ const Bounded = forApplication(CounterApp).make({
   shared: counted,
   durable: MessageSet.make(CounterApp, [CounterMessage.Incremented]),
   laws: {
-    atMost10: { holds: Declared.holds(Num.lte(model.count, 10)), message: 'It stops at 10' },
+    atMost10: { holds: SyncDeclared.holds(Num.lte(model.count, 10)), message: 'It stops at 10' },
   },
   transitions: {
-    Incremented: Declared.transition(
+    Incremented: SyncDeclared.transition(
       Transition.make({
         state: Schema.Struct({ model: counted.schema }),
         input: CounterMessage.Incremented,
@@ -338,7 +340,7 @@ your `update`, and the journal uses it for replay. A Message whose guard
 (`when`) is false is refused: the replica's `submit` fails and the journal
 rejects the operation. Tags without a declaration follow the existing reducer.
 At definition time, `make` rejects a guard proved unreachable under the laws
-written with `Declared.holds`, or a transition proved to break one. An
+written with `SyncDeclared.holds`, or a transition proved to break one. An
 undecided check lets the declaration proceed. The journal still checks each
 document law on admission.
 

@@ -32,7 +32,7 @@ import {
   type WrittenOperation,
 } from '../src/index.js'
 import { journalExchange, reaction, serverJournal } from '../src/journal.js'
-import { Declared } from '../src/metakit.js'
+import { SyncDeclared } from '../src/metakit.js'
 import { memoryStorage } from './memoryStorage.js'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String })
@@ -85,7 +85,7 @@ const Capped = Sync.forApplication(App)
     ...options,
     laws: {
       atMost100Todos: {
-        holds: Declared.holds(Num.lte(Arr.count(model.todos), 100)),
+        holds: SyncDeclared.holds(Num.lte(Arr.count(model.todos), 100)),
         message: 'A list holds 100 todos',
         path: ['todos'],
       },
@@ -93,6 +93,20 @@ const Capped = Sync.forApplication(App)
   })
 /** The same document before the law was added. */
 const Uncapped = Sync.forApplication(App).withPrincipal<string>().make(options)
+const most = Number.MAX_SAFE_INTEGER
+/** A law metakit cannot evaluate from the second todo on: the product is past ±(2^53−1). */
+const Exact = Sync.forApplication(App)
+  .withPrincipal<string>()
+  .make({
+    ...options,
+    laws: {
+      exact: {
+        holds: SyncDeclared.holds(Num.lte(Num.mul(Arr.count(model.todos), most), most)),
+        message: 'The count stays exact',
+        path: ['todos'],
+      },
+    },
+  })
 type Shared = Parameters<typeof Capped.replay>[0]
 const key = JournalDocumentId.make('todos-capped')
 const encode = Schema.encodeSync(Message)
@@ -107,7 +121,10 @@ afterEach(() => {
 
 type TodosJournal = JournalShape<Operation, Shared, string>
 
-const openJournal = (sync: typeof Capped | typeof Uncapped, at = ':memory:'): TodosJournal => {
+const openJournal = (
+  sync: typeof Capped | typeof Uncapped | typeof Exact,
+  at = ':memory:',
+): TodosJournal => {
   const scope = Effect.runSync(Scope.make())
   scopes.push(scope)
   return Effect.runSync(
@@ -180,14 +197,14 @@ describe('a law', () => {
     const state = Schema.Struct({ model: options.shared.schema })
     const input = Message.CreatedTodo
     const rule = {
-      holds: Declared.holds(Num.lte(Arr.count(model.todos), 0)),
+      holds: SyncDeclared.holds(Num.lte(Arr.count(model.todos), 0)),
       message: 'Must stay empty',
     }
     const make = (transition: Transition.Transition<typeof state.Type, typeof input.Type>) =>
       Sync.forApplication(App).make({
         ...options,
         laws: { empty: rule },
-        transitions: { CreatedTodo: Declared.transition(transition) },
+        transitions: { CreatedTodo: SyncDeclared.transition(transition) },
       })
     expect(() =>
       make(Transition.make({ state, input, when: () => false, apply: () => [] })),
@@ -221,7 +238,7 @@ describe('a law', () => {
       .make({
         ...options,
         transitions: {
-          CreatedTodo: Declared.transition(
+          CreatedTodo: SyncDeclared.transition(
             Transition.make({
               state: Schema.Struct({ model: options.shared.schema }),
               input: Message.CreatedTodo,
@@ -428,6 +445,44 @@ describe("the server's own appends", () => {
     expect((await run(journal.read(key, Cursor.make(99)))).map(row => row.operation.opId)).toEqual([
       'tab:1',
     ])
+  })
+})
+
+/**
+ * A law metakit refuses to evaluate over a snapshot does not hold of it: the
+ * operation is refused by the law, as one that makes it false is.
+ */
+describe('a law whose evaluation is refused', () => {
+  it('is a broken law in the replica, before the outbox', async () => {
+    const replica = await run(Exact.openReplica(memoryStorage(), { replicaId: replicaId('ada') }))
+    await run(replica.submit(Message.CreatedTodo({ id: 't1', title: 'chore' })))
+    const failure = await run(
+      Effect.flip(replica.submit(Message.CreatedTodo({ id: 't2', title: 'chore' }))),
+    )
+    expect(failure).toMatchObject({ _tag: 'LawBrokenError', rule: 'exact' })
+    expect(await run(replica.pending)).toHaveLength(1)
+  })
+
+  it('is a broken law where the journal commits, as Invalid naming it', async () => {
+    const journal = openJournal(Exact)
+    const reply = (await journalExchange({ sync: Exact, journal, principal: 'ada' }).exchange(
+      sequence(0),
+      [
+        entry(Message.CreatedTodo({ id: 't1', title: 'chore' }), 'tab', 1),
+        entry(Message.CreatedTodo({ id: 't2', title: 'chore' }), 'tab', 2),
+      ],
+    )) as Reply
+    expect(reply.acknowledged).toEqual(['tab:1'])
+    expect(reply.rejected).toEqual(['tab:2'])
+    expect(reply.refusals?.map(({ refusal }) => decodeRefusal(refusal))).toEqual([
+      SyncRefusal.Invalid({
+        entity: Option.none(),
+        rule: Option.some('exact'),
+        message: 'The count stays exact',
+        path: ['todos'],
+      }),
+    ])
+    expect(await count(journal)).toBe(1)
   })
 })
 

@@ -126,7 +126,7 @@ export interface Footprint {
 
 /**
  * A durable Message's replay declared apart from the application's `update`,
- * as `foldkit-sync/metakit`'s `Declared.transition` builds it. `replay` throws
+ * as `foldkit-sync/metakit`'s `SyncDeclared.transition` builds it. `replay` throws
  * to refuse the Message. `check` runs once in `make`, given the shared and
  * input Schemas and the laws' `holds`, and answers why the declaration is
  * unsound, or none.

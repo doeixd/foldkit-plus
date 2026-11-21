@@ -8,7 +8,7 @@ import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { Eq, Path, Transition } from 'metakit'
 import { documentId, forApplication, type DeclaredLaw } from '../src/index.js'
 import { reaction } from '../src/journal.js'
-import { Declared } from '../src/metakit.js'
+import { SyncDeclared } from '../src/metakit.js'
 
 const Model = Schema.Struct({ todos: Schema.Array(Schema.String), filter: Schema.String })
 const Message = defineMessageUnion({ CreatedTodo: { id: Schema.String } })
@@ -31,7 +31,7 @@ const Capped = forApplication(App).make({
   },
 })
 const { model } = Path.forEnv({ model: Model })
-const needsCount = Declared.transition(
+const needsCount = SyncDeclared.transition(
   Transition.make({
     state: Schema.Struct({ model: options.shared.schema }),
     input: Schema.Struct({ count: Schema.Int }),
@@ -47,7 +47,7 @@ forApplication(App).make({
   ...options,
   laws: {
     // @ts-expect-error a law reading the local filter cannot run over the shared snapshot
-    local: { holds: Declared.holds(Eq.is(model.filter, '')), message: 'm' },
+    local: { holds: SyncDeclared.holds(Eq.is(model.filter, '')), message: 'm' },
   },
 })
 const _law: DeclaredLaw<'atMost100'> = Capped.laws.atMost100
