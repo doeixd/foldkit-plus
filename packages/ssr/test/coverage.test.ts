@@ -136,6 +136,21 @@ describe('SSR.render refuses a plan that does not cover its Surfaces', () => {
     expect(refused.message).toContain('Surface "Author" reads remote data (User:u1)')
   })
 
+  it('does not cover the Remote store a Remote read names unless a part restores it', async () => {
+    const plan = SSR.plan(App, {
+      id: 'post',
+      state: Projection.pick(App.model.route),
+      surfaces: [author],
+    })
+    expect(SSR.inspect(plan, served).surfaces[0]?.reads).toEqual([
+      { path: 'remote', cover: 'missing' },
+    ])
+    const refused = await refusal(plan)
+    expect(refused.message).toContain(
+      `Surface "Author" reads remote, which is neither in the plan's state nor local`,
+    )
+  })
+
   it('compares what a Surface reads by its metadata too, not only its paths', () => {
     const plan = SSR.plan(App, {
       id: 'post',
@@ -144,7 +159,7 @@ describe('SSR.render refuses a plan that does not cover its Surfaces', () => {
     })
     // The browser's `post.id` is the baseline's, so it would read another user.
     expect(SSR.inspect(plan, served).surfaces[0]).toMatchObject({
-      reads: [],
+      reads: [{ path: 'remote', cover: 'missing' }],
       unresumed: [{ name: 'remote', entries: ['User:p1'] }],
       sameInBrowser: false,
     })

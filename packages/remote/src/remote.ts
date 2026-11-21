@@ -43,6 +43,7 @@ import { memoRead } from './memo.js'
 import { assertRegistered } from './registered.js'
 import type { WhyReader } from './whyReasons.js'
 import { withInner } from './inner.js'
+import { storePaths } from './storePath.js'
 import { liveAskOf, liveEntry } from './liveEntry.js'
 import {
   askedOf,
@@ -154,7 +155,6 @@ import {
   observeEntry,
   memoizedResolved,
   refusalOf,
-  storePaths,
   assertOwnedBy,
   isQueryRef,
   targetProjections,

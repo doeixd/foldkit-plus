@@ -125,15 +125,24 @@ describe('parts in the plan and the render', () => {
   it('counts a Remote read as resumed when a part covers it', () => {
     expect(SSR.inspect(plan, loaded)).toMatchObject({
       parts: ['remote'],
-      surfaces: [{ name: 'Author', unresumed: [], reads: [], sameInBrowser: true }],
+      // The part restores the store the Remote read names as what it reads.
+      surfaces: [
+        {
+          name: 'Author',
+          unresumed: [],
+          reads: [{ path: 'remote', cover: 'part' }],
+          sameInBrowser: true,
+        },
+      ],
     })
     const uncovered = SSR.plan(App, {
       id: 'author',
       state: Projection.pick(App.model.theme),
       surfaces: plan.surfaces,
     })
-    expect(SSR.inspect(uncovered, loaded).surfaces[0]?.unresumed).toEqual([
-      { name: 'remote', entries: ['User:u1'] },
-    ])
+    expect(SSR.inspect(uncovered, loaded).surfaces[0]).toMatchObject({
+      unresumed: [{ name: 'remote', entries: ['User:u1'] }],
+      reads: [{ path: 'remote', cover: 'missing' }],
+    })
   })
 })

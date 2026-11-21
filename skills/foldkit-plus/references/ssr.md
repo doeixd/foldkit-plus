@@ -181,7 +181,10 @@ would rebuild those elements.
   cursors) and nothing else; the browser refetches none of it. A part that
   cannot restore its own capture fails with `UnrestorablePart`; a page missing
   a part, or carrying an unknown one, is refused (`Invalid`).
-  `SSR.inspect(plan, model)` shows each read's cover. The check runs for the
+  Remote reads name their store's field (`remote`) as what they read; the part
+  restores that field, so `SSR.inspect` shows such a read covered by `part`,
+  and a plan without the part fails with "reads remote, which is neither in
+  the plan's state nor local". `SSR.inspect(plan, model)` shows each read's cover. The check runs for the
   server's Model, since a Surface's reads follow its params.
 - `SSR.static('id', ih => [...])` in a view: rendered once on the server with
   the inert builder (no handlers), adopted as trusted `InnerHTML` in the

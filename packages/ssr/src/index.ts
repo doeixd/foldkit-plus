@@ -354,7 +354,7 @@ const browserModelOf = <Model, Fields extends Schema.Struct.Fields>(
 }
 
 /** Where the browser gets a Model path's value: the envelope, itself, or nowhere it may. */
-export type Cover = 'state' | 'restored' | 'local' | 'missing'
+export type Cover = 'state' | 'restored' | 'local' | 'part' | 'missing'
 
 /** One Surface as a plan covers it, for the server's Model. */
 export interface SurfaceCoverage {
@@ -403,7 +403,9 @@ const pathOf = (path: ReadonlyArray<string>): string =>
 
 /**
  * A path is covered by a sent, restored or local path equal to it or
- * containing it. An empty path is the whole Model, which no pick covers.
+ * containing it, or by a path a part of the plan restores (a Remote store
+ * `Remote.resume` carries). An empty path is the whole Model, which no pick
+ * covers.
  */
 const coverOf = (
   path: ReadonlyArray<string>,
@@ -411,6 +413,9 @@ const coverOf = (
     readonly state: { readonly dependencies: ReadonlyArray<ReadonlyArray<string>> }
     readonly restored: ReadonlyArray<{ readonly path: ReadonlyArray<string> }>
     readonly local: ReadonlyArray<ReadonlyArray<string>>
+    readonly parts: ReadonlyArray<{
+      readonly restores?: ReadonlyArray<ReadonlyArray<string>> | undefined
+    }>
   },
 ): Cover => {
   const contains = (outer: ReadonlyArray<string>) =>
@@ -420,6 +425,7 @@ const coverOf = (
   if (plan.state.dependencies.some(contains)) return 'state'
   if (plan.restored.some(({ path: outer }) => contains(outer))) return 'restored'
   if (plan.local.some(contains)) return 'local'
+  if (plan.parts.some(part => (part.restores ?? []).some(contains))) return 'part'
   return 'missing'
 }
 
