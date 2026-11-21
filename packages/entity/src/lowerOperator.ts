@@ -46,7 +46,7 @@ const storedKind = (schema: Schema.Top): Node.ValueKind | 'other' => {
 }
 
 /** An operator by its id and version, as a foreign operation and a table key name it. */
-const nameOf = (operator: OperatorDescriptor): string => `${operator.id}@${operator.version}`
+const nameOf = (operator: OperatorDescriptor): string => Node.foreignName(operator)
 
 /**
  * The properties a law declares, where metakit's set says the same thing:
@@ -159,45 +159,27 @@ const NUL = String.fromCharCode(0)
 
 /**
  * The implementations in `operators` of each foreign operation `lowered`
- * calls, as metakit's readers take them. Each runs as the memory interpreter
- * ran it: text holding a NUL refused, a throw refused, and an answer its
- * output schema does not admit refused in a checked table. It is told no
- * collation: an operator that compares text is given it folded.
+ * calls, by `id@version`, as metakit's readers take them, so two versions of
+ * one operator each run their own. Each runs as the memory interpreter ran
+ * it: text holding a NUL refused, a throw refused (`failed`, by metakit), and
+ * an answer its output schema does not admit refused in a checked table. It
+ * is told no collation: an operator that compares text is given it folded.
  */
-export const foreignOf = (lowered: Lowered, operators: MemoryOperators): ForeignImplementations => {
-  const called = [...lowered.foreign.values()]
-  const twice = called.find((operator, index) =>
-    called.slice(0, index).some(other => other.id === operator.id),
-  )
-  if (twice !== undefined) {
-    throw new Error(
-      `[foldkit-entity] lower: two versions of ${twice.id} are called, and a reader's table holds one implementation per id`,
-    )
-  }
-  return Object.fromEntries(
-    called.flatMap(operator =>
+export const foreignOf = (lowered: Lowered, operators: MemoryOperators): ForeignImplementations =>
+  Object.fromEntries(
+    [...lowered.foreign].flatMap(([name, operator]) =>
       Option.match(operators.get(operator), {
         onNone: () => [],
         onSome: run => [
           [
-            operator.id,
+            name,
             {
-              version: operator.version,
               run: (values: ReadonlyArray<unknown>): unknown => {
-                const op = foreignOpOf(operator)
                 if (values.some(value => typeof value === 'string' && value.includes(NUL))) {
                   return Node.unportable(operator.id)
                 }
-                let answer: unknown
-                try {
-                  answer = run(values, { collation: Option.none<Collation>() })
-                } catch (error) {
-                  return Node.unsupported(
-                    op,
-                    `failed: ${error instanceof Error ? error.message : String(error)}`,
-                  )
-                }
-                const unknownTruth = op.returns === 'boolean' && answer === null
+                const answer = run(values, { collation: Option.none<Collation>() })
+                const unknownTruth = foreignOpOf(operator).returns === 'boolean' && answer === null
                 return operators.checked &&
                   !unknownTruth &&
                   !Schema.is(Schema.toEncoded(operator.output))(answer)
@@ -210,4 +192,3 @@ export const foreignOf = (lowered: Lowered, operators: MemoryOperators): Foreign
       }),
     ),
   )
-}

@@ -8,9 +8,10 @@
  * An expression reads the slices `row` (the judged row, stored form, the row
  * a `one` relation reaches under `@relation`, the rows pointing at it under
  * `<Entity.relation`), `next`, `input`, `viewer` (per Entity name, the
- * asker's row or null) and `now`; a filter of `Expr.exists` reads the
- * pointing row under `each`. `lowerEnv.ts` builds that environment from held
- * rows. No reader imports either file yet, so neither reaches a page.
+ * asker's row or null, with their id under `#asker`) and `now`; a filter of
+ * `Expr.exists` reads the pointing row under `each`. `lowerEnv.ts` builds
+ * that environment from held rows. No reader imports either file yet, so
+ * neither reaches a page.
  */
 import { Match, Option, Schema } from 'effect'
 import { Bool, Eq, Node, Null, Ord, Str } from 'metakit'
@@ -59,6 +60,13 @@ interface Scope {
 
 /** The segment under a row at which the row `relation` reaches is held. */
 const hopSegment = (relation: OneRelation): string => `@${relation.key}`
+
+/**
+ * The segment under `viewer.<Entity>` holding who asks: their id, known where
+ * their row is hidden from the reader, whose fields (`id` among them) then
+ * read null.
+ */
+export const ASKER = '#asker'
 
 /** The name a relation's pointing rows are held under, as the note writes it (`Follow.followee`). */
 const relationName = (relation: OneRelation): string => `${relation.owner.name}.${relation.key}`
@@ -117,7 +125,7 @@ const tableFor = (scope: Scope): LowerTable => {
     Viewer: viewer => {
       const entity = viewer.target()
       scope.viewers.set(entity.name, entity)
-      return read(['viewer', entity.name, 'id'], viewer.schema, true)
+      return read(['viewer', entity.name, ASKER], viewer.schema, true)
     },
     Path: path => read([...hops([scope.slice], path.via), path.field.key], path.field.schema, true),
     ViewerPath: path => {

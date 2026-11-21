@@ -145,6 +145,10 @@ describe('every relational case, over less than the reader may see', () => {
     expect(judged.filter(({ entity, metakit }) => entity !== metakit)).toEqual(expectedOf(name))
   })
 
+  it('leaves no difference a decision does not cover', () => {
+    expect(differences.filter(({ kind }) => kind === 'uncovered')).toEqual([])
+  })
+
   it('names in each difference a case this test or lowerKinds.test.ts runs', () => {
     const names = new Set([
       ...flat.map(({ c }) => c.what),

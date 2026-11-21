@@ -15,7 +15,7 @@ import { Judge } from './evaluate.js'
 import type { OneRelation, Predicate } from './expr.js'
 import { Held, type HeldRow, type HeldRows, type Pinned } from './held.js'
 import type { EntityIdentity } from './index.js'
-import type { Lowered, RelatedSlot } from './lower.js'
+import { ASKER, type Lowered, type RelatedSlot } from './lower.js'
 import { own, put } from './record.js'
 
 /** What the nodes read, as a tree of segments. */
@@ -175,21 +175,19 @@ export const envOf = (lowered: Lowered, source: EnvSource): Readonly<Record<stri
               source.rows === undefined
                 ? Held.unheld<Option.Option<HeldRow>>('the holder was given no rows')
                 : source.rows.find(entity, id)
+            const asker = { [ASKER]: id }
+            const fields: Need = new Map([...child].filter(([key]) => key !== ASKER))
             return Held.match(found, {
-              onUnheld: () => ({ id }),
+              onUnheld: () => asker,
               onHeld: row =>
                 Option.match(row, {
-                  // A row the reader may not see: what is read of it is null.
+                  // A row the reader may not see: what is read of it, its id too, is null.
                   onNone: () => {
-                    const hidden: Record<string, unknown> = {}
-                    for (const key of child.keys()) put(hidden, key, key === 'id' ? id : null)
+                    const hidden: Record<string, unknown> = { ...asker }
+                    for (const key of fields.keys()) put(hidden, key, null)
                     return hidden
                   },
-                  onSome: held => {
-                    const viewed = fill(held, entity.identity, child)
-                    put(viewed, 'id', id)
-                    return viewed
-                  },
+                  onSome: held => ({ ...fill(held, entity.identity, fields), ...asker }),
                 }),
             })
           },

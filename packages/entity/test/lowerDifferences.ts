@@ -1,9 +1,9 @@
 /**
  * Where today's judge and metakit's reading of the translation answer a
- * predicate over a row differently, each with why. `changes`: the kernel
- * convergence note says the meaning changes, in the section named, and step 5
- * makes it the user's. `open`: the note does not decide it; it is reported
- * for a decision, and pinned here so a change to either side shows.
+ * predicate over a row differently, each with why. `expected`: a decision
+ * says the meaning changes (the kernel convergence note, or a decision on
+ * metakit's meaning since), and step 5 makes it the user's. `uncovered`: no
+ * decision covers it yet; the test holds this kind to none.
  */
 import type { Answer, Judged } from './lowerHarness.js'
 
@@ -15,7 +15,7 @@ export interface Difference {
   readonly at: number
   readonly entity: Answer | Judged
   readonly metakit: Answer | Judged
-  readonly kind: 'changes' | 'open'
+  readonly kind: 'expected' | 'uncovered'
   readonly why: string
 }
 
@@ -24,18 +24,14 @@ const rows = (
   ids: ReadonlyArray<string>,
   entity: Answer | Judged,
   metakit: Answer | Judged,
-  kind: Difference['kind'],
   why: string,
-): ReadonlyArray<Difference> => ids.map(row => ({ what, row, at: 0, entity, metakit, kind, why }))
+): ReadonlyArray<Difference> =>
+  ids.map(row => ({ what, row, at: 0, entity, metakit, kind: 'expected', why }))
 
-const emptyAmong =
-  "SQL's `x in ()` is false whatever x is (SQLite's answer; a Drizzle `inArray` of no values compiles to `false`), and the case pins it. metakit's `eq.among` is null-strict, so a null value gives null before the empty list is looked at."
-const nan =
-  'The databases part over NaN (SQLite stores it as null, Postgres orders it after every number), so entity refuses it, as metakit refuses arithmetic past the safe range; `ord.*` refuse NaN, `eq.equals` and `eq.among` compare it.'
-const givenNul =
-  'A NUL given to a comparison makes SQL refuse the statement whatever a row holds; metakit checks a null operand first, or lets `or` absorb the refusal.'
-const viewerPath =
-  "Entity answers SQL's null as soon as one side of `=` is a held null, whatever is not held beside it; metakit's partial evaluation keeps the call, since an operand not held might be refused, and a refusal comes before null in its order (`Node.applying`)."
+const refusalFirst =
+  'A refusal decides before null and is not absorbed (metakit decision of 2026-11-21, "a refusal decides before null"): metakit models one statement, which a database refuses as a whole.'
+const notAbsorbed = `${refusalFirst} Partial evaluation drops the operand \`and\` or \`or\` does not need only where its Schemas say it cannot be refused; a text field of plain \`Schema.String\` may hold a NUL, a \`Schema.Number\` NaN, and a related-rows fold is not judged, so over a partly held world metakit leaves open what today's judge decides.`
+const viewerPath = `Entity answers SQL's null as soon as one side of \`=\` is a held null; metakit folds a strict call beside a known null only where every other operand cannot be refused by its Schema (metakit decision of 2026-11-21, "partial evaluation keeps its precision through a type check"). The team's \`name\` is plain \`Schema.String\`, which may hold a NUL; declared \`Text.schema\` from \`metakit/domain\`, the rows match.`
 
 export const differences: ReadonlyArray<Difference> = [
   ...rows(
@@ -43,7 +39,6 @@ export const differences: ReadonlyArray<Difference> = [
     ['i1', 'i2'],
     'true',
     'refused',
-    'changes',
     'Note, "Where do the two languages disagree": arithmetic past 2^53-1 is refused, since SQLite gives a real and Postgres refuses the statement.',
   ),
   ...rows(
@@ -51,58 +46,20 @@ export const differences: ReadonlyArray<Difference> = [
     ['i1', 'i2'],
     'true',
     'false',
-    'changes',
     'Note, "How does a collation reach a text operation?": an implementation that read `context.collation` is told none, and is given folded text instead.',
-  ),
-  ...rows(
-    'in against an empty list compared to false matches every row, null or not',
-    ['a', 'c'],
-    'true',
-    'null',
-    'open',
-    emptyAmong,
-  ),
-  ...rows('an equality refuses NaN', ['a', 'b', 'c', 'd', 'e'], 'refused', 'false', 'open', nan),
-  ...rows('a membership test refuses a list holding NaN', ['a'], 'refused', 'false', 'open', nan),
-  ...rows('a membership test refuses a list holding NaN', ['b'], 'refused', 'true', 'open', nan),
-  ...rows(
-    'a membership test refuses a list holding NaN',
-    ['c', 'd', 'e'],
-    'refused',
-    'false',
-    'open',
-    nan,
-  ),
-  ...rows(
-    'or beside a contains given text holding NUL',
-    ['i1'],
-    'refused',
-    'true',
-    'open',
-    givenNul,
-  ),
-  ...rows(
-    'eq given text holding NUL beside a null field',
-    ['i3'],
-    'refused',
-    'null',
-    'open',
-    givenNul,
   ),
   ...rows(
     'contains of stored text holding NUL, given a null search',
     ['n1'],
     'null',
     'refused',
-    'open',
-    'A NUL stored in a row meets SQL only beside a value that is not null, so entity answers null; the translation folds the stored text with `str.lowerAscii`, which refuses it, and metakit passes a refusal before a null.',
+    `${refusalFirst} The stored text holding a NUL is refused before the null search makes the call null.`,
   ),
   ...rows(
     "no team: a path from the viewer reads their team's name, on the table it judges",
     ['m3'],
     'false',
     'unknown',
-    'open',
     viewerPath,
   ),
   ...rows(
@@ -110,7 +67,44 @@ export const differences: ReadonlyArray<Difference> = [
     ['m3', 'm4'],
     'false',
     'unknown',
-    'open',
     viewerPath,
+  ),
+  ...rows(
+    'no team: and joins a path and the negation of an exists',
+    ['m1', 'm2', 'm4'],
+    'false',
+    'unknown',
+    notAbsorbed,
+  ),
+  ...rows(
+    "a team's name and region hidden: and joins a path and the negation of an exists",
+    ['m1', 'm2'],
+    'false',
+    'unknown',
+    notAbsorbed,
+  ),
+  ...rows(
+    'every other row of each table: and joins a path and the negation of an exists',
+    ['m3'],
+    'false',
+    'unknown',
+    notAbsorbed,
+  ),
+  ...rows(
+    'no badge, and not every pin: and joins a path and the negation of an exists',
+    ['m3', 'm4'],
+    'false',
+    'unknown',
+    notAbsorbed,
+  ),
+  ...['every other row of each table', 'no badge, and not every pin', 'no link held'].flatMap(
+    world =>
+      rows(
+        `${world}: or holds by either side, an exists or the row's own field`,
+        ['m5'],
+        'true',
+        'unknown',
+        notAbsorbed,
+      ),
   ),
 ]

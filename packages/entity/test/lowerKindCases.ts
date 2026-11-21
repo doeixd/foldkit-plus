@@ -99,7 +99,7 @@ const asking = (entity: string, id: string): ExprContext => ({
   viewer: Option.some({ entity, id }),
   now: Option.none(),
 })
-const { Badge: B, Member: M } = Relational
+const { Badge: B, Member: M, Team: Tm } = Relational
 const relational = relationalTables.map(table => ({ entity: table.entity, rows: table.visible }))
 const atBadges = { entity: B, tables: relational }
 const linkIsViewer = Expr.eq(B.relations.member, Expr.viewer(M))
@@ -164,6 +164,20 @@ export const kindCases: ReadonlyArray<KindCase> = [
     predicate: Expr.lt(itself(Item.fields.name), 'b', { collation: Collation.asciiFold }),
     answers: { i1: 'true', i2: 'false', i3: 'null' },
   },
+  {
+    what: 'a path from the viewer to their own id reads null where their row is hidden',
+    predicate: Expr.isNull(Expr.path(Expr.viewer(Tm), Tm.fields.id)),
+    ...atBadges,
+    context: asking('Team', 't3'),
+    answers: { b1: 'true', b2: 'true', b3: 'true', b5: 'true' },
+  },
+  {
+    what: 'the viewer whose row is hidden is still who asks',
+    predicate: Expr.isNull(Expr.viewer(Tm)),
+    ...atBadges,
+    context: asking('Team', 't3'),
+    answers: { b1: 'false', b2: 'false', b3: 'false', b5: 'false' },
+  },
   // ---- what the note says changes ----------------------------------------------
   {
     what: 'add past the safe integer range',
@@ -176,7 +190,7 @@ export const kindCases: ReadonlyArray<KindCase> = [
     predicate: collated(Item.fields.name, { collation: Collation.binary }),
     answers: { i1: 'true', i2: 'true', i3: 'null' },
   },
-  // ---- what the note does not cover --------------------------------------------
+  // ---- what metakit's decisions of 2026-11-21 settle ---------------------------
   {
     what: 'or beside a contains given text holding NUL',
     predicate: Expr.or(Expr.eq(Item.fields.qty, 2), Expr.contains(Item.fields.name, search)),

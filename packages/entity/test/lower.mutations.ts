@@ -126,7 +126,34 @@ export default [
   edit(
     "a viewer's row the reader may not see reads its id everywhere",
     env,
-    "put(hidden, key, key === 'id' ? id : null)",
-    'put(hidden, key, id)',
+    'for (const key of fields.keys()) put(hidden, key, null)',
+    'for (const key of fields.keys()) put(hidden, key, id)',
+  ),
+  edit(
+    "a viewer's row the reader may not see reads its own id, as who asks",
+    env,
+    'for (const key of fields.keys()) put(hidden, key, null)',
+    "for (const key of fields.keys()) put(hidden, key, key === 'id' ? id : null)",
+  ),
+  edit(
+    'who asks is not known where their row is hidden',
+    env,
+    'const hidden: Record<string, unknown> = { ...asker }',
+    'const hidden: Record<string, unknown> = {}',
+  ),
+  edit(
+    'the viewer is read as their row’s id, not as who asks',
+    lower,
+    "return read(['viewer', entity.name, ASKER], viewer.schema, true)",
+    "return read(['viewer', entity.name, 'id'], viewer.schema, true)",
+  ),
+  // ---- foreign operations ------------------------------------------------------------
+  edit(
+    'an implementation is given under its id alone',
+    operator,
+    `          [
+            name,`,
+    `          [
+            operator.id,`,
   ),
 ]
