@@ -84,6 +84,8 @@ export const get = <Env, A>(path: Path<Env, A>, env: Env): Option.Option<A> => {
   return Option.some(current as A)
 }
 
+const ARRAY_INDEX = /^(0|[1-9]\d*)$/
+
 /**
  * Pure structural update at `path` inside `env`. Returns a new object along
  * the updated spine; returns `env` untouched when the new value is `Object.is`
@@ -104,6 +106,12 @@ export const set = <Env, A>(path: Path<Env, A>, env: Env, value: A): Env => {
     const existingChild = Object.hasOwn(base, key) ? base[key] : undefined
     const nextChild =
       index === path.segments.length - 1 ? value : updateAt(existingChild, index + 1)
+    // An array stays one: a spread would turn it into an object keyed by index.
+    if (Array.isArray(current) && ARRAY_INDEX.test(key) && Number(key) <= current.length) {
+      const next: Array<unknown> = [...current]
+      next[Number(key)] = nextChild
+      return next
+    }
     return { ...base, [key]: nextChild }
   }
   return updateAt(env, 0) as Env
@@ -126,12 +134,21 @@ export const format = (segments: ReadonlyArray<string>): string =>
  * Recursive typed accessor for an environment value `A`: every plain object
  * property (including TypeScript `interface`s) becomes a nested
  * `PathAccessor<Env, A[K]>`, and every level is itself a `Path<Env, A>`.
+ *
+ * A field named as a member of `Path` itself (`node`, `segments`, `ast`) is
+ * not reached by its name, which reads the member: compose it,
+ * `Path.compose(parent, Path.field('segments'))`.
  */
 export type PathAccessor<Env, A> = Path<Env, A> &
   ([A] extends [((...args: never) => unknown) | ReadonlyArray<unknown> | Date]
     ? unknown
     : [A] extends [object]
-      ? { readonly [K in keyof A & string]: PathAccessor<Env, A[K]> }
+      ? {
+          readonly [K in Exclude<keyof A & string, keyof Path<unknown, unknown>>]: PathAccessor<
+            Env,
+            A[K]
+          >
+        }
       : unknown)
 
 const propertyAsts = (ast: Option.Option<SchemaAST.AST>): ReadonlyMap<string, SchemaAST.AST> => {

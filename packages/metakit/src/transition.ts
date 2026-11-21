@@ -9,11 +9,12 @@
  * affordances (`Transition.can`), child lifting (`Transition.lift`), SQL
  * guarded `UPDATE`, Tier 3 Zone checks, and Tier 4 Z3 proofs.
  */
-import { Data, Match, Option, Result } from 'effect'
-import type { Schema } from 'effect'
+import { Data, Match, Option, Result, Schema } from 'effect'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
+import { andOp, notOp } from './ops/bool.js'
 import { isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
+import { isNullOp } from './ops/null.js'
 import { evalNode } from './ops/eval.js'
 import { judgeNode, readsOfNode } from './ops/residualize.js'
 import * as Path from './path.js'
@@ -65,10 +66,11 @@ export interface Transition<State, Input, Emit = never> {
 /**
  * Declare a write to a path inside `state`. Strictly requires a `Path` rooted
  * in `state` (such as `state.balance` from `apply: ({ state, input }) => [...]`).
+ * The target decides the type: a value wider than the field is refused.
  */
 export const set = <State, Input, V>(
   target: PathType<TransitionEnv<State, Input>, V>,
-  value: ExprInput<TransitionEnv<State, Input>, V>,
+  value: ExprInput<TransitionEnv<State, Input>, NoInfer<V>>,
 ): WriteEquation<State, Input, V> => {
   if (target.segments[0] !== 'state') {
     throw new Error(
@@ -117,6 +119,15 @@ export const make = <S extends Schema.Top, I extends Schema.Top, Emit = never>(c
     }
     seenTargets.add(targetKey)
   }
+  // A write under another's target would depend on the order the two are applied in.
+  for (const outer of writes) {
+    const inner = writes.find(eq => eq !== outer && Path.isPrefix(outer.target, eq.target))
+    if (inner !== undefined) {
+      throw new Error(
+        `[metakit] Transition.make overlapping write targets "${Path.format(outer.target)}" and "${Path.format(inner.target)}"`,
+      )
+    }
+  }
   const emits: Option.Option<EmitSpec> =
     config.emits === undefined
       ? Option.none()
@@ -140,9 +151,23 @@ export const make = <S extends Schema.Top, I extends Schema.Top, Emit = never>(c
   }
 }
 
+const acceptors = new WeakMap<Schema.Top, (value: unknown) => boolean>()
+
+/** Whether a value is one of `schema`'s type, with the check built once per Schema. */
+const accepts = (schema: Schema.Top): ((value: unknown) => boolean) => {
+  let accept = acceptors.get(schema)
+  if (accept === undefined) {
+    accept = Schema.is(schema)
+    acceptors.set(schema, accept)
+  }
+  return accept
+}
+
 /**
  * Execute `transition` on `(state, input)`, returning the next state and any
- * emitted pure command data, or `Result.fail(Refused)` if `when` is `false`.
+ * emitted pure command data, or `Result.fail(Refused)`: where `input` is not
+ * a value of the input Schema (the proofs of a transition assume it is),
+ * where `when` is not true, or where a written or emitted value is refused.
  *
  * All right-hand sides evaluate against the pre-state (simultaneous update).
  * A no-op returns the exact `state` reference it was given.
@@ -153,6 +178,9 @@ export const step = <State, Input, Emit>(
   input: Input,
 ): Result.Result<{ readonly state: State; readonly emit: Option.Option<Emit> }, Refused> => {
   const env: TransitionEnv<State, Input> = { state, input }
+  if (Option.isSome(transition.inputSchema) && !accepts(transition.inputSchema.value)(input)) {
+    return Result.fail(new Refused({ reason: 'the input is not a value of its Schema' }))
+  }
   // A guard holds only where it is true: null and a refusal do not fire.
   if (evalNode(transition.when.node, env) !== true) {
     return Result.fail(new Refused({ reason: 'transition guard evaluated to false' }))
@@ -237,9 +265,11 @@ const rewriteStatePrefix = (node: Node.Node, outerSegments: ReadonlyArray<string
         run: env => {
           const outer = env as TransitionEnv<unknown, unknown>
           const innerState = Path.get(Path.make<unknown, unknown>(outerSegments), outer.state)
-          return fn({
-            state: Option.getOrUndefined(innerState),
-            input: outer.input,
+          // No child to run over: null, as a read of it is.
+          return Option.match(innerState, {
+            onNone: () => null,
+            onSome: state =>
+              state === null || state === undefined ? null : fn({ state, input: outer.input }),
           })
         },
       }),
@@ -249,7 +279,9 @@ const rewriteStatePrefix = (node: Node.Node, outerSegments: ReadonlyArray<string
 /**
  * Lift a child `Transition<Inner, Input, Emit>` along `Path<Outer, Inner>` so
  * it operates inside a larger `Outer` model, propagating exact read/write
- * footprints automatically.
+ * footprints automatically. The lifted transition is refused where the model
+ * holds no child at `path`: its guard asks that there is one, so a write
+ * never invents the struct it writes into.
  */
 export const lift = <Outer, Inner, Input, Emit>(
   path: PathType<Outer, Inner>,
@@ -258,7 +290,25 @@ export const lift = <Outer, Inner, Input, Emit>(
   _tag: 'Transition',
   stateSchema: Option.none(),
   inputSchema: transition.inputSchema,
-  when: wrap(rewriteStatePrefix(transition.when.node, path.segments)),
+  when: wrap(
+    path.segments.length === 0
+      ? transition.when.node
+      : Node.Call({
+          op: andOp,
+          args: [
+            Node.Call({
+              op: notOp,
+              args: [
+                Node.Call({
+                  op: isNullOp,
+                  args: [Node.Path({ segments: ['state', ...path.segments], ast: path.ast })],
+                }),
+              ],
+            }),
+            rewriteStatePrefix(transition.when.node, path.segments),
+          ],
+        }),
+  ),
   writes: Object.freeze(
     transition.writes.map(eq => ({
       _tag: 'WriteEquation' as const,
@@ -286,7 +336,11 @@ export const lift = <Outer, Inner, Input, Emit>(
 export const footprint = <State, Input, Emit>(
   transition: Transition<State, Input, Emit>,
 ): {
+  /** Every read, from the root of `{ state, input }`. None: an opaque term reads anything. */
   readonly reads: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
+  /** The reads of the state, from the state as `writes` are: the two compare directly. */
+  readonly stateReads: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
+  /** Every write, from the state. */
   readonly writes: ReadonlyArray<ReadonlyArray<string>>
 } => {
   const nodes: Array<Node.Node> = [
@@ -316,8 +370,12 @@ export const footprint = <State, Input, Emit>(
       if (!seen.has(k)) seen.set(k, segs)
     }
   }
+  const reads = unbounded ? Option.none() : Option.some(Array.from(seen.values()))
   return {
-    reads: unbounded ? Option.none() : Option.some(Array.from(seen.values())),
+    reads,
+    stateReads: Option.map(reads, all =>
+      all.filter(segments => segments[0] === 'state').map(segments => segments.slice(1)),
+    ),
     writes: transition.writes.map(eq => eq.target),
   }
 }

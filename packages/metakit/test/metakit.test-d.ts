@@ -153,3 +153,42 @@ Graph.pruneStatic(
     typo: 123,
   },
 )
+
+// 12. Transition.set takes its type from the target: a wider value is refused
+Transition.make({
+  state: Account,
+  input: Schema.Struct({ text: Schema.String, maybe: Schema.NullOr(Schema.Int) }),
+  apply: ({ state, input }) => [
+    // @ts-expect-error a string is wider than the status enumeration
+    Transition.set(state.status, input.text),
+    // @ts-expect-error null is not a balance
+    Transition.set(state.balance, null),
+    // @ts-expect-error a nullable number is wider than a balance
+    Transition.set(state.reserved, input.maybe),
+  ],
+})
+
+// 13. Expr.match refuses a key that is not a case
+Expr.in({ row: Account }, ({ row }) =>
+  // @ts-expect-error 'typo' is not a status
+  Expr.match(row.status, { open: 1, frozen: 2, typo: 3 }),
+)
+
+// 14. A field named as a member of Path reads the member, not the field
+const Shadow = Schema.Struct({ segments: Schema.Int })
+const ownSegments: ReadonlyArray<string> = Path.from(Shadow).segments
+void ownSegments
+// @ts-expect-error `segments` is the path's own segments, not a path to the field
+const shadowed: Path.Path<typeof Shadow.Type, number> = Path.from(Shadow).segments
+void shadowed
+
+// 15. An operator takes a nullable operand, and its result then may be null
+const Nullable = Schema.Struct({ n: Schema.NullOr(Schema.Int), m: Schema.Int })
+const $nullable = Path.from(Nullable)
+const maybePositive: Expr.Expr<typeof Nullable.Type, boolean | null> = Num.gt($nullable.n, 0)
+void maybePositive
+const surelyPositive: Expr.Expr<typeof Nullable.Type, boolean> = Num.gt($nullable.m, 0)
+void surelyPositive
+// @ts-expect-error a comparison over a nullable operand may be null
+const notSure: Expr.Expr<typeof Nullable.Type, boolean> = Num.gt($nullable.n, 0)
+void notSure

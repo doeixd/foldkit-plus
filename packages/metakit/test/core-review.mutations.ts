@@ -199,8 +199,71 @@ const checker = [
   ),
 ]
 
+const path = '../src/path.ts'
+const edges = ['packages/metakit/test/transition-path.test.ts']
+
+const transitions = [
+  mutation(
+    edges,
+    'a write under the target of another is taken',
+    transition,
+    'if (inner !== undefined) {',
+    'if (false) {',
+  ),
+  mutation(
+    edges,
+    'an input outside its Schema is run',
+    transition,
+    '!accepts(transition.inputSchema.value)(input)',
+    'false',
+  ),
+  mutation(
+    edges,
+    'a lifted transition writes into a child that is not there',
+    transition,
+    "args: [Node.Path({ segments: ['state', ...path.segments], ast: path.ast })],",
+    'args: [Node.Lit({ value: 1 })],',
+  ),
+  mutation(
+    edges,
+    'a lifted opaque term runs over a child that is not there',
+    transition,
+    'state === null || state === undefined ? null : fn({ state, input: outer.input }),',
+    'fn({ state, input: outer.input }),',
+  ),
+  mutation(
+    edges,
+    'the reads of the state keep their root',
+    transition,
+    "all.filter(segments => segments[0] === 'state').map(segments => segments.slice(1)),",
+    "all.filter(segments => segments[0] === 'state'),",
+  ),
+  mutation(
+    edges,
+    'a write into an array makes it an object',
+    path,
+    'if (Array.isArray(current) && ARRAY_INDEX.test(key) && Number(key) <= current.length) {',
+    'if (false) {',
+  ),
+  mutation(
+    edges,
+    'a match takes a key that is not a case',
+    expr,
+    'if (extra.length > 0) {',
+    'if (false) {',
+  ),
+  mutation(
+    edges,
+    'a match leaves a value without a case',
+    expr,
+    'if (missing.length > 0) {',
+    'if (false) {',
+  ),
+]
+
 export default [
   ...checker,
+  ...transitions,
   mutation(
     nullStrict,
     'a strict operator computes over a null operand',
