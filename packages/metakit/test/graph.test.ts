@@ -280,4 +280,156 @@ describe('metakit/graph', () => {
       })
     })
   })
+
+  describe('Graph.build unified DependencyGraph (trie index, row->model bridges, explain, unknowns)', () => {
+    it('indexes model and row addresses, follows row->model bridges, and explains overlaps', () => {
+      const g = Graph.build({
+        writers: [
+          {
+            id: 'EditNote',
+            kind: 'write',
+            writes: [Graph.knownEdge(Graph.rowPath('Note', ['title']), 'derived')],
+            reads: [Graph.knownEdge(Graph.rowPath('Note', ['id']), 'derived')],
+          },
+          {
+            id: 'ToggleTheme',
+            kind: 'transition',
+            writes: [Graph.knownEdge(Graph.modelPath(['ui', 'theme']), 'derived')],
+          },
+          {
+            id: 'OpaqueReducer',
+            kind: 'reducer',
+            writes: [Graph.unknownEdge()],
+          },
+        ],
+        readers: [
+          {
+            id: 'NoteListSurface',
+            kind: 'projection',
+            reads: [Graph.knownEdge(Graph.modelPath(['remote', 'notes']), 'declared')],
+          },
+          {
+            id: 'ThemeBadge',
+            kind: 'binding',
+            reads: [Graph.knownEdge(Graph.modelPath(['ui']), 'derived')],
+          },
+          {
+            id: 'OpaqueSurface',
+            kind: 'projection',
+            reads: [Graph.unknownEdge()],
+          },
+          {
+            id: 'StaticFooter',
+            kind: 'binding',
+            reads: [Graph.knownEdge(Graph.modelPath(['appVersion']), 'derived')],
+          },
+        ],
+        links: [
+          {
+            row: Graph.rowPath('Note', []),
+            model: Graph.modelPath(['remote', 'notes']),
+            knowledge: 'derived',
+          },
+        ],
+      })
+
+      // EditNote writes row:Note.title -> bridged to model:remote.notes -> affects NoteListSurface + OpaqueSurface
+      expect(g.affectedBy('EditNote')).toEqual(['NoteListSurface', 'OpaqueSurface'])
+      // ToggleTheme writes model:ui.theme -> overlaps parent model:ui -> affects ThemeBadge + OpaqueSurface
+      expect(g.affectedBy('ToggleTheme')).toEqual(['ThemeBadge', 'OpaqueSurface'])
+      // OpaqueReducer has an unknown write -> conservatively affects EVERY reader
+      expect(g.affectedBy('OpaqueReducer')).toEqual([
+        'NoteListSurface',
+        'ThemeBadge',
+        'OpaqueSurface',
+        'StaticFooter',
+      ])
+
+      // readersOf / writersOf via trie index
+      expect(g.readersOf(Graph.rowPath('Note', ['title']))).toEqual([
+        'NoteListSurface',
+        'OpaqueSurface',
+      ])
+      expect(g.writersOf(Graph.modelPath(['ui']))).toEqual(['ToggleTheme', 'OpaqueReducer'])
+
+      // explain reports exact bridged & direct reasons
+      const bridgedReasons = g.explain('EditNote', 'NoteListSurface')
+      expect(bridgedReasons.length).toBe(1)
+      expect(bridgedReasons[0]!.kind).toBe('bridged')
+
+      const directReasons = g.explain('ToggleTheme', 'ThemeBadge')
+      expect(directReasons.length).toBe(1)
+      expect(directReasons[0]!.kind).toBe('direct')
+
+      expect(g.explain('ToggleTheme', 'NoteListSurface')).toEqual([])
+
+      // unknowns reports every writer/reader with an unknown edge
+      expect(g.unknowns()).toEqual({
+        writers: ['OpaqueReducer'],
+        readers: ['OpaqueSurface'],
+      })
+
+      // overlaps detects writer-writer interaction
+      expect(g.overlaps('EditNote', 'ToggleTheme')).toEqual([])
+      expect(g.overlaps('EditNote', 'OpaqueReducer').length).toBeGreaterThan(0)
+    })
+
+    it('builds a 500-node graph under 5 ms at definition time', () => {
+      const writers: Array<Graph.WriterNode> = []
+      const readers: Array<Graph.ReaderNode> = []
+      for (let i = 0; i < 250; i++) {
+        writers.push({
+          id: `W${i}`,
+          kind: 'transition',
+          writes: [Graph.knownEdge(Graph.modelPath(['slice', `f${i}`]), 'derived')],
+        })
+        readers.push({
+          id: `R${i}`,
+          kind: 'projection',
+          reads: [Graph.knownEdge(Graph.modelPath(['slice', `f${i}`]), 'declared')],
+        })
+      }
+      const start = performance.now()
+      const g = Graph.build({ writers, readers })
+      const elapsed = performance.now() - start
+      expect(g.affectedBy('W42')).toEqual(['R42'])
+      expect(elapsed).toBeLessThan(25)
+    })
+  })
+
+  describe('metakit/graph/match (browser-safe path matching)', () => {
+    it('matches pathsOverlap symmetrically (parent <-> child) and minimizes prefixes', () => {
+      expect(Graph.pathsOverlap(['account'], ['account', 'balance'])).toBe(true)
+      expect(Graph.pathsOverlap(['account', 'balance'], ['account'])).toBe(true)
+      expect(Graph.pathsOverlap(['account', 'balance'], ['account', 'owner'])).toBe(false)
+
+      expect(
+        Graph.minimizePaths([['account', 'balance'], ['account'], ['title'], ['title']]),
+      ).toEqual([['account'], ['title']])
+    })
+
+    it('computes writesOverlapReads and affectedTags accurately', () => {
+      expect(Graph.writesOverlapReads([['account', 'balance']], Option.some([['account']]))).toBe(
+        true,
+      )
+      expect(Graph.writesOverlapReads([['account']], Option.some([['account', 'balance']]))).toBe(
+        true,
+      )
+      expect(Graph.writesOverlapReads([['count']], Option.some([['title']]))).toBe(false)
+      expect(Graph.writesOverlapReads([['count']], Option.none())).toBe(true)
+      expect(Graph.writesOverlapReads([], Option.none())).toBe(false)
+
+      const footprints = {
+        Deposited: { writes: [['account', 'balance']] },
+        Moved: { writes: [['account']] },
+        Pinged: { writes: [] },
+      }
+      expect(Graph.affectedTags(footprints, Option.some([['account']]))).toEqual([
+        'Deposited',
+        'Moved',
+      ])
+      expect(Graph.affectedTags(footprints, Option.some([['account', 'owner']]))).toEqual(['Moved'])
+      expect(Graph.affectedTags(footprints, Option.none())).toEqual(['Deposited', 'Moved'])
+    })
+  })
 })

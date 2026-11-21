@@ -2,64 +2,53 @@
  * Static dependency graph, SSR live-frontier pruning, and dependent-query
  * readiness (`metakit/graph`).
  *
- * Pure compile-time / SSR / planner analysis over `Machine` transitions and
- * named `Expr` bindings — zero runtime framework dependency.
+ * Browser code that only needs path matching should import `metakit/graph/match`
+ * (which imports only `path.ts` and never loads `ops/residualize` or `sqlLowering`).
  */
-import { Option, Result } from 'effect'
+import { Option } from 'effect'
 import * as Expr from './expr.js'
 import type { Machine } from './machine.js'
-import * as Node from './node.js'
-import * as Path from './path.js'
-import { lowerNode } from './sqlLowering.js'
+import { minimizePaths } from './graph/match.js'
+import {
+  build,
+  knownEdge,
+  modelPath,
+  unknownEdge,
+  type DependencyGraph,
+  type PathEdge,
+  type ReaderNode,
+  type WriterNode,
+} from './graph/structure.js'
 
-type ExprValue<E> = E extends Expr.Expr<never, infer A> ? A : unknown
-type ExprEnvOf<E> = E extends Expr.Expr<infer Env, unknown> ? Env : never
-type NonUnknown<T> = unknown extends T ? never : T
-type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
-  k: infer I,
-) => void
-  ? I
-  : never
-type SpecificEnvs<Bindings extends Readonly<Record<string, unknown>>> = {
-  readonly [K in keyof Bindings]: NonUnknown<ExprEnvOf<Bindings[K]>>
-}[keyof Bindings]
-type BindingsEnv<Bindings extends Readonly<Record<string, unknown>>> = [
-  SpecificEnvs<Bindings>,
-] extends [never]
-  ? Readonly<Record<string, unknown>>
-  : UnionToIntersection<SpecificEnvs<Bindings>>
-
-const pathsOverlap = (a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean =>
-  Path.isPrefix(a, b) || Path.isPrefix(b, a)
-
-/**
- * Deduplicate and prefix-minimize a list of paths: if `['account']` is present,
- * `['account', 'balance']` is subsumed and dropped. Deterministic order.
- */
-const minimizePaths = (
-  paths: ReadonlyArray<ReadonlyArray<string>>,
-): ReadonlyArray<ReadonlyArray<string>> => {
-  const unique: Array<ReadonlyArray<string>> = []
-  const seen = new Set<string>()
-  for (const segs of paths) {
-    const key = JSON.stringify(segs)
-    if (!seen.has(key)) {
-      seen.add(key)
-      unique.push(segs)
-    }
-  }
-  return unique.filter(
-    (candidate, i) =>
-      !unique.some(
-        (other, j) => i !== j && other.length < candidate.length && Path.isPrefix(other, candidate),
-      ),
-  )
-}
+export { affectedTags, minimizePaths, pathsOverlap, writesOverlapReads } from './graph/match.js'
+export {
+  addressesOverlap,
+  build,
+  formatAddress,
+  knownEdge,
+  modelPath,
+  rowPath,
+  unknownEdge,
+  type DependencyGraph,
+  type EdgeKnowledge,
+  type OverlapReason,
+  type PathAddress,
+  type PathEdge,
+  type ReaderKind,
+  type ReaderNode,
+  type RowToModelLink,
+  type WriterKind,
+  type WriterNode,
+} from './graph/structure.js'
+export { pruneStatic, type PrunedBindings } from './graph/prune.js'
+export { queryReadiness, type QueryReadiness } from './graph/readiness.js'
 
 export interface GraphAnalysis<
   Transitions extends Readonly<Record<string, unknown>>,
   Bindings extends Readonly<Record<string, unknown>>,
 > {
+  /** Underlying unified `DependencyGraph` built from `machine` and `bindings`. */
+  readonly graph: DependencyGraph
   /** For each transition tag, the exact binding IDs invalidated when it fires. */
   readonly affectedBy: {
     readonly [K in keyof Transitions & string]: ReadonlyArray<keyof Bindings & string>
@@ -75,12 +64,8 @@ export interface GraphAnalysis<
 }
 
 /**
- * Statically analyze a `Machine` and a record of named view `Expr` bindings:
- *   - `affectedBy[tag]`: bindings whose read footprint overlaps `tag`'s writes
- *     (symmetrically via `Path.isPrefix`; unbounded reads are conservatively
- *     affected by any transition that writes at least one path).
- *   - `deadBindings`: bindings unaffected by every transition in `machine`.
- *   - `liveModelPaths`: minimal `Model` paths touched by the machine or bindings.
+ * Thin call over `Graph.build` for a `Machine` and a record of named view
+ * `Expr` bindings.
  */
 export const analyze = <
   State,
@@ -95,168 +80,59 @@ export const analyze = <
   const modelPaths: Array<ReadonlyArray<string>> = []
   let unboundedModel = false
 
+  const readers: Array<ReaderNode> = []
   for (const id of bindingIds) {
     const r = Expr.reads(bindings[id]!)
     bindingReadsMap[id] = r
     if (Option.isNone(r)) {
       unboundedModel = true
+      readers.push({ id, kind: 'binding', reads: [unknownEdge()] })
     } else {
-      for (const segs of r.value) modelPaths.push(segs)
+      const readEdges: Array<PathEdge> = []
+      for (const segs of r.value) {
+        modelPaths.push(segs)
+        readEdges.push(knownEdge(modelPath(segs), 'derived'))
+      }
+      readers.push({ id, kind: 'binding', reads: readEdges })
     }
   }
 
-  const affectedBy: Record<string, ReadonlyArray<string>> = {}
-  const everAffected = new Set<string>()
-
+  const writers: Array<WriterNode> = []
+  const tags: Array<string> = []
   for (const [tag, fp] of Object.entries(machine.footprints)) {
+    tags.push(tag)
+    const readEdges: Array<PathEdge> = []
     if (Option.isNone(fp.reads)) {
       unboundedModel = true
+      readEdges.push(unknownEdge())
     } else {
       for (const segs of fp.reads.value) {
         if (segs[0] === 'state') {
-          modelPaths.push(segs.slice(1))
+          const modelSegs = segs.slice(1)
+          modelPaths.push(modelSegs)
+          readEdges.push(knownEdge(modelPath(modelSegs), 'derived'))
         }
       }
     }
+    const writeEdges: Array<PathEdge> = []
     for (const w of fp.writes) {
       modelPaths.push(w)
+      writeEdges.push(knownEdge(modelPath(w), 'derived'))
     }
-
-    const hit: Array<string> = []
-    if (fp.writes.length > 0) {
-      for (const id of bindingIds) {
-        const reads = bindingReadsMap[id]!
-        const overlaps = Option.isNone(reads)
-          ? true
-          : reads.value.some(r => fp.writes.some(w => pathsOverlap(r, w)))
-        if (overlaps) {
-          hit.push(id)
-          everAffected.add(id)
-        }
-      }
-    }
-    affectedBy[tag] = hit
+    writers.push({ id: tag, kind: 'transition', writes: writeEdges, reads: readEdges })
   }
 
-  const deadBindings: Array<keyof Bindings & string> = []
-  for (const id of bindingIds) {
-    if (!everAffected.has(id)) {
-      deadBindings.push(id)
-    }
+  const graph = build({ writers, readers })
+  const affectedBy: Record<string, ReadonlyArray<string>> = {}
+  for (const tag of tags) {
+    affectedBy[tag] = graph.affectedBy(tag)
   }
 
   return {
+    graph,
     affectedBy: affectedBy as GraphAnalysis<Transitions, Bindings>['affectedBy'],
     bindingReads: bindingReadsMap as GraphAnalysis<Transitions, Bindings>['bindingReads'],
     liveModelPaths: unboundedModel ? Option.none() : Option.some(minimizePaths(modelPaths)),
-    deadBindings,
+    deadBindings: graph.deadReaders() as ReadonlyArray<keyof Bindings & string>,
   }
-}
-
-export interface PrunedBindings<Bindings extends Readonly<Record<string, unknown>>> {
-  /** Bindings that folded completely to a literal value (including known `null`). */
-  readonly staticValues: { readonly [K in keyof Bindings & string]?: ExprValue<Bindings[K]> }
-  /** Residual bindings that still depend on unknown dynamic paths. */
-  readonly liveBindings: {
-    readonly [K in keyof Bindings & string]?: Expr.Expr<
-      ExprEnvOf<Bindings[K]>,
-      ExprValue<Bindings[K]>
-    >
-  }
-  /** Minimal `Model` paths still read by `liveBindings` (the exact SSR resume payload). */
-  readonly resumePaths: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
-}
-
-/**
- * Partially evaluate every binding against a known `staticSlice` (e.g. feature
- * flags, tenant config, or server-only constants), separating fully folded
- * `staticValues` from `liveBindings` and computing the minimal `resumePaths`
- * SSR must serialize for client resumability.
- */
-export const pruneStatic = <Bindings extends Readonly<Record<string, Expr.Expr<never, unknown>>>>(
-  bindings: Bindings,
-  staticSlice: Expr.PartialEnv<BindingsEnv<Bindings>>,
-): PrunedBindings<Bindings> => {
-  const staticValues: Record<string, unknown> = {}
-  const liveBindings: Record<string, Expr.Expr<never, unknown>> = {}
-  const liveReads: Array<ReadonlyArray<string>> = []
-  let unbounded = false
-
-  for (const [id, expr] of Object.entries(bindings)) {
-    const residual = Expr.residualize(
-      expr as Expr.Expr<BindingsEnv<Bindings>, unknown>,
-      staticSlice,
-    )
-    if (Node.$is('Lit')(residual.node)) {
-      staticValues[id] = residual.node.value
-    } else {
-      liveBindings[id] = residual as Expr.Expr<never, unknown>
-      const r = Expr.reads(residual)
-      if (Option.isNone(r)) {
-        unbounded = true
-      } else {
-        for (const segs of r.value) liveReads.push(segs)
-      }
-    }
-  }
-
-  return {
-    staticValues: staticValues as PrunedBindings<Bindings>['staticValues'],
-    liveBindings: liveBindings as PrunedBindings<Bindings>['liveBindings'],
-    resumePaths: unbounded ? Option.none() : Option.some(minimizePaths(liveReads)),
-  }
-}
-
-export type QueryReadiness<Env, A> =
-  | {
-      readonly ready: true
-      readonly residual: Expr.Expr<Env, A>
-    }
-  | {
-      readonly ready: false
-      /** The parameter paths still unbound; none when an opaque term declares no reads. */
-      readonly missing: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
-      /** Why the predicate cannot be lowered to SQL although every parameter is bound. */
-      readonly unsupported: Option.Option<string>
-      readonly residual: Expr.Expr<Env, A>
-    }
-
-/**
- * Whether a query's filter can be lowered to SQL yet: every parameter path it
- * still reads is bound in `partialEnv`, and what is left lowers
- * (`Sql.toWhere`, `Drizzle.toWhere`). An opaque term over the row alone has
- * nothing missing and is still not ready: `unsupported` says so.
- *
- * Paths under `options.rowPrefix` (default `['row']`) are the row's columns
- * and do not block readiness; `[]` reads every path as a column, as the SQL
- * lowering does. A branch partial evaluation decides (`params.all === true ||
- * row.countryId === params.countryId`) drops the parameters it no longer reads.
- */
-export const queryReadiness = <Env, A>(
-  expr: Expr.Expr<Env, A>,
-  partialEnv: Expr.PartialEnv<NoInfer<Env>>,
-  options?: {
-    readonly rowPrefix?: ReadonlyArray<string>
-  },
-): QueryReadiness<Env, A> => {
-  const rowPrefix = options?.rowPrefix ?? ['row']
-  const residual = Expr.residualize(expr, partialEnv)
-  const reads = Expr.reads(residual)
-  if (Option.isNone(reads)) {
-    return { ready: false, missing: Option.none(), unsupported: Option.none(), residual }
-  }
-  const missing = minimizePaths(reads.value.filter(segs => !Path.isPrefix(rowPrefix, segs)))
-  if (missing.length > 0) {
-    return { ready: false, missing: Option.some(missing), unsupported: Option.none(), residual }
-  }
-  // No refusal of the lowering depends on the dialect.
-  return Result.match(lowerNode(residual.node, { dialect: 'postgres', rowPrefix }), {
-    onSuccess: (): QueryReadiness<Env, A> => ({ ready: true, residual }),
-    onFailure: ({ reason }) => ({
-      ready: false,
-      missing: Option.some([]),
-      unsupported: Option.some(reason),
-      residual,
-    }),
-  })
 }

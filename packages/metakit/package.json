@@ -67,6 +67,21 @@
       "types": "./dist/graph.d.ts",
       "import": "./dist/graph.js"
     },
+    "./graph/match": {
+      "foldkit-plus:source": "./src/graph/match.ts",
+      "types": "./dist/graph/match.d.ts",
+      "import": "./dist/graph/match.js"
+    },
+    "./graph/prune": {
+      "foldkit-plus:source": "./src/graph/prune.ts",
+      "types": "./dist/graph/prune.d.ts",
+      "import": "./dist/graph/prune.js"
+    },
+    "./graph/readiness": {
+      "foldkit-plus:source": "./src/graph/readiness.ts",
+      "types": "./dist/graph/readiness.d.ts",
+      "import": "./dist/graph/readiness.js"
+    },
     "./policy": {
       "foldkit-plus:source": "./src/policy.ts",
       "types": "./dist/policy.d.ts",

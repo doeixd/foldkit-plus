@@ -393,6 +393,12 @@ test.each([
     'inspect',
   ],
   ['aggregates', 'aggregates', `import { sum } from 'pkg'\nexport const used = sum`, 'aggregates'],
+  [
+    'graph/match',
+    'graph/match',
+    `import { affectedTags } from 'pkg'\nexport const used = affectedTags`,
+    'graph/match',
+  ],
 ])(
   'a page reading metakit/%s keeps no SQL lowering, Drizzle or solver module',
   async (_, file, page, kept) => {

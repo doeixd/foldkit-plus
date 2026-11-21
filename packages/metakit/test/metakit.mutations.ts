@@ -11,7 +11,8 @@ const proveLower = '../src/prove/lower.ts'
 const proveMachine = '../src/prove/machine.ts'
 const proveShape = '../src/prove/shape.ts'
 const proveSolve = '../src/prove/solve.ts'
-const graph = '../src/graph.ts'
+const graph = '../src/graph/match.ts'
+const graphStructure = '../src/graph/structure.ts'
 const abstractState = '../src/abstract/state.ts'
 const matches = '../src/abstract/matches.ts'
 const str = '../src/ops/str.ts'
@@ -271,5 +272,16 @@ export default [
       },
     ],
     tests: strArrTests,
+  },
+  {
+    name: 'Graph.build treats unknown reader as empty in affectedBy',
+    edits: [
+      {
+        file: graphStructure,
+        find: '    const hit = new Set<string>(unknownReaders)\n    const bridged = new Set<RowToModelLink>()',
+        replace: '    const hit = new Set<string>()\n    const bridged = new Set<RowToModelLink>()',
+      },
+    ],
+    tests: graphTests,
   },
 ]
