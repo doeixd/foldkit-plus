@@ -19,7 +19,10 @@ import * as Verdict from '../src/verdict.js'
 
 describe('Phase 1 adversarial soundness regressions', () => {
   it('Node.holdsNul recurses into array literals so Eq.in with NUL candidates is not proved True', async () => {
-    const State = Schema.Struct({ x: Schema.Literal('a') })
+    // Known to be 'a', so only a candidate list that holds a NUL keeps the goal from a proof.
+    const State = Schema.Struct({ x: Schema.Literals(['a', 'b\u0000c']) }).pipe(
+      Expr.refine($ => Eq.is($.x, 'a')),
+    )
     const s = Path.forSchema(State)
     const goal = Eq.in(s.x, ['a', 'b\u0000c'])
     expect(() => Expr.evaluate(goal, { x: 'a' })).toThrow(/NUL/)
@@ -29,7 +32,7 @@ describe('Phase 1 adversarial soundness regressions', () => {
   })
 
   it('Z3 nulOf does not constrain untaken Null.coalesce / If branches in hypotheses', async () => {
-    const State = Schema.Struct({ a: Schema.Literal('ok'), b: Schema.String }).pipe(
+    const State = Schema.Struct({ a: Schema.String, b: Schema.String }).pipe(
       Expr.refine($ => Eq.is(Null.coalesce($.a, $.b), 'ok')),
     )
     const s = Path.forSchema(State)
@@ -58,6 +61,15 @@ describe('Phase 1 adversarial soundness regressions', () => {
     })
     const proved = await Effect.runPromise(Prove.transition(State, tr))
     expect(Verdict.isTrue(proved)).toBe(false)
+  })
+
+  it('Abstract.checkInvariant does not take Null.coalesce of a nullable number to be finite', () => {
+    const State = Schema.Struct({ x: Schema.NullOr(Schema.Number) })
+    const s = Path.forSchema(State)
+    const goal = Expr.when(Ord.lte(Null.coalesce(s.x, 0), 5), { then: true, else: true })
+    // { x: NaN } makes the condition's operand NaN, which the comparison refuses.
+    expect(() => Expr.evaluate(goal, { x: Number.NaN })).toThrow(/NaN/)
+    expect(Verdict.isTrue(Abstract.checkInvariant(State, goal))).toBe(false)
   })
 
   it('Abstract.checkGoal does not mark multi-arg strict op operands portable when another operand may be null', () => {
@@ -108,18 +120,17 @@ describe('Phase 1 adversarial soundness regressions', () => {
   })
 
   it('judgeNode reports unsupported (not missing-env) for a version-mismatched foreign op with unknown args', () => {
-    const op: Node.ForeignOp = {
-      _tag: 'Foreign',
+    const op = Node.foreign({
       id: 'custom.check',
       version: 2,
       returns: 'boolean',
       nulls: 'strict',
-    }
+    })
     const call = Node.Call({
       op,
-      args: [Node.Path({ segments: ['x'], ast: Schema.String.ast })],
+      args: [Node.Path({ segments: ['x'], ast: Option.some(Schema.String.ast) })],
     })
-    const verdict = judgeNode(call, {}, { 'custom.check': { version: 1, evaluate: () => true } })
+    const verdict = judgeNode(call, {}, { 'custom.check': { version: 1, run: () => true } })
     expect(Verdict.isUnknown(verdict)).toBe(true)
     if (Verdict.isUnknown(verdict)) {
       expect(Option.map(verdict.obligation, o => o.kind)).toEqual(Option.some('unsupported'))
