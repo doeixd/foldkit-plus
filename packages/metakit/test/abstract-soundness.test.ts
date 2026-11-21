@@ -52,6 +52,10 @@ describe('a conditional', () => {
       Expr.when(Ord.gt($.x, 0), { then: Ord.lt($.x, 0), else: Ord.gt($.x, 0) }),
     )
     proved(Count, never)
+    // A proof by refuting what is negated still says which tier gave it.
+    expect(Abstract.checkInvariant(Count, never)).toMatchObject({
+      evidence: { value: { tier: 'zone' } },
+    })
   })
 
   it('answers False only where every case is false', () => {

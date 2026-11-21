@@ -38,6 +38,14 @@ const proved = (tier: Verdict.ProofTier): Verdict.Verdict<never> =>
 
 const refuted = (): Verdict.Verdict<never> => Verdict.False<never>()
 
+/** The verdict on a negation: a refuted operand is a proof here, and says which tier gave it. */
+const negated = (verdict: Verdict.Verdict<never>): Verdict.Verdict<never> =>
+  Verdict.match(verdict, {
+    True: refuted,
+    False: () => proved('zone'),
+    Unknown: unknown => unknown,
+  })
+
 /** One answer for every case: `True` or `False` only where each case gives it. */
 const agree = (verdicts: ReadonlyArray<Verdict.Verdict<never>>): Verdict.Verdict<never> => {
   const [first, ...rest] = verdicts
@@ -1288,7 +1296,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     _tag: 'Predicate',
     neverNull: false,
     measures: none,
-    decide: (args, state) => Verdict.not(state.decide(args[0]!)),
+    decide: (args, state) => negated(state.decide(args[0]!)),
     assume: (args, state) => state.refute(args[0]!),
     refute: (args, state) => state.assume(args[0]!),
   },
@@ -1304,7 +1312,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     _tag: 'Predicate',
     neverNull: true,
     measures: none,
-    decide: (args, state) => Verdict.not(decideEqual(args, state)),
+    decide: (args, state) => negated(decideEqual(args, state)),
     assume: assumeUnequal,
     refute: assumeEqual,
   },
