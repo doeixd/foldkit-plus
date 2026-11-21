@@ -13,6 +13,7 @@
       "foldkit-surface": ["../surface/src/index.ts"],
       "metakit": ["../metakit/src/index.ts"],
       "metakit/aggregates": ["../metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../metakit/src/aggregatesSql.ts"],
       "metakit/conformance": ["../metakit/src/conformance.ts"],
       "metakit/domain": ["../metakit/src/domain.ts"],
       "metakit/drizzle": ["../metakit/src/drizzle.ts"],

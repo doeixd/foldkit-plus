@@ -9,6 +9,7 @@
     "paths": {
       "metakit": ["../../packages/metakit/src/index.ts"],
       "metakit/aggregates": ["../../packages/metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../../packages/metakit/src/aggregatesSql.ts"],
       "metakit/conformance": ["../../packages/metakit/src/conformance.ts"],
       "metakit/domain": ["../../packages/metakit/src/domain.ts"],
       "metakit/drizzle": ["../../packages/metakit/src/drizzle.ts"],

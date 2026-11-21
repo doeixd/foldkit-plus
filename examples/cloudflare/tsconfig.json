@@ -102,6 +102,7 @@
       "foldkit-plus/metadata": ["../../packages/plus/src/metadata.ts"],
       "foldkit-plus/metakit": ["../../packages/plus/src/metakit.ts"],
       "foldkit-plus/metakit/aggregates": ["../../packages/plus/src/metakit/aggregates.ts"],
+      "foldkit-plus/metakit/aggregates/sql": ["../../packages/plus/src/metakit/aggregates/sql.ts"],
       "foldkit-plus/metakit/conformance": ["../../packages/plus/src/metakit/conformance.ts"],
       "foldkit-plus/metakit/domain": ["../../packages/plus/src/metakit/domain.ts"],
       "foldkit-plus/metakit/drizzle": ["../../packages/plus/src/metakit/drizzle.ts"],
