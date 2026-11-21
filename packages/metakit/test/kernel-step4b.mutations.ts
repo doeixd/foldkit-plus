@@ -10,6 +10,8 @@ const eq = '../src/ops/eq.ts'
 const bool = '../src/ops/bool.ts'
 const kind = '../src/ops/kind.ts'
 const residualize = '../src/ops/residualize.ts'
+const laws = '../src/ops/laws.ts'
+const textChecks = '../src/ops/textChecks.ts'
 const evaluate = '../src/ops/eval.ts'
 const propertyChecks = '../src/propertyChecks.ts'
 const abstractOps = '../src/abstract/ops.ts'
@@ -52,9 +54,9 @@ export default [
   mutation(
     step,
     'partial evaluation takes a value that may be refused as among no candidate',
-    eq,
-    "candidates.value.length === 0 && (Node.$is('Path')(needle) || cannotRefuse(needle))",
-    'candidates.value.length === 0',
+    laws,
+    'list.length === 0 && (view.isRead(left) || view.cannotRefuse(left))',
+    'list.length === 0',
   ),
   mutation(
     step,
@@ -135,8 +137,8 @@ export default [
   mutation(
     step,
     'partial evaluation drops an operand that may be refused',
-    residualize,
-    'unlessRefused !== true || cannotRefuse(operand)',
+    laws,
+    'unlessRefused !== true || view.cannotRefuse(operand)',
     'true',
   ),
   mutation(
@@ -171,15 +173,15 @@ export default [
   mutation(
     step,
     'a strict call beside a known null folds to null whatever else it holds',
-    residualize,
-    'args.every(arg => isNull(arg) || cannotRefuse(arg))',
+    laws,
+    'args.every((arg, index) => isNull(index) || view.cannotRefuse(arg))',
     'true',
   ),
   mutation(
     step,
     'a strict call beside a known null is never folded',
     residualize,
-    'if (nullBesideUnrefused(op, nextArgs)) return Node.Lit({ value: null })',
+    'if (nullBesideUnrefused(residual, op, nextArgs)) return Node.Lit({ value: null })',
     '',
   ),
   mutation(
@@ -193,8 +195,8 @@ export default [
     step,
     'a call over operands of the wrong kind cannot be refused',
     kind,
-    '(kind === undefined || Option.exists(kindOf(arg), each => each === kind))',
-    'true',
+    'unrefused && (kind === undefined || Option.exists(each, operand => operand === kind)),',
+    'unrefused,',
   ),
   // Text.
   mutation(
@@ -321,7 +323,7 @@ export default [
   mutation(
     step,
     'a check of no length is taken as modelled',
-    kind,
+    textChecks,
     '      } else modelled = false',
     '      }',
   ),

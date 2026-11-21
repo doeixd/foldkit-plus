@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: judgeRun,
-        find: 'if (Node.isRefusal(residual.value)) throw refusedBy(residual.value)',
-        replace: 'if (Node.isRefusal(residual.value)) return Held.of(null)',
+        find: 'if (Node.isRefusal(value)) throw refusedBy(value)',
+        replace: 'if (Node.isRefusal(value)) return Held.of(null)',
       },
     ],
     tests: step5,

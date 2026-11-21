@@ -1,7 +1,8 @@
 /** `AbstractState.fits`, kept apart from the class: `this` is the state. */
 import { Option, Schema, SchemaAST } from 'effect'
 import * as Node from '../node.js'
-import { present, textChecksOf } from '../ops/kind.js'
+import { present } from '../ops/kind.js'
+import { textChecksOf } from '../ops/textChecks.js'
 import * as Str from '../ops/str.js'
 import * as Verdict from '../verdict.js'
 import { flat, isPrimitive, type FieldInfo, type FieldKind } from './fields.js'

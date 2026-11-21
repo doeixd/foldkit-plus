@@ -33,6 +33,7 @@ import * as Verdict from './verdict.js'
 export { checkProperties, type PropertyFailure, type PropertyReport } from './propertyChecks.js'
 export { checkFoldProperties } from './foldChecks.js'
 export { checkWriteProperties, type WriteReport } from './writeChecks.js'
+export { residualSettled, residualVerdict } from './residualJudge.js'
 
 /** `checkFoldProperties` of every fold, against what `foldProperties` declares of it. */
 export const checkAllFoldProperties = (): ReadonlyArray<PropertyReport> =>

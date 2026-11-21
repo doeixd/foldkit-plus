@@ -42,8 +42,8 @@ export default [
   },
   mutation(
     'eq text equality leaves a lone surrogate as it is',
-    '../src/ops/eq.ts',
-    "typeof value === 'string' ? Node.wellFormed(value) : value",
+    '../src/node.ts',
+    "typeof value === 'string' ? wellFormed(value) : value",
     'value',
   ),
   mutation(
@@ -60,8 +60,8 @@ export default [
   ),
   mutation(
     'a foreign call of another version than the implementation counts as implemented',
-    '../src/ops/residualize.ts',
-    'op => !Object.hasOwn(foreign, Node.foreignName(op)),',
-    'op => !Object.hasOwn(foreign, op.id),',
+    '../src/ops/judge.ts',
+    'Node.isForeign(op) && !Object.hasOwn(foreign, Node.foreignName(op))',
+    'Node.isForeign(op) && !Object.keys(foreign).some(name => name.startsWith(`${op.id}@`))',
   ),
 ]

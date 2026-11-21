@@ -1,0 +1,322 @@
+/**
+ * Kleene $K_3$ judgement over a partially known environment (`judgeNode`),
+ * and the value it settles a node to (`settleNode`), by evaluating with
+ * "not yet known" as one more value.
+ *
+ * It answers as partial evaluation does (`residualizeNode`): the same rules
+ * (`laws.ts`), the same reading of the environment (`partial.ts`), the same
+ * `Rows` (`partialRows.ts`). Where partial evaluation would keep part of the
+ * expression, this keeps only what its rules read of that part (a `Leftover`):
+ * its kind, whether it cannot be refused, whether it is a read or a call of
+ * one argument, what it reads, and whether it holds an opaque term or a
+ * foreign call no implementation was given for. So a page that judges held
+ * rows never builds the expression left over.
+ */
+import { Data, Option } from 'effect'
+import * as Node from '../node.js'
+import * as Path from '../path.js'
+import * as Verdict from '../verdict.js'
+import { applyForeign, ifArm, matchArm, type ForeignImplementations } from './eval.js'
+import {
+  admitted,
+  callCannotRefuse,
+  callKind,
+  cannotRefuse,
+  isPortableRead,
+  isPortableValue,
+  kindOf,
+  kindOfValue,
+} from './kind.js'
+import { nullBesideUnrefused, rewrite, type View } from './laws.js'
+import { lookupPartial } from './partial.js'
+import { partialRows } from './partialRows.js'
+import { readsOfRows } from './reads.js'
+
+type Reads = Option.Option<ReadonlyArray<ReadonlyArray<string>>>
+
+/**
+ * What partial evaluation would leave of a node, as far as a rule reads it.
+ * Anything else a judgement meets is a value: null and a `Refusal` among them.
+ */
+class Leftover {
+  constructor(
+    readonly kind: Option.Option<Node.ValueKind>,
+    readonly cannotRefuse: boolean,
+    /** What is left is this read. */
+    readonly path: Node.PathNode | undefined,
+    /** What is left is a call of this core operation on one argument, itself open. */
+    readonly unary: { readonly id: string; readonly arg: Leftover } | undefined,
+    /** What is left reads: none where an opaque term reads everything. */
+    readonly reads: Reads,
+    readonly opaque: boolean,
+    /** The first foreign call left, depth first, that no implementation was given for. */
+    readonly unsupported: Node.ForeignOp | undefined,
+  ) {}
+}
+
+const isLeftover = (judged: unknown): judged is Leftover => judged instanceof Leftover
+
+const readsOf = (judged: unknown): Reads => (isLeftover(judged) ? judged.reads : Option.some([]))
+
+/** What the parts left over read, together: none where one reads everything. */
+const readsTogether = (parts: ReadonlyArray<unknown>): Reads =>
+  Option.map(Option.all(parts.map(readsOf)), reads => reads.flat())
+
+const opaqueIn = (parts: ReadonlyArray<unknown>): boolean =>
+  parts.some(part => isLeftover(part) && part.opaque)
+
+const unsupportedIn = (parts: ReadonlyArray<unknown>): Node.ForeignOp | undefined =>
+  parts.reduce<Node.ForeignOp | undefined>(
+    (first, part) => first ?? (isLeftover(part) ? part.unsupported : undefined),
+    undefined,
+  )
+
+const kindOfJudged = (judged: unknown): Option.Option<Node.ValueKind> =>
+  isLeftover(judged) ? judged.kind : kindOfValue(judged)
+
+/**
+ * Two parts are the same term. Decided where a rule's answer turns on it:
+ * one read twice, or one call of one argument twice. Two other terms judged
+ * the same leave what the rules read as it was, so they are taken as two.
+ */
+const same = (left: unknown, right: unknown): boolean =>
+  isLeftover(left) &&
+  isLeftover(right) &&
+  (left.path !== undefined && right.path !== undefined
+    ? left.path.segments.length === right.path.segments.length &&
+      left.path.segments.every((segment, at) => segment === right.path!.segments[at])
+    : left.unary !== undefined &&
+      right.unary !== undefined &&
+      left.unary.id === right.unary.id &&
+      same(left.unary.arg, right.unary.arg))
+
+/** A part as the laws see it. */
+const view: View<unknown> = {
+  known: judged => (isLeftover(judged) ? Option.none() : Option.some(judged)),
+  kind: kindOfJudged,
+  cannotRefuse: judged => (isLeftover(judged) ? judged.cannotRefuse : admitted(judged)),
+  isRead: judged => isLeftover(judged) && judged.path !== undefined,
+  isPortableRead: judged =>
+    isLeftover(judged)
+      ? judged.path !== undefined && isPortableRead(judged.path)
+      : isPortableValue(judged),
+  unary: judged => (isLeftover(judged) ? judged.unary : undefined),
+  same,
+}
+
+/** A call left over, with its arguments judged. */
+const openCall = (
+  op: Node.AnyOp,
+  args: ReadonlyArray<unknown>,
+  foreign: ForeignImplementations,
+): Leftover => {
+  const [only] = args
+  return new Leftover(
+    callKind(op, args.map(kindOfJudged)),
+    callCannotRefuse(
+      op,
+      args.map(arg => [view.cannotRefuse(arg), kindOfJudged(arg)]),
+    ),
+    undefined,
+    !Node.isForeign(op) && args.length === 1 && isLeftover(only)
+      ? { id: op.id, arg: only }
+      : undefined,
+    readsTogether(args),
+    opaqueIn(args),
+    Node.isForeign(op) && !Object.hasOwn(foreign, Node.foreignName(op)) ? op : unsupportedIn(args),
+  )
+}
+
+/**
+ * A choice left over (`If`, `Match`). Its kind is not kept: what is left of
+ * a choice or of a `Rows` node is never a read and never shown unrefused, so
+ * no rule's answer turns on its kind (`lean-judge.mutations.ts`).
+ */
+const openChoice = (on: Leftover, arms: ReadonlyArray<unknown>): Leftover =>
+  new Leftover(
+    Option.none(),
+    false,
+    undefined,
+    undefined,
+    readsTogether([on, ...arms]),
+    opaqueIn([on, ...arms]),
+    unsupportedIn([on, ...arms]),
+  )
+
+const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): unknown =>
+  Node.$match(node, {
+    Lit: ({ value }) => value,
+    Path: path =>
+      Option.getOrElse(
+        lookupPartial(env, path.segments, path.ast),
+        () =>
+          new Leftover(
+            kindOf(path),
+            cannotRefuse(path),
+            path,
+            undefined,
+            Option.some([path.segments]),
+            false,
+            undefined,
+          ),
+      ),
+    Call: ({ op, args }) => {
+      const judged = args.map(arg => judge(arg, env, foreign))
+      if (nullBesideUnrefused(view, op, judged)) return null
+      const known = !judged.some(isLeftover)
+      if (Node.isForeign(op)) {
+        return known && Object.hasOwn(foreign, Node.foreignName(op))
+          ? applyForeign(op, judged, foreign)
+          : openCall(op, judged, foreign)
+      }
+      if (known) return Node.apply(op, judged)
+      return Option.match(rewrite(view, op, judged), {
+        onNone: () => openCall(op, judged, foreign),
+        onSome: made =>
+          'value' in made
+            ? made.value
+            : 'call' in made
+              ? openCall(made.call, [made.operand, made.literal], foreign)
+              : made.operand,
+      })
+    },
+    If: branch => {
+      const cond = judge(branch.cond, env, foreign)
+      if (!isLeftover(cond)) {
+        const taken = ifArm(branch, cond === undefined ? null : cond)
+        return 'arm' in taken ? judge(taken.arm, env, foreign) : taken.value
+      }
+      return openChoice(cond, [
+        judge(branch.then, env, foreign),
+        judge(branch.otherwise, env, foreign),
+      ])
+    },
+    Match: match => {
+      const on = judge(match.on, env, foreign)
+      if (!isLeftover(on)) {
+        const taken = matchArm(match, on === undefined ? null : on)
+        return 'arm' in taken ? judge(taken.arm, env, foreign) : taken.value
+      }
+      return openChoice(
+        on,
+        [...match.cases.map(([, arm]) => arm), ...Option.toArray(match.otherwise)].map(arm =>
+          judge(arm, env, foreign),
+        ),
+      )
+    },
+    Opaque: opaque =>
+      Option.isSome(opaque.reads) &&
+      opaque.reads.value.every(segments =>
+        Option.isSome(lookupPartial(env, segments, Option.none())),
+      )
+        ? opaque.run(env)
+        : new Leftover(Option.none(), false, undefined, undefined, opaque.reads, true, undefined),
+    Rows: rows =>
+      partialRows(
+        rows,
+        env,
+        {
+          judge: (inner, at) => judge(inner, at, foreign),
+          known: view.known,
+          value: value => value,
+          kept: (kept, source, outer) => {
+            const body = Node.rowsBody(kept).map(each => judge(each, outer, foreign))
+            return new Leftover(
+              Option.none(),
+              false,
+              undefined,
+              undefined,
+              Option.map(Option.all([readsOf(source), readsTogether(body)]), ([from, read]) =>
+                readsOfRows(kept.over, from, read),
+              ),
+              opaqueIn([source, ...body]),
+              unsupportedIn([source, ...body]),
+            )
+          },
+        },
+        segments => lookupPartial(env, segments, Option.none(), true),
+      ),
+  })
+
+/**
+ * What a partly known environment settles a node to: its value (null or a
+ * `Node.Refusal` among them), or, where it rests on what the environment
+ * lacks, why it is open and what the rest of it reads.
+ */
+export type Settled = Data.TaggedEnum<{
+  Known: { readonly value: unknown }
+  Open: {
+    /** Each path what is left reads, once; none where an opaque term reads everything. */
+    readonly reads: Reads
+    /** Why it is open: an `Unknown` verdict, as `judgeNode` gives it. */
+    readonly verdict: Verdict.Verdict<never>
+  }
+}>
+
+export const Settled = Data.taggedEnum<Settled>()
+
+const once = (reads: Reads): Reads =>
+  Option.map(reads, paths => [
+    ...new Map(paths.map(segments => [JSON.stringify(segments), segments])).values(),
+  ])
+
+/**
+ * Settle `node` against `partialEnv`. A foreign call over known arguments
+ * runs the implementation `foreign` gives, and is open where it gives none.
+ */
+export const settleNode = (
+  node: Node.Node,
+  partialEnv: unknown,
+  foreign: ForeignImplementations = {},
+): Settled => {
+  const judged = judge(node, partialEnv, foreign)
+  if (!isLeftover(judged)) return Settled.Known({ value: judged })
+  const reads = once(judged.reads)
+  const unsupported = judged.unsupported
+  const verdict = judged.opaque
+    ? Verdict.Unknown<never>(
+        'residual contains opaque term',
+        Option.some({ kind: 'opaque', detail: 'residual contains an opaque function' }),
+      )
+    : unsupported !== undefined
+      ? Verdict.Unknown<never>(
+          `no implementation of ${Node.foreignName(unsupported)}`,
+          Option.some({ kind: 'unsupported', detail: Node.foreignName(unsupported) }),
+        )
+      : missing(reads)
+  return Settled.Open({ reads, verdict })
+}
+
+const missing = (reads: Reads): Verdict.Verdict<never> => {
+  const detail = Option.match(reads, {
+    onNone: () => 'unknown environment reads',
+    onSome: paths => paths.map(Path.format).join(', '),
+  })
+  return Verdict.Unknown(
+    `missing environment: ${detail}`,
+    Option.some({ kind: 'missing-env', detail }),
+  )
+}
+
+/**
+ * Judge a boolean `Node` against `partialEnv`, as a Kleene $K_3$ `Verdict`:
+ * `True` where it is known to hold, `False` where it is known not to (a known
+ * null does not hold), `Unknown` where the environment or the evaluator
+ * leaves it open, a refusal among them.
+ */
+export const judgeNode = (
+  node: Node.Node,
+  partialEnv: unknown,
+  foreign: ForeignImplementations = {},
+): Verdict.Verdict<never> =>
+  Settled.$match(settleNode(node, partialEnv, foreign), {
+    Known: ({ value }) => {
+      if (value === true) return Verdict.True(Option.some(Verdict.Proved('concrete')))
+      if (!Node.isRefusal(value)) return Verdict.False<never>()
+      return Verdict.Unknown(
+        `evaluation refused: ${value.message}`,
+        Option.some({ kind: 'refused', detail: value.message }),
+      )
+    },
+    Open: ({ verdict }) => verdict,
+  })

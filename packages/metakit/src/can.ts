@@ -8,7 +8,7 @@
 import { Option } from 'effect'
 import type * as Expr from './expr.js'
 import type { InputOf, Machine } from './machine.js'
-import { judgeNode } from './ops/residualize.js'
+import { judgeNode } from './ops/judge.js'
 import type { Transition, TransitionEnv } from './transition.js'
 import * as Verdict from './verdict.js'
 

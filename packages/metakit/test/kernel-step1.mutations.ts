@@ -7,7 +7,7 @@ const properties = '../src/properties.ts'
 const propertyChecks = '../src/propertyChecks.ts'
 const interval = '../src/abstract/interval.ts'
 const abstractOps = '../src/abstract/ops.ts'
-const residualize = '../src/ops/residualize.ts'
+const laws = '../src/ops/laws.ts'
 
 const propertyTests = ['packages/metakit/test/properties.test.ts']
 
@@ -24,8 +24,8 @@ const table = [
     propertyTests,
     'subtraction is declared commutative',
     properties,
-    "'num.sub': { identity: { value: 0, side: 'right' }, monotone: ['up', 'down'] },",
-    "'num.sub': { identity: { value: 0, side: 'right' }, monotone: ['up', 'down'], commutative: true },",
+    "'num.sub': { monotone: ['up', 'down'] },",
+    "'num.sub': { monotone: ['up', 'down'], commutative: true },",
   ),
   mutation(
     propertyTests,
@@ -44,7 +44,7 @@ const table = [
   mutation(
     propertyTests,
     'or declares false absorbing',
-    properties,
+    laws,
     "absorbing: { value: true, result: true, side: 'both', unlessRefused: true },",
     "absorbing: { value: false, result: false, side: 'both', unlessRefused: true },",
   ),
@@ -106,7 +106,7 @@ const readers = [
   mutation(
     propertyTests,
     'partial evaluation reads no identity',
-    residualize,
+    laws,
     'if (laws.identity !== undefined) {',
     'if (laws.identity === undefined) {',
   ),
@@ -238,7 +238,7 @@ const operations = [
   mutation(
     opsTests,
     'partial evaluation asks coalesce for an operand of one kind',
-    '../src/ops/residualize.ts',
+    laws,
     "op.returns === 'operand' ||",
     '',
   ),
@@ -313,9 +313,9 @@ const foreign = [
   mutation(
     foreignTests,
     'judge answers of a foreign call it holds no implementation of as missing environment',
-    '../src/ops/residualize.ts',
-    'const unimplemented = foreignCalls(residual).find(\n    op => !Object.hasOwn(foreign, Node.foreignName(op)),\n  )',
-    'const unimplemented = foreignCalls(residual).find(() => false)',
+    '../src/ops/judge.ts',
+    'Node.isForeign(op) && !Object.hasOwn(foreign, Node.foreignName(op)) ? op : unsupportedIn(args),',
+    'unsupportedIn(args),',
   ),
   mutation(
     foreignTests,
@@ -407,7 +407,7 @@ const options = [
   mutation(
     optionTests,
     'partial evaluation takes a read through a none as unknown',
-    '../src/ops/residualize.ts',
+    '../src/ops/partial.ts',
     'if (current === null) return Option.some(null)',
     'if (current === null) return Option.none()',
   ),

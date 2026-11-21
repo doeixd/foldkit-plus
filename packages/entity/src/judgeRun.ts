@@ -1,14 +1,14 @@
 /**
  * How every judge in memory runs an expression: it is translated to metakit
  * nodes (`lower.ts`) once per declaration, an environment is built from the
- * rows the judge holds (`lowerEnv.ts`), and metakit's partial evaluation
- * answers. A value is SQL's (null among them); what rests on something the
- * holder lacks is unheld; a refusal is thrown as a `QueryEvaluateError`
- * carrying it.
+ * rows the judge holds (`lowerEnv.ts`), and metakit's three-valued judgement
+ * answers (`settleNode`). A value is SQL's (null among them); what rests on
+ * something the holder lacks is unheld; a refusal is thrown as a
+ * `QueryEvaluateError` carrying it.
  */
 import { Option } from 'effect'
 import { Node, Verdict } from 'metakit'
-import { judgeNode, readsOfNode, residualizeNode, type ForeignImplementations } from 'metakit/build'
+import { Settled, settleNode, type ForeignImplementations } from 'metakit/build'
 import { now, viewer, type ExprContext } from './context.js'
 import { dependenciesOf, type OneRelation, type Operandish } from './expr.js'
 import { Held, type HeldRow, type HeldRows } from './held.js'
@@ -112,6 +112,8 @@ const reasonOf = (verdict: Verdict.Verdict<never>): string =>
     Unknown: ({ reason }) => reason,
   })
 
+type Reads = Option.Option<ReadonlyArray<ReadonlyArray<string>>>
+
 /**
  * Each node of `lowering` over one row: its value, or why the holder cannot
  * say. A refusal is thrown, carried by a `QueryEvaluateError`.
@@ -135,22 +137,25 @@ export const run = (lowering: Lowering, over: Over): ReadonlyArray<Held<unknown>
     unheld: (segments, reason) => left.push([segments, reason]),
   })
   const foreign: ForeignImplementations = foreignOf(lowered, over.operators)
-  // The holder's own word for a value the residual still reads, else metakit's.
-  const reasonFor = (residual: Node.Node): string =>
+  // The holder's own word for a value what is left still reads, else metakit's.
+  const reasonFor = (reads: Reads, verdict: Verdict.Verdict<never>): string =>
     Option.getOrElse(
-      Option.flatMap(readsOfNode(residual), reads =>
+      Option.flatMap(reads, paths =>
         Option.fromUndefinedOr(
           left.find(([segments]) =>
-            reads.some(read => segments.every((segment, at) => read[at] === segment)),
+            paths.some(read => segments.every((segment, at) => read[at] === segment)),
           )?.[1],
         ),
       ),
-      () => reasonOf(judgeNode(residual, env, foreign)),
+      () => reasonOf(verdict),
     )
-  return lowered.nodes.map(node => {
-    const residual = residualizeNode(node, env, foreign)
-    if (!Node.$is('Lit')(residual)) return Held.unheld(reasonFor(residual))
-    if (Node.isRefusal(residual.value)) throw refusedBy(residual.value)
-    return Held.of(residual.value)
-  })
+  return lowered.nodes.map(node =>
+    Settled.$match(settleNode(node, env, foreign), {
+      Known: ({ value }) => {
+        if (Node.isRefusal(value)) throw refusedBy(value)
+        return Held.of(value)
+      },
+      Open: ({ reads, verdict }) => Held.unheld(reasonFor(reads, verdict)),
+    }),
+  )
 }

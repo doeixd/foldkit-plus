@@ -10,7 +10,8 @@ import { optionInner } from '../path.js'
 
 const FINITE: ReadonlySet<string> = new Set(['effect/schema/isInt', 'effect/schema/isFinite'])
 
-const declares = (
+/** Whether one of `checks`, or a check grouped in one, is one of `ids`. */
+export const declares = (
   checks: ReadonlyArray<SchemaAST.Check<unknown>> | undefined,
   ids: ReadonlySet<string>,
 ): boolean =>
@@ -34,9 +35,16 @@ export const present = (ast: SchemaAST.AST): ReadonlyArray<SchemaAST.AST> => {
 export const isFiniteNumber = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isNumber(ast) && declares(ast.checks, FINITE)
 
-/** A number Schema that admits only safe integers (`Schema.Int`). */
-export const isInteger = (ast: SchemaAST.AST): boolean =>
-  SchemaAST.isNumber(ast) && declares(ast.checks, new Set(['effect/schema/isInt']))
+/** A check that refuses text holding a NUL: the one `Text.schema` makes, by its annotation. */
+export const declaresNoNul = (check: SchemaAST.Check<unknown>): boolean => {
+  const domain: unknown = check.annotations?.[DOMAIN_ANNOTATION_KEY]
+  return Predicate.hasProperty(domain, 'kind') && domain.kind === 'text'
+}
+
+const refusesNul = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): boolean =>
+  checks.some(check =>
+    check._tag === 'FilterGroup' ? refusesNul(check.checks) : declaresNoNul(check),
+  )
 
 /**
  * Text `Text.schema` from `metakit/domain` describes, refinements after it
@@ -44,55 +52,7 @@ export const isInteger = (ast: SchemaAST.AST): boolean =>
  * that refuses one (an annotation on the Schema alone refuses nothing).
  */
 export const isText = (ast: SchemaAST.AST): boolean =>
-  SchemaAST.isString(ast) && textChecksOf(ast).nulFree
-
-/**
- * What the checks on a string Schema ask of a value: a length in UTF-16
- * units at least `minLength` and at most `maxLength`, no NUL (`Text.schema`),
- * and `modelled` false where a check asks anything else (a pattern, a trim),
- * which a reader cannot show a value meets.
- */
-export interface TextChecks {
-  readonly minLength: number
-  readonly maxLength: number
-  readonly nulFree: boolean
-  readonly modelled: boolean
-}
-
-export const textChecksOf = (ast: SchemaAST.AST): TextChecks => {
-  let [minLength, maxLength, nulFree, modelled] = [0, Infinity, false, true]
-  const read = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): void => {
-    for (const check of checks) {
-      if (check._tag === 'FilterGroup') {
-        read(check.checks)
-        continue
-      }
-      const domain: unknown = check.annotations?.[DOMAIN_ANNOTATION_KEY]
-      const representation = check.annotations?.representation
-      const payload: Readonly<Record<string, unknown>> = Predicate.isObject(representation?.payload)
-        ? representation.payload
-        : {}
-      const bound = (name: string): number | undefined =>
-        typeof payload[name] === 'number' ? payload[name] : undefined
-      const id = representation?.id
-      const [min, max] =
-        id === 'effect/schema/isMinLength'
-          ? [bound('minLength'), undefined]
-          : id === 'effect/schema/isMaxLength'
-            ? [undefined, bound('maxLength')]
-            : id === 'effect/schema/isBetweenLength'
-              ? [bound('minimum'), bound('maximum')]
-              : [undefined, undefined]
-      if (Predicate.hasProperty(domain, 'kind') && domain.kind === 'text') nulFree = true
-      else if (min !== undefined || max !== undefined) {
-        minLength = Math.max(minLength, min ?? 0)
-        maxLength = Math.min(maxLength, max ?? Infinity)
-      } else modelled = false
-    }
-  }
-  read(ast.checks ?? [])
-  return { minLength, maxLength, nulFree, modelled }
-}
+  SchemaAST.isString(ast) && refusesNul(ast.checks ?? [])
 
 /** A value of `ast` is never text holding a NUL character. */
 const holdsNoNulText = (ast: SchemaAST.AST): boolean =>
@@ -111,12 +71,16 @@ const holdsNoNulText = (ast: SchemaAST.AST): boolean =>
  * evaluation reads, which no text or equality operation refuses for it.
  */
 export const isPortableRead = (node: Node.Node): boolean => {
-  if (Node.$is('Lit')(node)) return !Node.isRefusal(node.value) && !Node.holdsNul([node.value])
+  if (Node.$is('Lit')(node)) return isPortableValue(node.value)
   return Node.$is('Path')(node) && Option.isSome(node.ast) && holdsNoNulText(node.ast.value)
 }
 
+/** A literal `isPortableRead` takes: not a refusal, and no text holding a NUL. */
+export const isPortableValue = (value: unknown): boolean =>
+  !Node.isRefusal(value) && !Node.holdsNul([value])
+
 /** A value no operation refuses for itself: not a refusal, no text holding a NUL, no NaN or infinity. */
-const admitted = (value: unknown): boolean => {
+export const admitted = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.every(admitted)
   if (typeof value === 'number') return Number.isFinite(value)
   return !Node.isRefusal(value) && !Node.holdsNul([value])
@@ -177,20 +141,33 @@ export const cannotRefuse = (node: Node.Node): boolean =>
   Node.$match(node, {
     Lit: ({ value }) => admitted(value),
     Path: ({ ast }) => Option.exists(ast, admitsNoRefusable),
-    Call: ({ op, args }) => {
-      if (Node.isForeign(op) || !refusesOperandsOnly.has(op.id)) return false
-      const kind = operandKinds[op.id]
-      return args.every(
-        arg =>
-          cannotRefuse(arg) &&
-          (kind === undefined || Option.exists(kindOf(arg), each => each === kind)),
-      )
-    },
+    Call: ({ op, args }) =>
+      callCannotRefuse(
+        op,
+        args.map(arg => [cannotRefuse(arg), kindOf(arg)]),
+      ),
     If: () => false,
     Match: () => false,
     Opaque: () => false,
     Rows: () => false,
   })
+
+/**
+ * `cannotRefuse` of a call, from whether each operand cannot be refused and
+ * its kind: a core operation that refuses only for its operands' values,
+ * over operands of its kind that cannot be refused.
+ */
+export const callCannotRefuse = (
+  op: Node.AnyOp,
+  operands: ReadonlyArray<readonly [cannotRefuse: boolean, kind: Option.Option<Node.ValueKind>]>,
+): boolean => {
+  if (Node.isForeign(op) || !refusesOperandsOnly.has(op.id)) return false
+  const kind = operandKinds[op.id]
+  return operands.every(
+    ([unrefused, each]) =>
+      unrefused && (kind === undefined || Option.exists(each, operand => operand === kind)),
+  )
+}
 
 const kindOfAst = (ast: SchemaAST.AST): Option.Option<Node.ValueKind> => {
   const members = present(ast)
@@ -201,8 +178,10 @@ const kindOfAst = (ast: SchemaAST.AST): Option.Option<Node.ValueKind> => {
   return SchemaAST.isBoolean(only) ? Option.some('boolean') : Option.none()
 }
 
-const sameKind = (nodes: ReadonlyArray<Node.Node>): Option.Option<Node.ValueKind> => {
-  const kinds = nodes.map(kindOf)
+/** The one kind all of `kinds` are, where each is known and they agree. */
+const sameKind = (
+  kinds: ReadonlyArray<Option.Option<Node.ValueKind>>,
+): Option.Option<Node.ValueKind> => {
   const first = kinds[0] ?? Option.none()
   return kinds.every(
     kind => Option.isSome(kind) && Option.isSome(first) && kind.value === first.value,
@@ -211,19 +190,29 @@ const sameKind = (nodes: ReadonlyArray<Node.Node>): Option.Option<Node.ValueKind
     : Option.none()
 }
 
+/** The kind of a value: a finite number, text or a boolean. */
+export const kindOfValue = (value: unknown): Option.Option<Node.ValueKind> => {
+  if (typeof value === 'number' && Number.isFinite(value)) return Option.some('number')
+  if (typeof value === 'string') return Option.some('text')
+  return typeof value === 'boolean' ? Option.some('boolean') : Option.none()
+}
+
+/** The kind of a call's value, from its operands' kinds. */
+export const callKind = (
+  op: Node.AnyOp,
+  operands: ReadonlyArray<Option.Option<Node.ValueKind>>,
+): Option.Option<Node.ValueKind> =>
+  op.returns === 'operand' ? sameKind(operands) : Option.some(op.returns)
+
 /** The kind of `node`'s value where it is neither null nor refused; none when unknown. */
 export const kindOf = (node: Node.Node): Option.Option<Node.ValueKind> =>
   Node.$match(node, {
-    Lit: ({ value }) => {
-      if (typeof value === 'number' && Number.isFinite(value)) return Option.some('number' as const)
-      if (typeof value === 'string') return Option.some('text' as const)
-      return typeof value === 'boolean' ? Option.some('boolean' as const) : Option.none()
-    },
+    Lit: ({ value }) => kindOfValue(value),
     Path: ({ ast }) => Option.flatMap(ast, kindOfAst),
-    Call: ({ op, args }) => (op.returns === 'operand' ? sameKind(args) : Option.some(op.returns)),
-    If: ({ then, otherwise }) => sameKind([then, otherwise]),
+    Call: ({ op, args }) => callKind(op, args.map(kindOf)),
+    If: ({ then, otherwise }) => sameKind([then, otherwise].map(kindOf)),
     Match: ({ cases, otherwise }) =>
-      sameKind([...cases.map(([, arm]) => arm), ...Option.toArray(otherwise)]),
+      sameKind([...cases.map(([, arm]) => arm), ...Option.toArray(otherwise)].map(kindOf)),
     Opaque: () => Option.none(),
     Rows: ({ fold }) => {
       if (fold === 'any' || fold === 'every') return Option.some('boolean' as const)

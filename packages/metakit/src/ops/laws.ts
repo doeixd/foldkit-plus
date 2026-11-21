@@ -1,0 +1,225 @@
+/**
+ * The rewrite rules partial evaluation applies to a call some of whose
+ * operands are not yet known, as data and one function over them, read by
+ * both readers of a partly known environment: `residualizeNode`, which keeps
+ * the expression left over, and `judgeNode`, which keeps only what it
+ * decides. Each reader shows its operands through a `View`, so a rule is
+ * written once and means one thing to both.
+ *
+ * Only the fields evaluation reads are here; the checker's (`commutative`,
+ * `associative`, `invertible`, `monotone`) and the ways of writing are in
+ * `properties.ts`, which joins both into `opProperties`.
+ */
+import { Option } from 'effect'
+import * as Node from '../node.js'
+import type { Direction, OpProperties } from '../properties.js'
+import { equalsOp, isOp } from './eq.js'
+
+/** The properties partial evaluation reads of an operation. */
+export type OpLaws = Pick<
+  OpProperties,
+  'identity' | 'absorbing' | 'idempotent' | 'reflexive' | 'involution'
+>
+
+export const opLaws: { readonly [Id in Node.CoreOpId]: OpLaws } = {
+  'bool.and': {
+    identity: { value: true, side: 'both' },
+    absorbing: { value: false, result: false, side: 'both', unlessRefused: true },
+    idempotent: true,
+  },
+  'bool.or': {
+    identity: { value: false, side: 'both' },
+    absorbing: { value: true, result: true, side: 'both', unlessRefused: true },
+    idempotent: true,
+  },
+  'bool.not': { involution: true },
+  'eq.is': { reflexive: { value: true } },
+  'eq.isNot': { reflexive: { value: false } },
+  'eq.in': {},
+  'eq.equals': {},
+  'eq.among': {},
+  'null.isNull': {},
+  'null.coalesce': { identity: { value: null, side: 'both' }, idempotent: true },
+  'str.lowerAscii': { idempotent: true },
+  'str.trim': { idempotent: true },
+  'str.lt': {},
+  'str.lte': {},
+  'str.gt': {},
+  'str.gte': {},
+  'ord.lt': {},
+  'ord.lte': {},
+  'ord.gt': {},
+  'ord.gte': {},
+  'num.add': { identity: { value: 0, side: 'both' } },
+  // No `x - x -> 0` and no `x * 0 -> 0`: over a null `x` each is null.
+  'num.sub': { identity: { value: 0, side: 'right' } },
+  'num.mul': { identity: { value: 1, side: 'both' } },
+  'num.neg': { involution: true },
+  'str.len': {},
+  'str.startsWith': {},
+  'str.contains': {},
+  'arr.count': {},
+  'arr.isEmpty': {},
+  'arr.append': {},
+  'arr.include': {},
+  'arr.exclude': {},
+}
+
+/** What partial evaluation reads of `any` and `every`: the answer that decides each. */
+export interface FoldLaws {
+  /** One element whose test gives `value` decides the answer, `result`, whatever the others give. */
+  readonly absorbing?: { readonly value: boolean; readonly result: unknown }
+  /** More elements never give a smaller answer (`up`), or never a larger one (`down`), where neither is refused. */
+  readonly monotone: Direction
+}
+
+/**
+ * `any` and `every` take the value that decides them from `bool.or` and
+ * `bool.and`. A fold decides over an element whose test was refused
+ * (`rows.ts`), so it absorbs over every value, where the operation absorbs
+ * only over values that are not refused.
+ */
+const decided = (from: 'bool.or' | 'bool.and', monotone: Direction): FoldLaws => {
+  const absorbing = opLaws[from].absorbing
+  return {
+    ...(absorbing === undefined
+      ? {}
+      : { absorbing: { value: absorbing.value === true, result: absorbing.result } }),
+    monotone,
+  }
+}
+
+export const foldLaws: { readonly any: FoldLaws; readonly every: FoldLaws } = {
+  any: decided('bool.or', 'up'),
+  every: decided('bool.and', 'down'),
+}
+
+/**
+ * What a reader shows of an operand it has partly evaluated: the value it is
+ * known to hold, and what its residual would be: its kind, whether it cannot
+ * be refused (`cannotRefuse`), whether it is a read, a read holding no NUL
+ * text (`isPortableRead`), a call of one argument, or the same term as
+ * another.
+ */
+export interface View<T> {
+  readonly known: (operand: T) => Option.Option<unknown>
+  readonly kind: (operand: T) => Option.Option<Node.ValueKind>
+  readonly cannotRefuse: (operand: T) => boolean
+  readonly isRead: (operand: T) => boolean
+  readonly isPortableRead: (operand: T) => boolean
+  readonly unary: (operand: T) => { readonly id: string; readonly arg: T } | undefined
+  readonly same: (left: T, right: T) => boolean
+}
+
+/** What a rule makes of a call: a value, one of its operands (or an operand's own), or a call of another operation over the operand and a literal. */
+export type Rewrite<T> =
+  | { readonly value: unknown }
+  | { readonly operand: T }
+  | { readonly call: Node.Op; readonly operand: T; readonly literal: unknown }
+
+/**
+ * Whether a strict call is null whatever its operands not yet known hold: one
+ * is a known null, and every other cannot be refused nor give a value the
+ * operation refuses before null (`cannotRefuse`), as its Schema or its form
+ * says.
+ */
+export const nullBesideUnrefused = <T>(
+  view: View<T>,
+  op: Node.AnyOp,
+  args: ReadonlyArray<T>,
+): boolean => {
+  // A foreign call with no implementation is refused before its null rule.
+  if (Node.isForeign(op) || op.nulls !== 'strict') return false
+  const known = args.map(view.known)
+  if (known.every(Option.isSome)) return false
+  const isNull = (index: number): boolean => Option.exists(known[index]!, value => value === null)
+  return (
+    args.some((_, index) => isNull(index)) &&
+    args.every((arg, index) => isNull(index) || view.cannotRefuse(arg))
+  )
+}
+
+/**
+ * The size-reducing rewrite of a core call some of whose operands are not
+ * known, from the operation's row of `opLaws`, then its fold over a known list
+ * of candidates (`eq.in`, `eq.among`). A law that returns an operand holds
+ * only where the operand is what the operation would have returned: `x + 0`
+ * over text is refused, `x` is not.
+ */
+export const rewrite = <T>(
+  view: View<T>,
+  op: Node.Op,
+  args: ReadonlyArray<T>,
+): Option.Option<Rewrite<T>> => {
+  const laws = opLaws[op.id]
+  const ofKind = (operand: T): boolean =>
+    op.returns === 'operand' || Option.exists(view.kind(operand), kind => kind === op.returns)
+  const isLit = (operand: T, expected: unknown): boolean =>
+    Option.exists(
+      view.known(operand),
+      value => Object.is(value, expected) || (value === 0 && expected === 0),
+    )
+
+  if (args.length === 1) {
+    const inner = view.unary(args[0]!)
+    const again = inner !== undefined && inner.id === op.id
+    if (again && laws.idempotent === true) return Option.some({ operand: args[0]! })
+    if (again && laws.involution === true && ofKind(inner.arg)) {
+      return Option.some({ operand: inner.arg })
+    }
+  }
+
+  if (args.length === 2) {
+    const left = args[0]!
+    const right = args[1]!
+
+    if (laws.absorbing !== undefined) {
+      const { value, result, side, unlessRefused } = laws.absorbing
+      // A refusal is not absorbed: the operand dropped must be one that cannot be refused.
+      const drops = (operand: T): boolean => unlessRefused !== true || view.cannotRefuse(operand)
+      if ((side === 'left' || side === 'both') && isLit(left, value) && drops(right)) {
+        return Option.some({ value: result })
+      }
+      if ((side === 'right' || side === 'both') && isLit(right, value) && drops(left)) {
+        return Option.some({ value: result })
+      }
+    }
+
+    if (laws.identity !== undefined) {
+      const { value, side } = laws.identity
+      if ((side === 'left' || side === 'both') && isLit(left, value) && ofKind(right)) {
+        return Option.some({ operand: right })
+      }
+      if ((side === 'right' || side === 'both') && isLit(right, value) && ofKind(left)) {
+        return Option.some({ operand: left })
+      }
+    }
+
+    const same = view.same(left, right)
+    if (laws.idempotent === true && same && ofKind(left)) return Option.some({ operand: left })
+    if (laws.reflexive !== undefined && same && view.isPortableRead(left)) {
+      return Option.some({ value: laws.reflexive.value })
+    }
+
+    const candidates = Option.filter(view.known(right), Array.isArray)
+    if (Option.isSome(candidates) && (op.id === 'eq.in' || op.id === 'eq.among')) {
+      const list = candidates.value
+      if (op.id === 'eq.in') {
+        // A refused needle is refused, not false: only a read of no NUL text is known not to be.
+        if (list.length === 0 && view.isPortableRead(left)) return Option.some({ value: false })
+        if (list.length === 1) return Option.some({ call: isOp, operand: left, literal: list[0] })
+      } else {
+        // A value that is not refused is among no candidate.
+        if (list.length === 0 && (view.isRead(left) || view.cannotRefuse(left))) {
+          return Option.some({ value: false })
+        }
+        const [only] = list
+        if (list.length === 1 && only !== null && only !== undefined) {
+          return Option.some({ call: equalsOp, operand: left, literal: only })
+        }
+      }
+    }
+  }
+
+  return Option.none()
+}

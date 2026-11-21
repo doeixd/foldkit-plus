@@ -51,29 +51,42 @@ export const readsOfNode = (
         for (const segments of reads.value) read(segments)
       },
       Rows: rows => {
-        // Where the elements are: the list's own reads, or the slot under the row they point at.
-        const bases: Array<ReadonlyArray<string>> = []
-        visit(Node.rowsSource(rows.over), segments =>
-          bases.push(
-            Node.RowsOver.$match(rows.over, {
-              List: () => segments,
-              Related: ({ relation }) => [...segments, Node.relatedSegment(relation)],
-            }),
-          ),
-        )
-        let readsElements = false
-        for (const body of Node.rowsBody(rows)) {
-          visit(body, segments => {
-            if (!Node.readsEach(segments)) return read(segments)
-            readsElements = true
-            for (const base of bases) read([...base, '*', ...segments.slice(1)])
-          })
-        }
-        if (!readsElements) for (const base of bases) read(base)
+        const source: Array<ReadonlyArray<string>> = []
+        visit(Node.rowsSource(rows.over), segments => source.push(segments))
+        const body: Array<ReadonlyArray<string>> = []
+        for (const each of Node.rowsBody(rows)) visit(each, segments => body.push(segments))
+        for (const segments of readsOfRows(rows.over, source, body)) read(segments)
       },
     })
   }
 
   visit(node, add)
   return unbounded ? Option.none() : Option.some(Array.from(seen.values()))
+}
+
+/**
+ * What a `Rows` node reads, from what its source and its body read: a body's
+ * read of its element is a read of every element, under each place the
+ * elements are (the list's own reads, or the slot under the row they point
+ * at); a body that reads nothing of its element still reads those places.
+ */
+export const readsOfRows = (
+  over: Node.RowsOver,
+  source: ReadonlyArray<ReadonlyArray<string>>,
+  body: ReadonlyArray<ReadonlyArray<string>>,
+): ReadonlyArray<ReadonlyArray<string>> => {
+  const bases = source.map(segments =>
+    Node.RowsOver.$match(over, {
+      List: () => segments,
+      Related: ({ relation }) => [...segments, Node.relatedSegment(relation)],
+    }),
+  )
+  return [
+    ...body.flatMap(segments =>
+      Node.readsEach(segments)
+        ? bases.map(base => [...base, '*', ...segments.slice(1)])
+        : [segments],
+    ),
+    ...(body.some(Node.readsEach) ? [] : bases),
+  ]
 }

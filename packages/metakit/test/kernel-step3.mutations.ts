@@ -7,7 +7,7 @@
 const commutes = '../src/transitionCommutes.ts'
 const rows = '../src/ops/rows.ts'
 const evaluate = '../src/ops/eval.ts'
-const residual = '../src/ops/residualizeRows.ts'
+const residual = '../src/ops/partialRows.ts'
 const reads = '../src/ops/reads.ts'
 const lowering = '../src/sqlLowering.ts'
 const render = '../src/sqlRender.ts'
@@ -154,15 +154,15 @@ export default [
     rowsTests,
     'judge decides nothing early, from a held answer',
     residual,
-    "tests.some(test => Node.$is('Lit')(test) && passing(test.value) === value)",
+    'tests.some(test => Option.exists(known(test), answer => passing(answer) === value))',
     'false',
   ),
   mutation(
     rowsTests,
     'judge takes some related rows for all of them',
     residual,
-    'const decisive = whole',
-    'const decisive = true',
+    'if (whole && answers.every(each => Option.isSome(reader.known(each)))) {',
+    'if (answers.every(each => Option.isSome(reader.known(each)))) {',
   ),
 
   // What a fold reads.
@@ -170,8 +170,8 @@ export default [
     rowsTests,
     'a body’s read of its element reads the list, not each element',
     reads,
-    "for (const base of bases) read([...base, '*', ...segments.slice(1)])",
-    'for (const base of bases) read(base)',
+    "? bases.map(base => [...base, '*', ...segments.slice(1)])",
+    '? bases',
   ),
   mutation(
     rowsTests,

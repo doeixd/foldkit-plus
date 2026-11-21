@@ -7,9 +7,11 @@
  * its node, and `call` builds a call of a core or foreign operator.
  * `evalNode`, `residualizeNode`, `judgeNode` and `readsOfNode` are the
  * readers `Expr.evaluate`, `Expr.residualize`, `Expr.judge` and `Expr.reads`
- * run, over a node.
+ * run, over a node; `settleNode` is the value `judgeNode` decides from, for a
+ * node that is not a predicate.
  */
 export { call, isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
 export { evalNode, type ForeignImplementation, type ForeignImplementations } from './ops/eval.js'
+export { judgeNode, settleNode, Settled } from './ops/judge.js'
 export { readsOfNode } from './ops/reads.js'
-export { judgeNode, residualizeNode } from './ops/residualize.js'
+export { residualizeNode } from './ops/residualize.js'

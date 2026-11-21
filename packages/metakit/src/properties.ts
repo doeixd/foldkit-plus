@@ -17,8 +17,14 @@
  *   deltas only over the domain where `sum` is commutative, associative and
  *   invertible, and starts it at `identity`;
  * - of a way of writing, `Transition.commutes` reads `commutes`.
+ *
+ * What partial evaluation reads is declared in `ops/laws.ts`, which a page
+ * that judges carries; this module adds the rest, which only the checker,
+ * `metakit/aggregates` and transitions read.
  */
+import { Record } from 'effect'
 import type * as Node from './node.js'
+import { foldLaws, opLaws } from './ops/laws.js'
 
 /** Which argument a value stands in: the first, the second, or either. */
 export type Side = 'left' | 'right' | 'both'
@@ -69,55 +75,27 @@ export interface OpProperties {
   readonly involution?: true
 }
 
-export const opProperties: { readonly [Id in Node.CoreOpId]: OpProperties } = {
-  'bool.and': {
-    identity: { value: true, side: 'both' },
-    absorbing: { value: false, result: false, side: 'both', unlessRefused: true },
-    idempotent: true,
-  },
-  'bool.or': {
-    identity: { value: false, side: 'both' },
-    absorbing: { value: true, result: true, side: 'both', unlessRefused: true },
-    idempotent: true,
-  },
-  'bool.not': { involution: true },
-  'eq.is': { reflexive: { value: true } },
-  'eq.isNot': { reflexive: { value: false } },
-  'eq.in': {},
-  'eq.equals': {},
-  'eq.among': {},
-  'null.isNull': {},
-  'null.coalesce': { identity: { value: null, side: 'both' }, idempotent: true },
-  'str.lowerAscii': { idempotent: true },
-  'str.trim': { idempotent: true },
-  'str.lt': {},
-  'str.lte': {},
-  'str.gt': {},
-  'str.gte': {},
-  'ord.lt': {},
-  'ord.lte': {},
-  'ord.gt': {},
-  'ord.gte': {},
+/** What the checker, aggregates and transitions read of an operation, beside its laws. */
+const algebra: {
+  readonly [Id in Node.CoreOpId]?: Pick<
+    OpProperties,
+    'commutative' | 'associative' | 'invertible' | 'monotone'
+  >
+} = {
   'num.add': {
-    identity: { value: 0, side: 'both' },
     commutative: true,
     associative: { over: 'integers', unlessRefused: true },
     invertible: { inverse: 'num.sub', over: 'integers' },
     monotone: ['up', 'up'],
   },
-  // No `x - x -> 0` and no `x * 0 -> 0`: over a null `x` each is null.
-  'num.sub': { identity: { value: 0, side: 'right' }, monotone: ['up', 'down'] },
-  'num.mul': { identity: { value: 1, side: 'both' } },
-  'num.neg': { involution: true, monotone: ['down'] },
-  'str.len': {},
-  'str.startsWith': {},
-  'str.contains': {},
-  'arr.count': {},
-  'arr.isEmpty': {},
-  'arr.append': {},
-  'arr.include': {},
-  'arr.exclude': {},
+  'num.sub': { monotone: ['up', 'down'] },
+  'num.neg': { monotone: ['down'] },
 }
+
+export const opProperties: { readonly [Id in Node.CoreOpId]: OpProperties } = Record.map(
+  opLaws,
+  (laws, id): OpProperties => ({ ...laws, ...algebra[id] }),
+)
 
 /** What a fold keeps, as it is read off the elements' answers. */
 export interface FoldProperties {
@@ -160,26 +138,10 @@ const summed = (over: Domain): FoldProperties => {
   }
 }
 
-/**
- * What `any` and `every` take from `bool.or` and `bool.and`: the value that
- * decides them. A fold decides over an element whose test was refused
- * (`rows.ts`), so it absorbs over every value, where the operation absorbs
- * only over values that are not refused.
- */
-const decided = (from: 'bool.or' | 'bool.and', monotone: Direction): FoldProperties => {
-  const absorbing = opProperties[from].absorbing
-  return {
-    from,
-    ...(absorbing === undefined
-      ? {}
-      : { absorbing: { value: absorbing.value === true, result: absorbing.result } }),
-    monotone,
-  }
-}
-
 export const foldProperties: { readonly [Fold in Node.RowsFold]: FoldProperties } = {
-  any: decided('bool.or', 'up'),
-  every: decided('bool.and', 'down'),
+  // The value that decides each, from `bool.or` and `bool.and` (`ops/laws.ts`).
+  any: { from: 'bool.or', ...foldLaws.any },
+  every: { from: 'bool.and', ...foldLaws.every },
   // A count adds 1 for each element that passes: integers, whatever the elements hold.
   count: { ...summed('integers'), monotone: 'up' },
   sum: summed('all'),

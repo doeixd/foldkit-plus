@@ -1,6 +1,7 @@
 import { Option, Predicate, Schema, SchemaAST } from 'effect'
 import * as Node from '../node.js'
-import { isFiniteNumber, isInteger, isText, present } from '../ops/kind.js'
+import { isFiniteNumber, isText, present } from '../ops/kind.js'
+import { isInteger } from '../ops/textChecks.js'
 import { optionInner } from '../path.js'
 import * as Interval from './interval.js'
 

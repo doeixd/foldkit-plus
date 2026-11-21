@@ -7,7 +7,9 @@ const node = '../src/node.ts'
 const expr = '../src/expr.ts'
 const transition = '../src/transition.ts'
 const evaluate = '../src/ops/eval.ts'
-const residualize = '../src/ops/residualize.ts'
+const laws = '../src/ops/laws.ts'
+const partial = '../src/ops/partial.ts'
+const judge = '../src/ops/judge.ts'
 const bool = '../src/ops/bool.ts'
 const num = '../src/ops/num.ts'
 const ord = '../src/ops/ord.ts'
@@ -72,9 +74,9 @@ const checker = [
   mutation(
     nullStrict,
     'subtraction declares zero a left identity',
-    '../src/properties.ts',
-    "identity: { value: 0, side: 'right' },",
-    "identity: { value: 0, side: 'both' },",
+    laws,
+    "'num.sub': { identity: { value: 0, side: 'right' } },",
+    "'num.sub': { identity: { value: 0, side: 'both' } },",
   ),
   mutation(
     soundness,
@@ -349,21 +351,21 @@ export default [
   mutation(
     nullStrict,
     'an identity law returns an operand of any kind',
-    residualize,
-    'isLitEqual(right, value) && ofKind(left)) {',
-    'isLitEqual(right, value)) {',
+    laws,
+    'isLit(right, value) && ofKind(left)) {',
+    'isLit(right, value)) {',
   ),
   mutation(
     nullStrict,
     'equality of a term with itself is true though the term may be refused',
-    residualize,
-    'if (laws.reflexive !== undefined && same && isPortableRead(left)) {',
+    laws,
+    'if (laws.reflexive !== undefined && same && view.isPortableRead(left)) {',
     'if (laws.reflexive !== undefined && same) {',
   ),
   mutation(
     nullStrict,
     'a part of a struct is read as the whole',
-    residualize,
+    partial,
     'return raw || isWhole(current, ast) ? Option.some(current) : Option.none()',
     'return Option.some(current)',
   ),
@@ -377,15 +379,15 @@ export default [
   mutation(
     nullStrict,
     'a refused evaluation is judged with the kind of an unsupported operation',
-    residualize,
-    "Option.some({ kind: 'refused', detail: residual.value.message }),",
-    "Option.some({ kind: 'unsupported', detail: residual.value.message }),",
+    judge,
+    "Option.some({ kind: 'refused', detail: value.message }),",
+    "Option.some({ kind: 'unsupported', detail: value.message }),",
   ),
   mutation(
     nullStrict,
     'a known null is judged unknown',
-    residualize,
-    'if (!Node.isRefusal(residual.value)) return Verdict.False()',
-    "if (residual.value === false) return Verdict.False()\n    if (residual.value === null) return Verdict.Unknown('null')",
+    judge,
+    'if (!Node.isRefusal(value)) return Verdict.False<never>()',
+    "if (value === false) return Verdict.False<never>()\n      if (value === null) return Verdict.Unknown('null')",
   ),
 ]

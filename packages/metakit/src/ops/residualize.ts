@@ -1,10 +1,13 @@
 /**
- * Partial evaluation (`residualizeNode`) and Kleene $K_3$ judgement
- * (`judgeNode`) over a partially known environment.
+ * Partial evaluation (`residualizeNode`) over a partially known environment:
+ * the expression left over, for the tools that read it (`Expr.residualize`,
+ * the graph's pruning, SQL statements). A page that only needs a verdict or
+ * a value runs `judgeNode` (`judge.ts`), which applies the same rules
+ * (`laws.ts`) without building what is left.
  *
  * A call whose arguments are all known is evaluated; otherwise each
- * operator's row of `opProperties` shrinks it. A law is applied only where it holds for
- * every value evaluation can meet, null and a refusal included, so the
+ * operator's row of `opLaws` shrinks it. A law is applied only where it holds
+ * for every value evaluation can meet, null and a refusal included, so the
  * residual evaluates as the expression does on every completion of the
  * environment.
  *
@@ -12,140 +15,26 @@
  * opaque term) from object-level `null` (a known runtime value): `{ row: { x: null } }`
  * folds `row.x` to `Lit(null)`, never to `Unknown`.
  */
-import { Option, SchemaAST } from 'effect'
+import { Option } from 'effect'
 import * as Node from '../node.js'
-import * as Path from '../path.js'
-import * as Verdict from '../verdict.js'
-import { opProperties } from '../properties.js'
 import { applyForeign, evalNode, ifArm, matchArm, type ForeignImplementations } from './eval.js'
-import { cannotRefuse, isPortableRead, kindOf, present } from './kind.js'
-import { readsOfNode } from './reads.js'
-import { residualizeRows } from './residualizeRows.js'
+import { cannotRefuse, isPortableRead, kindOf } from './kind.js'
+import { nullBesideUnrefused, rewrite, type View } from './laws.js'
+import { lookupPartial } from './partial.js'
+import { partialRows } from './partialRows.js'
 
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> => {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
-  const proto: unknown = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
-}
-
-/**
- * Whether `value` is all of what `ast` describes. A partial environment may
- * hold some of a struct's fields, so a plain object is whole only against a
- * struct Schema whose every required key it holds; with no Schema to compare
- * it to, it may be a part and the read stays unknown.
- */
-const isWhole = (value: unknown, ast: Option.Option<SchemaAST.AST>): boolean => {
-  if (!isPlainObject(value)) return true
-  if (Option.isNone(ast)) return false
-  const structs = present(ast.value).filter(SchemaAST.isObjects)
-  if (structs.length !== 1) return false
-  return structs[0]!.propertySignatures.every(property => {
-    if (typeof property.name !== 'string') return false
-    const held = Object.hasOwn(value, property.name) ? value[property.name] : undefined
-    return held === undefined
-      ? SchemaAST.isOptional(property.type)
-      : isWhole(held, Option.some(property.type))
-  })
-}
-
-/**
- * The value `partial` holds at `segments`, where it holds it whole; `raw`
- * takes what is held as it is, for a value no Schema describes (the related
- * rows under a row, `{ rows, whole }`, which says itself whether it is all).
- */
-const lookupPartial = (
-  partial: unknown,
-  segments: ReadonlyArray<string>,
-  ast: Option.Option<SchemaAST.AST>,
-  raw = false,
-): Option.Option<unknown> => {
-  let current: unknown = partial
-  for (const segment of segments) {
-    current = Path.readable(current)
-    // A none is a value: what is read through it is null.
-    if (current === null) return Option.some(null)
-    if (current === undefined || typeof current !== 'object' || !Object.hasOwn(current, segment)) {
-      return Option.none()
-    }
-    const next = (current as Record<string, unknown>)[segment]
-    if (next === undefined) return Option.none()
-    current = next
-  }
-  current = Path.readable(current)
-  if (current === undefined) return Option.none()
-  return raw || isWhole(current, ast) ? Option.some(current) : Option.none()
-}
-
-const isLitEqual = (node: Node.Node, expected: unknown): boolean =>
-  Node.$is('Lit')(node) && (Object.is(node.value, expected) || (node.value === 0 && expected === 0))
-
-/** Size-reducing rewrites, from the operator's row of `opProperties`. */
-const applyLaws = (op: Node.Op, args: ReadonlyArray<Node.Node>): Option.Option<Node.Node> => {
-  const laws = opProperties[op.id]
-  // A law that returns an operand holds only where the operand is what the
-  // operator would have returned: `x + 0` over text is refused, `x` is not.
-  const ofKind = (operand: Node.Node): boolean =>
-    op.returns === 'operand' ||
-    Option.match(kindOf(operand), { onNone: () => false, onSome: kind => kind === op.returns })
-
-  if (args.length === 1) {
-    const inner = args[0]!
-    const again = Node.$is('Call')(inner) && inner.op.id === op.id && inner.args.length === 1
-    if (again && laws.idempotent === true) return Option.some(inner)
-    if (again && laws.involution === true && ofKind(inner.args[0]!)) {
-      return Option.some(inner.args[0]!)
-    }
-  }
-
-  if (args.length === 2) {
-    const left = args[0]!
-    const right = args[1]!
-
-    if (laws.absorbing !== undefined) {
-      const { value, result, side, unlessRefused } = laws.absorbing
-      // A refusal is not absorbed: the operand dropped must be one that cannot be refused.
-      const drops = (operand: Node.Node): boolean => unlessRefused !== true || cannotRefuse(operand)
-      if ((side === 'left' || side === 'both') && isLitEqual(left, value) && drops(right)) {
-        return Option.some(Node.Lit({ value: result }))
-      }
-      if ((side === 'right' || side === 'both') && isLitEqual(right, value) && drops(left)) {
-        return Option.some(Node.Lit({ value: result }))
-      }
-    }
-
-    if (laws.identity !== undefined) {
-      const { value, side } = laws.identity
-      if ((side === 'left' || side === 'both') && isLitEqual(left, value) && ofKind(right)) {
-        return Option.some(right)
-      }
-      if ((side === 'right' || side === 'both') && isLitEqual(right, value) && ofKind(left)) {
-        return Option.some(left)
-      }
-    }
-
-    const same = Node.key(left) === Node.key(right)
-    if (laws.idempotent === true && same && ofKind(left)) {
-      return Option.some(left)
-    }
-    if (laws.reflexive !== undefined && same && isPortableRead(left)) {
-      return Option.some(Node.Lit({ value: laws.reflexive.value }))
-    }
-  }
-
-  return Option.none()
-}
-
-/**
- * Whether a strict call is null whatever its operands not yet known hold: one
- * is a known null, and every other cannot be refused nor give a value the
- * operation refuses before null (`cannotRefuse`), as its Schema or its form
- * says.
- */
-const nullBesideUnrefused = (op: Node.AnyOp, args: ReadonlyArray<Node.Node>): boolean => {
-  // A foreign call with no implementation is refused before its null rule.
-  if (Node.isForeign(op) || op.nulls !== 'strict' || args.every(Node.$is('Lit'))) return false
-  const isNull = (arg: Node.Node): boolean => Node.$is('Lit')(arg) && arg.value === null
-  return args.some(isNull) && args.every(arg => isNull(arg) || cannotRefuse(arg))
+/** A residual as the laws see it. */
+const residual: View<Node.Node> = {
+  known: node => (Node.$is('Lit')(node) ? Option.some(node.value) : Option.none()),
+  kind: kindOf,
+  cannotRefuse,
+  isRead: Node.$is('Path'),
+  isPortableRead,
+  unary: node =>
+    Node.$is('Call')(node) && node.args.length === 1
+      ? { id: node.op.id, arg: node.args[0]! }
+      : undefined,
+  same: (left, right) => Node.key(left) === Node.key(right),
 }
 
 /**
@@ -168,7 +57,7 @@ export const residualizeNode = (
       }),
     Call: ({ op, args }) => {
       const nextArgs = args.map(arg => residualizeNode(arg, partialEnv, foreign))
-      if (nullBesideUnrefused(op, nextArgs)) return Node.Lit({ value: null })
+      if (nullBesideUnrefused(residual, op, nextArgs)) return Node.Lit({ value: null })
       if (Node.isForeign(op)) {
         return nextArgs.every(Node.$is('Lit')) && Object.hasOwn(foreign, Node.foreignName(op))
           ? Node.Lit({
@@ -188,13 +77,18 @@ export const residualizeNode = (
           ),
         })
       }
-      const byLaw = applyLaws(op, nextArgs)
-      if (Option.isSome(byLaw)) return byLaw.value
-      if (op.fold !== undefined) {
-        const folded = op.fold(nextArgs)
-        if (Option.isSome(folded)) return folded.value
-      }
-      return Node.Call({ op, args: nextArgs })
+      return Option.match(rewrite(residual, op, nextArgs), {
+        onNone: () => Node.Call({ op, args: nextArgs }),
+        onSome: (made): Node.Node =>
+          'value' in made
+            ? Node.Lit({ value: made.value })
+            : 'call' in made
+              ? Node.Call({
+                  op: made.call,
+                  args: [made.operand, Node.Lit({ value: made.literal })],
+                })
+              : made.operand,
+      })
     },
     // No `if c then a else a -> a`: a null or refused `c` gives neither.
     If: branch => {
@@ -239,85 +133,20 @@ export const residualizeNode = (
       return opaque
     },
     Rows: rows =>
-      residualizeRows(
+      partialRows(
         rows,
         partialEnv,
-        (inner, env) => residualizeNode(inner, env, foreign),
+        {
+          judge: (inner, env) => residualizeNode(inner, env, foreign),
+          known: residual.known,
+          value: value => Node.Lit({ value }),
+          kept: (kept, source, outer) =>
+            Node.mapRows(
+              kept,
+              () => source,
+              body => residualizeNode(body, outer, foreign),
+            ),
+        },
         segments => lookupPartial(partialEnv, segments, Option.none(), true),
       ),
   })
-
-const hasOpaque = (node: Node.Node): boolean =>
-  Node.$match(node, {
-    Lit: () => false,
-    Path: () => false,
-    Call: ({ args }) => args.some(hasOpaque),
-    If: ({ cond, then, otherwise }) => hasOpaque(cond) || hasOpaque(then) || hasOpaque(otherwise),
-    Match: ({ on, cases, otherwise }) =>
-      hasOpaque(on) ||
-      cases.some(([, branch]) => hasOpaque(branch)) ||
-      Option.match(otherwise, { onNone: () => false, onSome: hasOpaque }),
-    Opaque: () => true,
-    Rows: rows => [Node.rowsSource(rows.over), ...Node.rowsBody(rows)].some(hasOpaque),
-  })
-
-/** The foreign operations `node` calls. */
-const foreignCalls = (node: Node.Node): ReadonlyArray<Node.ForeignOp> =>
-  Node.$match(node, {
-    Lit: () => [],
-    Path: () => [],
-    Call: ({ op, args }) => [...(Node.isForeign(op) ? [op] : []), ...args.flatMap(foreignCalls)],
-    If: ({ cond, then, otherwise }) => [cond, then, otherwise].flatMap(foreignCalls),
-    Match: ({ on, cases, otherwise }) =>
-      [on, ...cases.map(([, branch]) => branch), ...Option.toArray(otherwise)].flatMap(
-        foreignCalls,
-      ),
-    Opaque: () => [],
-    Rows: rows => [Node.rowsSource(rows.over), ...Node.rowsBody(rows)].flatMap(foreignCalls),
-  })
-
-/**
- * Partially evaluate a boolean `Node` and return its Kleene $K_3$ `Verdict`:
- * `True` where it is known to hold, `False` where it is known not to (a known
- * null does not hold), `Unknown` where the environment or the evaluator
- * leaves it open.
- */
-export const judgeNode = (
-  node: Node.Node,
-  partialEnv: unknown,
-  foreign: ForeignImplementations = {},
-): Verdict.Verdict<never> => {
-  const residual = residualizeNode(node, partialEnv, foreign)
-  if (Node.$is('Lit')(residual)) {
-    if (residual.value === true) return Verdict.True(Option.some(Verdict.Proved('concrete')))
-    if (!Node.isRefusal(residual.value)) return Verdict.False()
-    return Verdict.Unknown(
-      `evaluation refused: ${residual.value.message}`,
-      Option.some({ kind: 'refused', detail: residual.value.message }),
-    )
-  }
-  if (hasOpaque(residual)) {
-    return Verdict.Unknown(
-      'residual contains opaque term',
-      Option.some({ kind: 'opaque', detail: 'residual contains an opaque function' }),
-    )
-  }
-  const unimplemented = foreignCalls(residual).find(
-    op => !Object.hasOwn(foreign, Node.foreignName(op)),
-  )
-  if (unimplemented !== undefined) {
-    const named = Node.foreignName(unimplemented)
-    return Verdict.Unknown(
-      `no implementation of ${named}`,
-      Option.some({ kind: 'unsupported', detail: named }),
-    )
-  }
-  const missing = Option.match(readsOfNode(residual), {
-    onNone: () => 'unknown environment reads',
-    onSome: paths => paths.map(Path.format).join(', '),
-  })
-  return Verdict.Unknown(
-    `missing environment: ${missing}`,
-    Option.some({ kind: 'missing-env', detail: missing }),
-  )
-}

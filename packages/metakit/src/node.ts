@@ -164,8 +164,6 @@ export interface Op<Id extends CoreOpId = CoreOpId> {
   readonly refuses?: (value: unknown) => Refusal | undefined
   /** The operator on argument values. It never throws: it returns a `Refusal`. */
   readonly evaluate: (args: ReadonlyArray<unknown>) => unknown
-  /** A size-reducing fold no property says (`eq.in` over one candidate). */
-  readonly fold?: (args: ReadonlyArray<Node>) => Option.Option<Node>
 }
 
 /**

@@ -1,6 +1,6 @@
 import { Option, Predicate, Schema, SchemaAST } from 'effect'
 import type { Slice } from '../abstract/unordered.js'
-import { textChecksOf, type TextChecks } from '../ops/kind.js'
+import { textChecksOf, type TextChecks } from '../ops/textChecks.js'
 import * as Path from '../path.js'
 
 /** What a Schema says of each path. */

@@ -3,7 +3,7 @@
  * conflation, Zone checks, and SQL lowering:
  *   `pnpm mutate packages/metakit/test/metakit.mutations.ts`
  */
-const residualize = '../src/ops/residualize.ts'
+const partial = '../src/ops/partial.ts'
 const transition = '../src/transition.ts'
 const zone = '../src/abstract/zone.ts'
 const sql = '../src/sqlLowering.ts'
@@ -149,7 +149,7 @@ export default [
     name: 'lookupPartial conflates null with missing (Unknown)',
     edits: [
       {
-        file: residualize,
+        file: partial,
         find: 'if (next === undefined) return Option.none()',
         replace: 'if (next === undefined || next === null) return Option.none()',
       },

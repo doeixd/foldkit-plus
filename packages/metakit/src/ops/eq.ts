@@ -8,11 +8,10 @@
  * normalization). SQL lowering emits `IS NOT DISTINCT FROM` / `IS` on nullable
  * columns so JS and SQL never diverge.
  */
-import { Equal, Option } from 'effect'
+import { Equal } from 'effect'
 import * as Node from '../node.js'
 import type { Expr } from '../path.js'
 import { call, type EnvOfInput, type ExprInput, type NullOf, type ValueOfInput } from './core.js'
-import { cannotRefuse, isPortableRead } from './kind.js'
 
 const sameValue = (a: unknown, b: unknown): boolean => {
   const left = Node.textIdentity(a)
@@ -51,21 +50,6 @@ export const inOp: Node.Op<'eq.in'> = {
     if (!Array.isArray(haystack)) return Node.illTyped('eq.in', 'an array of candidates', haystack)
     if (Node.holdsNul([needle, ...haystack])) return Node.unportable('eq.in')
     return haystack.some(item => sameValue(needle, item === undefined ? null : item))
-  },
-  fold: args => {
-    const needle = args[0]!
-    const haystack = args[1]!
-    if (!Node.$is('Lit')(haystack) || !Array.isArray(haystack.value)) return Option.none()
-    // A refused needle is refused, not false: only a read of no NUL text is known not to be.
-    if (haystack.value.length === 0 && isPortableRead(needle)) {
-      return Option.some(Node.Lit({ value: false }))
-    }
-    if (haystack.value.length === 1) {
-      return Option.some(
-        Node.Call({ op: isOp, args: [needle, Node.Lit({ value: haystack.value[0] })] }),
-      )
-    }
-    return Option.none()
   },
 }
 
@@ -108,18 +92,6 @@ export const amongOp: Node.Op<'eq.among'> = {
     const present = candidates.filter(item => item !== null && item !== undefined)
     if (present.some(item => sameValue(needle, item))) return true
     return present.length < candidates.length ? null : false
-  },
-  fold: args => {
-    const [needle, candidates] = [args[0]!, args[1]!]
-    if (!Node.$is('Lit')(candidates) || !Array.isArray(candidates.value)) return Option.none()
-    // A value that is not refused is among no candidate.
-    if (candidates.value.length === 0 && (Node.$is('Path')(needle) || cannotRefuse(needle))) {
-      return Option.some(Node.Lit({ value: false }))
-    }
-    const [only] = candidates.value
-    return candidates.value.length === 1 && only !== null && only !== undefined
-      ? Option.some(Node.Call({ op: equalsOp, args: [needle, Node.Lit({ value: only })] }))
-      : Option.none()
   },
 }
 
