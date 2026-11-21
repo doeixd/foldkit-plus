@@ -435,6 +435,22 @@ const update = writes.track(
   Projection reads as an `Option`: none when it reads what no path names.
 - `Closure` is `reads` and `violations` only; the closed-Surface half of the
   check is inside `WritesCheck.verify`.
+- `writes.epochFor(paths)` gives `(root) => number` for a `foldkit-bundle`
+  placement on the root (`.at(link, { pathEpoch: writes.epochFor([['child']]) })`):
+  the child's drawing is kept until a declared write reaches `paths`, a
+  Message with no Transition runs, or the root is a Model `track` did not make
+  (a restored checkpoint).
+- `Declared.of(App, machine, config)` from `foldkit-surface/declared` derives
+  `update` (already tracked), `step` (untracked, for an outer wrapper) and the
+  `writes` from one machine. `commands` maps each emitted record to its
+  Commands (required while the machine emits any); `supply` makes a
+  transition's `supplied` values from its Message, once per step (required for
+  every transition that declares some); `fallback` is the hand-written arm for
+  Messages with no transition (required while any has none). A missing
+  `supply` entry or `fallback` also throws when `Declared.of` runs. `record`
+  receives each step's supplied values and `declared.replay(model, step)` runs
+  the step with them again; `declared.messageEdges` is what `Graph.of` takes
+  as `sends`.
 
 ## Gotchas
 
