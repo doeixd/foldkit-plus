@@ -23,9 +23,11 @@ describe('metakit/policy (consistency, non-disclosure, opaque principal soundnes
       principal: Principal,
       rules: ({ row }) => ({ Update: Eq.is(row.code, 'a'), Read: Eq.is(row.code, 1) }),
     })
-    expect(
-      Verdict.isUnknown(await Effect.runPromise(Prove.policyImplies(policy, 'Update', 'Read'))),
-    ).toBe(true)
+    const verdict = await Effect.runPromise(Prove.policyImplies(policy, 'Update', 'Read'))
+    // The solver names the path it cannot sort, not whichever operation met it first.
+    expect(Verdict.isUnknown(verdict) && verdict.reason).toContain(
+      'mixed literal types at row.code',
+    )
   })
   // Every row may be updated, and is read where `x` is above zero or not above it. NaN is
   // neither: evaluation refuses to order it, so a rule that compares it allows nothing.
@@ -72,6 +74,32 @@ describe('metakit/policy (consistency, non-disclosure, opaque principal soundnes
       Verdict.isFalse(await Effect.runPromise(Prove.policyConsistent(policy, 'Neither'))),
     ).toBe(true)
   }, 30_000)
+
+  // Whenever the antecedent allows, the number is not NaN, so `Positive => NonNegative` holds;
+  // the synchronous check still says nothing of a rule that reads a number it cannot order.
+  const positiveImpliesNonNegative = <Row extends Schema.Top>(row: Row) => {
+    const x = Path.make<Policy.PolicyEnv<Row['Type'], typeof Principal.Type>, number>(['row', 'x'])
+    const policy = Policy.make({
+      row,
+      principal: Principal,
+      rules: () => ({ Positive: Num.gt(x, 0), NonNegative: Num.gte(x, 0) }),
+    })
+    return Policy.checkImplication(policy, 'Positive', 'NonNegative')
+  }
+
+  it('leaves a synchronous implication undecided where a rule reads a number it cannot order', () => {
+    const undecided = {
+      'a number that may be NaN': Schema.Struct({ x: Schema.Number }),
+      'a number whose key may be absent': Schema.Struct({ x: Schema.optionalKey(Schema.Finite) }),
+      'a number that may be null': Schema.Struct({ x: Schema.NullOr(Schema.Int) }),
+    }
+    for (const [label, row] of Object.entries(undecided)) {
+      expect(Verdict.isUnknown(positiveImpliesNonNegative(row)), label).toBe(true)
+    }
+    expect(Verdict.isTrue(positiveImpliesNonNegative(Schema.Struct({ x: Schema.Finite })))).toBe(
+      true,
+    )
+  })
 
   it('proves nothing of a number whose key may be absent', () => {
     const row = Schema.Struct({ x: Schema.optionalKey(Schema.Finite) })

@@ -72,12 +72,16 @@ export default [
     "if (nanReads.size > 0 && status === 'unsat') {",
     'if (false) {',
   ),
-  unordered(
-    'a counterexample over a number that may be NaN is thrown away',
-    '../src/abstract/unordered.ts',
-    '(Verdict.isFalse(verdict) && Option.isNone(verdict.witness))',
-    'Verdict.isFalse(verdict)',
-  ),
+  {
+    ...unordered(
+      'a counterexample over a number that may be NaN is thrown away',
+      '../src/abstract/unordered.ts',
+      '(Verdict.isFalse(verdict) && Option.isNone(verdict.witness))',
+      'Verdict.isFalse(verdict)',
+    ),
+    survives:
+      'only the synchronous policy checks call `ordered`, and the Zone never gives a witness, so a False it sees has none',
+  },
   policy(
     'a refutation with no witness stands over a number that may be NaN',
     '../src/abstract/unordered.ts',
