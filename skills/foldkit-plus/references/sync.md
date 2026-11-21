@@ -339,6 +339,12 @@ The mount applies a declared transition to the shared projection in place of
 your `update`, and the journal uses it for replay. A Message whose guard
 (`when`) is false is refused: the replica's `submit` fails and the journal
 rejects the operation. Tags without a declaration follow the existing reducer.
+`SyncDeclared.transition` returns a `DeclaredTransition`, whose `bind` `make`
+calls once; the check, its messages and the replay by tag live in that object,
+so a document with no `transitions` carries none of them. The document then
+has `live(model, message)` (the Model after a declared Message, the same Model
+where it is refused, `Option.none()` for a tag with no declaration) and
+`footprints` (each declared tag's read and written paths).
 At definition time, `make` rejects a guard proved unreachable under the laws
 written with `SyncDeclared.holds`, or a transition proved to break one. An
 undecided check lets the declaration proceed. The journal still checks each
