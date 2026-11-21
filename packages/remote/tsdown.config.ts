@@ -1,5 +1,8 @@
 import { defineConfig } from 'tsdown'
 
+// `metakit` and its subpaths: `foldkit-remote/aggregate` reads its types.
+const metakit = /^metakit(\/.*)?$/
+
 // One file per source module, relative imports left as written: a page then
 // keeps only the modules it reads, as from source (#215), and the `Remote`
 // namespace stays a namespace, so a page keeps only the members it calls
@@ -14,13 +17,6 @@ export default defineConfig({
   clean: true,
   target: 'es2022',
   deps: {
-    neverBundle: [
-      /^\.\.?\//,
-      'effect',
-      /^metakit(\/.*)?$/,
-      'foldkit',
-      'foldkit-entity',
-      'foldkit-surface',
-    ],
+    neverBundle: [/^\.\.?\//, 'effect', 'foldkit', 'foldkit-entity', 'foldkit-surface', metakit],
   },
 })

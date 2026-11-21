@@ -255,6 +255,7 @@ interface Member<Row> {
 
 const out: Member<never> = { counted: Option.none(), unjudged: false, unassembled: false }
 const unjudged: Member<never> = { counted: Option.none(), unjudged: true, unassembled: false }
+const unassembled: Member<never> = { counted: Option.none(), unjudged: false, unassembled: true }
 
 /** What a kept value was worked out from, compared by identity on the next read. */
 interface Inputs {
@@ -422,9 +423,17 @@ export function aggregated<Value>(
     if (judged === 'out') return out
     if (judged === 'unjudged') return unjudged
     const row = readRow(visible, key, relation, relationKey, over.selection.schema)
-    return row === undefined || row._tag === 'Failed'
-      ? { counted: Option.none(), unjudged: false, unassembled: true }
-      : { counted: Option.some(row.value), unjudged: false, unassembled: false }
+    if (row === undefined) return unassembled
+    const counted = ({ value }: { readonly value: Value }): Member<Value> => ({
+      counted: Option.some(value),
+      unjudged: false,
+      unassembled: false,
+    })
+    return Match.valueTags(row, {
+      Ready: counted,
+      Refreshing: counted,
+      Failed: () => unassembled,
+    })
   }
   const judgedAmong = (
     keys: ReadonlyArray<EntityKey>,

@@ -138,6 +138,6 @@ export default [
     'a raw optic claims the empty path',
     '  store.dependency === undefined || store.dependency.length === 0 ? [] : [store.dependency]',
     '  store.dependency === undefined ? [] : [store.dependency]',
-    '../src/domain.ts',
+    '../src/storePath.ts',
   ),
 ]
