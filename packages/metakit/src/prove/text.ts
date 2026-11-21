@@ -25,6 +25,8 @@ export interface TextKit {
   readonly strict: (kind: Kind, args: ReadonlyArray<Term>, value: ZExpr) => Term
   readonly length: (node: Node.Node) => ZArith
   readonly assert: (fact: ZBool) => void
+  readonly lower: (node: Node.Node) => Term
+  readonly codeOf: (value: string) => number
 }
 
 const knownText = (node: Node.Node): Option.Option<string> =>
@@ -58,11 +60,34 @@ export const textReading = (kit: TextKit) => {
             (info.literals.length > 0 && !Node.holdsNul(info.literals)))
         return textless ? never : flagVar(`nul:${name}`)
       },
-      // An operator that gives text refuses a NUL in what it takes; one that gives an operand passes it.
-      Call: ({ op, args }) => (op.returns === 'operand' ? z3.Or(never, ...args.map(nulOf)) : never),
-      If: ({ then, otherwise }) => z3.Or(nulOf(then), nulOf(otherwise)),
-      Match: ({ cases, otherwise }) =>
-        z3.Or(never, ...[...cases.map(([, arm]) => arm), ...Option.toArray(otherwise)].map(nulOf)),
+      // An operator that gives text refuses a NUL in what it takes; `null.coalesce`
+      // passes the NUL flag only of whichever operand is actually selected.
+      Call: ({ op, args }) => {
+        if (op.id === 'null.coalesce' && args.length >= 2) {
+          const first = kit.lower(args[0]!)
+          return z3.If(first.isNull, nulOf(args[1]!), nulOf(args[0]!))
+        }
+        return op.returns === 'operand' ? z3.Or(never, ...args.map(nulOf)) : never
+      },
+      If: ({ cond, then, otherwise }) => {
+        const c = kit.lower(cond)
+        return c.kind === 'bool'
+          ? z3.If(c.value as ZBool, nulOf(then), nulOf(otherwise))
+          : z3.Or(nulOf(then), nulOf(otherwise))
+      },
+      Match: ({ on, cases, otherwise }) => {
+        const target = kit.lower(on)
+        const fallback = Option.match(otherwise, { onNone: () => never, onSome: nulOf })
+        if (!z3.isArith(target.value) || target.kind === 'num' || target.kind === 'bool') {
+          return z3.Or(fallback, ...cases.map(([, arm]) => nulOf(arm)))
+        }
+        const code = target.value
+        return cases.reduceRight<ZBool>(
+          (acc, [value, arm]) =>
+            z3.If(z3.And(z3.Not(target.isNull), code.eq(kit.codeOf(value))), nulOf(arm), acc),
+          fallback,
+        )
+      },
       Opaque: opaqueNode => flagVar(`nul:${Node.key(opaqueNode)}`),
       Rows: rows => flagVar(`nul:${Node.key(rows)}`),
     })

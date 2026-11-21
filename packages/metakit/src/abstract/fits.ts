@@ -63,8 +63,10 @@ function fitsTerm(
     const pk = Node.key(value)
     if (state.nullFacts.get(pk) === true) return proved('zone')
     state.nullFacts.set(pk, false)
-  } else {
+  } else if (value.op.id !== 'null.coalesce') {
     state.markValued(value)
+  } else {
+    state.markNotNull(value)
   }
   if (!state.propagate()) return proved('zone')
   const source = state.fieldOf(value)

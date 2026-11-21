@@ -151,7 +151,8 @@ export interface Lifted<Outer, Transitions extends Readonly<Record<string, unkno
     readonly [K in keyof Transitions & string]: Transition.Transition<
       Outer,
       TransitionInput<Transitions[K]>,
-      TransitionEmit<Transitions[K]>
+      TransitionEmit<Transitions[K]>,
+      TransitionSupplied<Transitions[K]>
     >
   }
 }
@@ -171,7 +172,7 @@ export const lift = <Outer, Child, Transitions extends Readonly<Record<string, u
     transitions: Object.fromEntries(
       Object.entries(machine.transitions).map(([tag, transition]) => [
         tag,
-        Transition.lift(at, transition as Transition.Transition<Child, unknown, unknown>),
+        Transition.lift(at, transition as Transition.Transition<Child, unknown, unknown, unknown>),
       ]),
     ) as Lifted<Outer, Transitions>['transitions'],
   }

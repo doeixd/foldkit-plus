@@ -13,8 +13,14 @@ import type { Expr } from '../path.js'
 import { call, type EnvOfInput, type ExprInput, type NullOf, type ValueOfInput } from './core.js'
 import { isPortableRead } from './kind.js'
 
-const sameValue = (a: unknown, b: unknown): boolean =>
-  Object.is(a, b) || (a === 0 && b === 0) || Equal.equals(a, b)
+const normalizeText = (value: unknown): unknown =>
+  typeof value === 'string' ? Node.wellFormed(value) : value
+
+const sameValue = (a: unknown, b: unknown): boolean => {
+  const left = normalizeText(a)
+  const right = normalizeText(b)
+  return Object.is(left, right) || (left === 0 && right === 0) || Equal.equals(left, right)
+}
 
 const nullSafe =
   (id: 'eq.is' | 'eq.isNot', decide: (a: unknown, b: unknown) => boolean) =>

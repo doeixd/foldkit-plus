@@ -290,6 +290,8 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     strict: (kind, args, value) => strict(kind, args, value),
     length,
     assert: fact => solver.add(fact),
+    lower: node => lower(node),
+    codeOf,
   })
   const { nulOf } = text
 

@@ -207,7 +207,11 @@ const assumeEqual = (args: ReadonlyArray<Node.Node>, state: AbstractState): void
     else if (Node.$is('Path')(term)) state.nullFacts.set(Node.key(term), true)
     return
   }
-  state.markValued(term)
+  if (typeof literal === 'number' && !Number.isFinite(literal)) {
+    state.markNotNull(term)
+  } else {
+    state.markValued(term)
+  }
   const id = state.varOf(term)
   if (typeof literal === 'number' && Option.isSome(id)) {
     state.zone.constrainEq(id.value, ZERO, literal)
@@ -432,9 +436,22 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   'null.coalesce': {
     _tag: 'Value',
     unportable: false,
-    // A path is never refused, so where it is null the fallback is the answer.
-    valued: ([value, fallback], state) =>
-      state.hasValue(value!) || (isRead(value!) && state.hasValue(fallback!)),
+    // A read that cannot be refused or non-finite when non-null falls back cleanly.
+    valued: ([value, fallback], state) => {
+      if (state.hasValue(value!)) return true
+      if (!state.hasValue(fallback!)) return false
+      if (Node.$is('Lit')(value!)) {
+        return (
+          !Node.isRefusal(value.value) &&
+          (typeof value.value !== 'number' || Number.isFinite(value.value))
+        )
+      }
+      if (!Node.$is('Path')(value!)) return false
+      return Option.match(state.fieldOf(value), {
+        onNone: () => false,
+        onSome: info => info.kind !== 'number' || info.finite,
+      })
+    },
   },
   'str.lowerAscii': text,
   'str.trim': text,

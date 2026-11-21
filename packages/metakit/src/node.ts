@@ -86,9 +86,17 @@ export const illTyped = (at: string, expected: string, value: unknown): Refusal 
     detail: `expected ${expected}, got ${Array.isArray(value) ? 'an array' : typeof value}`,
   })
 
-/** Whether one of `values` is text holding a NUL character. */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+const REPLACEMENT = String.fromCharCode(0xfffd)
+
+/** `text` as SQLite's and Postgres's drivers hold it: each lone surrogate as U+FFFD. */
+export const wellFormed = (text: string): string => text.replace(LONE_SURROGATE, REPLACEMENT)
+
+/** Whether one of `values` (or a nested array candidate) is text holding a NUL character. */
 export const holdsNul = (values: ReadonlyArray<unknown>): boolean =>
-  values.some(value => typeof value === 'string' && value.includes('\u0000'))
+  values.some(value =>
+    Array.isArray(value) ? holdsNul(value) : typeof value === 'string' && value.includes('\u0000'),
+  )
 
 /** The refusal of text holding a NUL character, which every text and equality operation gives. */
 export const unportable = (at: string): Refusal =>

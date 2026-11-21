@@ -203,7 +203,7 @@ export const set = <State, Input, V, Supplied = NoSupplied>(
  */
 export const add = <State, Input, V extends number | null, Supplied = NoSupplied>(
   target: PathType<TransitionEnv<State, Input, Supplied>, V>,
-  amount: ExprInput<TransitionEnv<State, Input, Supplied>, number | null>,
+  amount: ExprInput<TransitionEnv<State, Input, Supplied>, NoInfer<V>>,
 ): WriteEquation<State, Input, V, Supplied, 'add'> => {
   const by = toNode(amount)
   return {

@@ -348,7 +348,11 @@ export class AbstractState {
    */
   assumeEvaluated(node: Node.Node): void {
     if (!Node.$is('Call')(node)) return
-    this.markPortable(node)
+    // Strict ops short-circuit to null before `holdsNul` runs, so only mark
+    // their operands portable when every operand is known non-null.
+    if (node.op.nulls !== 'strict' || node.args.every(arg => this.hasValue(arg))) {
+      this.markPortable(node)
+    }
     if (node.op.nulls !== 'strict') return
     for (const arg of node.args) this.assumeEvaluated(arg)
     this.unrefused.add(Node.key(node))

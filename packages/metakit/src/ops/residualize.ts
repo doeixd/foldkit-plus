@@ -154,7 +154,9 @@ export const residualizeNode = (
     Call: ({ op, args }) => {
       const nextArgs = args.map(arg => residualizeNode(arg, partialEnv, foreign))
       if (Node.isForeign(op)) {
-        return nextArgs.every(Node.$is('Lit')) && Object.hasOwn(foreign, op.id)
+        return nextArgs.every(Node.$is('Lit')) &&
+          Object.hasOwn(foreign, op.id) &&
+          foreign[op.id]!.version === op.version
           ? Node.Lit({
               value: applyForeign(
                 op,
@@ -286,7 +288,9 @@ export const judgeNode = (
       Option.some({ kind: 'opaque', detail: 'residual contains an opaque function' }),
     )
   }
-  const unimplemented = foreignCalls(residual).find(op => !Object.hasOwn(foreign, op.id))
+  const unimplemented = foreignCalls(residual).find(
+    op => !Object.hasOwn(foreign, op.id) || foreign[op.id]!.version !== op.version,
+  )
   if (unimplemented !== undefined) {
     const named = `${unimplemented.id}@${unimplemented.version}`
     return Verdict.Unknown(

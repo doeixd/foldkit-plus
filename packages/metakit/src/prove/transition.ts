@@ -104,9 +104,23 @@ const mayBeNull = (node: Node.Node, shape: Shape): boolean =>
         onNone: () => true,
         onSome: info => info.flags.length > 0,
       }),
-    Call: ({ op, args }) =>
-      (op.nulls === 'strict' || op.id === 'bool.and' || op.id === 'bool.or') &&
-      args.some(arg => mayBeNull(arg, shape)),
+    Call: ({ op, args }) => {
+      if (Node.isForeign(op)) return true
+      if (op.id === 'null.coalesce') return args.every(arg => mayBeNull(arg, shape))
+      if (op.id === 'eq.among') {
+        const candidates = args[1]
+        const hasNullCandidate =
+          candidates !== undefined &&
+          Node.$is('Lit')(candidates) &&
+          Array.isArray(candidates.value) &&
+          candidates.value.some(item => item === null || item === undefined)
+        return hasNullCandidate || mayBeNull(args[0]!, shape)
+      }
+      return (
+        (op.nulls === 'strict' || op.id === 'bool.and' || op.id === 'bool.or') &&
+        args.some(arg => mayBeNull(arg, shape))
+      )
+    },
     If: ({ cond, then, otherwise }) => [cond, then, otherwise].some(part => mayBeNull(part, shape)),
     Match: () => true,
     Opaque: () => true,

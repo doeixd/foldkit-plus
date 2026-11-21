@@ -17,7 +17,7 @@ const refused = new Node.Refusal({
   detail: 'an operand that was refused',
 })
 
-const numbers: ReadonlyArray<number> = [0, 1, -3, 0.5, -2.25, MAX, -MAX, 1e200]
+const numbers: ReadonlyArray<number> = [0, -0, 1, -3, 0.5, -2.25, MAX, -MAX, 1e200]
 const notFinite: ReadonlyArray<number> = [NaN, Infinity, -Infinity]
 const booleans: ReadonlyArray<boolean> = [true, false]
 const texts: ReadonlyArray<string> = ['', 'ab', 'AB', ' a\t\n', '🚀x', '\uD83D', 'a\u0000b']
