@@ -71,6 +71,8 @@ export type GraphEdge = Data.TaggedEnum<{
   Keeps: { readonly transition: string; readonly law: string; readonly evidence: Evidence }
   /** `level`'s projection contains every path of `of`'s, and more. */
   Refines: { readonly level: string; readonly of: string }
+  /** A transition emits a Command that may send another Message back into the application. */
+  Sends: { readonly from: string; readonly emit: string; readonly to: string }
 }>
 export const GraphEdge = /* @__PURE__ */ Data.taggedEnum<GraphEdge>()
 
@@ -131,6 +133,13 @@ export interface GraphOptions {
    * store slice they reach is queryable in one place.
    */
   readonly machine?: GraphMachine | undefined
+  /**
+   * Message-to-Message edges from `Declared.of(...).messageEdges` (which
+   * emitted Commands may send which Messages back into the application).
+   */
+  readonly sends?:
+    | ReadonlyArray<{ readonly from: string; readonly emit: string; readonly to: string }>
+    | undefined
 }
 
 /** A transition that writes a path a law reads, and what shows it keeps the law (empty: nothing). */
@@ -235,6 +244,7 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
       // Only admitted evidence is a keeps edge, made below.
       Keeps: () => false,
       Refines: () => true,
+      Sends: () => true,
     })
     if (kept) edges.set(keyOf(made), made)
   }
@@ -307,6 +317,7 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
         To: () => undefined,
         Keeps: () => undefined,
         Refines: () => undefined,
+        Sends: () => undefined,
       })
     }
     for (const entity of contractEntities) {
@@ -429,6 +440,15 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
     edges.set(`keeps:${kept.size}`, GraphEdge.Keeps({ transition, law, evidence: record }))
   }
   for (const record of options.evidence ?? []) admit(record)
+  for (const sent of options.sends ?? []) {
+    edge(
+      GraphEdge.Sends({
+        from: `message:${sent.from}`,
+        emit: sent.emit,
+        to: `message:${sent.to}`,
+      }),
+    )
+  }
 
   return {
     graph: { nodes: [...nodes.values()], edges: [...edges.values()], dependencies },

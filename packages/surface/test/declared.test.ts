@@ -91,9 +91,13 @@ describe('Declared.of', () => {
     const r4 = declared.update(r3.model, Message.Noted({ note: 'kept' }))
     expect(r4.model).toEqual({ title: 'Hello', count: 3, note: 'kept' })
 
-    // 5. Introspection: undeclared list and validated sends map.
+    // 5. Introspection: undeclared list, validated sends map, and derived messageEdges.
     expect(declared.undeclared).toEqual(['Saved', 'Noted'])
     expect(declared.sends).toEqual({ LogTitle: ['Saved'], Persist: ['Saved'] })
+    expect(declared.messageEdges).toEqual([
+      { from: 'Renamed', emit: 'LogTitle', to: 'Saved' },
+      { from: 'Renamed', emit: 'Persist', to: 'Saved' },
+    ])
   })
 
   it('tracks Writes epochs automatically through declared.update (including fallback Messages)', () => {

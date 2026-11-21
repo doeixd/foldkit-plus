@@ -60,6 +60,13 @@ export type DeclaredConfig<
     ? { readonly commands?: CommandTable<never, Root, Message, Resources> | undefined }
     : { readonly commands: CommandTable<EmitOf<Transitions>, Root, Message, Resources> })
 
+/** A Message-to-Message edge derived from a transition's emitted record and its Command's `sends`. */
+export interface MessageEdge<Tag extends string = string> {
+  readonly from: Tag
+  readonly emit: string
+  readonly to: string
+}
+
 /** The derived application layer returned by `Declared.of`. */
 export interface Declared<Root, Message, Tag extends string, Resources = never> {
   /**
@@ -85,6 +92,11 @@ export interface Declared<Root, Message, Tag extends string, Resources = never> 
   readonly undeclared: ReadonlyArray<string>
   /** Validated map from emitted record tag to the Message tags its Command may send back. */
   readonly sends: Readonly<Record<string, ReadonlyArray<string>>>
+  /**
+   * Message-to-Message edges derived from each transition's declared `emits`
+   * joined with `sends`, ready to pass to `Graph.of(module, { machine, sends })`.
+   */
+  readonly messageEdges: ReadonlyArray<MessageEdge<Tag>>
 }
 
 const of = <
@@ -152,6 +164,24 @@ const of = <
   const appTags = Object.keys(messages).filter(key => messageTag(messages[key]) === key)
   const undeclared = appTags.filter(tag => !declaredTags.has(tag))
 
+  // Join each transition's declared `emits` with `validatedSends` to produce
+  // Message-to-Message edges for `Graph.of`.
+  const messageEdges: Array<MessageEdge<Tag>> = []
+  const seenEdges = new Set<string>()
+  for (const [from, transition] of Object.entries(machine.transitions)) {
+    const emits = (transition as { readonly emits?: ReadonlyArray<{ readonly tag: string }> }).emits
+    if (!Array.isArray(emits)) continue
+    for (const spec of emits) {
+      const targets = Object.hasOwn(validatedSends, spec.tag) ? validatedSends[spec.tag]! : []
+      for (const to of targets) {
+        const key = `${from}\u0000${spec.tag}\u0000${to}`
+        if (seenEdges.has(key)) continue
+        seenEdges.add(key)
+        messageEdges.push({ from: from as Tag, emit: spec.tag, to })
+      }
+    }
+  }
+
   const commandsTable = (config?.commands ?? Object.create(null)) as Readonly<
     Record<string, (record: unknown) => ReadonlyArray<CommandOf<Root, Message, Resources>>>
   >
@@ -193,6 +223,7 @@ const of = <
     install: writes.install,
     undeclared,
     sends: validatedSends,
+    messageEdges,
   }
 }
 

@@ -424,7 +424,19 @@ describe('unified dependency graph (graph.dependencies)', () => {
       state: Model,
       transitions: { ChangedFilter },
     })
-    const graph = Graph.of(Module.make(App, [document, shop, ShopView, FilterBar]), { machine })
+    const graph = Graph.of(Module.make(App, [document, shop, ShopView, FilterBar]), {
+      machine,
+      sends: [{ from: 'ChangedFilter', emit: 'Persist', to: 'CreatedTodo' }],
+    })
+
+    expect(graph.edges.filter(GraphEdge.$is('Sends')).map(edge => ({ ...edge }))).toEqual([
+      {
+        _tag: 'Sends',
+        from: 'message:ChangedFilter',
+        emit: 'Persist',
+        to: 'message:CreatedTodo',
+      },
+    ])
 
     // write:Sell writes entity:Product.stock -> directly affects Product.reservedWithinStock
     // AND bridges through remote:shop's row->model link to surface:ShopView (observing ['remote']).
