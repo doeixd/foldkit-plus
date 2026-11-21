@@ -80,7 +80,7 @@ export default [
   ),
   edit(
     'a filled day is shown as an epoch day',
-    'format: value => dayText(Number(value)),',
+    "format: value => dayText(Number(value)) ?? '',",
     'format: value => String(value),',
   ),
   edit('a transition is judged without the values entered', 'input: known(model),', 'input: {},', [
