@@ -333,6 +333,21 @@
       "types": "./dist/metakit/graph.d.mts",
       "import": "./dist/metakit/graph.mjs"
     },
+    "./metakit/graph/match": {
+      "foldkit-plus:source": "./src/metakit/graph/match.ts",
+      "types": "./dist/metakit/graph/match.d.mts",
+      "import": "./dist/metakit/graph/match.mjs"
+    },
+    "./metakit/graph/prune": {
+      "foldkit-plus:source": "./src/metakit/graph/prune.ts",
+      "types": "./dist/metakit/graph/prune.d.mts",
+      "import": "./dist/metakit/graph/prune.mjs"
+    },
+    "./metakit/graph/readiness": {
+      "foldkit-plus:source": "./src/metakit/graph/readiness.ts",
+      "types": "./dist/metakit/graph/readiness.d.mts",
+      "import": "./dist/metakit/graph/readiness.mjs"
+    },
     "./metakit/policy": {
       "foldkit-plus:source": "./src/metakit/policy.ts",
       "types": "./dist/metakit/policy.d.mts",
@@ -362,6 +377,11 @@
       "foldkit-plus:source": "./src/metakit/conformance.ts",
       "types": "./dist/metakit/conformance.d.mts",
       "import": "./dist/metakit/conformance.mjs"
+    },
+    "./metakit/build": {
+      "foldkit-plus:source": "./src/metakit/build.ts",
+      "types": "./dist/metakit/build.d.mts",
+      "import": "./dist/metakit/build.mjs"
     },
     "./mirror": {
       "foldkit-plus:source": "./src/mirror.ts",

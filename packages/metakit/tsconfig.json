@@ -10,6 +10,7 @@
       "metakit": ["./src/index.ts"],
       "metakit/aggregates": ["./src/aggregates.ts"],
       "metakit/aggregates/sql": ["./src/aggregatesSql.ts"],
+      "metakit/build": ["./src/build.ts"],
       "metakit/conformance": ["./src/conformance.ts"],
       "metakit/domain": ["./src/domain.ts"],
       "metakit/drizzle": ["./src/drizzle.ts"],

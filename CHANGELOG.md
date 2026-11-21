@@ -7,7 +7,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Breaking
+
+- `foldkit-entity`: `Judge.predicate` and `Judge.query` return a metakit `Verdict` (`True`, `False`, `Unknown`); the `Verdict` type and `Judge.match` are removed. SQL's null is `False`, and `Judge.predicate` carries the witness `'null'`. Read answers with `Verdict.match` from `metakit`. New export: `PredicateVerdict`. `foldkit-entity` now depends on `metakit` at run time; a page that uses Remote gains only metakit's `verdict` module (about 60 to 110 brotli bytes).
+- `foldkit-remote`: `Data.can` returns a metakit `Verdict` (`True`, `False` with the `CanRefusal` as its witness, `Unknown` with the reasons). `Can.match`, `Can.Yes`, `Can.No` and `Can.Undecided` are removed. The JSON union is `CanWire`, with `Can.fromWire`, `Can.toWire` and `Can.undecided`; its JSON is unchanged.
+- `foldkit-guard`: `May.answer` returns a `Verdict` instead of `Option<boolean>`. `MaySchema` and its JSON are unchanged.
+- `metakit`: `Str.startsWith` and `Str.contains` compare by character; half of an astral character no longer begins or is inside the text that holds it.
+- `metakit`: every text and equality operation refuses text holding a NUL (`Refusal` reason `unportable`), since Postgres cannot store it. A rule over a plain `Schema.String` field therefore answers `Unknown` in the checker and the prover unless what it assumes already took the text.
+- `metakit`: a path to an `Option` field reads and writes as `T | null`; compare with null and write null instead of `Option.none()`.
+- `metakit`: `Op.laws` and `OpLaws` are removed; what each operation keeps is in `opProperties`.
+- `metakit`: `Transition`, `TransitionEnv` and `WriteEquation` gain a `Supplied` type parameter, and `TransitionEnv` gains `supplied`.
+
 ### Added
+
+- `metakit`: new operations `Eq.equals` and `Eq.among` (SQL's `=` and `in`, null-preserving), `Str.lowerAscii`, `Str.trim`, `Str.lt`, `Str.lte`, `Str.gt`, `Str.gte` (code-point order), `Null.coalesce`; foreign operations (`Node.foreign`), carried by id and version, with implementations passed to evaluation, `Expr.residualize`, `Expr.judge`, `Sql.toWhere` and `Drizzle.toWhere`; supplied values (`supplied` in `Transition.make`: the time, a new id, who asks, bound once by whoever runs the step), `Transition.add`, `Transition.opaque` and `Abstract.checkGoal`; `opProperties`, the declared properties of each operation, with `checkProperties` and `checkAllProperties` in `metakit/conformance`; the subpath `metakit/build`; `PathAccessor` and `EnvOf` from the main entry. `Sql.toWhere`, `Drizzle.toWhere` and `Prove.invariant` accept a goal that may be null.
 
 - `foldkit-sync`: new `foldkit-sync/metakit` subpath. `SyncDeclared.holds(expr)` makes a document law's `holds` from a metakit boolean expression, which the replica and journal evaluate against the shared snapshot the edit produces; an expression metakit refuses to evaluate is a broken law. `SyncDeclared.transition(t)` under `make({ transitions })` gives a recorded Message a metakit transition: the mount and journal run the same transition, `make` rejects a guard proved unreachable or a transition proved to break a law written with `SyncDeclared.holds`, and the document exposes its read and write paths. `make` itself imports no metakit, and a document that declares no transition carries none of that code. New exports `DeclaredTransition`, `DeclaredReplay` and a document's `live(model, message)`.
 - `foldkit-guard/check`: `GuardCheck.policy(entity, member)` checks whether a row Update is reachable and whether it implies Read of the member. Its definition can be passed to `metakit/prove` to search for a counterexample. It is an entry of its own so no page carries the prover.

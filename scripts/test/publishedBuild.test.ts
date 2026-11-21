@@ -227,9 +227,19 @@ test('a page reading only Metadata keeps no Evidence module, built or source', a
 }, 120_000)
 
 /**
+ * A metakit module other than `verdict`. Since step 2 of the unification plan
+ * (6e319f5ff) `foldkit-entity` answers with metakit's `Verdict`, so a page that
+ * reaches entity keeps that one module and, by the plan's byte rule, no other.
+ */
+const metakitBeyondVerdict = (id: string) =>
+  (/\/metakit\/(src|dist)\//.test(id) && !/\/metakit\/(src|dist)\/verdict\.(js|ts)$/.test(id)) ||
+  /\/metakit\.(js|ts)$/.test(id)
+
+/**
  * Form, Guard and Sync read metakit through a subpath of their own
  * (`foldkit-form/metakit`, `foldkit-guard/check`, `foldkit-sync/metakit`), so
- * a page using the main entry keeps none of it, built or source. Broken by
+ * a page using the main entry keeps none of it beyond the `Verdict` entity
+ * answers with, built or source. Broken by
  * hand: a module-level `console.log(fieldSpecs)` in form's `src/index.ts`
  * turned it red (a bare re-export of `Declared` there does not: the page drops
  * it unread), as did putting `check` back on `Guards` or an `Expr.eval` back
@@ -240,7 +250,7 @@ test.each([
   ['guard', `import { Guards } from 'pkg'\nexport const used = Guards.attach`, 'index.mjs'],
   ['sync', `import { Sync } from 'pkg'\nexport const used = Sync.forApplication`, 'index.js'],
 ] as const)(
-  'a page reading the main entry of foldkit-%s keeps no metakit module, built or source',
+  'a page reading the main entry of foldkit-%s keeps no metakit module but verdict, built or source',
   async (name, page, index) => {
     const root = scratchIn(name, 'published-')
     made.push(root)
@@ -250,9 +260,7 @@ test.each([
     const source = await kept(join(packages, name, 'src', 'index.ts'))
     expect(built.some(id => id.endsWith(`/dist/${index}`))).toBe(true)
     expect(source.some(id => id.endsWith(`/${name}/src/index.ts`))).toBe(true)
-    expect(
-      [...built, ...source].filter(id => /\/metakit\/(src|dist)\/|\/metakit\.(js|ts)$/.test(id)),
-    ).toEqual([])
+    expect([...built, ...source].filter(metakitBeyondVerdict)).toEqual([])
   },
   120_000,
 )
@@ -337,7 +345,7 @@ test.each([
   ['index', `import { Remote } from 'pkg'\nexport const used = Remote.make`, 'remote'],
   ['aggregate', `import { aggregated } from 'pkg'\nexport const used = aggregated`, 'aggregate'],
 ] as const)(
-  'a page reading foldkit-remote/%s keeps no metakit module, built or source',
+  'a page reading foldkit-remote/%s keeps no metakit module but verdict, built or source',
   async (file, page, kept) => {
     const root = scratchIn('remote', 'published-')
     made.push(root)
@@ -348,11 +356,10 @@ test.each([
     const source = await modules(join(packages, 'remote', 'src', `${file}.ts`))
     expect(built.some(id => id.endsWith(`/dist/${kept}.js`))).toBe(true)
     expect(source.some(id => id.endsWith(`/remote/src/${kept}.ts`))).toBe(true)
-    const forbidden =
-      file === 'index'
-        ? /\/metakit\/(src|dist)\/|\/(dist|remote\/src)\/aggregate\.(js|ts)$/
-        : /\/metakit\/(src|dist)\//
-    expect([...built, ...source].filter(id => forbidden.test(id))).toEqual([])
+    const aggregate = /\/(dist|remote\/src)\/aggregate\.(js|ts)$/
+    const forbidden = (id: string) =>
+      metakitBeyondVerdict(id) || (file === 'index' && aggregate.test(id))
+    expect([...built, ...source].filter(forbidden)).toEqual([])
   },
   120_000,
 )
