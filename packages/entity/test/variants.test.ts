@@ -4,6 +4,7 @@
  * narrowing to a case, over the row and through a relation.
  */
 import { Option, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import { Metadata } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
 import {
@@ -246,17 +247,16 @@ describe('Expr.is', () => {
       { entity: Shop.Order, rows: orders },
       { entity: Shop.Domain, rows },
     ])
-    const known = (truth: boolean) => ({ _tag: 'Known', truth })
+    const known = (truth: boolean) => (truth ? Verdict.True() : Verdict.False())
     const truths = (predicate: Predicate) =>
-      orders.map(order => {
-        const verdict: unknown = Judge.query(
+      orders.map(order =>
+        Judge.query(
           Query.from(Shop.Order).pipe(Query.where(predicate)),
           {},
           Option.getOrThrow(held.row(Shop.Order, order.id)),
           { rows: held },
-        )
-        return verdict
-      })
+        ),
+      )
     // A null link reaches no row: unknown, so neither the test nor its `not` holds it.
     expect(truths(cheap)).toEqual([true, false, false, false].map(known))
     expect(truths(Expr.not(cheap))).toEqual([false, true, true, false].map(known))

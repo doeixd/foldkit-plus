@@ -61,8 +61,7 @@ export const render = <Root, Model, Message, Params, Slots_>(
   surface: Surface<Root, Model, Message, Params>,
   params: Params,
   root: Root,
-): Html =>
-  Surface.rootView(surface, params, toRenderer(view))(root, SlotView.inertBuilder<Message>())
+): Html => view(surface.projection(params).read(root), SlotView.inertBuilder<Message>())
 
 export interface SurfaceViewInspection {
   /** The SlotView's name, defaulted from the Surface's name. */

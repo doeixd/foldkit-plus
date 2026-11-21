@@ -9,6 +9,7 @@
  */
 import { Option } from 'effect'
 import { RemoteData } from 'foldkit-remote'
+import { Verdict } from 'metakit'
 import type { InteractionKey } from './attach.js'
 import { May, type MayAnswer } from './may.js'
 
@@ -35,15 +36,15 @@ const decided = (
   Option.match(answered(row), {
     onNone: () => false,
     onSome: may =>
-      Option.match(May.answer(may, interaction), {
-        // Not said: the server decides when the Message's write reaches it.
-        onNone: () => true,
-        onSome: allowed =>
-          allowed ||
+      Verdict.match(May.answer(may, interaction), {
+        True: () => true,
+        False: () =>
           Option.match(May.reason(may, interaction), {
             onNone: () => false,
             onSome: reason => ({ allowed: false as const, reason }),
           }),
+        // Not said: the server decides when the Message's write reaches it.
+        Unknown: () => true,
       }),
   })
 

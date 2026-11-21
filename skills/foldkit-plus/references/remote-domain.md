@@ -137,6 +137,8 @@ provided.
   `Write`, landing it through `RemoteServer.write` over `GuardServer.writer` over `RemoteServer.memoryWriter`; you give
   `event`, `record`, `apply`, `revision`, `principal`, `middleware`, `listed`, `policy`. `Lower.check` lists what keeps a
   write out of one aggregate (`OutsideBoundary`, `NotPersisted`). Reused operations are `Reused` to who may write only.
+  Declare the write over the Entity `Guards.attach` returned: `Lower.check`, `Lower.write` and a
+  `DomainRemote.command` with `written` throw for the bare one of a guarded Entity.
 - **`Imported` (`/imported`)** declares a command with no `Write` (`mutation`, with a `Derived`, `Declared` or `Unknown`
   footprint), `describe`s what is imported, and `show`s it as Markdown.
 - **`Fixture.make` (`/testing`)** hosts the model in memory with deliveries held until `drain`, seeds `given` Events,

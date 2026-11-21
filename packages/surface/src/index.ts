@@ -28,7 +28,7 @@ export {
 } from 'foldkit-metadata'
 export { Closure, type ClosureProjection, ClosureViolation } from './closure.js'
 import type { ContractLaws } from './graph.js'
-import { labelOf, pathText, tableCell } from './text.js'
+import { isPrefix, labelOf, pathText, tableCell } from './text.js'
 export {
   Graph,
   GraphEdge,
@@ -36,10 +36,12 @@ export {
   type Breaker,
   type ContractLaws,
   type GraphFacts,
+  type GraphMachine,
   type GraphOptions,
   type GraphSpace,
 } from './graph.js'
 import { hasTagIn, messageTag, messageTags } from './messageTags.js'
+import { getRootViewHook } from './rootViewRegistry.js'
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnostics.js'
 export {
   CachedRead,
@@ -529,7 +531,8 @@ export const Projection = {
         } else {
           const nested = choice as Projection<unknown, unknown>
           picked[key] = nested.Model
-          dependencies.push(...nested.dependencies)
+          // The nested projection reads from the field's value, so its paths start under the key.
+          dependencies.push(...nested.dependencies.map(path => [key, ...path]))
           metadata.push(nested.metadata)
           parts.push(nested)
           readers.push([key, root => nested.read(propertyReader(root, key))])
@@ -1095,6 +1098,12 @@ type ViewBuilder<Message> = Omit<HtmlBuilder<Message>, keyof HtmlBuilder<never> 
 
 /** A renderer for a Surface's projected Model, with its Message set narrowed. */
 export type Renderer<Model, Message> = (model: Model, h: ViewBuilder<Message>) => Html
+
+/** The Model paths a Projection reads, or none when it reads something no path names (a `fromReader`, a raw optic). */
+export const pathsRead = (projection: {
+  readonly dependencies: DependencyTree
+}): Option.Option<DependencyTree> =>
+  unnamed(projection) ? Option.none() : Option.some(projection.dependencies)
 
 /** `unknown` when `Sub` is a subtype of `Super`, `never` otherwise. */
 type Subset<Sub, Super> = [Sub] extends [Super] ? unknown : never
@@ -1738,6 +1747,13 @@ export const Surface = {
     root: Root,
     h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
   ) => Html) => {
+    const hook = getRootViewHook(surface.owner)
+    if (hook !== undefined) {
+      return hook(surface, params, render) as <AppMessage>(
+        root: Root,
+        h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
+      ) => Html
+    }
     const projection = surface.projection(params)
     // Sound narrowing: the renderer can only construct this Surface's Messages,
     // and `Subset` guarantees the application builder accepts them.
@@ -1778,6 +1794,7 @@ export const Surface = {
       messages: messageTags(surface),
       metadata: Metadata.summarize(projection.metadata),
       ...(surface.closed ? { closed: true as const } : {}),
+      ...(unnamed(projection) ? { unnamed: true as const } : {}),
     }
   },
 
@@ -1826,6 +1843,8 @@ export interface Contract {
   readonly metadata: readonly MetadataSummary[]
   /** A Surface declared `closed: true`; absent for any other contract. */
   readonly closed?: true
+  /** A Surface whose projection reads something no path names; absent when all reads are named. */
+  readonly unnamed?: true | undefined
   /**
    * The laws the contract holds and the transitions that can break them, as
    * the declarations themselves: `Graph.of` derives their nodes and edges
@@ -1924,8 +1943,6 @@ export type ModuleItem<Root> =
 
 const label = labelOf
 const pathKey = pathText
-const isPrefix = (prefix: readonly string[], path: readonly string[]): boolean =>
-  prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])
 
 // A carried contract wins: a sync contract also has a `projection` (writable, not a function).
 const toContract = <Root>(item: ModuleItem<Root>): Contract =>

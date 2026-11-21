@@ -13,6 +13,7 @@
       "foldkit-agent-mcp": ["../agent-mcp/src/index.ts"],
       "foldkit-agent-native": ["../agent-native/src/index.ts"],
       "foldkit-agent-webmcp": ["../agent-webmcp/src/index.ts"],
+      "foldkit-agent/metakit": ["../agent/src/metakit.ts"],
       "foldkit-auth": ["../auth/src/index.ts"],
       "foldkit-auth/server": ["../auth/src/server.ts"],
       "foldkit-builder": ["../builder/src/index.ts"],
@@ -39,8 +40,10 @@
       "foldkit-form-recipes/html": ["../form-recipes/src/html.ts"],
       "foldkit-form-recipes/image": ["../form-recipes/src/image.ts"],
       "foldkit-form-recipes/ui": ["../form-recipes/src/ui.ts"],
+      "foldkit-form/metakit": ["../form/src/metakit.ts"],
       "foldkit-guard": ["../guard/src/index.ts"],
       "foldkit-guard/agent": ["../guard/src/agent.ts"],
+      "foldkit-guard/check": ["../guard/src/check.ts"],
       "foldkit-guard/drizzle": ["../guard/src/drizzle.ts"],
       "foldkit-guard/media": ["../guard/src/media.ts"],
       "foldkit-guard/server": ["../guard/src/server.ts"],
@@ -63,6 +66,7 @@
       "foldkit-mixins-crud/recipes": ["../mixins-crud/src/recipes.ts"],
       "foldkit-mixins-data-grid": ["../mixins-data-grid/src/index.ts"],
       "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
+      "foldkit-mixins-form/declared": ["../mixins-form/src/declared.ts"],
       "foldkit-mixins-form/recipes": ["../mixins-form/src/recipes.ts"],
       "foldkit-mixins-form/ui": ["../mixins-form/src/ui.ts"],
       "foldkit-mixins-richtext": ["../mixins-richtext/src/index.ts"],
@@ -86,6 +90,7 @@
       "foldkit-plus/agent-mcp": ["./src/agent-mcp.ts"],
       "foldkit-plus/agent-native": ["./src/agent-native.ts"],
       "foldkit-plus/agent-webmcp": ["./src/agent-webmcp.ts"],
+      "foldkit-plus/agent/metakit": ["./src/agent/metakit.ts"],
       "foldkit-plus/auth": ["./src/auth.ts"],
       "foldkit-plus/auth/server": ["./src/auth/server.ts"],
       "foldkit-plus/builder": ["./src/builder.ts"],
@@ -112,8 +117,10 @@
       "foldkit-plus/form-recipes/html": ["./src/form-recipes/html.ts"],
       "foldkit-plus/form-recipes/image": ["./src/form-recipes/image.ts"],
       "foldkit-plus/form-recipes/ui": ["./src/form-recipes/ui.ts"],
+      "foldkit-plus/form/metakit": ["./src/form/metakit.ts"],
       "foldkit-plus/guard": ["./src/guard.ts"],
       "foldkit-plus/guard/agent": ["./src/guard/agent.ts"],
+      "foldkit-plus/guard/check": ["./src/guard/check.ts"],
       "foldkit-plus/guard/drizzle": ["./src/guard/drizzle.ts"],
       "foldkit-plus/guard/media": ["./src/guard/media.ts"],
       "foldkit-plus/guard/server": ["./src/guard/server.ts"],
@@ -128,6 +135,25 @@
       "foldkit-plus/media/unpic": ["./src/media/unpic.ts"],
       "foldkit-plus/media/vite": ["./src/media/vite.ts"],
       "foldkit-plus/metadata": ["./src/metadata.ts"],
+      "foldkit-plus/metakit": ["./src/metakit.ts"],
+      "foldkit-plus/metakit/aggregates": ["./src/metakit/aggregates.ts"],
+      "foldkit-plus/metakit/aggregates/sql": ["./src/metakit/aggregates/sql.ts"],
+      "foldkit-plus/metakit/build": ["./src/metakit/build.ts"],
+      "foldkit-plus/metakit/conformance": ["./src/metakit/conformance.ts"],
+      "foldkit-plus/metakit/domain": ["./src/metakit/domain.ts"],
+      "foldkit-plus/metakit/drizzle": ["./src/metakit/drizzle.ts"],
+      "foldkit-plus/metakit/graph": ["./src/metakit/graph.ts"],
+      "foldkit-plus/metakit/graph/match": ["./src/metakit/graph/match.ts"],
+      "foldkit-plus/metakit/graph/prune": ["./src/metakit/graph/prune.ts"],
+      "foldkit-plus/metakit/graph/readiness": ["./src/metakit/graph/readiness.ts"],
+      "foldkit-plus/metakit/inspect": ["./src/metakit/inspect.ts"],
+      "foldkit-plus/metakit/machine": ["./src/metakit/machine.ts"],
+      "foldkit-plus/metakit/policy": ["./src/metakit/policy.ts"],
+      "foldkit-plus/metakit/prove": ["./src/metakit/prove.ts"],
+      "foldkit-plus/metakit/relation": ["./src/metakit/relation.ts"],
+      "foldkit-plus/metakit/sql": ["./src/metakit/sql.ts"],
+      "foldkit-plus/metakit/store": ["./src/metakit/store.ts"],
+      "foldkit-plus/metakit/temporal": ["./src/metakit/temporal.ts"],
       "foldkit-plus/mirror": ["./src/mirror.ts"],
       "foldkit-plus/mixins": ["./src/mixins.ts"],
       "foldkit-plus/mixins-builder": ["./src/mixins-builder.ts"],
@@ -135,6 +161,7 @@
       "foldkit-plus/mixins-crud/recipes": ["./src/mixins-crud/recipes.ts"],
       "foldkit-plus/mixins-data-grid": ["./src/mixins-data-grid.ts"],
       "foldkit-plus/mixins-form": ["./src/mixins-form.ts"],
+      "foldkit-plus/mixins-form/declared": ["./src/mixins-form/declared.ts"],
       "foldkit-plus/mixins-form/recipes": ["./src/mixins-form/recipes.ts"],
       "foldkit-plus/mixins-form/ui": ["./src/mixins-form/ui.ts"],
       "foldkit-plus/mixins-richtext": ["./src/mixins-richtext.ts"],
@@ -176,6 +203,7 @@
       "foldkit-plus/remote-server": ["./src/remote-server.ts"],
       "foldkit-plus/remote-server/fetch": ["./src/remote-server/fetch.ts"],
       "foldkit-plus/remote-server/port": ["./src/remote-server/port.ts"],
+      "foldkit-plus/remote/aggregate": ["./src/remote/aggregate.ts"],
       "foldkit-plus/remote/filter": ["./src/remote/filter.ts"],
       "foldkit-plus/remote/live": ["./src/remote/live.ts"],
       "foldkit-plus/remote/outbox": ["./src/remote/outbox.ts"],
@@ -203,10 +231,12 @@
       "foldkit-plus/ssr/loader": ["./src/ssr/loader.ts"],
       "foldkit-plus/ssr/vite": ["./src/ssr/vite.ts"],
       "foldkit-plus/surface": ["./src/surface.ts"],
+      "foldkit-plus/surface/writes": ["./src/surface/writes.ts"],
       "foldkit-plus/sync": ["./src/sync.ts"],
       "foldkit-plus/sync/do": ["./src/sync/do.ts"],
       "foldkit-plus/sync/entity": ["./src/sync/entity.ts"],
       "foldkit-plus/sync/journal": ["./src/sync/journal.ts"],
+      "foldkit-plus/sync/metakit": ["./src/sync/metakit.ts"],
       "foldkit-plus/sync/remote": ["./src/sync/remote.ts"],
       "foldkit-plus/testing/playwright": ["./src/testing/playwright.ts"],
       "foldkit-plus/testing/workers": ["./src/testing/workers.ts"],
@@ -234,6 +264,7 @@
       "foldkit-remote-server": ["../remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../remote-server/src/port.ts"],
+      "foldkit-remote/aggregate": ["../remote/src/aggregate.ts"],
       "foldkit-remote/filter": ["../remote/src/filter.ts"],
       "foldkit-remote/live": ["../remote/src/live.ts"],
       "foldkit-remote/outbox": ["../remote/src/outbox.ts"],
@@ -261,61 +292,179 @@
       "foldkit-ssr/loader": ["../ssr/src/loader.ts"],
       "foldkit-ssr/vite": ["../ssr/src/vite.ts"],
       "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/writes": ["../surface/src/writes.ts"],
       "foldkit-sync": ["../sync/src/index.ts"],
       "foldkit-sync/do": ["../sync/src/do.ts"],
       "foldkit-sync/entity": ["../sync/src/entity.ts"],
       "foldkit-sync/journal": ["../sync/src/journal.ts"],
-      "foldkit-sync/remote": ["../sync/src/remote.ts"]
+      "foldkit-sync/metakit": ["../sync/src/metakit.ts"],
+      "foldkit-sync/remote": ["../sync/src/remote.ts"],
+      "metakit": ["../metakit/src/index.ts"],
+      "metakit/aggregates": ["../metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../metakit/src/aggregatesSql.ts"],
+      "metakit/build": ["../metakit/src/build.ts"],
+      "metakit/conformance": ["../metakit/src/conformance.ts"],
+      "metakit/domain": ["../metakit/src/domain.ts"],
+      "metakit/drizzle": ["../metakit/src/drizzle.ts"],
+      "metakit/graph": ["../metakit/src/graph.ts"],
+      "metakit/graph/match": ["../metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../metakit/src/inspect.ts"],
+      "metakit/machine": ["../metakit/src/machine.ts"],
+      "metakit/policy": ["../metakit/src/policy.ts"],
+      "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/relation": ["../metakit/src/relation.ts"],
+      "metakit/sql": ["../metakit/src/sql.ts"],
+      "metakit/store": ["../metakit/src/store.ts"],
+      "metakit/temporal": ["../metakit/src/temporal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts", "tsdown.config.ts"],
   "references": [
-    { "path": "../agent/tsconfig.build.json" },
-    { "path": "../agent-a2a/tsconfig.build.json" },
-    { "path": "../agent-mcp/tsconfig.build.json" },
-    { "path": "../agent-native/tsconfig.build.json" },
-    { "path": "../agent-webmcp/tsconfig.build.json" },
-    { "path": "../auth/tsconfig.build.json" },
-    { "path": "../builder/tsconfig.build.json" },
-    { "path": "../bundle/tsconfig.build.json" },
-    { "path": "../bundle-surface/tsconfig.build.json" },
-    { "path": "../cms/tsconfig.build.json" },
-    { "path": "../cms-drizzle/tsconfig.build.json" },
-    { "path": "../composition/tsconfig.build.json" },
-    { "path": "../crud/tsconfig.build.json" },
-    { "path": "../data-grid/tsconfig.build.json" },
-    { "path": "../durable/tsconfig.build.json" },
-    { "path": "../entity/tsconfig.build.json" },
-    { "path": "../form/tsconfig.build.json" },
-    { "path": "../form-recipes/tsconfig.build.json" },
-    { "path": "../guard/tsconfig.build.json" },
-    { "path": "../host/tsconfig.build.json" },
-    { "path": "../media/tsconfig.build.json" },
-    { "path": "../metadata/tsconfig.build.json" },
-    { "path": "../mirror/tsconfig.build.json" },
-    { "path": "../mixins/tsconfig.build.json" },
-    { "path": "../mixins-builder/tsconfig.build.json" },
-    { "path": "../mixins-crud/tsconfig.build.json" },
-    { "path": "../mixins-data-grid/tsconfig.build.json" },
-    { "path": "../mixins-form/tsconfig.build.json" },
-    { "path": "../mixins-richtext/tsconfig.build.json" },
-    { "path": "../mixins-surface/tsconfig.build.json" },
-    { "path": "../mixins-ui/tsconfig.build.json" },
-    { "path": "../primitives/tsconfig.build.json" },
-    { "path": "../react/tsconfig.build.json" },
-    { "path": "../react-codegen/tsconfig.build.json" },
-    { "path": "../remote/tsconfig.build.json" },
-    { "path": "../remote-domain/tsconfig.build.json" },
-    { "path": "../remote-drizzle/tsconfig.build.json" },
-    { "path": "../remote-server/tsconfig.build.json" },
-    { "path": "../richtext/tsconfig.build.json" },
-    { "path": "../richtext-code/tsconfig.build.json" },
-    { "path": "../richtext-code-shiki/tsconfig.build.json" },
-    { "path": "../richtext-dom/tsconfig.build.json" },
-    { "path": "../richtext-markdown/tsconfig.build.json" },
-    { "path": "../site/tsconfig.build.json" },
-    { "path": "../ssr/tsconfig.build.json" },
-    { "path": "../surface/tsconfig.build.json" },
-    { "path": "../sync/tsconfig.build.json" }
+    {
+      "path": "../agent/tsconfig.build.json"
+    },
+    {
+      "path": "../agent-a2a/tsconfig.build.json"
+    },
+    {
+      "path": "../agent-mcp/tsconfig.build.json"
+    },
+    {
+      "path": "../agent-native/tsconfig.build.json"
+    },
+    {
+      "path": "../agent-webmcp/tsconfig.build.json"
+    },
+    {
+      "path": "../auth/tsconfig.build.json"
+    },
+    {
+      "path": "../builder/tsconfig.build.json"
+    },
+    {
+      "path": "../bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../bundle-surface/tsconfig.build.json"
+    },
+    {
+      "path": "../cms/tsconfig.build.json"
+    },
+    {
+      "path": "../cms-drizzle/tsconfig.build.json"
+    },
+    {
+      "path": "../composition/tsconfig.build.json"
+    },
+    {
+      "path": "../crud/tsconfig.build.json"
+    },
+    {
+      "path": "../data-grid/tsconfig.build.json"
+    },
+    {
+      "path": "../durable/tsconfig.build.json"
+    },
+    {
+      "path": "../entity/tsconfig.build.json"
+    },
+    {
+      "path": "../form/tsconfig.build.json"
+    },
+    {
+      "path": "../form-recipes/tsconfig.build.json"
+    },
+    {
+      "path": "../guard/tsconfig.build.json"
+    },
+    {
+      "path": "../host/tsconfig.build.json"
+    },
+    {
+      "path": "../media/tsconfig.build.json"
+    },
+    {
+      "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../metakit/tsconfig.build.json"
+    },
+    {
+      "path": "../mirror/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-builder/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-crud/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-data-grid/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-form/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-richtext/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-surface/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-ui/tsconfig.build.json"
+    },
+    {
+      "path": "../primitives/tsconfig.build.json"
+    },
+    {
+      "path": "../react/tsconfig.build.json"
+    },
+    {
+      "path": "../react-codegen/tsconfig.build.json"
+    },
+    {
+      "path": "../remote/tsconfig.build.json"
+    },
+    {
+      "path": "../remote-domain/tsconfig.build.json"
+    },
+    {
+      "path": "../remote-drizzle/tsconfig.build.json"
+    },
+    {
+      "path": "../remote-server/tsconfig.build.json"
+    },
+    {
+      "path": "../richtext/tsconfig.build.json"
+    },
+    {
+      "path": "../richtext-code/tsconfig.build.json"
+    },
+    {
+      "path": "../richtext-code-shiki/tsconfig.build.json"
+    },
+    {
+      "path": "../richtext-dom/tsconfig.build.json"
+    },
+    {
+      "path": "../richtext-markdown/tsconfig.build.json"
+    },
+    {
+      "path": "../site/tsconfig.build.json"
+    },
+    {
+      "path": "../ssr/tsconfig.build.json"
+    },
+    {
+      "path": "../surface/tsconfig.build.json"
+    },
+    {
+      "path": "../sync/tsconfig.build.json"
+    }
   ]
 }

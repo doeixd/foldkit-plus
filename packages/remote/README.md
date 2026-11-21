@@ -1794,6 +1794,11 @@ or field the store lacks is not judged either way, so the answer is
 Nothing is created: no connection, nothing new to retain, nothing new to fetch.
 The server stays authoritative for which rows exist.
 
+For a total, a count, or the smallest value of those same rows, kept up to
+date from the rows that change rather than added up again on every render, see
+[Show a total over a list you already loaded](./docs/aggregates.md)
+(`aggregated` from `foldkit-remote/aggregate`).
+
 ### Judging the rows you already hold
 
 A connection's rows are edges the server delivered, and a query body describes

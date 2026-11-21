@@ -218,6 +218,43 @@ const listed = Effect.runSync(partsRuntime.parts.list) // one snapshot; sends no
 - `parts.find({ label })` answers `Agent.Found` `One`, `None`, or `Ambiguous` with every match; identity is `id` plus `occurrence`, never the label.
 - `AppParts.attributes(h, 'create')` / `attributes(h, 'remove', key)` write `data-fk-part`/`data-fk-part-key` for an in-page adapter or a test; nothing reads them for authority.
 
+### A metakit Machine's transitions as tools
+
+When the rules are a `metakit/machine` `Machine` (transitions with an input Schema and a `when` guard; see [metakit.md](metakit.md)), `machineTools` from `foldkit-agent/metakit` makes one `expose` variant per transition, so nothing is restated:
+
+```ts
+import { Eq, Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
+import { machineTools } from 'foldkit-agent/metakit'
+
+const Account = Schema.Struct({ status: Schema.Literals(['open', 'frozen']) })
+const AccountMachine = Machine.make({
+  state: Account,
+  transitions: {
+    Freeze: Transition.make({
+      state: Account,
+      input: Schema.Struct({}),
+      when: ({ state }) => Eq.is(state.status, 'open'),
+      apply: ({ state }) => [Transition.set(state.status, 'frozen')],
+    }),
+  },
+})
+const AccountMessage = defineMessageUnion({ Freeze: {} })
+const BankAgent = Agent.forModel<{ readonly account: typeof Account.Type }>()
+const Tools = machineTools({ agent: BankAgent, machine: AccountMachine, state: model => model.account })
+const Bank = BankAgent.make({
+  messages: BankAgent.expose(AccountMessage, { Freeze: Tools.Freeze('Freeze the account') }),
+})
+```
+
+- `Tools` is keyed by the machine's transitions (`Tools.Frezee` is a type error); the tool name defaults to the key in snake_case (`freeze`). Pass `{ name, description, toMessage, authorize }` instead of a string to rename, map onto a differently shaped Message, or limit callers. The Message's fields must match the input, or `toMessage` must make them: a type error otherwise.
+- The parameter schema is Effect's JSON Schema plus `Inspect.toJsonSchema`'s bounds and `x-metakit-domain` (Money, Decimal, CalendarDay); the tighter bound wins.
+- `available` is `Machine.canDispatch(machine, key, { state })` not `False`. `Unknown` (needs the input, or an opaque term) stays offered. After `authorize`, the call runs the guard on state and decoded input; a refusal is `AgentCapabilityUnavailableError` ("does not allow this input in the current state") and nothing is dispatched.
+- False means hidden from MCP `tools/list` and unregistered from WebMCP; Agent Native and the A2A card keep listing it and refuse the call.
+- A tool given `authorize` has no `available`: it is always listed and its whole guard runs after `authorize`, so a caller `authorize` refuses sees the same list and the same `AgentAuthorizationError` whatever the state.
+- `update` must apply the same transition for that Message (`machine.update(model.account, { _tag, input })`), or the tool checks a rule `update` does not run.
+- Guide: https://github.com/doeixd/foldkit-plus/blob/main/packages/agent/docs/machine-tools.md
+
 ## 5. Adapters (all serve one bound runtime)
 
 | Where the caller runs | Adapter |

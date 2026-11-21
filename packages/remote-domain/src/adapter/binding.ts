@@ -7,7 +7,7 @@
 import type * as Domain from '@alchemy.run/domain'
 import { Option, Schema, SchemaAST } from 'effect'
 import type { AnyEntity, AnyWrite } from 'foldkit-entity'
-import { Guards, type AnyRule } from 'foldkit-guard'
+import { Guards, type AnyRule, type Attachment } from 'foldkit-guard'
 import type { MutationDescriptor } from 'foldkit-remote'
 
 /** Any Domain Api, by the parts the adapter reads. */
@@ -248,33 +248,36 @@ export const view = <E extends AnyEntity, A extends AnyApi, const Name extends V
 }
 
 /** The rules a surface of the row carries, where they restrict who passes. */
-const rowRules = (entity: AnyEntity, interaction: string): Option.Option<ReadonlyArray<AnyRule>> =>
-  Option.flatMap(Guards.attached(entity), attachment =>
-    Option.filter(
-      Option.fromUndefinedOr(attachment.row[interaction]?.rules),
-      rules => !rules.some(rule => rule._tag === 'All' && rule.rules.length === 0),
-    ),
+const rowRules = (
+  attachment: Attachment,
+  interaction: string,
+): Option.Option<ReadonlyArray<AnyRule>> =>
+  Option.filter(
+    Option.fromUndefinedOr(attachment.row[interaction]?.rules),
+    rules => !rules.some(rule => rule._tag === 'All' && rule.rules.length === 0),
   )
 
 /**
  * Refuses `written` where a reply could show who may write a row what they
  * may not read: a Read rule of the row the Update rules do not imply (each
- * Update rule is one of the Read rules), or a Read rule on a member.
+ * Update rule is one of the Read rules), or a Read rule on a member. Throws
+ * for a descriptor without the guards another descriptor of its Entity
+ * carries, which would read as having no Read rule at all.
  */
 const checkWritten = (entity: AnyEntity, mutation: string): void => {
   const refuse = (why: string) =>
     fail_(`${mutation} cannot answer with its reply: ${why}. Read ${entity.name} through its View`)
-  const read = rowRules(entity, 'Read')
+  const attached = Guards.enforced(entity)
+  if (Option.isNone(attached)) return
+  const attachment = attached.value
+  const read = rowRules(attachment, 'Read')
   if (Option.isSome(read)) {
-    const update = Option.getOrElse(rowRules(entity, 'Update'), () => [])
+    const update = Option.getOrElse(rowRules(attachment, 'Update'), () => [])
     if (update.length === 0 || !update.every(rule => read.value.includes(rule)))
       refuse(`${entity.name} has a Read rule its Update rules do not imply`)
   }
-  const attachment = Guards.attached(entity)
-  if (Option.isSome(attachment)) {
-    for (const [member, surfaces] of Object.entries(attachment.value.members)) {
-      if (surfaces['Read'] !== undefined) refuse(`${entity.name}.${member} has a Read rule`)
-    }
+  for (const [member, surfaces] of Object.entries(attachment.members)) {
+    if (surfaces['Read'] !== undefined) refuse(`${entity.name}.${member} has a Read rule`)
   }
 }
 

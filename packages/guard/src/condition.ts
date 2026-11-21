@@ -5,6 +5,7 @@
  * never reach it, so their bodies stay on the server that decided them.
  */
 import { Effect, Match, Option } from 'effect'
+import { Verdict } from 'metakit'
 import {
   Held,
   Judge,
@@ -209,10 +210,11 @@ export const Condition = {
         Row: ({ guard, context }) =>
           readsPrincipal(guard)
             ? assumed
-            : Judge.match(Judge.predicate(guard.body, row, { context, rows }), {
-                // SQL's null leaves a row out, as false does.
-                onKnown: truth => truth === true,
-                onUnknown: () => assumed,
+            : Verdict.match(Judge.predicate(guard.body, row, { context, rows }), {
+                True: () => true,
+                // SQL's null is a `False` here, and leaves a row out as false does.
+                False: () => false,
+                Unknown: () => assumed,
               }),
         Inherit: () => assumed,
         And: ({ conditions }) => conditions.every(judge),

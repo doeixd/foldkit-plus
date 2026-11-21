@@ -1,6 +1,20 @@
 import { Schema } from 'effect'
 
 /**
+ * The key under which a variant built by `foldkit-agent/metakit` carries a step
+ * that adds what Effect's derivation cannot see (bounds written as metakit
+ * expressions, domain formats) to the JSON Schema `expose` derives from its
+ * `input`. A symbol rather than a `VariantConfig` option, so no contract can
+ * advertise a schema of its own beside the one dispatch decodes: the step only
+ * adds keywords read off that same `input`.
+ */
+export const refineInputJsonSchema: unique symbol = Symbol.for(
+  'foldkit-agent/refineInputJsonSchema',
+)
+
+export type RefineInputJsonSchema = (derived: Record<string, unknown>) => Record<string, unknown>
+
+/**
  * Derives a JSON Schema document from an Effect Schema.
  *
  * Definitions produced during derivation are inlined under `$defs` so the

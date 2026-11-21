@@ -31,6 +31,16 @@
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./writes": {
+      "foldkit-plus:source": "./src/writes.ts",
+      "types": "./dist/writes.d.ts",
+      "import": "./dist/writes.js"
+    },
+    "./declared": {
+      "foldkit-plus:source": "./src/declared.ts",
+      "types": "./dist/declared.d.ts",
+      "import": "./dist/declared.js"
     }
   },
   "files": [
@@ -44,7 +54,8 @@
   },
   "dependencies": {
     "foldkit-entity": "workspace:*",
-    "foldkit-metadata": "workspace:*"
+    "foldkit-metadata": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

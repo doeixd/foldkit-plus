@@ -11,7 +11,9 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Collation, Entity, Expr, Order, ReadFilter, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
+import * as Rows from 'metakit/aggregates'
 import { describe, expect, it } from 'vitest'
+import { aggregated } from '../src/aggregate.js'
 import {
   Mutation,
   Query,
@@ -375,6 +377,17 @@ describe('A pending unfollow, with every follow of mine held (#409)', () => {
 
   it('takes the unfollowed account’s posts out of Home', () => {
     expect(shown(unfollowing(whole()))).toEqual(['p1'])
+  })
+
+  it('moves a count kept over Home when the follows arrive whole while the unfollow is pending', () => {
+    // Only another list changes: the store, the pending layer and Home's own pages stay.
+    const Posts = Rows.count(Schema.Struct({ id: Schema.String, body: Schema.String }))
+    const pending = unfollowing(loaded())
+    expect(aggregated(Data, pending, home, Posts).value).toBe(2)
+    const held = follows(pending, ['f1'])
+    expect(held.remote.entities).toBe(pending.remote.entities)
+    expect(shown(held)).toEqual(['p1'])
+    expect(aggregated(Data, held, home, Posts).value).toBe(1)
   })
 
   it('keeps them while another follow of theirs is held', () => {

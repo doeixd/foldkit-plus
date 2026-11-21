@@ -26,6 +26,9 @@
     },
     {
       "path": "../surface/tsconfig.build.json"
+    },
+    {
+      "path": "../metakit/tsconfig.build.json"
     }
   ]
 }

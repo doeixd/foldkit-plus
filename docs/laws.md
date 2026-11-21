@@ -388,10 +388,10 @@ const Data = Remote.make({
 })
 
 Data.can({ remote: Remote.initial }, Release, { id: 'p1', status: 'published' })
-// Can.Undecided: Product p1 is not held
+// Unknown: Product p1 is not held
 ```
 
-`Data.can` returns `Can.Yes`, `Can.No({ refusal })`, or `Can.Undecided({ reasons })`. Use it as a UI hint (for example, to disable a button). `Data.mutate` still sends writes when invoked because local rows can be stale or missing fields. See [Asking before sending](./declared-writes.md#asking-before-sending-datacan) and [Agent capabilities over declared writes](./agents.md#a-capability-over-a-declared-write).
+`Data.can` returns a metakit `Verdict`: `True`, `False` with the refusal as its witness, or `Unknown` with the reasons. Use it as a UI hint (for example, to disable a button). `Data.mutate` still sends writes when invoked because local rows can be stale or missing fields. See [Asking before sending](./declared-writes.md#asking-before-sending-datacan) and [Agent capabilities over declared writes](./agents.md#a-capability-over-a-declared-write).
 
 ## Who owns the final decision
 

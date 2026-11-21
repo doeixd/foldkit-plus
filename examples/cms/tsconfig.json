@@ -9,6 +9,7 @@
     "types": ["node"],
     "paths": {
       "foldkit-agent": ["../../packages/agent/src/index.ts"],
+      "foldkit-agent/metakit": ["../../packages/agent/src/metakit.ts"],
       "foldkit-builder": ["../../packages/builder/src/index.ts"],
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-cms": ["../../packages/cms/src/index.ts"],
@@ -32,8 +33,10 @@
       "foldkit-form-recipes/html": ["../../packages/form-recipes/src/html.ts"],
       "foldkit-form-recipes/image": ["../../packages/form-recipes/src/image.ts"],
       "foldkit-form-recipes/ui": ["../../packages/form-recipes/src/ui.ts"],
+      "foldkit-form/metakit": ["../../packages/form/src/metakit.ts"],
       "foldkit-guard": ["../../packages/guard/src/index.ts"],
       "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
+      "foldkit-guard/check": ["../../packages/guard/src/check.ts"],
       "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],
       "foldkit-guard/media": ["../../packages/guard/src/media.ts"],
       "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
@@ -54,6 +57,7 @@
       "foldkit-mixins-crud": ["../../packages/mixins-crud/src/index.ts"],
       "foldkit-mixins-crud/recipes": ["../../packages/mixins-crud/src/recipes.ts"],
       "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"],
+      "foldkit-mixins-form/declared": ["../../packages/mixins-form/src/declared.ts"],
       "foldkit-mixins-form/recipes": ["../../packages/mixins-form/src/recipes.ts"],
       "foldkit-mixins-form/ui": ["../../packages/mixins-form/src/ui.ts"],
       "foldkit-mixins-richtext": ["../../packages/mixins-richtext/src/index.ts"],
@@ -87,6 +91,7 @@
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../../packages/remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../../packages/remote-server/src/port.ts"],
+      "foldkit-remote/aggregate": ["../../packages/remote/src/aggregate.ts"],
       "foldkit-remote/filter": ["../../packages/remote/src/filter.ts"],
       "foldkit-remote/live": ["../../packages/remote/src/live.ts"],
       "foldkit-remote/outbox": ["../../packages/remote/src/outbox.ts"],
@@ -111,7 +116,27 @@
       "foldkit-ssr/client": ["../../packages/ssr/src/client.ts"],
       "foldkit-ssr/loader": ["../../packages/ssr/src/loader.ts"],
       "foldkit-ssr/vite": ["../../packages/ssr/src/vite.ts"],
-      "foldkit-surface": ["../../packages/surface/src/index.ts"]
+      "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-surface/writes": ["../../packages/surface/src/writes.ts"],
+      "metakit": ["../../packages/metakit/src/index.ts"],
+      "metakit/aggregates": ["../../packages/metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../../packages/metakit/src/aggregatesSql.ts"],
+      "metakit/build": ["../../packages/metakit/src/build.ts"],
+      "metakit/conformance": ["../../packages/metakit/src/conformance.ts"],
+      "metakit/domain": ["../../packages/metakit/src/domain.ts"],
+      "metakit/drizzle": ["../../packages/metakit/src/drizzle.ts"],
+      "metakit/graph": ["../../packages/metakit/src/graph.ts"],
+      "metakit/graph/match": ["../../packages/metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../../packages/metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../../packages/metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../../packages/metakit/src/inspect.ts"],
+      "metakit/machine": ["../../packages/metakit/src/machine.ts"],
+      "metakit/policy": ["../../packages/metakit/src/policy.ts"],
+      "metakit/prove": ["../../packages/metakit/src/prove.ts"],
+      "metakit/relation": ["../../packages/metakit/src/relation.ts"],
+      "metakit/sql": ["../../packages/metakit/src/sql.ts"],
+      "metakit/store": ["../../packages/metakit/src/store.ts"],
+      "metakit/temporal": ["../../packages/metakit/src/temporal.ts"]
     },
     "lib": ["ES2022", "DOM"]
   },
@@ -209,6 +234,9 @@
     },
     {
       "path": "../../packages/primitives/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/metakit/tsconfig.build.json"
     }
   ]
 }

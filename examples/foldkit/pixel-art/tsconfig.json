@@ -32,7 +32,8 @@
       "foldkit-primitives/observers": ["../../../packages/primitives/src/observers/index.ts"],
       "foldkit-primitives/state": ["../../../packages/primitives/src/state/index.ts"],
       "foldkit-primitives/time": ["../../../packages/primitives/src/time/index.ts"],
-      "foldkit-surface": ["../../../packages/surface/src/index.ts"]
+      "foldkit-surface": ["../../../packages/surface/src/index.ts"],
+      "foldkit-surface/writes": ["../../../packages/surface/src/writes.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],

@@ -8,6 +8,7 @@ export default defineConfig({
     'src/agent.ts',
     'src/sync.ts',
     'src/media.ts',
+    'src/check.ts',
   ],
   format: ['esm'],
   dts: true,
@@ -16,6 +17,7 @@ export default defineConfig({
   deps: {
     neverBundle: [
       'effect',
+      /^metakit(\/.*)?$/,
       'foldkit-entity',
       'foldkit-metadata',
       'foldkit-remote',

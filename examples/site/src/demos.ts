@@ -248,7 +248,8 @@ export const demos: ReadonlyArray<Demo> = [
 export const SITE_URL = 'https://foldkit-plus.pages.dev/'
 
 /** A package's name as published, from its `packages/` directory. */
-export const packageName = (directory: string): string => `foldkit-${directory}`
+export const packageName = (directory: string): string =>
+  directory === 'metakit' ? directory : `foldkit-${directory}`
 
 /** A repository path as a link on GitHub. */
 export const onGitHub = (path: string): string =>

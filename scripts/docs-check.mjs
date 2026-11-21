@@ -59,8 +59,9 @@ const tracked = spawnSync('git', ['ls-files', '-z', '--', '*.md'], { cwd: root, 
   .stdout.split('\0')
   .filter(
     file =>
-      // A package's README, and a subpath's (`foldkit-primitives/dom`).
+      // A package's README, a subpath's README (`foldkit-primitives/dom`), and package task guides (`packages/*/docs/*.md`).
       /^packages\/[^/]+\/(?:(?!test\/)[^/]+\/)?README\.md$/.test(file) ||
+      /^packages\/[^/]+\/docs\/[^/]+\.md$/.test(file) ||
       /^docs\/(?:blog\/)?[^/]+\.md$/.test(file) ||
       file.startsWith('skills/foldkit-plus/'),
   )

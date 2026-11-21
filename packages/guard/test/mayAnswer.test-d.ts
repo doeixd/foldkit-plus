@@ -1,11 +1,12 @@
 /**
  * What `may`'s readers accept and answer, one defect per negative case: the
- * three-state answer is an `Option`, read without annotation, and only a
+ * three-state answer is a `Verdict`, and only a
  * row's own interactions are asked of it.
  */
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { RemoteData } from 'foldkit-remote'
+import { Verdict } from 'metakit'
 import { expectTypeOf } from 'vitest'
 import { GuardAgent } from '../src/agent.js'
 import { Interaction, May, type MayAnswer } from '../src/index.js'
@@ -14,21 +15,23 @@ declare const may: MayAnswer
 const Todo = Entity.define('Todo', Schema.Struct({ id: Schema.String, title: Schema.String }))
 const Archive = Interaction.make('Archive')
 
-expectTypeOf(May.answer(may, 'Update')).toEqualTypeOf<Option.Option<boolean>>()
-expectTypeOf(May.answer(may, Archive.key)).toEqualTypeOf<Option.Option<boolean>>()
+expectTypeOf(May.answer(may, 'Update')).toEqualTypeOf<Verdict.Verdict<never>>()
+expectTypeOf(May.answer(may, Archive.key)).toEqualTypeOf<Verdict.Verdict<never>>()
 expectTypeOf(May.refused(may, 'Delete')).toEqualTypeOf<boolean>()
 expectTypeOf(May.can(may, 'Delete')).toEqualTypeOf<boolean>()
 
-// Each arm is typed from the answer, with no annotation.
+// Each arm is typed from the answer. `Verdict.match` takes its result type from
+// the annotation, not the first arm, where the arms differ.
 expectTypeOf(
-  Option.match(May.answer(may, 'Update'), {
-    onNone: () => 'unsaid' as const,
-    onSome: allowed => {
-      expectTypeOf(allowed).toEqualTypeOf<boolean>()
-      return allowed
+  Verdict.match<never, 'yes' | false | 'unsaid'>(May.answer(may, 'Update'), {
+    True: () => 'yes',
+    False: () => false,
+    Unknown: ({ reason }) => {
+      expectTypeOf(reason).toEqualTypeOf<string>()
+      return 'unsaid'
     },
   }),
-).toEqualTypeOf<boolean | 'unsaid'>()
+).toEqualTypeOf<'yes' | false | 'unsaid'>()
 
 // @ts-expect-error Read is the row's visibility, not an interaction may answers
 May.answer(may, 'Read')

@@ -62,7 +62,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // the page; `foldkit-bundle` was already. Ceiling raised to the reading, rounded up.
 // +650 on 2026-11-19: 261,734 measured after recipe `.style` (0.42.0) and `Expr.add`/`sub`/`implies`,
 // `Entity.transition`, `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600).
-const CEILING = 262_000
+// +300 on 2026-11-21: CI read 262,178. The same Remote growth as examples/reference: a read answered
+// under a pending write is read again when the late answer disagrees (6782b2e93, +73 here), the
+// store's key bookkeeping and the read-entry plan reuse (30d7a5fe0). Sync's transition processing
+// was moved out of the page first (2e00752f3, about -285).
+const CEILING = 262_300
 
 clientBudget({
   name: 'registry',

@@ -103,6 +103,24 @@ export const Todo = TodoFields.pipe(
 
 ## Attaching
 
+To check whether someone allowed to update a row can also read a particular
+member, call `GuardCheck.policy(Todo, 'ownerId')` on the Entity returned by
+`Guards.attach`. `GuardCheck` comes from `foldkit-guard/check`, an entry of its
+own because the prover behind it is large: use it in a test or a development
+script, not in a page. The `consistent` verdict is false for a provably unreachable
+Update. An unknown `consistent` verdict leaves reachability open. A true
+`implication` means every allowed Update on a valid row also
+passes the row and member Read rules. Check both verdicts because an
+unreachable Update implies any Read.
+
+For an undecided implication, pass the report's `definition`, then
+`'Update'` and `'Read'`, to `policyImplies` from `metakit/prove` in a test.
+The checker understands comparisons of row fields that always hold a number,
+and state invariants over them. It can leave a result unknown when it depends
+on a server-only check, a related row, a field that may be null, absent or
+NaN, or an expression it cannot translate. Runtime authorization still uses the
+attached rules on every request.
+
 - Default refusals: a row Read is not found, a member or relation Read is
   omitted, a write is forbidden. `Guards.on(guards, Guards.redact(value))` and
   `Guards.explain(reason)` choose another.
@@ -118,7 +136,10 @@ export const Todo = TodoFields.pipe(
   `GuardSync.document`) throws where it is built when given a descriptor
   without them of a guarded Entity (`Todo carries guards on another descriptor
   of it; pass the one Guards.attach returned`). Rules are still declared over
-  the bare one (`guard.row(TodoFields, …)`).
+  the bare one (`guard.row(TodoFields, …)`). Code of your own that decides
+  from the guards what is safe reads them with `Guards.enforced(Todo)`, which
+  throws the same way; `Guards.attached` answers "none" for the bare one, and
+  `Guards.matrix` prints it as `Todo: guards on another descriptor`.
 - A relation's Read rules are guards over the parent row: where they refuse,
   the relation is withheld, like a member.
 - `Guards.matrix([Todo])` prints every surface; `Guards.guardFields(Todo,
@@ -287,7 +308,7 @@ supplied: true } }`). Select `may: true` and read it with
 
 `may` says one of three things of a row interaction: yes, no, or nothing, where
 its rule reads another row and one row cannot decide it. `May.answer(may,
-'Update')` is the three as an `Option<boolean>`. `May.can` is true only on a
+'Update')` is the three as a metakit `Verdict` (`True`, `False`, `Unknown`). `May.can` is true only on a
 yes and `May.refused(may, 'Update')` only on a no: hide or disable on
 `refused`, so what was not said stays live and the server decides it.
 `May.locks(Todo)` (`Crud.editor`'s `locks`) locks a key only where the row's
@@ -353,7 +374,7 @@ Guard, `Expr`, and `Laws` share one typed expression tree (`Guard and from/when 
 - **Structural safety guarantees:**
   - `GuardServer.writer` checks `Update` row rules on **both `before` and `after`** (blocking privilege escape), checks each member/`Link` rule on `after` with that one change undone, checks cascading `Delete` child rows in the same statement, and pins writes with `revision` (retrying up to 3 times on concurrent edits).
   - `GuardServer.validate` and `GuardServer.writer` block hidden-field side channels: queries cannot filter/sort by Read-ruled members, writes cannot read them in `when`/`expect`/`compute`, and invariant failures over them return generic `Invalid`.
-  - `May.answer` is three-valued (`Option<boolean>`); disable UI only on `May.refused` so undecided actions stay live for the server.
+  - `May.answer` is three-valued (a metakit `Verdict`); disable UI only on `May.refused` so undecided actions stay live for the server.
 - **Authority stays separate from validity:** `Entity.invariant` and `Laws.check` never assume discretionary Guards as hypotheses. Guards are alternatives (`[isOwner, isAdmin]`) that change with roles; invariants hold for everyone (`Forbidden` vs `Unmet` vs `Invalid`).
 
 ## Known traps

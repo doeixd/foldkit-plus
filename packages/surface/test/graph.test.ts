@@ -7,6 +7,8 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Write } from 'foldkit-entity'
 import { Evidence } from 'foldkit-metadata'
+import { Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
 import { describe, expect, it } from 'vitest'
 import {
   Graph,
@@ -400,5 +402,104 @@ describe('Module', () => {
     expect(rulesOf(Graph.validate(module))).toEqual(
       expect.arrayContaining(['law-unwitnessed', 'level-declared-twice']),
     )
+  })
+})
+
+describe('unified dependency graph (graph.dependencies)', () => {
+  it('joins remote entity writes to model surfaces observing the owned store path and machine transitions', () => {
+    const ShopView = Surface.make(App, 'ShopView', {
+      model: ({ model }) => Projection.struct({ remote: model.remote }),
+      messages: [],
+    })
+    const FilterBar = Surface.make(App, 'FilterBar', {
+      model: ({ model }) => Projection.struct({ filter: model.filter }),
+      messages: [Message.ChangedFilter],
+    })
+    const ChangedFilter = Transition.make({
+      state: Model,
+      input: Schema.Struct({ filter: Schema.String }),
+      apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
+    })
+    const machine = Machine.make({
+      state: Model,
+      transitions: { ChangedFilter },
+    })
+    const graph = Graph.of(Module.make(App, [document, shop, ShopView, FilterBar]), {
+      machine,
+      sends: [{ from: 'ChangedFilter', emit: 'Persist', to: 'CreatedTodo' }],
+    })
+
+    expect(graph.edges.filter(GraphEdge.$is('Sends')).map(edge => ({ ...edge }))).toEqual([
+      {
+        _tag: 'Sends',
+        from: 'message:ChangedFilter',
+        emit: 'Persist',
+        to: 'message:CreatedTodo',
+      },
+    ])
+
+    // write:Sell writes entity:Product.stock -> directly affects Product.reservedWithinStock
+    // AND bridges through remote:shop's row->model link to surface:ShopView (observing ['remote']).
+    expect(graph.dependencies.affectedBy('write:Sell')).toEqual([
+      'Product.reservedWithinStock',
+      'surface:ShopView',
+    ])
+    // Machine transition message:ChangedFilter writes model:filter -> affects only surface:FilterBar.
+    expect(graph.dependencies.affectedBy('message:ChangedFilter')).toEqual(['surface:FilterBar'])
+    // Durable transition durable:CreatedTodo writes model:todos -> affects sync:todos.capped only.
+    expect(graph.dependencies.affectedBy('durable:CreatedTodo')).toEqual(['sync:todos.capped'])
+  })
+
+  it('tracks opaque and partially unnamed Surfaces as unknown readers instead of dropping them', () => {
+    const Opaque = Surface.make(App, 'Opaque', {
+      model: () => Projection.fromReader(Schema.String, model => model.filter),
+      messages: [],
+    })
+    const Mixed = Surface.make(App, 'Mixed', {
+      model: ({ model }) =>
+        Projection.struct({
+          todos: model.todos,
+          extra: Projection.fromReader(Schema.String, root => root.filter),
+        }),
+      messages: [],
+    })
+    const ChangedFilter = Transition.make({
+      state: Model,
+      input: Schema.Struct({ filter: Schema.String }),
+      apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
+    })
+    const machine = Machine.make({ state: Model, transitions: { ChangedFilter } })
+    const graph = Graph.of(Module.make(App, [Opaque, Mixed]), { machine })
+
+    expect(graph.dependencies.unknowns().readers).toEqual(['surface:Opaque', 'surface:Mixed'])
+    expect(graph.dependencies.affectedBy('message:ChangedFilter')).toEqual([
+      'surface:Opaque',
+      'surface:Mixed',
+    ])
+  })
+
+  it('reports transition-declared-twice without crashing when two contracts share a write name across entities', () => {
+    const otherShop: Contract = {
+      kind: 'remote',
+      name: 'otherShop',
+      owner: App.owner,
+      owns: [],
+      observes: [],
+      messages: [],
+      metadata: [],
+      laws: {
+        entities: [
+          {
+            name: 'Sell',
+            write: Write.update(
+              Entity.input(Order, Schema.Struct({ id: Schema.String, paid: Schema.Number })),
+              { id: 'id' },
+            ),
+          },
+        ],
+      },
+    }
+    const findings = Graph.validate(Module.make(App, [shop, otherShop]))
+    expect(findings.some(finding => finding.rule === 'transition-declared-twice')).toBe(true)
   })
 })

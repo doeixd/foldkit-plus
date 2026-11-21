@@ -169,6 +169,31 @@ export default [
     ],
     tests,
   },
+  // A read answered over a pending write (#480)
+  edit(
+    'a read answered beside a pending write keeps nothing',
+    '../src/model.ts',
+    'kept: capabilities.keeps(model, message.result.entities, held, message.now),',
+    'kept: model.kept,',
+  ),
+  edit(
+    'a page answered beside a pending write keeps nothing',
+    '../src/model.ts',
+    ': capabilities.keeps(model, payload, read.held, message.now ?? 0),',
+    ': model.kept,',
+  ),
+  edit(
+    'a read that moved nothing is kept',
+    '../src/liveEvents.ts',
+    'field => !Equal.equals(own(store[key]?.values, field), values[field]),',
+    '() => true,',
+  ),
+  edit(
+    'a row the read wrote nothing of is kept',
+    '../src/liveEvents.ts',
+    '    if (held.has(key)) continue\n',
+    '',
+  ),
   // Selective refresh
   edit(
     'a refresh restarts every read, not those that cover it',

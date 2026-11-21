@@ -49,7 +49,7 @@ export default [
   edit('a page holding part is never counted wrong', 'truth !== sqlIds.includes(post.id)', 'false'),
   edit(
     'a verdict Judge is sure of reads as unknown',
-    'known: Option.some(truth),',
+    'known: Option.some(true),',
     'known: Option.none(),',
   ),
   edit(

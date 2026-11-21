@@ -491,7 +491,7 @@ call `postgres()` from `foldkit-remote-drizzle/pg` at startup).
 
 - Cross-row `Update`/`Delete` rules read the stored row, blocking writes that
   would move a row out of reach (such as moving a note to another team).
-- `may` leaves cross-row interactions undecided (`May.answer` returns `Option.none()`).
+- `may` leaves cross-row interactions undecided (`May.answer` returns an `Unknown` `Verdict`).
   Keep forms editable and hide controls with `May.refused` rather than
   `!May.can`, letting the server render the final decision.
 - `GuardServer.writer` throws if given a writer without `requires` support;

@@ -72,7 +72,7 @@ export default [
     'const fields = relation.fields.filter(field => written.has(field))',
     'const fields = [...written]',
   ),
-  edit('a true term reads false', "true: 'True',", "true: 'False',"),
+  edit('a true term reads false', "truth: 'True',", "truth: 'False',"),
   edit(
     'an insert overlay is not named',
     'by: Option.orElse(overlayOf(remote, identity, edge.key, false), () =>',

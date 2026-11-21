@@ -182,6 +182,12 @@ export interface PlaceConfig<
    * its Model (a clock, a module's mutable state).
    */
   readonly memo?: false
+  /**
+   * Optional epoch reader driven by declared write paths (#586, e.g. from
+   * `foldkit-surface/writes`). When provided, the kept drawing keys on this
+   * epoch rather than child Model reference identity.
+   */
+  readonly pathEpoch?: (() => unknown) | undefined
 }
 
 /** A lifted resource record: each child entry in parent terms, keyed by the placement. */
@@ -497,6 +503,7 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     const made = keptDrawing(
       (model, h) => h.submodel({ slotId, model, view, toParentMessage: link.toParentMessage }),
       view,
+      config.pathEpoch === undefined ? undefined : { pathEpoch: config.pathEpoch },
     )
     kept.set(slotId, made)
     return made
@@ -507,7 +514,12 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
       childView === undefined
         ? null
         : Option.match(link.read(parent), {
-            onNone: () => null,
+            onNone: () => {
+              // Drop any kept drawing while absent so a later Some(m2) at the
+              // same pathEpoch never serves the pre-hide VNode (#586).
+              kept.delete(slotId)
+              return null
+            },
             onSome: model => {
               // A view drawn without inputs takes none: handing it some would
               // shift its builder to the third argument.

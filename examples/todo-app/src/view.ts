@@ -22,7 +22,6 @@ import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
 import { SurfaceView } from 'foldkit-mixins-surface'
 import { Button as ButtonAdapter, Checkbox as CheckboxAdapter } from 'foldkit-mixins-ui'
-import { Surface } from 'foldkit-surface'
 import { AddTodoForm } from './agent.js'
 import {
   COMPOSER_ID,
@@ -59,7 +58,7 @@ import {
   t,
   type ItemInput,
 } from './style.js'
-import { Board, Composer, Connection, Footer, Header } from './surface.js'
+import { Board, Composer, Connection, Footer, Header, writes } from './surface.js'
 import { Slots, Slot, Capability } from 'foldkit-mixins'
 
 // --- header: the list title is editable in place --------------------------------
@@ -314,20 +313,22 @@ export const FooterView = SurfaceView.define(Footer, FooterSlots, (model, slots,
 // --- the page: the Root boundary ------------------------------------------------------
 
 /**
- * `Surface.rootView` is where the whole Model meets a Surface: it projects the
- * Root and hands the projected Model to the renderer. The renderer's builder is
- * narrowed to the Surface's Messages, so a Board renderer cannot dispatch
- * `DraftSubmitted` even though the page's builder could.
+ * `writes.rootView` is where the whole Model meets a Surface: it projects the
+ * Root and hands the projected Model to the renderer, as `Surface.rootView`
+ * does, and keeps the last drawing while no Message since it was made is
+ * declared to write a field the Surface reads (`machine.ts`). The renderer's
+ * builder is narrowed to the Surface's Messages, so a Board renderer cannot
+ * dispatch `DraftSubmitted` even though the page's builder could.
  */
-const HeaderRoot = Surface.rootView(Header, undefined, SurfaceView.toRenderer(HeaderView))
-const ComposerRoot = Surface.rootView(Composer, undefined, SurfaceView.toRenderer(ComposerView))
-const BoardRoot = Surface.rootView(Board, undefined, SurfaceView.toRenderer(BoardView))
-const ConnectionRoot = Surface.rootView(
+const HeaderRoot = writes.rootView(Header, undefined, SurfaceView.toRenderer(HeaderView))
+const ComposerRoot = writes.rootView(Composer, undefined, SurfaceView.toRenderer(ComposerView))
+const BoardRoot = writes.rootView(Board, undefined, SurfaceView.toRenderer(BoardView))
+const ConnectionRoot = writes.rootView(
   Connection,
   undefined,
   SurfaceView.toRenderer(ConnectionView),
 )
-const FooterRoot = Surface.rootView(Footer, undefined, SurfaceView.toRenderer(FooterView))
+const FooterRoot = writes.rootView(Footer, undefined, SurfaceView.toRenderer(FooterView))
 
 const DemoGuide = demoGuide<Message>()
 

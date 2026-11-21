@@ -11,6 +11,7 @@
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-form": ["../form/src/index.ts"],
+      "foldkit-form/metakit": ["../form/src/metakit.ts"],
       "foldkit-richtext": ["../richtext/src/index.ts"],
       "foldkit-richtext-dom": ["./src/index.ts"],
       "foldkit-richtext-dom/editor": ["./src/editor.ts"],
@@ -20,7 +21,26 @@
       "foldkit-richtext-dom/html": ["./src/html.ts"],
       "foldkit-richtext-dom/input": ["./src/input.ts"],
       "foldkit-richtext-dom/toolbar": ["./src/toolbar.ts"],
-      "foldkit-richtext-dom/view": ["./src/view.ts"]
+      "foldkit-richtext-dom/view": ["./src/view.ts"],
+      "metakit": ["../metakit/src/index.ts"],
+      "metakit/aggregates": ["../metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../metakit/src/aggregatesSql.ts"],
+      "metakit/build": ["../metakit/src/build.ts"],
+      "metakit/conformance": ["../metakit/src/conformance.ts"],
+      "metakit/domain": ["../metakit/src/domain.ts"],
+      "metakit/drizzle": ["../metakit/src/drizzle.ts"],
+      "metakit/graph": ["../metakit/src/graph.ts"],
+      "metakit/graph/match": ["../metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../metakit/src/inspect.ts"],
+      "metakit/machine": ["../metakit/src/machine.ts"],
+      "metakit/policy": ["../metakit/src/policy.ts"],
+      "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/relation": ["../metakit/src/relation.ts"],
+      "metakit/sql": ["../metakit/src/sql.ts"],
+      "metakit/store": ["../metakit/src/store.ts"],
+      "metakit/temporal": ["../metakit/src/temporal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
@@ -36,6 +56,9 @@
     },
     {
       "path": "../richtext/tsconfig.build.json"
+    },
+    {
+      "path": "../metakit/tsconfig.build.json"
     }
   ]
 }

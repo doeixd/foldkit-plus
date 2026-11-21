@@ -27,6 +27,7 @@ import {
   SchemaShape,
   Write,
   assertSupported,
+  dependenciesOf,
   evaluate,
   Query,
   type AnyEntity,
@@ -98,6 +99,7 @@ import {
   publishFailed,
   type InternalFailure,
 } from './diagnostics.js'
+import { mount, type Requirement as StoreRequirement, type StoreCapabilities } from 'metakit/store'
 import { unauthenticatedAnswer } from './refusal.js'
 import { memoryWriter } from './memoryWriter.js'
 
@@ -526,6 +528,14 @@ export interface EntityWriter<P, R = never> {
    * only the store knows: a column's type, say, which the Entity does not say.
    */
   readonly refuses?: (write: AnyWrite) => ReadonlyArray<string>
+  /**
+   * How the store this writer writes to runs concurrent writes
+   * (`metakit/store`'s vocabulary). A rule that reads other rows (a `when`
+   * or an invariant with a path or an exists) holds only where the writers of
+   * those rows run one at a time: `RemoteServer.write` refuses such a write
+   * through a writer that declares no store, or one that cannot.
+   */
+  readonly store?: StoreCapabilities
   /**
    * The answer recorded for `operation`, when this writer has a ledger and
    * holds one: what a wrapping writer (a guard) answers a retry with, without
@@ -2630,6 +2640,28 @@ export const RemoteServer = {
       )
     }
     const judged = [...declared, ...Option.toArray(write.ensures)]
+    // Two writes can each read other rows that admit them and together break the rule.
+    const reaching: ReadonlyArray<StoreRequirement<`${Name} ${string}`>> = [
+      ...Option.match(write.when, {
+        onNone: () => [],
+        onSome: when => (Query.dependencies(when).reaches.length > 0 ? ['precondition'] : []),
+      }),
+      ...judged
+        .filter(held => dependenciesOf(held.predicate).reaches.length > 0)
+        .map(held => `invariant "${held.id}"`),
+    ].map(rule => ({
+      rule: `${mutation.name} ${rule}` as const,
+      needs: 'parent-serialized',
+      because: 'it reads other rows',
+    }))
+    if (reaching.length > 0) {
+      if (writer.store === undefined) {
+        throw new Error(
+          `[foldkit-remote-server] write "${reaching[0]!.rule}" reads other rows, but its writer for ${writer.entity} names no store (store)`,
+        )
+      }
+      mount(writer.store, reaching)
+    }
     // An insert's row is its values and its links (a `one` relation an invariant reads as the
     // id it points at): a member it leaves to a default the writer cannot judge.
     if (kind.inserts) {
@@ -3720,6 +3752,8 @@ export const RemoteServer = {
 
 export * from './evaluate.js'
 export type { MemoryWriterOptions } from './memoryWriter.js'
+/** What an `EntityWriter`'s `store` declares; `metakit/store` says what each level gives. */
+export type { StoreCapabilities }
 export { bodyLimit } from './body.js'
 export type {
   AnswerUnread,

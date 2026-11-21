@@ -17,11 +17,13 @@
       "foldkit-example-site/guide": ["../site/src/guide.ts"],
       "foldkit-example-site/phone-audit": ["../site/src/phoneAudit.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
+      "foldkit-form/metakit": ["../../packages/form/src/metakit.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-crud": ["../../packages/mixins-crud/src/index.ts"],
       "foldkit-mixins-crud/recipes": ["../../packages/mixins-crud/src/recipes.ts"],
       "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"],
+      "foldkit-mixins-form/declared": ["../../packages/mixins-form/src/declared.ts"],
       "foldkit-mixins-form/recipes": ["../../packages/mixins-form/src/recipes.ts"],
       "foldkit-mixins-form/ui": ["../../packages/mixins-form/src/ui.ts"],
       "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
@@ -54,6 +56,7 @@
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
       "foldkit-remote-server/fetch": ["../../packages/remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../../packages/remote-server/src/port.ts"],
+      "foldkit-remote/aggregate": ["../../packages/remote/src/aggregate.ts"],
       "foldkit-remote/filter": ["../../packages/remote/src/filter.ts"],
       "foldkit-remote/live": ["../../packages/remote/src/live.ts"],
       "foldkit-remote/outbox": ["../../packages/remote/src/outbox.ts"],
@@ -62,7 +65,27 @@
       "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
       "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
       "foldkit-remote/why": ["../../packages/remote/src/why.ts"],
-      "foldkit-surface": ["../../packages/surface/src/index.ts"]
+      "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-surface/writes": ["../../packages/surface/src/writes.ts"],
+      "metakit": ["../../packages/metakit/src/index.ts"],
+      "metakit/aggregates": ["../../packages/metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../../packages/metakit/src/aggregatesSql.ts"],
+      "metakit/build": ["../../packages/metakit/src/build.ts"],
+      "metakit/conformance": ["../../packages/metakit/src/conformance.ts"],
+      "metakit/domain": ["../../packages/metakit/src/domain.ts"],
+      "metakit/drizzle": ["../../packages/metakit/src/drizzle.ts"],
+      "metakit/graph": ["../../packages/metakit/src/graph.ts"],
+      "metakit/graph/match": ["../../packages/metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../../packages/metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../../packages/metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../../packages/metakit/src/inspect.ts"],
+      "metakit/machine": ["../../packages/metakit/src/machine.ts"],
+      "metakit/policy": ["../../packages/metakit/src/policy.ts"],
+      "metakit/prove": ["../../packages/metakit/src/prove.ts"],
+      "metakit/relation": ["../../packages/metakit/src/relation.ts"],
+      "metakit/sql": ["../../packages/metakit/src/sql.ts"],
+      "metakit/store": ["../../packages/metakit/src/store.ts"],
+      "metakit/temporal": ["../../packages/metakit/src/temporal.ts"]
     }
   },
   "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts"],
@@ -111,6 +134,9 @@
     },
     {
       "path": "../../packages/primitives/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/metakit/tsconfig.build.json"
     }
   ]
 }

@@ -7,6 +7,7 @@
  */
 import { Effect, Match, Option, Record, Schema } from 'effect'
 import { Derived, Entity, type AnyEntity, type Forbids, type Predict } from 'foldkit-entity'
+import { Verdict } from 'metakit'
 import { attached, type InteractionKey } from './attach.js'
 import { Condition, deciding, type MemberRead, type RowRule } from './condition.js'
 
@@ -19,7 +20,8 @@ import { Condition, deciding, type MemberRead, type RowRule } from './condition.
  * `row` says one of three things of an interaction: `true`, its rule let the
  * reader; `false`, it refused; and nothing, the key left out, where the rule
  * reads another row and one row cannot decide it. The write's statement
- * decides that one. Read the three with `May.answer`.
+ * decides that one. Read the three with `May.answer`, which gives a `Verdict`;
+ * this shape is the JSON on the wire and does not change.
  */
 export const MaySchema = Schema.Struct({
   row: Schema.Record(Schema.String, Schema.Boolean),
@@ -34,12 +36,15 @@ export type MayAnswer = typeof MaySchema.Type
 
 type MemberKeys<E extends AnyEntity> = (keyof E['fields'] | keyof E['derived']) & string
 
-/** What the answer says of a row interaction; none where it does not name it. */
-const answer = (may: MayAnswer, interaction: string): Option.Option<boolean> =>
-  Record.get(may.row, interaction)
+/** What the answer says of a row interaction: `Unknown` where it does not name it. */
+const answer = (may: MayAnswer, interaction: string): Verdict.Verdict<never> =>
+  Option.match(Record.get(may.row, interaction), {
+    onNone: () => Verdict.Unknown(`the answer does not say ${interaction}`),
+    onSome: said => (said ? Verdict.True() : Verdict.False<never>()),
+  })
 
 const can = (may: MayAnswer, interaction: string): boolean =>
-  Option.getOrElse(answer(may, interaction), () => false)
+  Verdict.isTrue(answer(may, interaction))
 
 /** Whether `answers` names `key`, and says no to it. */
 const refuses = (answers: Readonly<Record<string, boolean>>, key: string): boolean =>
@@ -240,22 +245,24 @@ export const May = {
   member: Entity.derived({ may: Derived.make(MaySchema, { predict, forbids }) }),
 
   /**
-   * What the answer says of the row's rule for `interaction`: `some(true)`,
-   * it let the reader when the row was read; `some(false)`, it refused; none,
-   * the answer does not say, since the rule reads another row and one row
-   * cannot decide it. The server decides that one when the write reaches it.
+   * What the answer says of the row's rule for `interaction`, as a metakit
+   * `Verdict`: `True`, it let the reader when the row was read; `False`, it
+   * refused; `Unknown`, the answer does not say, since the rule reads another
+   * row and one row cannot decide it. The server decides that one when the
+   * write reaches it.
    *
    * ```ts
-   * Option.match(May.answer(todo.may, 'Update'), {
-   *   onNone: () => 'the server will say',
-   *   onSome: allowed => (allowed ? 'yes' : 'no'),
+   * Verdict.match(May.answer(todo.may, 'Update'), {
+   *   True: () => 'yes',
+   *   False: () => 'no',
+   *   Unknown: () => 'the server will say',
    * })
    * ```
    */
   answer: (
     may: MayAnswer,
     interaction: 'Update' | 'Delete' | InteractionKey,
-  ): Option.Option<boolean> => answer(may, interaction),
+  ): Verdict.Verdict<never> => answer(may, interaction),
 
   /**
    * Whether the answer says yes to `interaction`: `false` both where the rule

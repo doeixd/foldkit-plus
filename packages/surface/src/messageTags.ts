@@ -1,4 +1,10 @@
-import { Predicate } from 'effect'
+import { Option, Predicate } from 'effect'
+
+/** The tag of a Message of an application this cannot name; none for a value that has none. */
+export const tagOf = (message: unknown): Option.Option<string> =>
+  Predicate.hasProperty(message, '_tag') && typeof message._tag === 'string'
+    ? Option.some(message._tag)
+    : Option.none()
 
 /** Reads the tag off a Foldkit Message constructor without constructing one. */
 export const messageTag = (constructor: unknown): string | undefined => {

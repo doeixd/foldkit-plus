@@ -234,7 +234,7 @@ the server still checks). `submits: false` draws no submit button, for someone w
 not submit. `FormView.define(Rename)` alone is a complete unstyled form. `words.none` words the
 blank choice of a picker; a chosen value the choices lack is shown as `? value`. `FieldSlots`: `root`,
 `label`, `description`, `error`, `checking`, and one per control kind (`text`, `multiline`,
-`number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, `more` (the
+`number`, `date`, `decimal`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, `more` (the
 "Show more" button under a picker the view's `more` input names, typed by the form's relation keys), and
 `group`/`affix` for a renderer's control with text beside it. `FormSlots`: `root`, `errors`,
 `failure`, `summary` (with `summaryTitle`, `issues`, `issue`, `issueLink`), `submit`, and for nested
@@ -420,6 +420,74 @@ picker) and declare each field only some cases have with `Schema.optionalKey`;
 and `form.shows(model, key)` whether to draw a key: a case's key is asked,
 required as the case holds it, and sent only in its case.
 
+## Limits and guards from a metakit declaration (`foldkit-form/metakit`)
+
+When the input Schema's rules and the action's guard are written with
+`metakit` ([metakit.md](metakit.md)), read them instead of restating them in the view:
+
+```ts standalone
+import { Schema } from 'effect'
+import { Form } from 'foldkit-form'
+import { Declared } from 'foldkit-form/metakit'
+import { Eq, Expr, Transition, Verdict } from 'metakit'
+import { Money } from 'metakit/domain'
+
+const Usd = Money.make('USD')
+const Input = Schema.Struct({ amount: Usd.pipe(Expr.refine($ => Money.gt($, Money.minor('USD', 0)))) })
+const Withdraw = Transition.make({
+  state: Schema.Struct({ balance: Usd, frozen: Schema.Boolean }),
+  input: Input,
+  when: ({ state, input }) => Expr.all(Eq.is(state.frozen, false), Money.lte(input.amount, state.balance)),
+  apply: ({ state, input }) => [Transition.set(state.balance, Money.sub(state.balance, input.amount))],
+})
+const WithdrawForm = Form.make('Withdraw', Form.input(Input), { inputs: Declared.inputs(Input) })
+const { constraints, can } = Declared.of(WithdrawForm)
+
+constraints.amount.attributes // min Some('0.01'), step Some('0.01'), type Some('number'): Options
+const refused = Verdict.isFalse(can(WithdrawForm.initial, Withdraw, { balance: Money.minor('USD', 5000), frozen: false }))
+```
+
+- `constraints[key]` is `Inspect.fieldSpecs`' reading (bounds, `literals`,
+  `domain`) plus `attributes` in the units the control shows: whole units for
+  `Money`/`Decimal`, `YYYY-MM-DD` for `CalendarDay`. An exclusive bound of a
+  whole key becomes inclusive; a `Schema.Number`'s exclusive bound has no HTML
+  form and is left to validation.
+- `Declared.inputs(schema)` gives `CalendarDay` and `Money`/`Decimal` keys
+  controls (`Declared.CalendarDay`, `Declared.Decimal`) that read those drafts;
+  without it a `Money` key gets `Number` and fails the integer check on `12.50`.
+  `FormView` alone has no renderer for them (it throws naming the kind).
+  `DeclaredView.of(form, Declared.of(form), { attrs?, renderers? })` from
+  `foldkit-mixins-form/declared` returns `{ form, options: { attrs, renderers } }`:
+  `FormView.fields(view.form, view.options)`, or `FormView.field` likewise
+  (`define` takes `field: FormView.field(view.form, view.options)`). It draws
+  `CalendarDay` as `input type="date"` and `Decimal` as a text input with
+  `inputmode="decimal"`, both through the `Text` renderer (Slot `text`), puts
+  each constraint's `min`, `max`, `step` and `inputMode` on those and on
+  `Number` inputs (an `attrs` entry for the key wins), and reads the form
+  through `declared.field`, so a rule over several keys shows beside each key
+  it reads (below). A text input ignores `min`/`max`/`step`:
+  `attrs: { key: { type: 'number' } }` makes the amount a number input the
+  browser checks. It reads the declarations by shape: no entry of
+  `foldkit-mixins-form` imports metakit, and the main entry carries none of this.
+- `can` is three-valued. `Unknown` (a value the guard reads is not typed or not
+  valid yet, no state given, an opaque term) is neither allowed nor refused:
+  set `aria-disabled` only on `False`, and run the `Transition` in `update`
+  on submit. Known values the guard cannot be evaluated over (an integer
+  result past ±(2^53−1)) are `False`, as `Transition.run` refuses them.
+- The transition's input must be the form's value type exactly; a key the form
+  lacks is a type error.
+- `failures(model)`: the input struct's own `Expr.refine` rules (not a single
+  key's, which `form.field` shows) that are `False` on the decoded values, or
+  refuse to evaluate over them (the Schema rejects those too), as
+  `{ keys, rule, message: Option }`; undecided (a key missing) is not a failure.
+  `field(model, key)` is `form.field` plus those messages after the key's own
+  errors. A rule with no message makes `Declared.of` throw unless you pass
+  `unworded: failure => string`. `FormView` reads `form.field`; the form
+  `DeclaredView.of` returns reads the declared one, which shows these messages beside their keys
+  with the same `aria-invalid` and `aria-describedby` as the key's own errors.
+- Required stays `controlsByKey[key].required` (does an empty draft decode),
+  not the constraint's `optional` (may the key be left out).
+
 ## Gotchas
 
 - A key is validated against **the input's schema for that key**, not the
@@ -458,6 +526,7 @@ Met in applications on this stack: what failed, and what to do instead.
 
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp (the compose box in `src/compose.ts`, the editor in `src/editor.ts`)
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/form/docs/metakit.md (limits and guards from metakit)
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-form/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form-recipes/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/examples/fields/README.md (every recipe through a real form)

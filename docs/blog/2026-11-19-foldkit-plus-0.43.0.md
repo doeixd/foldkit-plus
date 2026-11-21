@@ -22,9 +22,9 @@ states. They are part of Foldkit Plus, a set of open-source packages for
 lives in one object and changes through named events.
 
 This release also pushes the data side further: you can declare your records,
-invariants, writes, and permissions once, and check statically whether any
-write can break a rule. In Foldkit Plus 0.43, the checker reasons about numeric
-bounds and prints a concrete counterexample when a write slips past a rule.
+invariants, writes, and permissions once, and analyze declared writes against
+those rules. In Foldkit Plus 0.43, the checker reasons about numeric bounds,
+prints counterexamples, and says when it cannot decide.
 
 ## Compose a searchable picker instead of copying it
 
@@ -99,13 +99,16 @@ All of these run live, with full source, on the
 
 ## Building blocks for your own interface
 
-When a finished component is not the right fit, Foldkit Plus ships smaller
-building blocks in `foldkit-primitives`. Keyboard routes let behaviors share
-key handling; focus recovery moves focus to a sensible control when the focused
-element is removed. Explore them live in the
+Vercel's [UI SDK](https://github.com/vercel-labs/ui) has brought attention to
+reusable interface behaviors. Our take for Foldkit puts those smaller pieces
+alongside the state and events your application already owns. For example,
+`foldkit-primitives` can move focus to a sensible control when the focused
+element is removed. `foldkit-mixins` can also compose keyboard behavior: Escape
+can clear a search field before a second press closes the surrounding dialog.
+Explore the building blocks in the
 [Primitives gallery](https://foldkit-plus.pages.dev/primitives).
 
-![The Primitives gallery showing interactive keyboard, focus, motion, and device building blocks.](/blog/2026-11-18-foldkit-plus-0-41/primitives-gallery.png "Interactive building blocks in the Primitives gallery")
+![The Primitives gallery showing interactive keyboard, focus, motion, and device building blocks.](/blog/2026-11-19-foldkit-plus-0-43/primitives-gallery.png "Interactive building blocks in the Primitives gallery")
 
 ## Describe your records once
 
@@ -251,10 +254,29 @@ answer.
 
 ## Check your writes before they run
 
-Declaring rules does not prove that your writes keep them. `Laws.check` reads
-your declarations, with no database, and tells you which write can break which
-rule. Pass it `Operators.kernel`, the built-in arithmetic used by `increment`
-and `decrement`. Here is its report for the bank account above:
+Declaring rules does not prove that your writes keep them. You can run
+`Laws.check` on the declarations without a database. It checks each write
+against each rule: assuming the rule holds before the write, does it still
+hold afterward? In formal notation, the deposit question looks like this:
+
+```text
+{ account is open, balance >= 0, amount >= 0 }
+  DepositMoney(amount)
+{ balance >= 0 }
+```
+
+The first line is what the checker may assume for a write that is allowed to
+run; the last is what it must show. The non-negative balance comes from the
+account rule, and the non-negative amount from its input schema. The write
+adds the amount to the balance, so the checker can prove the result stays
+non-negative from those bounds.
+
+This is a claim about the declared write and rule, using the declared
+preconditions and the checker's model of arithmetic; it is not a proof of
+arbitrary application code or the whole deployment.
+
+Pass `Operators.kernel` to give the checker the arithmetic used by
+`increment` and `decrement`. Run it on the bank account above:
 
 ```ts
 import { Laws, Operators } from 'foldkit-entity'
@@ -264,43 +286,27 @@ export const report = Laws.show(
 )
 ```
 
-```text
-Account
-  Open -> Closed   CloseAccount   holds
-  Closed                          terminal
+The report includes these results:
 
-OpenAccount     x neverOverdrawn              kept: 1 row enumerated
-OpenAccount     x withinDailyLimit            kept: 1 row enumerated
-OpenAccount     x aClosedAccountStaysClosed   kept: a create has no row before
+```text
 DepositMoney    x neverOverdrawn              kept: proved from the bounds on balance, for every row and input within them
-DepositMoney    x withinDailyLimit            kept: writes no member it reads
-DepositMoney    x aClosedAccountStaysClosed   kept: 1 row enumerated
 WithdrawMoney   x neverOverdrawn              undecided: it rests on comparing amount with balance, which intervals alone cannot use
 WithdrawMoney   x withinDailyLimit            refused: An open account withdraws at most 500 a day
     before   status: "open", withdrawnToday: 500, balance: 1
     input    amount: 1
     after    status: "open", withdrawnToday: 501, balance: 0
-WithdrawMoney   x aClosedAccountStaysClosed   kept: 2 rows enumerated
-CloseAccount    x neverOverdrawn              kept: holds whatever balance holds, over 1 row enumerated
-CloseAccount    x withinDailyLimit            kept: holds whatever withdrawnToday holds, over 1 row enumerated
-CloseAccount    x aClosedAccountStaysClosed   kept: 1 row enumerated
-
-1 entity, 2 states, 4 writes, 3 rules: 12 pairs, 10 kept, 1 refused, 1 undecided
 ```
 
-Each line under the states is a *pair*: one write checked against one rule (`x`
-reads "against"). *Kept* means the write cannot break the rule, and
-"enumerated" means the checker tried every starting state the write allows.
+Each result is a *pair*: one write checked against one rule (`x`
+reads "against"). A `kept` result states that the checker established the
+rule for that pair under its stated assumptions; `refused` comes with a
+counterexample; `undecided` means it could not establish either result.
 
-Reading from the top: closing moves every open account to `Closed`, and nothing
-leaves `Closed` (making it *terminal*—an observation, not an error). A deposit
-cannot overdraw an account because the balance starts at zero or more and the
-amount is never negative, so their sum is zero or more. It cannot break the
-daily limit because it never touches `withdrawnToday`, and closing breaks
-neither number rule because both apply only to open accounts.
+The first result is the deposit proof: the balance starts at zero or more and
+the amount is never negative, so their sum is zero or more.
 
-The `refused` line catches a real bug in `WithdrawMoney`. It checked the
-balance, not the day's total, and the report prints the exact account that
+The `refused` line catches a real bug in `WithdrawMoney`. It checks the
+balance, not the day's total, and the report constructs an example that
 breaks it: 500 already withdrawn today, a balance of 1, a withdrawal of 1,
 leaving 501. One extra condition fixes it:
 
@@ -311,11 +317,14 @@ leaving 501. One extra condition fixes it:
 ```
 
 With that condition added, the refusal disappears. Two pairs stay *undecided*:
-each compares two variables against each other (`amount` against `balance`, and
-`withdrawnToday + amount` against `500`), which interval bounds alone cannot
-settle yet. Cover those with a test.
+the withdrawal conditions relate values that the checker does not yet combine.
+Its interval analysis tracks a range for each value separately, which loses
+some relationships between values. An undecided result is not a proof or a
+failure: cover the cases with tests and rely on the server's rule checks when
+the write runs.
 
-Two tools in `foldkit-remote/testing` fill that gap. `Scenario` writes a test
+Two tools in `foldkit-remote/testing` can help find mistakes in those cases;
+they do not prove them. `Scenario` writes a test
 case as data—starting rows, who asks, the clock, the write, and the expected
 outcome—and runs it against any backend you give it. `Walk.run` drives random
 sequences of events through your app and checks your rules after every step.
@@ -372,7 +381,7 @@ edit any post, while only the author can delete it. Read
 for the full mental model, including how guards compile into SQL and verify
 with `Laws`.
 
-![Chirp signed in as Ada Lovelace: her own post shows both Edit and Delete buttons, while Grace Hopper's post below it shows Edit because Ada is an admin and no Delete.](/blog/2026-11-18-foldkit-plus-0-41/chirp-guard.png "Chirp shows different actions for posts by different authors")
+![Chirp signed in as Ada Lovelace: her own post shows both Edit and Delete buttons, while Grace Hopper's post below it shows Edit because Ada is an admin and no Delete.](/blog/2026-11-19-foldkit-plus-0-43/chirp-guard.png "Chirp shows different actions for posts by different authors")
 
 ## Putting an event-sourced server behind Remote
 
@@ -432,7 +441,7 @@ lists every change.
 
 ## See it, try it
 
-- [Quickstart](https://foldkit-plus.pages.dev/learn/guides/quickstart) — build
+- [Quickstart](https://foldkit-plus.pages.dev/learn) — build
   and run your first Foldkit Plus program in five minutes.
 - [The combobox page](https://foldkit-plus.pages.dev/components/combobox), and
   the [component pages](https://foldkit-plus.pages.dev/components) for the
@@ -444,7 +453,7 @@ lists every change.
 - [The registry demo](https://foldkit-registry-demo.pages.dev/), for offline
   edits across two devices: press *Go offline* on one, edit, then *Go online*.
 
-![The widget showcase in a dark scheme: a Toolbar with Bold, Italic, Strikethrough and Link, a Mute toggle, a left, center and right toggle group, an accordion with Billing, Team and API keys, and a Delete project button.](/blog/2026-11-18-foldkit-plus-0-41/widgets-dark.png "The widget demo in a dark scheme")
+![The widget showcase in a dark scheme: a Toolbar with Bold, Italic, Strikethrough and Link, a Mute toggle, a left, center and right toggle group, an accordion with Billing, Team and API keys, and a Delete project button.](/blog/2026-11-19-foldkit-plus-0-43/widgets-dark.png "The widget demo in a dark scheme")
 
 Next we are giving dialogs and popovers the same one-call drawing other
 components have, and teaching the checker to settle rules that compare two
@@ -458,7 +467,7 @@ pnpm add foldkit foldkit-mixins foldkit-mixins-ui foldkit-primitives @foldkit/ui
 ```
 
 Then try the [combobox examples](https://foldkit-plus.pages.dev/components/combobox)
-or follow the [Quickstart](https://foldkit-plus.pages.dev/learn/guides/quickstart).
+or follow the [Quickstart](https://foldkit-plus.pages.dev/learn).
 For the data side, add the packages for records, server data, and permissions:
 
 ```bash

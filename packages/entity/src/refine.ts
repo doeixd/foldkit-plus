@@ -6,6 +6,7 @@
  * guard rule or a write's `from` and `becomes` read the predicate it holds.
  */
 import { Match, Option, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import { Judge, OperatorMissingError, type Row } from './evaluate.js'
 import {
   Expr,
@@ -122,9 +123,10 @@ const judged = (
     const verdict = Judge.predicate(refinement.predicate, heldRow(refinement.entity, row), {
       operators,
     })
-    return Match.valueTags(verdict, {
+    return Verdict.match(verdict, {
+      True: () => Option.some(true),
+      False: () => Option.some(false),
       Unknown: () => Option.none(),
-      Known: ({ truth }) => Option.some(truth === true),
     })
   } catch (error) {
     if (error instanceof OperatorMissingError) return Option.none()

@@ -37,12 +37,12 @@ export default [
   ),
   edit(
     'a Message outside the set is not compared',
-    '      const { codec, read } = partsOf(projection)\n      const [was, now] = [read(before), read(after)]\n      return Object.is(was, now) || equivalence(codec)(was, now)\n',
-    '      return []\n      const { codec, read } = partsOf(projection)\n      const [was, now] = [read(before), read(after)]\n      return Object.is(was, now) || equivalence(codec)(was, now)\n',
+    '  const { codec, read } = partsOf(projection)\n  const [was, now] = [read(before), read(after)]\n',
+    '  return []\n  const { codec, read } = partsOf(projection)\n  const [was, now] = [read(before), read(after)]\n',
   ),
   edit(
     'a Message in the set is not checked for reads',
-    'const fields = reads(app, projection, before, message)',
+    'const fields = reads(app, surface.projection, before, message)',
     'const fields: ReadonlyArray<string> = []',
   ),
   edit(

@@ -32,6 +32,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./aggregate": {
+      "foldkit-plus:source": "./src/aggregate.ts",
+      "types": "./dist/aggregate.d.ts",
+      "import": "./dist/aggregate.js"
+    },
     "./filter": {
       "foldkit-plus:source": "./src/filter.ts",
       "types": "./dist/filter.d.ts",
@@ -85,7 +90,8 @@
   "dependencies": {
     "foldkit-entity": "workspace:*",
     "foldkit-metadata": "workspace:*",
-    "foldkit-surface": "workspace:*"
+    "foldkit-surface": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

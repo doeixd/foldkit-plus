@@ -32,6 +32,7 @@
       "foldkit-mixins/vite": ["../mixins/src/vite.ts"],
       "foldkit-react": ["../react/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-remote/aggregate": ["../remote/src/aggregate.ts"],
       "foldkit-remote/filter": ["../remote/src/filter.ts"],
       "foldkit-remote/live": ["../remote/src/live.ts"],
       "foldkit-remote/outbox": ["../remote/src/outbox.ts"],
@@ -54,7 +55,27 @@
       "foldkit-ssr/client": ["../ssr/src/client.ts"],
       "foldkit-ssr/loader": ["../ssr/src/loader.ts"],
       "foldkit-ssr/vite": ["../ssr/src/vite.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"]
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/writes": ["../surface/src/writes.ts"],
+      "metakit": ["../metakit/src/index.ts"],
+      "metakit/aggregates": ["../metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../metakit/src/aggregatesSql.ts"],
+      "metakit/build": ["../metakit/src/build.ts"],
+      "metakit/conformance": ["../metakit/src/conformance.ts"],
+      "metakit/domain": ["../metakit/src/domain.ts"],
+      "metakit/drizzle": ["../metakit/src/drizzle.ts"],
+      "metakit/graph": ["../metakit/src/graph.ts"],
+      "metakit/graph/match": ["../metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../metakit/src/inspect.ts"],
+      "metakit/machine": ["../metakit/src/machine.ts"],
+      "metakit/policy": ["../metakit/src/policy.ts"],
+      "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/relation": ["../metakit/src/relation.ts"],
+      "metakit/sql": ["../metakit/src/sql.ts"],
+      "metakit/store": ["../metakit/src/store.ts"],
+      "metakit/temporal": ["../metakit/src/temporal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "bench/**/*.ts", "tsdown.config.ts"],
@@ -88,6 +109,9 @@
     },
     {
       "path": "../react/tsconfig.build.json"
+    },
+    {
+      "path": "../metakit/tsconfig.build.json"
     }
   ]
 }

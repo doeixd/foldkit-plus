@@ -25,6 +25,7 @@
  * it. A local filter is not an access decision.
  */
 import { Option, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import { Query as Relational } from 'foldkit-entity'
 import {
   Held,
@@ -268,13 +269,17 @@ const judgedOver = (
   options: MatchingOptions,
 ): Option.Option<boolean> =>
   Option.flatMap(holder.rows.row(body.entity, key.slice(prefix.length)), row =>
-    Judge.match(
+    Verdict.match(
       Judge.query(body, encoded, row, {
         operators: options.operators,
         context: options.context,
         rows: holder.rows,
       }),
-      { onKnown: Option.some, onUnknown: () => Option.none() },
+      {
+        True: () => Option.some(true),
+        False: () => Option.some(false),
+        Unknown: () => Option.none(),
+      },
     ),
   )
 

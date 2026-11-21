@@ -25,7 +25,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { mkdirSync, openSync, rmSync, writeFileSync } from 'node:fs'
 import { cpus, platform, release, totalmem } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
 import { build, createBuilder, preview } from 'vite'
 
@@ -47,7 +47,7 @@ const boot = process.argv.includes('--boot')
  * Adds `slow` to the runtime config the app's entry passes, by text: the
  * one change made to the app. `anchor` must occur exactly once.
  */
-const probe = (file, anchor) => ({
+export const probe = (file, anchor) => ({
   name: 'render-baseline-probe',
   enforce: 'pre',
   transform(code, id) {
@@ -59,7 +59,7 @@ const probe = (file, anchor) => ({
 })
 
 /** Installed before the page's scripts: the `slow` config, recording every phase. */
-const recorder = () => {
+export const recorder = () => {
   const records = []
   const pathOf = message => {
     const tags = []
@@ -135,7 +135,7 @@ const quantile = (sorted, q) => {
   const above = Math.ceil(at)
   return sorted[below] + (sorted[above] - sorted[below]) * (at - below)
 }
-const spread = values => {
+export const spread = values => {
   const sorted = values.filter(Number.isFinite).sort((a, b) => a - b)
   return {
     n: sorted.length,
@@ -179,7 +179,7 @@ const summarize = (app, results) => {
  * environment's `outDir` itself, so this runs after it, and the example's
  * own `dist` is left alone.
  */
-const writeTo = outDir => ({
+export const writeTo = outDir => ({
   name: 'render-baseline-out',
   enforce: 'post',
   config: () => ({
@@ -326,7 +326,7 @@ const apps = {
   },
 }
 
-const environment = browser => ({
+export const environment = browser => ({
   date: new Date().toISOString(),
   os: `${platform()} ${release()}`,
   cpu: `${cpus()[0]?.model ?? 'unknown'} × ${cpus().length}`,
@@ -348,7 +348,7 @@ const range = values => {
 }
 
 /** Installed before the page's scripts: what a boot leaves for the run to read. */
-const bootProbe = () => {
+export const bootProbe = () => {
   window.__long = []
   new PerformanceObserver(list => {
     for (const entry of list.getEntries()) window.__long.push(entry.duration)
@@ -551,7 +551,9 @@ const main = async () => {
   }
 }
 
-main().catch(error => {
-  console.error(error)
-  process.exit(1)
-})
+// Run as a script; `scripts/phase6-baseline.mjs` imports the probes above.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href)
+  main().catch(error => {
+    console.error(error)
+    process.exit(1)
+  })

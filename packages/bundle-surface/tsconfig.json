@@ -11,7 +11,8 @@
       "foldkit-bundle-surface": ["./src/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mirror": ["../mirror/src/index.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"]
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/writes": ["../surface/src/writes.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],

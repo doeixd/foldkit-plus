@@ -35,12 +35,12 @@ export default [
   },
   {
     name: 'what the answer does not say is refused',
-    edits: [{ file, find: 'onNone: () => true,', replace: 'onNone: () => false,' }],
+    edits: [{ file, find: 'Unknown: () => true,', replace: 'Unknown: () => false,' }],
     tests,
   },
   {
     name: 'a refusal is allowed',
-    edits: [{ file, find: 'onSome: allowed =>', replace: 'onSome: () =>\n          true ||' }],
+    edits: [{ file, find: 'False: () =>', replace: 'False: () =>\n          true ||' }],
     tests,
   },
   {

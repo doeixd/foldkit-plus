@@ -10,7 +10,8 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Option, Result } from 'effect'
-import { Expr, Judge, Query } from 'foldkit-entity'
+import { Verdict } from 'metakit'
+import { Expr, Query } from 'foldkit-entity'
 import { databaseLayer } from 'foldkit-remote-drizzle'
 import { ddl } from './tables.js'
 import {
@@ -79,9 +80,10 @@ export const runLanguage = async (): Promise<ReadonlyArray<string>> => {
         `  Judge, a page holding Ada and one comment: ${judged(question, world, page)
           .map(
             ({ id, verdict }) =>
-              `${id} ${Judge.match(verdict, {
-                onKnown: truth => (truth ? 'in' : 'out'),
-                onUnknown: reason => `unknown (${reason})`,
+              `${id} ${Verdict.match(verdict, {
+                True: () => 'in',
+                False: () => 'out',
+                Unknown: ({ reason }) => `unknown (${reason})`,
               })}`,
           )
           .join(', ')}`,

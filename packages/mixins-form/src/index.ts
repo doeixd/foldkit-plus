@@ -585,6 +585,10 @@ export interface FieldAttrs {
   readonly autocapitalize?: string | undefined
   /** Off by default for an `email`, `tel` or `url` type, where a correction is a wrong address. */
   readonly spellcheck?: boolean | undefined
+  /** The lowest, highest and stepped value, as the control shows it: read by the renderers of `foldkit-mixins-form/declared`. */
+  readonly min?: string | undefined
+  readonly max?: string | undefined
+  readonly step?: string | undefined
 }
 
 /**

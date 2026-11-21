@@ -1,6 +1,6 @@
 # foldkit-surface
 
-Checked against `foldkit-surface` 0.15.0 and `foldkit-metadata` 0.2.0.
+Checked against `foldkit-surface` 0.17.0 and `foldkit-metadata` 0.3.0.
 
 ## What it is and what it owns
 
@@ -327,8 +327,10 @@ a `Metadata` per node (`Metadata.empty` by default) and merges its parts with
 rejects copies and hand-built values.
 
 `foldkit-metadata` also holds `Evidence`, records that a transition keeps a law
-(`Enumerated` from `Laws.check`, `Walked` from `Walk.run`, `RuntimeOnly` by hand
-with a reason). `Evidence.issuedBy(record)` is the producer, none for a record
+(`Enumerated` from `Laws.check`, or `Bounded` when it decided a pair from the
+numbers' declared bounds; `Walked` from `Walk.run`; `Scenario` from
+`Scenario.run`; `RuntimeOnly` by hand with a reason). A match over every kind
+(`Evidence.$match`) needs an arm for each. `Evidence.issuedBy(record)` is the producer, none for a record
 typed by hand or spread from an issued one (or issued through another copy of
 the package); a name has one `Evidence.issuer`, and a second throws.
 `Evidence.runtimeOnly({ transition, law, why })` throws on an empty `why`. Not
@@ -352,6 +354,87 @@ re-exported by Surface.
   can tell the requirements needed to *discover* instances from the
   requirements *of* them. Keys are stable strings: empty and `__proto__` keys
   and duplicates throw. Read any source with `Surface.instances(source, model)`.
+
+**Draw a Surface only when a Message writes what it reads.** Import
+`Writes` and `WritesCheck` from `foldkit-surface/writes` (a subpath: it brings
+`metakit`). Declare one `metakit` Transition per Message tag, each naming the
+Model paths it sets; `Writes.of(App, machine)` joins them to the paths a
+Surface's projection reads.
+
+<!-- docs-check standalone
+declare global {
+  interface ImportMeta {
+    readonly env?: { readonly DEV?: boolean }
+  }
+}
+-->
+
+```ts
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Num, Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
+import { Surface, type Renderer } from 'foldkit-surface'
+import { Writes, WritesCheck } from 'foldkit-surface/writes'
+
+const Model = Schema.Struct({ title: Schema.String, count: Schema.Number })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ Renamed: { title: Schema.String }, Counted: {} })
+type Message = typeof Message.Type
+const App = Surface.application({ Model, Message })
+const Header = App.surface('Header', { model: ({ model }) => ({ title: model.title }) })
+const drawHeader: Renderer<{ readonly title: string }, never> = (model, h) =>
+  h.h1([], [model.title])
+declare const appUpdate: (model: Model, message: Message) => { readonly model: Model }
+
+const Counted = Transition.make({
+  state: Model,
+  input: Message.Counted,
+  apply: ({ state }) => [Transition.set(state.count, Num.add(state.count, 1))],
+})
+const writes = Writes.of(App, Machine.make({ state: Model, transitions: { Counted } }))
+// Kept through `Counted`, which writes `count`; drawn again by `Renamed`, which has no transition.
+const header = writes.rootView(Header, undefined, drawHeader)
+const update = writes.track(
+  import.meta.env?.DEV === true ? WritesCheck.verify(writes, appUpdate, { surfaces: [Header] }) : appUpdate,
+)
+```
+
+- `writes.rootView(surface, params, render)` is `Surface.rootView` with the
+  drawing kept: same arguments, same view type. `Surface.rootView` itself takes
+  no `writes`, so a page that declares none carries nothing of this.
+- `writes.track(update)` wraps the outermost `update`, once: it notes which
+  Message made each Model. Without it every view draws every time.
+- Nothing is kept on a guess. A Message with no Transition, a Model `track` did
+  not see made (the first, a restored one), a projection that names no path
+  (`Projection.fromReader`, a `true` pick in `Projection.of`), a projection
+  that carries metadata (a `foldkit-remote` read, whatever path it names), a
+  server render and a view called outside the runtime all draw again.
+- A value derived from a Remote read (`Projection.derive`) or a plain field
+  reference into the Remote store carries no metadata: it is kept by the
+  store's path, so a Message with a Transition whose `update` also writes the
+  store must declare that write (`WritesCheck.verify` reports it otherwise).
+- Paths match by prefix both ways: a write to `account` or to
+  `account.owner.name` draws a reader of `account.owner`; a write to
+  `account.balance` does not.
+- A projection nested under a key of `Projection.of` names its paths from that
+  key (`account.owner`, not `owner`).
+- A renderer reads only its Model, and each `rootView` result stands at one
+  position of the tree.
+- `writes.regions()` lists each view's `reads` (an `Option`, none when no path
+  names them) and the tags in `redrawnBy`; `writes.declared(message)` is the
+  paths a Message's Transition sets, none without one.
+- `WritesCheck.verify(writes, update, { surfaces?, report? })` reports an
+  `UndeclaredWrite` (a path changed outside the declared writes; a struct
+  rebuilt equal is no change) and an `OutsideWrite` (a `closed: true` Surface
+  in `surfaces` changed by a Message outside its `messages`). `report` defaults
+  to `WritesCheck.fail` (throws); `WritesCheck.warn` logs through
+  `Diagnostics.report`. Reach it only under `import.meta.env?.DEV === true`, which also
+  leaves its module out of a production build.
+- `pathsRead(projection)` (from `foldkit-surface`) is the Model paths a
+  Projection reads as an `Option`: none when it reads what no path names.
+- `Closure` is `reads` and `violations` only; the closed-Surface half of the
+  check is inside `WritesCheck.verify`.
 
 ## Gotchas
 
@@ -412,6 +495,7 @@ Met in applications on this stack: what failed, and what to do instead.
 ## See also
 
 - Package README: https://github.com/doeixd/foldkit-plus/blob/main/packages/surface/README.md
+- Drawing only what a Message can change (`foldkit-surface/writes`): https://github.com/doeixd/foldkit-plus/blob/main/docs/surface-writes.md
 - Server-derived state guide (Surface + Remote): https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md
 - Replication guide (writable projections + MessageSets): https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md
 - Agents guide (projection as context): https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md

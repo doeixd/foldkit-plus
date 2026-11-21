@@ -1963,6 +1963,7 @@ const reduceRemote = (
           message.generation,
         ),
         entities: read.store,
+        kept: capabilities.keeps(model, message.result.entities, held, message.now),
         echoes: answeredSince(
           model.echoes,
           held.size === 0
@@ -2444,16 +2445,17 @@ const reduceRemote = (
               .map(edge => ({ ...message.select!, id: edge.ref.id }))
       const payloadRead = { entities: [...payload], settled: [...settled] }
       // A page is read with no token: a floored row on it may be older than the write.
-      const entities =
+      const read =
         requests.length === 0
-          ? model.entities
+          ? { store: model.entities, held: noRows }
           : readAfterIn(capabilities).read(
               model.entities,
               requests,
               payloadRead,
               message.now ?? 0,
               undefined,
-            ).store
+            )
+      const entities = read.store
       // Like `ReadReceived`: the answer settles what it was asked, whether
       // with values or as settled, so a prior failure does not outlive it.
       const failures = withoutFieldFailures(
@@ -2464,6 +2466,10 @@ const reduceRemote = (
         ...model,
         ...checkedPlacement(model, message.connection, message.page, message.refreshes === true),
         entities,
+        kept:
+          requests.length === 0
+            ? model.kept
+            : capabilities.keeps(model, payload, read.held, message.now ?? 0),
         connections: {
           ...model.connections,
           [message.connection]:

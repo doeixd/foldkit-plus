@@ -1,0 +1,32 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "noEmit": false,
+    "paths": {
+      "metakit": ["./src/index.ts"],
+      "metakit/aggregates": ["./src/aggregates.ts"],
+      "metakit/aggregates/sql": ["./src/aggregatesSql.ts"],
+      "metakit/build": ["./src/build.ts"],
+      "metakit/conformance": ["./src/conformance.ts"],
+      "metakit/domain": ["./src/domain.ts"],
+      "metakit/drizzle": ["./src/drizzle.ts"],
+      "metakit/graph": ["./src/graph.ts"],
+      "metakit/graph/match": ["./src/graph/match.ts"],
+      "metakit/graph/prune": ["./src/graph/prune.ts"],
+      "metakit/graph/readiness": ["./src/graph/readiness.ts"],
+      "metakit/inspect": ["./src/inspect.ts"],
+      "metakit/machine": ["./src/machine.ts"],
+      "metakit/policy": ["./src/policy.ts"],
+      "metakit/prove": ["./src/prove.ts"],
+      "metakit/relation": ["./src/relation.ts"],
+      "metakit/sql": ["./src/sql.ts"],
+      "metakit/store": ["./src/store.ts"],
+      "metakit/temporal": ["./src/temporal.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"]
+}

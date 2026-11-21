@@ -179,7 +179,7 @@ describe('a query over a state', () => {
       .rows(Item)
       .filter(row => {
         const verdict = Judge.query(body, {}, row, { rows: held })
-        return verdict._tag === 'Known' && verdict.truth
+        return verdict._tag === 'True'
       })
       .map(row => Held.match(row.field('id'), { onHeld: id => id, onUnheld: () => '' }))
       .sort()

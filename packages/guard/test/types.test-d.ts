@@ -4,6 +4,7 @@
 import { Context, Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Relation, type InputExpr, type Predicate } from 'foldkit-entity'
 import { expectTypeOf } from 'vitest'
+import { GuardCheck } from '../src/check.js'
 import {
   Guards,
   Interaction,
@@ -34,6 +35,11 @@ const G = Guards.declare(
   }),
   { key: user => user.id, unguarded: 'allow' },
 )
+
+const proof = GuardCheck.policy(TodoFields, 'rank')
+expectTypeOf(proof.definition.rowSchema.Type).toEqualTypeOf<typeof TodoFields.schema.Encoded>()
+// @ts-expect-error a member Read check names a member of the given Entity
+GuardCheck.policy(TodoFields, 'missing')
 
 expectTypeOf(G.isAdmin).toEqualTypeOf<PrincipalGuard<User, 'Todos'>>()
 expectTypeOf(G.isOwner).toEqualTypeOf<RowGuard<User, typeof TodoFields, 'Todos'>>()

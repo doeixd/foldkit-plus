@@ -45,14 +45,14 @@ export default [
   edit(
     'a rule over what the store lacks is taken to fail',
     condition,
-    '                onUnknown: () => assumed,',
-    '                onUnknown: () => false,',
+    '                Unknown: () => assumed,',
+    '                Unknown: () => false,',
   ),
   edit(
     "SQL's null lets a rule hold",
     condition,
-    '                onKnown: truth => truth === true,',
-    '                onKnown: truth => truth !== false,',
+    '                False: () => false,',
+    '                False: () => true,',
   ),
   edit(
     'a link is read as its ref key',

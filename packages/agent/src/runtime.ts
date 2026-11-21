@@ -463,13 +463,18 @@ export const bind = <
       if (progress !== undefined) progress.principal = principal
 
       if (variant.authorize !== undefined) {
-        const decision = variant.authorize({
-          principal,
-          input: decoded,
-          model,
-          transport: invocation.transport,
-        })
-        const decided = Effect.isEffect(decision) ? yield* decision : decision
+        const { authorize } = variant
+        // A hook that throws, or whose Effect dies, refuses: failing closed, with
+        // nothing of the exception in the error a caller sees.
+        const decided = yield* Effect.suspend(() => {
+          const decision = authorize({
+            principal,
+            input: decoded,
+            model,
+            transport: invocation.transport,
+          })
+          return Effect.isEffect(decision) ? decision : Effect.succeed(decision)
+        }).pipe(Effect.catchDefect(() => Effect.succeed(false as const)))
         if (decided !== true) {
           return yield* AuthorizationError.of(
             name,
@@ -482,7 +487,14 @@ export const bind = <
       // After authorization, never before: whether a call applies says what
       // the Model holds, which a caller refused above must not learn.
       if (variant.applies !== undefined) {
-        const applies = variant.applies({ principal, input: decoded, model })
+        // As `authorize` above: a hook that throws says the call does not apply.
+        const applies = (() => {
+          try {
+            return variant.applies({ principal, input: decoded, model })
+          } catch {
+            return false
+          }
+        })()
         if (applies !== true) {
           return yield* CapabilityUnavailableError.of(
             name,

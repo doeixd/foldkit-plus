@@ -92,6 +92,7 @@ describe('A bare descriptor of a guarded Entity', () => {
   })
 
   it.each([
+    ['Policy.readable', () => Policy.readable(NoteFields, Option.none())],
     ['GuardServer.writer', () => GuardServer.writer(NoteFields, Policy, writer(Db.Note))],
     ['GuardServer.filter', () => GuardServer.filter(NoteFields, Policy)],
     ['GuardServer.memory', () => GuardServer.memory(Policy, [NoteFields])],

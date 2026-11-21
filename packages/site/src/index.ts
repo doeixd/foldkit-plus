@@ -508,7 +508,14 @@ const sourceOf = <Root>(
       ? Option.map(viewer(model), who => params(route, who))
       : Option.none()
   })
-  return [node.tag, { ...gated, activation: { path: focus.dependency, tag: node.tag } }]
+  // The label names the route only; the viewer is read too, so `foldkit-remote`
+  // must not take the label for everything the read depends on.
+  const entry = {
+    ...gated,
+    activation: { path: focus.dependency, tag: node.tag },
+    readsBeyondActivation: true,
+  }
+  return [node.tag, entry]
 }
 
 /**

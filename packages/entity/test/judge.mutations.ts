@@ -152,8 +152,19 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: "    if (truths.some(truth => truth === false || truth === 'unknown')) return known(false)",
-        replace: '    if (truths.some(truth => truth === false)) return known(false)',
+        find: "    if (truths.some(truth => truth === false || truth === 'unknown')) return Verdict.False()",
+        replace: '    if (truths.some(truth => truth === false)) return Verdict.False()',
+      },
+    ],
+    tests: judge,
+  },
+  {
+    name: "Judge.predicate answers SQL's null as a plain false",
+    edits: [
+      {
+        file: evaluate,
+        find: "if (truth === 'unknown') return Verdict.False(Option.some('null' as const))",
+        replace: "if (truth === 'unknown') return Verdict.False<'null'>()",
       },
     ],
     tests: judge,

@@ -12,6 +12,7 @@ import * as Runtime from 'foldkit/runtime'
 import * as Submodel from 'foldkit/submodel'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Bundle, Link } from '../src/index.js'
+import { keptDrawing } from '../src/memo.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -306,6 +307,75 @@ describe('A collection', () => {
     try {
       await vi.waitFor(() => expect(document.querySelectorAll('.item')).toHaveLength(size))
       expect(listed).toBeLessThanOrEqual(3)
+    } finally {
+      handle.dispose()
+    }
+  })
+
+  it('keys keptDrawing on declared pathEpoch when provided (#586) and isolates started counters', async () => {
+    let epoch = 0
+    let draws = 0
+    const Page = Schema.Struct({ tick: Schema.Number, child: Counter })
+    type Page = typeof Page.Type
+    const PageMessage = defineMessageUnion({
+      Ticked: {},
+      ChildChanged: {},
+    })
+    type PageMessage = typeof PageMessage.Type
+
+    const drawChild = keptDrawing<Counter>(
+      (model, h) => {
+        draws++
+        return h.span([h.Id('epoch-child')], [String(model.count)])
+      },
+      undefined,
+      { pathEpoch: () => epoch },
+    )
+
+    const container = document.createElement('div')
+    container.id = 'bundle-path-epoch'
+    document.body.appendChild(container)
+    timedFrames()
+
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model: Page,
+        container,
+        init: () => ({ model: { tick: 0, child: { count: 0 } } }),
+        update: (model: Page, message: PageMessage) =>
+          message._tag === 'Ticked'
+            ? // Rebuilds child object with identical content without advancing pathEpoch.
+              { model: { tick: model.tick + 1, child: { ...model.child } }, commands: [] }
+            : (() => {
+                epoch++
+                return {
+                  model: { tick: model.tick, child: { count: model.child.count + 1 } },
+                  commands: [],
+                }
+              })(),
+        view: (model: Page, h: HtmlBuilder<PageMessage>) =>
+          h.div(
+            [],
+            [
+              h.span([h.Id('epoch-tick')], [String(model.tick)]),
+              drawChild(model.child, h),
+              h.button([h.Id('tick-btn'), h.OnClick(PageMessage.Ticked())], ['tick']),
+              h.button([h.Id('child-btn'), h.OnClick(PageMessage.ChildChanged())], ['child']),
+            ],
+          ),
+      }),
+    )
+    try {
+      await vi.waitFor(() => expect(document.getElementById('epoch-child')?.textContent).toBe('0'))
+      expect(draws).toBe(1)
+      ;(document.getElementById('tick-btn') as HTMLElement).click()
+      await vi.waitFor(() => expect(document.getElementById('epoch-tick')?.textContent).toBe('1'))
+      // Child slice was rebuilt as a new object, yet pathEpoch stayed 0 -> skipped!
+      expect(draws).toBe(1)
+      ;(document.getElementById('child-btn') as HTMLElement).click()
+      await vi.waitFor(() => expect(document.getElementById('epoch-child')?.textContent).toBe('1'))
+      // pathEpoch advanced -> redrawn!
+      expect(draws).toBe(2)
     } finally {
       handle.dispose()
     }

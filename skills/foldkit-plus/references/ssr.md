@@ -1,6 +1,6 @@
 # foldkit-ssr
 
-Checked against `foldkit-ssr` 0.14.0, `foldkit` 0.170.0.
+Checked against `foldkit-ssr` 0.15.0, `foldkit` 0.170.0.
 
 Server rendering that hands the browser **the Model the server reached**, not
 the inputs to rebuild it: `init` runs once, on the server, and the browser
@@ -181,7 +181,13 @@ would rebuild those elements.
   cursors) and nothing else; the browser refetches none of it. A part that
   cannot restore its own capture fails with `UnrestorablePart`; a page missing
   a part, or carrying an unknown one, is refused (`Invalid`).
-  `SSR.inspect(plan, model)` shows each read's cover. The check runs for the
+  Remote reads name their store's field (`remote`) as what they read; the part
+  restores that field, so `SSR.inspect` shows such a read covered by `part`,
+  and a plan without the part fails with "reads remote, which is neither in
+  the plan's state nor local". Only a read the part resumes counts: the part
+  carries what Remote reads ask, not the whole field, so a Surface holding a
+  plain reference to the store (`model.remote`) is `missing` and refused with
+  the same message. `SSR.inspect(plan, model)` shows each read's cover. The check runs for the
   server's Model, since a Surface's reads follow its params.
 - `SSR.static('id', ih => [...])` in a view: rendered once on the server with
   the inert builder (no handlers), adopted as trusted `InnerHTML` in the

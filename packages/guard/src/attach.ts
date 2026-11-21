@@ -550,6 +550,14 @@ export const Attaching = {
   /** The guards attached to `entity`, every attachment merged. */
   attached,
 
+  /**
+   * `attached`, for code that enforces the guards or decides from them what
+   * is safe: it throws for a descriptor that carries none while another
+   * descriptor of the same Entity does, where `attached` would answer "no
+   * guards".
+   */
+  enforced,
+
   /** Every rule must allow, as one rule. Principal and row guards may mix. */
   all: <
     const Rules extends readonly [
@@ -607,7 +615,12 @@ export const Attaching = {
     entities
       .flatMap(entity =>
         Option.match(attached(entity), {
-          onNone: () => [`${entity.name}: no guards`],
+          // A bare descriptor of a guarded Entity is not an unguarded Entity: a review reads this line.
+          onNone: () => [
+            guarded.has(entity.identity)
+              ? `${entity.name}: guards on another descriptor (pass the one Guards.attach returned)`
+              : `${entity.name}: no guards`,
+          ],
           onSome: attachment =>
             linesOf(attachment).map(([where, rule]) => `${entity.name}.${where}: ${rule}`),
         }),

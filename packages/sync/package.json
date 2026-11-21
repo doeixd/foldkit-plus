@@ -51,6 +51,11 @@
       "foldkit-plus:source": "./src/remote.ts",
       "types": "./dist/remote.d.ts",
       "import": "./dist/remote.js"
+    },
+    "./metakit": {
+      "foldkit-plus:source": "./src/metakit.ts",
+      "types": "./dist/metakit.d.ts",
+      "import": "./dist/metakit.js"
     }
   },
   "files": [
@@ -63,7 +68,8 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "foldkit-surface": "workspace:*"
+    "foldkit-surface": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

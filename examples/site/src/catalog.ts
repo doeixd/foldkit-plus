@@ -45,6 +45,13 @@ const doc = (id: string, label: string, name: string): Source => ({
   file: `docs/${name}.md`,
 })
 
+/** A guide in a package's own `docs/` folder, served under the file's name. */
+const guide = (dir: string, id: string, label: string): Source => ({
+  id,
+  label,
+  file: `packages/${dir}/docs/${id}.md`,
+})
+
 /** A family documented by its packages' READMEs, in this order, and the documents after them. */
 const family = (
   subsite: Omit<Subsite, 'sources'>,
@@ -61,7 +68,10 @@ export const subsites: ReadonlyArray<Subsite> = [
       shelf: 'Foundations',
       packages: ['surface', 'metadata'],
     },
-    [doc('versus-bundle', 'Surface and Bundle', 'surface-vs-bundles')],
+    [
+      doc('versus-bundle', 'Surface and Bundle', 'surface-vs-bundles'),
+      doc('surface-writes', 'Drawing only what a Message can change', 'surface-writes'),
+    ],
   ),
   family(
     {
@@ -131,6 +141,24 @@ export const subsites: ReadonlyArray<Subsite> = [
   ),
   family(
     {
+      id: 'metakit',
+      title: 'Metakit',
+      tagline: 'A business rule written once as data, read by the browser, SQL, forms and proofs.',
+      owner: 'the Schema and its transitions',
+      shelf: 'Data',
+      packages: ['metakit'],
+    },
+    [
+      guide('metakit', 'why-metakit', 'Why rules should be data'),
+      guide('metakit', 'getting-started', 'Write a rule once'),
+      guide('metakit', 'domain-types', 'Domain types and row aggregates'),
+      guide('metakit', 'resumability-and-queries', 'Prune SSR payloads and gate queries'),
+      guide('metakit', 'proving-transitions', 'Verify a state machine'),
+      guide('metakit', 'stores-and-order', 'What a proof of one step cannot check'),
+    ],
+  ),
+  family(
+    {
       id: 'remote',
       title: 'Remote',
       tagline: 'Server data, normalized in the Model: queries, mutations and live updates.',
@@ -140,6 +168,7 @@ export const subsites: ReadonlyArray<Subsite> = [
     },
     [
       doc('server-state', 'Server-derived state', 'remote'),
+      guide('remote', 'aggregates', 'Totals over a loaded list'),
       doc('writes', 'Declared writes', 'declared-writes'),
       doc(
         'event-sourced-domains',
@@ -197,14 +226,17 @@ export const subsites: ReadonlyArray<Subsite> = [
     },
     [doc('mirrored-state', 'Mirrored state', 'mirror')],
   ),
-  family({
-    id: 'form',
-    title: 'Form',
-    tagline: 'Drafts, validation and a decoded value, built from the Entity it writes.',
-    owner: 'the parent Model',
-    shelf: 'Screens',
-    packages: ['form', 'mixins-form'],
-  }),
+  family(
+    {
+      id: 'form',
+      title: 'Form',
+      tagline: 'Drafts, validation and a decoded value, built from the Entity it writes.',
+      owner: 'the parent Model',
+      shelf: 'Screens',
+      packages: ['form', 'mixins-form'],
+    },
+    [guide('form', 'metakit', 'Limits and guards from a metakit declaration')],
+  ),
   family({
     id: 'crud',
     title: 'CRUD',
@@ -295,7 +327,10 @@ export const subsites: ReadonlyArray<Subsite> = [
       shelf: 'Delivery',
       packages: ['agent', 'agent-mcp', 'agent-webmcp', 'agent-a2a', 'agent-native'],
     },
-    [doc('expose', 'Expose, do not reimplement', 'agents')],
+    [
+      doc('expose', 'Expose, do not reimplement', 'agents'),
+      guide('agent', 'machine-tools', "Tools from a state machine's transitions"),
+    ],
   ),
   family({
     id: 'react',

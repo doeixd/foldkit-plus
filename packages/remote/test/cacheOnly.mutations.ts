@@ -45,8 +45,8 @@ export default [
   edit(
     'a plan made under one policy is kept under another',
     domain,
-    'stableStringify([policy, asked])',
-    'stableStringify(asked)',
+    'stableStringify([policy, ask])',
+    'stableStringify(ask)',
   ),
   edit(
     'a prefetch ignores the policy the Model picks',

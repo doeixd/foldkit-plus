@@ -13,7 +13,7 @@ import {
   evaluate,
 } from 'foldkit-entity'
 import { Guards } from 'foldkit-guard'
-import { Can, Mutation, Query, Remote } from 'foldkit-remote'
+import { Can, CanWire, Mutation, Query, Remote } from 'foldkit-remote'
 import { ModelRef } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 
@@ -210,7 +210,11 @@ describe('one domain declaration, read by several readers', () => {
     })
     const answer = Data.can({ remote: Remote.initial }, Publish, { id: 'p1', status: 'published' })
     expect(
-      Can.match(answer, { Yes: () => 'yes', No: () => 'no', Undecided: () => 'undecided' }),
+      CanWire.match(Can.toWire(answer), {
+        Yes: () => 'yes',
+        No: () => 'no',
+        Undecided: () => 'undecided',
+      }),
     ).toBe('undecided')
   })
 })

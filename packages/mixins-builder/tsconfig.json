@@ -18,10 +18,12 @@
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-form": ["../form/src/index.ts"],
+      "foldkit-form/metakit": ["../form/src/metakit.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-builder": ["./src/index.ts"],
       "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
+      "foldkit-mixins-form/declared": ["../mixins-form/src/declared.ts"],
       "foldkit-mixins-form/recipes": ["../mixins-form/src/recipes.ts"],
       "foldkit-mixins-form/ui": ["../mixins-form/src/ui.ts"],
       "foldkit-mixins/app": ["../mixins/src/app.ts"],
@@ -46,7 +48,26 @@
       "foldkit-primitives/net": ["../primitives/src/net/index.ts"],
       "foldkit-primitives/observers": ["../primitives/src/observers/index.ts"],
       "foldkit-primitives/state": ["../primitives/src/state/index.ts"],
-      "foldkit-primitives/time": ["../primitives/src/time/index.ts"]
+      "foldkit-primitives/time": ["../primitives/src/time/index.ts"],
+      "metakit": ["../metakit/src/index.ts"],
+      "metakit/aggregates": ["../metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../metakit/src/aggregatesSql.ts"],
+      "metakit/build": ["../metakit/src/build.ts"],
+      "metakit/conformance": ["../metakit/src/conformance.ts"],
+      "metakit/domain": ["../metakit/src/domain.ts"],
+      "metakit/drizzle": ["../metakit/src/drizzle.ts"],
+      "metakit/graph": ["../metakit/src/graph.ts"],
+      "metakit/graph/match": ["../metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../metakit/src/inspect.ts"],
+      "metakit/machine": ["../metakit/src/machine.ts"],
+      "metakit/policy": ["../metakit/src/policy.ts"],
+      "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/relation": ["../metakit/src/relation.ts"],
+      "metakit/sql": ["../metakit/src/sql.ts"],
+      "metakit/store": ["../metakit/src/store.ts"],
+      "metakit/temporal": ["../metakit/src/temporal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
@@ -80,6 +101,9 @@
     },
     {
       "path": "../primitives/tsconfig.build.json"
+    },
+    {
+      "path": "../metakit/tsconfig.build.json"
     }
   ]
 }

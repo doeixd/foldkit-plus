@@ -89,4 +89,10 @@ export default [
     'if (listed !== undefined && listed.parent === parent) return listed.entries',
     '',
   ),
+  edit(
+    'keptDrawing ignores pathEpoch and falls back to model reference identity',
+    '../src/memo.ts',
+    'const key = pathEpoch === undefined ? model : pathEpoch()',
+    'const key = model',
+  ),
 ]

@@ -1,6 +1,6 @@
 # foldkit-sync + foldkit-durable
 
-Checked against `foldkit-sync` 0.18.0 and `foldkit-durable` 0.15.0.
+Checked against `foldkit-sync` 0.20.0 and `foldkit-durable` 0.15.0.
 
 Local-first replication of part of a Foldkit Model. `foldkit-sync` is the client
 replica, and `foldkit-durable` is the optional SQLite server journal that owns
@@ -279,13 +279,76 @@ const Capped = forApplication(App).make({
   durable: MessageSet.make(App, [Message.CreatedTodo]),
   laws: {
     atMost100Todos: {
-      holds: ({ after }) => after.todos.length <= 100, // `before` too; shared fields only
+      holds: ({ after }) => after.todos.length <= 100,
       message: 'A list holds 100 todos',
       path: ['todos'],
     },
   },
 })
 ```
+
+`holds` sees the snapshot before the operation and the one after it. To write
+it as a metakit expression instead, wrap the expression in `SyncDeclared.holds`
+from `foldkit-sync/metakit`; it sees the snapshot after as `model`, and holds
+only where the expression is true: a snapshot it is null over, or cannot be
+evaluated over (an integer result past ±(2^53−1)), breaks the law. That
+subpath is the only part of `foldkit-sync` that imports metakit, so a page
+that writes its laws as callbacks carries none of it.
+
+To replay an edit from a single declaration, wrap a metakit `Transition.make`
+in `SyncDeclared.transition` and put it under its Message tag in
+`make({ transitions })`. Use `Schema.Struct({ model: shared.schema })` for its
+state and the variant constructor, such as `CounterMessage.Incremented`, for
+its input. A counter that stops at 10:
+
+```ts
+import { Num, Path, Transition } from 'metakit'
+import { SyncDeclared } from 'foldkit-sync/metakit'
+
+const Counter = Schema.Struct({ count: Schema.Number })
+const CounterMessage = defineMessageUnion({ Incremented: {} })
+const CounterApp = Surface.application({
+  Model: Counter,
+  Message: CounterMessage,
+  initial: { count: 0 },
+  update: (counter: typeof Counter.Type) => ({ model: { count: counter.count + 1 } }),
+})
+const counted = Projection.pick(CounterApp.model.count)
+const { model } = Path.forEnv({ model: counted.schema })
+const Bounded = forApplication(CounterApp).make({
+  documentId: DocumentId.make('bounded'),
+  shared: counted,
+  durable: MessageSet.make(CounterApp, [CounterMessage.Incremented]),
+  laws: {
+    atMost10: { holds: SyncDeclared.holds(Num.lte(model.count, 10)), message: 'It stops at 10' },
+  },
+  transitions: {
+    Incremented: SyncDeclared.transition(
+      Transition.make({
+        state: Schema.Struct({ model: counted.schema }),
+        input: CounterMessage.Incremented,
+        when: ({ state }) => Num.lt(state.model.count, 10),
+        apply: ({ state }) => [Transition.set(state.model.count, Num.add(state.model.count, 1))],
+      }),
+    ),
+  },
+})
+```
+
+The mount applies a declared transition to the shared projection in place of
+your `update`, and the journal uses it for replay. A Message whose guard
+(`when`) is false is refused: the replica's `submit` fails and the journal
+rejects the operation. Tags without a declaration follow the existing reducer.
+`SyncDeclared.transition` returns a `DeclaredTransition`, whose `bind` `make`
+calls once; the check, its messages and the replay by tag live in that object,
+so a document with no `transitions` carries none of them. The document then
+has `live(model, message)` (the Model after a declared Message, the same Model
+where it is refused, `Option.none()` for a tag with no declaration) and
+`footprints` (each declared tag's read and written paths).
+At definition time, `make` rejects a guard proved unreachable under the laws
+written with `SyncDeclared.holds`, or a transition proved to break one. An
+undecided check lets the declaration proceed. The journal still checks each
+document law on admission.
 
 The journal judges every operation after `reduce` (`journalContract()` carries
 `judge`), `appendAsServer` and reactions included; a broken law is
