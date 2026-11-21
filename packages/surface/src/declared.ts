@@ -69,6 +69,12 @@ export interface Declared<Root, Message, Tag extends string, Resources = never> 
    * `{ model }` with identical reference on no-ops.
    */
   readonly update: (model: Root, message: Message) => Update.Return<Root, Message, Resources>
+  /**
+   * The untracked transition + Command step, for composing inside an outer
+   * wrapper (such as `Bundle.assemble` or `WritesCheck.verify`) before a single
+   * outermost `writes.track`.
+   */
+  readonly step: (model: Root, message: Message) => Update.Return<Root, Message, Resources>
   /** Underlying `Writes` instance (`Writes.of(app, machine, ...)`). */
   readonly writes: Writes<Root, Message, Tag>
   /** Shortcut to `writes.rootView`. */
@@ -181,6 +187,7 @@ const of = <
 
   return {
     update,
+    step: rawUpdate,
     writes,
     rootView: writes.rootView,
     install: writes.install,

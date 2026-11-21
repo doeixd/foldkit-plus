@@ -20,14 +20,15 @@
  * - **Local Messages** change per-device UI state (draft, filter, editing) and
  *   never leave the tab.
  */
-import { Clock, Effect, Match, Option, Schema } from 'effect'
+import { Clock, Effect, Option, Schema } from 'effect'
 import * as Dom from 'foldkit/dom'
 import { Url } from 'foldkit/url'
 import { Mirror } from 'foldkit-mirror'
 import { fact } from 'foldkit-sync'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
-import type { EmitOf, MessageOf } from 'metakit/machine'
+import type { CommandTable } from 'foldkit-surface/declared'
+import type { EmitOf } from 'metakit/machine'
 import type { TodoMachine } from './machine.js'
 
 export const Priority = Schema.Union([
@@ -186,88 +187,38 @@ const nextPriority: Record<Priority, Priority> = { low: 'normal', normal: 'high'
 type Emitted = EmitOf<TodoMachine['transitions']>
 
 /**
- * The Command each record emitted stands for: ordinary code, run after the
- * step, so it may do what the language cannot (mint an id, read the clock,
- * sort the rows shown). An id the record's type says may be null is never
- * null where it is emitted (its transition's guard asks there is one), and no
- * Command is made of one that is.
+ * The Command table for each record `machine.ts` emits: ordinary code, run
+ * after the step, so it may do what the language cannot (mint an id, read the
+ * clock, sort the rows shown). Passed to `Declared.of` in `surface.ts`.
  */
-const commandsOf = (record: Emitted): ReadonlyArray<Command> =>
-  Match.valueTags(record, {
-    Rename: ({ id, title }) =>
-      id === null
-        ? []
-        : [{ name: 'Rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) }],
-    Focus: ({ id }) => (id === null ? [] : [focusTitle(id)]),
-    // A request's id is absent from a draft's, and from a request that has none.
-    Mint: ({ title, requestId }) => [
-      mintTodo(title, typeof requestId === 'string' ? { requestId } : {}),
-    ],
-    Delete: ({ id }) => [fact(Message.DeletedTodo({ id }))],
-    // Focus moves to the next row in the order shown, or the one before at the end.
-    FocusNeighbour: ({ id, todos, filter }) => {
-      const rows = visibleTodos({ todos, filter })
-      const at = rows.findIndex(row => row.id === id)
-      const neighbour = rows[at + 1] ?? rows[at - 1]
-      return [neighbour === undefined ? focusSelector(`#${COMPOSER_ID}`) : focusTitle(neighbour.id)]
+export const todoCommands: CommandTable<Emitted, Model, Message> = {
+  Rename: ({ id, title }) =>
+    id === null
+      ? []
+      : [{ name: 'Rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) }],
+  Focus: ({ id }) => (id === null ? [] : [focusTitle(id)]),
+  // A request's id is absent from a draft's, and from a request that has none.
+  Mint: ({ title, requestId }) => [
+    mintTodo(title, typeof requestId === 'string' ? { requestId } : {}),
+  ],
+  Delete: ({ id }) => [fact(Message.DeletedTodo({ id }))],
+  // Focus moves to the next row in the order shown, or the one before at the end.
+  FocusNeighbour: ({ id, todos, filter }) => {
+    const rows = visibleTodos({ todos, filter })
+    const at = rows.findIndex(row => row.id === id)
+    const neighbour = rows[at + 1] ?? rows[at - 1]
+    return [neighbour === undefined ? focusSelector(`#${COMPOSER_ID}`) : focusTitle(neighbour.id)]
+  },
+  ExpireUndo: ({ id }) => [
+    {
+      name: 'ExpireUndo',
+      effect: Effect.sleep(UNDO_FOR).pipe(Effect.as(Message.UndoExpired({ id }))),
     },
-    ExpireUndo: ({ id }) => [
-      {
-        name: 'ExpireUndo',
-        effect: Effect.sleep(UNDO_FOR).pipe(Effect.as(Message.UndoExpired({ id }))),
-      },
-    ],
-    // The fact is applied within this transition (`fact`), so the todo is
-    // drawn again before focus looks for it.
-    Restore: ({ todo }) => (todo === null ? [] : [fact(Message.RestoredTodo({ todo }))]),
-  })
-
-type Command = NonNullable<Return['commands']>[number]
-
-/**
- * `update` runs `machine`'s Transition for each Message (`machine.ts`), and the
- * Commands of the records it emits. That module imports the Model and
- * Messages from here, so it is a type here.
- *
- * Each intent clears its *local* state in its local transition; the durable
- * fact it causes never touches local fields.
- */
-export const makeUpdate =
-  (machine: TodoMachine) =>
-  (model: Model, message: Message): Return => {
-    const run = (declared: MessageOf<TodoMachine['transitions']>): Return => {
-      const [next, emitted] = machine.update(model, declared)
-      const commands = emitted.flatMap(commandsOf)
-      return commands.length === 0 ? { model: next } : { model: next, commands }
-    }
-    return Message.match<Return>(message, {
-      UrlChanged: input => run({ _tag: 'UrlChanged', input }),
-      MirrorRestored: input => run({ _tag: 'MirrorRestored', input }),
-      DraftSubmitted: input => run({ _tag: 'DraftSubmitted', input }),
-      RequestedTodo: input => run({ _tag: 'RequestedTodo', input }),
-      EditingCommitted: input => run({ _tag: 'EditingCommitted', input }),
-      EditingSubmitted: input => run({ _tag: 'EditingSubmitted', input }),
-      DeleteRequested: input => run({ _tag: 'DeleteRequested', input }),
-      UndoRequested: input => run({ _tag: 'UndoRequested', input }),
-      SubmittedTodo: input => run({ _tag: 'SubmittedTodo', input }),
-      RestoredTodo: input => run({ _tag: 'RestoredTodo', input }),
-      ToggledTodo: input => run({ _tag: 'ToggledTodo', input }),
-      RenamedTodo: input => run({ _tag: 'RenamedTodo', input }),
-      PrioritySet: input => run({ _tag: 'PrioritySet', input }),
-      DeletedTodo: input => run({ _tag: 'DeletedTodo', input }),
-      ClearedCompleted: input => run({ _tag: 'ClearedCompleted', input }),
-      RenamedList: input => run({ _tag: 'RenamedList', input }),
-      DraftChanged: input => run({ _tag: 'DraftChanged', input }),
-      FilterSelected: input => run({ _tag: 'FilterSelected', input }),
-      EditingStarted: input => run({ _tag: 'EditingStarted', input }),
-      EditDraftChanged: input => run({ _tag: 'EditDraftChanged', input }),
-      EditingStopped: input => run({ _tag: 'EditingStopped', input }),
-      UndoExpired: input => run({ _tag: 'UndoExpired', input }),
-      OfflineSet: input => run({ _tag: 'OfflineSet', input }),
-      SyncStatusChanged: input => run({ _tag: 'SyncStatusChanged', input }),
-      CompletedFocus: input => run({ _tag: 'CompletedFocus', input }),
-    })
-  }
+  ],
+  // The fact is applied within this transition (`fact`), so the todo is
+  // drawn again before focus looks for it.
+  Restore: ({ todo }) => (todo === null ? [] : [fact(Message.RestoredTodo({ todo }))]),
+}
 
 export type SyncState = 'synced' | 'saving' | 'offline' | 'retrying'
 

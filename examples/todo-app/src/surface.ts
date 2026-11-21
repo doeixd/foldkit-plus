@@ -15,8 +15,9 @@ import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
 import { Projection, Surface, type Surface as SurfaceType } from 'foldkit-surface'
 import type * as Update from 'foldkit/update'
-import { Writes, WritesCheck } from 'foldkit-surface/writes'
-import { Message, Model, initialModel, makeUpdate } from './app.js'
+import { Declared } from 'foldkit-surface/declared'
+import { WritesCheck } from 'foldkit-surface/writes'
+import { Message, Model, initialModel, todoCommands } from './app.js'
 import { makeMachine, type TodoMachine } from './machine.js'
 
 export const App = Surface.application({
@@ -38,11 +39,22 @@ export const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.model.draf
 export const todoMachine: TodoMachine = makeMachine({ url: Filters.reduce, restored: Prefs.reduce })
 
 /**
- * The application's own transitions. The assembly routes the mirrors'
- * Messages before `own` ever sees them, so the fallback only sees another
- * mirror's `MirrorRestored`, which its step ignores.
+ * Every Message's transition (`machine.ts`), joined to its Command table and
+ * `Writes` path-skipping through `Declared.of`: no hand-written `Message.match`
+ * forwarding table is needed.
  */
-const ownUpdate = makeUpdate(todoMachine)
+export const declared = Declared.of(App, todoMachine, {
+  commands: todoCommands,
+  sends: {
+    Rename: ['RenamedTodo'],
+    Focus: ['CompletedFocus'],
+    Mint: ['SubmittedTodo'],
+    Delete: ['DeletedTodo'],
+    FocusNeighbour: ['CompletedFocus'],
+    ExpireUndo: ['UndoExpired'],
+    Restore: ['RestoredTodo'],
+  },
+})
 
 const Page = Bundle.parent({ Model, Message })
 
@@ -54,25 +66,18 @@ const Page = Bundle.parent({ Model, Message })
  */
 export const wiring = Page.assemble(Filters.wiring('UrlChanged'), Prefs.wiring())
 
-/**
- * The mirrors' Messages go to their mirror; every other Message goes to `own`.
- * Annotated to break the inference cycle: `App` above is built from this
- * update, which is built from the mirrors, which are built over `App`. The
- * `KeyValueStore` requirement rides along from the key-value mirror's wiring;
- * only its startup Command uses the store, and the runtime provides it.
- */
 /** `update` without the writes' tracking, for the test that checks every Message against its Transition. */
 export const assembled: (
   model: Model,
   message: Message,
-) => Update.Return<Model, Message, KeyValueStore.KeyValueStore> = wiring.update(ownUpdate)
+) => Update.Return<Model, Message, KeyValueStore.KeyValueStore> = wiring.update(declared.step)
 
 /**
  * What each Message writes (`machine.ts`), joined to what each Surface reads:
  * `view.ts` draws its Surfaces through `writes.rootView`, so a Message redraws
  * only the Surfaces that read a field it is declared to write.
  */
-export const writes = Writes.of(App, todoMachine)
+export const writes = declared.writes
 
 /**
  * The application's `update`, noting which Message made each Model. In
