@@ -18,7 +18,7 @@ export default defineConfig({
   dts: true,
   clean: true,
   target: 'es2022',
-  deps: { neverBundle: [/^\.\.?\//, 'effect', 'foldkit-metadata'] },
+  deps: { neverBundle: [/^\.\.?\//, /^metakit(\/.*)?$/, 'effect', 'foldkit-metadata'] },
   hooks: {
     // The declaration bundler drops the namespace's export, which shares its
     // name with the interface, though `tsc` writes both: written back here.

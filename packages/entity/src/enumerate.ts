@@ -6,6 +6,7 @@
  * input, makes the question undecided, with the reason.
  */
 import { Data, Match, Option, Schema, SchemaAST } from 'effect'
+import { Verdict } from 'metakit'
 import { Judge, type Row } from './evaluate.js'
 import { Query } from './expr.js'
 import type { AnyEntity, EntityField } from './index.js'
@@ -212,7 +213,7 @@ export const steps = (
         onSome: ({ body }) => {
           const row = heldRow(entity, before)
           const verdict = Judge.query(body, input, row, { operators })
-          return verdict._tag === 'Known' && !verdict.truth
+          return Verdict.isFalse(verdict)
         },
       })
       if (refused) continue

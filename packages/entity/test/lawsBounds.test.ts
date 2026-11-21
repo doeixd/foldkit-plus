@@ -6,6 +6,7 @@
  * leaves. Seeded; a failure prints its seed.
  */
 import { Option, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
@@ -154,7 +155,7 @@ const breaks = (
     onNone: () => true,
     onSome: body => {
       const verdict = Judge.query(body, given, heldRow(Thing, before), { operators })
-      return verdict._tag === 'Known' && verdict.truth
+      return Verdict.isTrue(verdict)
     },
   })
   if (!meets) return 'outside'

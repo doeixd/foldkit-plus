@@ -9,7 +9,7 @@ import { Bundle } from 'foldkit-bundle'
 import { Entity, Expr, Write } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
-import { Can, Mutation, Remote, RemoteClient } from 'foldkit-remote'
+import { Can, CanWire, Mutation, Remote, RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Crud } from '../src/index.js'
@@ -204,7 +204,7 @@ describe('An editor over a quote the form sets only the discount of', () => {
       const model = await opened(each.row)
       const input = { id: 'q1', discountPct: Number(each.typed) }
       const byForm = discount(typed(model, each.typed))._tag === 'Invalid'
-      const can = Can.match(Data.can(model, EditQuote, input), {
+      const can = CanWire.match(Can.toWire(Data.can(model, EditQuote, input)), {
         Yes: () => undefined,
         Undecided: () => undefined,
         No: ({ refusal }) => (refusal._tag === 'Invalid' ? refusal.rule : refusal._tag),

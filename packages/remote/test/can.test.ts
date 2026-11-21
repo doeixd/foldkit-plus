@@ -7,6 +7,7 @@ import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Derived, Entity, Expr, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
+import { Verdict } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import { Can, Mutation, Remote } from '../src/index.js'
 
@@ -154,17 +155,17 @@ const held = read(
 const partial = read([{ id: 'bare', title: 'E' }], ['id', 'title'])
 
 const tag = (answer: Can) =>
-  Can.match(answer, { Yes: () => 'Yes', No: () => 'No', Undecided: () => 'Undecided' })
+  Verdict.match(answer, { True: () => 'Yes', False: () => 'No', Unknown: () => 'Undecided' })
 const refusal = (answer: Can) =>
-  Can.match(answer, {
-    Yes: () => undefined,
-    No: ({ refusal: why }) => why,
-    Undecided: () => undefined,
+  Verdict.match(answer, {
+    True: () => undefined,
+    False: ({ witness }) => Option.getOrUndefined(witness),
+    Unknown: () => undefined,
   })
 
 describe('Data.can', () => {
   it('answers Yes for a draft the when admits and no invariant breaks', () => {
-    expect(Data.can(held, Publish, { id: 'draft', status: 'published' })).toEqual(Can.Yes({}))
+    expect(Data.can(held, Publish, { id: 'draft', status: 'published' })).toEqual(Verdict.True())
   })
 
   it('answers No(Unmet) where the row does not hold what the when asks', () => {
@@ -213,7 +214,7 @@ describe('Data.can', () => {
 
   it('answers Undecided where the row is not held, with the reason', () => {
     expect(Data.can(held, Publish, { id: 'nobody', status: 'published' })).toEqual(
-      Can.Undecided({ reasons: ['Doc nobody is not held'] }),
+      Can.undecided(['Doc nobody is not held']),
     )
   })
 
@@ -232,24 +233,22 @@ describe('Data.can', () => {
       Data.can(ungated, Drop, { id: 'u' }),
     ])
       expect(answer).toEqual(
-        Can.Undecided({
-          reasons: ['the client holds no Doc.gate, which a rule may refuse the write by'],
-        }),
+        Can.undecided(['the client holds no Doc.gate, which a rule may refuse the write by']),
       )
     // A held gate that refuses still answers No: only a missing one is undecided.
     expect(tag(Data.can(held, Publish, { id: 'draft', status: 'published' }))).toBe('Yes')
   })
 
   it('answers Undecided without the id', () => {
-    expect(Data.can(held, Publish, {})).toEqual(Can.Undecided({ reasons: ['id is not given'] }))
+    expect(Data.can(held, Publish, {})).toEqual(Can.undecided(['id is not given']))
   })
 
   it('answers Undecided where an input key the when reads is not given, and decides once it is', () => {
     const asked = Data.can(held, PublishSeen, { id: 'draft', status: 'published' })
-    expect(asked).toMatchObject({ _tag: 'Undecided' })
+    expect(tag(asked)).toBe('Undecided')
     expect(
       Data.can(held, PublishSeen, { id: 'draft', status: 'published', seen: 'draft' }),
-    ).toEqual(Can.Yes({}))
+    ).toEqual(Verdict.True())
     expect(
       refusal(Data.can(held, PublishSeen, { id: 'draft', status: 'published', seen: 'archived' })),
     ).toEqual({ _tag: 'Unmet' })
@@ -266,13 +265,11 @@ describe('Data.can', () => {
   })
 
   it('answers Undecided over a field the write moves by an amount, which the client does not work out', () => {
-    expect(Data.can(held, Grow, { id: 'live', amount: 5 })).toMatchObject({ _tag: 'Undecided' })
+    expect(tag(Data.can(held, Grow, { id: 'live', amount: 5 }))).toBe('Undecided')
   })
 
   it('answers Undecided where an invariant reads a field the row does not hold', () => {
-    expect(Data.can(partial, Retitle, { id: 'bare', title: 'F' })).toMatchObject({
-      _tag: 'Undecided',
-    })
+    expect(tag(Data.can(partial, Retitle, { id: 'bare', title: 'F' }))).toBe('Undecided')
   })
 
   it('refuses a mutation that is not a declared Write, and an unregistered one', () => {

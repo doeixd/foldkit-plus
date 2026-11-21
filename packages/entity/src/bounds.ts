@@ -17,6 +17,7 @@
  * checked by the reference judge.
  */
 import { Data, Match, Option, Schema, SchemaAST } from 'effect'
+import { Verdict } from 'metakit'
 import { Steps, finiteValues, steps, type Step } from './enumerate.js'
 import { Judge, OperatorMissingError, applyOperator, type Row } from './evaluate.js'
 import {
@@ -433,9 +434,10 @@ const judged = (predicate: Predicate, at: Case, side: Side): number => {
       input: at.step.input,
       operators: at.operators,
     })
-    return Judge.match(verdict, {
-      onKnown: truth => (truth === true ? T : truth === false ? F : N),
-      onUnknown: () => ALL,
+    return Verdict.match(verdict, {
+      True: () => T,
+      False: ({ witness }) => (Option.isSome(witness) ? N : F),
+      Unknown: () => ALL,
     })
   } catch (error) {
     if (error instanceof OperatorMissingError) return ALL
@@ -979,7 +981,7 @@ const search = (
           const verdict = Judge.query(body, input, heldRow(entity, before), {
             operators: at.operators,
           })
-          return verdict._tag === 'Known' && verdict.truth
+          return Verdict.isTrue(verdict)
         },
       })
       if (!meets) continue

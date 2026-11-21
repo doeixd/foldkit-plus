@@ -6,6 +6,7 @@
  * operations-phase3-DESIGN.
  */
 import { Effect, Option, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
@@ -150,7 +151,7 @@ describe('a path from the viewer', () => {
           rows,
         }),
       )
-    const known = (truth: boolean) => ({ _tag: 'Known', truth })
+    const known = (truth: boolean) => (truth ? Verdict.True() : Verdict.False())
 
     it("keeps the notes of the viewer's organisation", () => {
       const rows = holder([{ id: 'ada', team: 't1' }])
@@ -173,9 +174,9 @@ describe('a path from the viewer', () => {
     })
 
     it("is unknown where the holder lacks the viewer's row, and absent where it holds every one", () => {
-      expect(verdicts(asking('ada'), holder([], false)).map(each => each._tag)).toEqual([
-        'Unknown',
-        'Unknown',
+      expect(verdicts(asking('ada'), holder([], false)).map(Verdict.isUnknown)).toEqual([
+        true,
+        true,
       ])
       expect(verdicts(asking('ada'), holder([], true))).toEqual([known(false), known(false)])
     })
@@ -187,10 +188,10 @@ describe('a path from the viewer', () => {
         { entity: Team, rows: [{ id: 't1', orgId: 'acme' }], hidden: ['orgId'] },
       ])
       const note = hidden.row(Fields.Note, 'n1').pipe(Option.getOrThrow)
-      expect(Judge.query(InOrg, {}, note, { context: asking('ada'), rows: hidden })._tag).toBe(
-        'Unknown',
-      )
-      expect(Judge.query(InOrg, {}, note, { context: asking('ada') })._tag).toBe('Unknown')
+      expect(
+        Verdict.isUnknown(Judge.query(InOrg, {}, note, { context: asking('ada'), rows: hidden })),
+      ).toBe(true)
+      expect(Verdict.isUnknown(Judge.query(InOrg, {}, note, { context: asking('ada') }))).toBe(true)
     })
 
     it('is refused by a run over one row, as a path is', () => {

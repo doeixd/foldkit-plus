@@ -2,9 +2,10 @@
  * What `Data.can` computes (#533), kept apart from `can.ts` so only a domain
  * that registers a Mutation loads the write judges (the write capability).
  */
-import { Match, Option, Result, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { Write as DomainWrite, type AnyWrite, type ExprContext } from 'foldkit-entity'
 import type { HeldRow, MemoryOperators } from 'foldkit-entity'
+import { Verdict } from 'metakit'
 import { Can, CanRefusal, type CapabilityChecks, type CapabilityRequest } from './can.js'
 import { forbiddenByWrite, judgedByWrite, metByWrite, unheldByWrite } from './mutation.js'
 import { holderOf } from './held.js'
@@ -38,8 +39,7 @@ export const canOf = (
   store: EntityStore,
   given: Option.Option<MemoryOperators>,
 ): Can => {
-  if (own(input, write.id.key) === undefined)
-    return Can.Undecided({ reasons: [`${write.id.key} is not given`] })
+  if (own(input, write.id.key) === undefined) return Can.undecided([`${write.id.key} is not given`])
   const operators = tableOf(given)
   const entity = write.input.entity
   const { id } = DomainWrite.bind(write, input as never)
@@ -49,10 +49,11 @@ export const canOf = (
     Update: () => Option.map(holderOf(store).rows.row(entity, id), Option.some),
     Delete: () => Option.map(holderOf(store).rows.row(entity, id), Option.some),
   })
-  if (Option.isNone(found)) return Can.Undecided({ reasons: [`${entity.name} ${id} is not held`] })
+  if (Option.isNone(found)) return Can.undecided([`${entity.name} ${id} is not held`])
   const row = found.value
   const forbidden = forbiddenByWrite(write, input, undefined, store)
-  if (Option.isSome(forbidden)) return Can.No({ refusal: CanRefusal.Forbidden(forbidden.value) })
+  if (Option.isSome(forbidden))
+    return Verdict.False(Option.some(CanRefusal.Forbidden(forbidden.value)))
   const unheld = unheldByWrite(write, input, undefined, store)
   const reasons: Array<string> =
     unheld.length === 0
@@ -60,8 +61,8 @@ export const canOf = (
       : [`the client holds no ${unheld.join(', ')}, which a rule may refuse the write by`]
   if (Option.isSome(row)) {
     const met = metByWrite(write, row.value, encodedGiven(write, input), context, store, operators)
-    if (Result.isSuccess(met) && !met.success) return Can.No({ refusal: CanRefusal.Unmet({}) })
-    if (Result.isFailure(met)) reasons.push(met.failure)
+    if (Verdict.isFalse(met)) return Verdict.False(Option.some(CanRefusal.Unmet({})))
+    if (Verdict.isUnknown(met)) reasons.push(met.reason)
   }
   const judged = judgedByWrite(write, input, undefined, context, store, operators)
   if (Option.isSome(judged)) {
@@ -76,16 +77,18 @@ export const canOf = (
       },
     })
     if (Option.isSome(refusal))
-      return Can.No({
-        refusal: CanRefusal.Invalid({
-          entity: refusal.value.entity,
-          rule: refusal.value.id,
-          message: refusal.value.message,
-          path: refusal.value.path,
-        }),
-      })
+      return Verdict.False(
+        Option.some(
+          CanRefusal.Invalid({
+            entity: refusal.value.entity,
+            rule: refusal.value.id,
+            message: refusal.value.message,
+            path: refusal.value.path,
+          }),
+        ),
+      )
   }
-  return reasons.length === 0 ? Can.Yes({}) : Can.Undecided({ reasons })
+  return reasons.length === 0 ? Verdict.True() : Can.undecided(reasons)
 }
 
 /** `Data.can` for one write, bound to the domain: a Model and the keys given. */
@@ -108,35 +111,43 @@ export const capabilityOf = <Model>(
   const allowed = (): true => true
   return {
     authorize: request =>
-      Can.match(answer(request).can, {
-        No: ({ refusal }) =>
-          CanRefusal.match(refusal, {
-            Forbidden: ({ reason }) =>
-              Option.match(reason, {
-                onNone: () => false,
-                onSome: words => ({ allowed: false as const, reason: words }),
+      Verdict.match(answer(request).can, {
+        False: ({ witness }) =>
+          Option.match(witness, {
+            onNone: allowed,
+            onSome: refusal =>
+              CanRefusal.match(refusal, {
+                Forbidden: ({ reason }) =>
+                  Option.match(reason, {
+                    onNone: () => false,
+                    onSome: words => ({ allowed: false as const, reason: words }),
+                  }),
+                Unmet: allowed,
+                Invalid: allowed,
               }),
-            Unmet: allowed,
-            Invalid: allowed,
           }),
-        Yes: allowed,
-        Undecided: allowed,
+        True: allowed,
+        Unknown: allowed,
       }),
     applies: request => {
       const { input, can } = answer(request)
-      return Can.match(can, {
-        No: ({ refusal }) =>
-          CanRefusal.match(refusal, {
-            // `authorize` refused it before `applies` is asked.
-            Forbidden: allowed,
-            Unmet: () => ({
-              applies: false as const,
-              reason: `${mutation.write.input.entity.name} ${String(own(input, mutation.write.id.key))} does not hold what ${mutation.name} asks of it`,
-            }),
-            Invalid: ({ message }) => ({ applies: false as const, reason: message }),
+      return Verdict.match(can, {
+        False: ({ witness }) =>
+          Option.match(witness, {
+            onNone: allowed,
+            onSome: refusal =>
+              CanRefusal.match(refusal, {
+                // `authorize` refused it before `applies` is asked.
+                Forbidden: allowed,
+                Unmet: () => ({
+                  applies: false as const,
+                  reason: `${mutation.write.input.entity.name} ${String(own(input, mutation.write.id.key))} does not hold what ${mutation.name} asks of it`,
+                }),
+                Invalid: ({ message }) => ({ applies: false as const, reason: message }),
+              }),
           }),
-        Yes: allowed,
-        Undecided: allowed,
+        True: allowed,
+        Unknown: allowed,
       })
     },
   }
@@ -152,9 +163,9 @@ export const availableOf =
     Option.match(inputOf(model), {
       onNone: () => false,
       onSome: input =>
-        Can.match(ask(model, input), {
-          No: () => false,
-          Yes: () => true,
-          Undecided: () => true,
+        Verdict.match(ask(model, input), {
+          False: () => false,
+          True: () => true,
+          Unknown: () => true,
         }),
     })

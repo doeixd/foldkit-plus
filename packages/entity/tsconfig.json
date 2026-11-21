@@ -9,11 +9,28 @@
     "paths": {
       "foldkit-entity": ["./src/index.ts"],
       "foldkit-entity/conformance": ["./src/conformance/index.ts"],
-      "foldkit-metadata": ["../metadata/src/index.ts"]
+      "foldkit-metadata": ["../metadata/src/index.ts"],
+      "metakit": ["../metakit/src/index.ts"],
+      "metakit/aggregates": ["../metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../metakit/src/aggregatesSql.ts"],
+      "metakit/conformance": ["../metakit/src/conformance.ts"],
+      "metakit/domain": ["../metakit/src/domain.ts"],
+      "metakit/drizzle": ["../metakit/src/drizzle.ts"],
+      "metakit/graph": ["../metakit/src/graph.ts"],
+      "metakit/inspect": ["../metakit/src/inspect.ts"],
+      "metakit/machine": ["../metakit/src/machine.ts"],
+      "metakit/policy": ["../metakit/src/policy.ts"],
+      "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/sql": ["../metakit/src/sql.ts"],
+      "metakit/store": ["../metakit/src/store.ts"],
+      "metakit/temporal": ["../metakit/src/temporal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
   "references": [
+    {
+      "path": "../metakit/tsconfig.build.json"
+    },
     {
       "path": "../metadata/tsconfig.build.json"
     }

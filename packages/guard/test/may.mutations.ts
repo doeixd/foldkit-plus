@@ -42,8 +42,8 @@ export default [
   ),
   edit(
     'what was not said reads as a yes',
-    'Option.getOrElse(answer(may, interaction), () => false)',
-    'Option.getOrElse(answer(may, interaction), () => true)',
+    'Verdict.isTrue(answer(may, interaction))',
+    '!Verdict.isFalse(answer(may, interaction))',
   ),
   edit(
     'what was not said reads as a no',

@@ -4,6 +4,7 @@
  * field over the same column is needed. operations-phase3-DESIGN.
  */
 import { Option, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
@@ -69,9 +70,9 @@ describe('a link as an operand', () => {
       Held.rows([{ entity: Like, rows: [row] }]).row(Like, row.id)
     const asked = (row: Readonly<Record<string, unknown>>) =>
       Judge.query(mine, {}, Option.getOrThrow(world(row)), { context: viewing('ada') })
-    expect(asked({ id: 'l1', user: 'ada' })).toEqual({ _tag: 'Known', truth: true })
-    expect(asked({ id: 'l2', user: 'bo' })).toEqual({ _tag: 'Known', truth: false })
-    expect(asked({ id: 'l3' })._tag).toBe('Unknown')
+    expect(asked({ id: 'l1', user: 'ada' })).toEqual(Verdict.True())
+    expect(asked({ id: 'l2', user: 'bo' })).toEqual(Verdict.False())
+    expect(Verdict.isUnknown(asked({ id: 'l3' }))).toBe(true)
   })
 
   it('is read as a member of its row', () => {

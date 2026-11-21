@@ -24,6 +24,7 @@
  */
 import { Match, Option, Schema, SchemaAST } from 'effect'
 import { absurd } from 'effect/Function'
+import { Verdict } from 'metakit'
 import { Collation } from './collation.js'
 import { uncollatedText } from './uncollated.js'
 import { Expr, Query, dependenciesOf, isPredicate, missingName, noOperators } from './expr.js'
@@ -799,16 +800,18 @@ export const truthOver = (
   )
 
 /**
- * What `Judge` comes to: known, or unknown because it rests on something the
- * holder lacks. A known predicate's truth is SQL's three values, its
- * `'unknown'` being SQL's null, which is decided: a row is not kept on it.
+ * What `Judge.predicate` comes to, as metakit's `Verdict`: `False` where SQL's
+ * null leaves a row out (the witness is `'null'`, to tell it from a false one),
+ * `Unknown` where the answer rests on something the holder lacks.
  */
-export type Verdict<T = PredicateTruth> =
-  | { readonly _tag: 'Known'; readonly truth: T }
-  | { readonly _tag: 'Unknown'; readonly reason: string }
+export type PredicateVerdict = Verdict.Verdict<'null'>
 
-const known = <T>(truth: T): Verdict<T> => ({ _tag: 'Known', truth })
-const unknownBecause = <T>(reason: string): Verdict<T> => ({ _tag: 'Unknown', reason })
+const verdictOf = (truth: PredicateTruth): PredicateVerdict => {
+  if (truth === 'unknown') return Verdict.False(Option.some('null' as const))
+  return truth ? Verdict.True() : Verdict.False<'null'>()
+}
+
+const unknownBecause = <W = never>(reason: string): Verdict.Verdict<W> => Verdict.Unknown(reason)
 
 /** What a verdict reads over, besides the row judged. */
 interface JudgeOptions {
@@ -847,7 +850,7 @@ export const Judge = {
     predicate: Predicate,
     row: HeldRow,
     options: JudgeOptions & { readonly next?: HeldRow | undefined } = {},
-  ): Verdict => {
+  ): PredicateVerdict => {
     const judged = holds(predicate, {
       row: viewOf(row),
       input: options.input ?? {},
@@ -857,7 +860,7 @@ export const Judge = {
       context: options.context,
       find: finder(options.rows),
     })
-    return isUnheld(judged) ? unknownBecause(judged.reason) : known(judged)
+    return isUnheld(judged) ? unknownBecause(judged.reason) : verdictOf(judged)
   },
 
   /**
@@ -873,7 +876,7 @@ export const Judge = {
     input: Row,
     row: HeldRow,
     options: Omit<JudgeOptions, 'input'> & { readonly serverOnly?: string | undefined } = {},
-  ): Verdict<boolean> => {
+  ): Verdict.Verdict<never> => {
     if (givenUnportable(body.where, Query.dependencies(body).inputs, input)) {
       throw new QueryEvaluateError(
         `query "${body.entity.name}" was given text holding a NUL character, or NaN, which no two backends agree on`,
@@ -890,11 +893,11 @@ export const Judge = {
     }
     // Every predicate is asked, as `evaluate` asks them: one may refuse its value.
     const truths = body.where.map(each => holds(each, scope))
-    if (truths.some(truth => truth === false || truth === 'unknown')) return known(false)
+    if (truths.some(truth => truth === false || truth === 'unknown')) return Verdict.False()
     const unheld = truths.find(isUnheld)
     if (unheld !== undefined) return unknownBecause(unheld.reason)
     return options.serverOnly === undefined
-      ? known(true)
+      ? Verdict.True()
       : unknownBecause(`the server also filters by ${options.serverOnly}`)
   },
 
@@ -909,18 +912,6 @@ export const Judge = {
     predicates: ReadonlyArray<Predicate>,
     options: { readonly input?: Row | undefined; readonly context?: ExprContext | undefined } = {},
   ): Pins => pinsOf(predicates, options.input ?? {}, options.context),
-
-  match: <T, A>(
-    verdict: Verdict<T>,
-    cases: { readonly onKnown: (truth: T) => A; readonly onUnknown: (reason: string) => A },
-  ): A => {
-    switch (verdict._tag) {
-      case 'Known':
-        return cases.onKnown(verdict.truth)
-      case 'Unknown':
-        return cases.onUnknown(verdict.reason)
-    }
-  },
 }
 
 /** Every predicate must hold: the list is the conjunction, as it is in a `Query`. */

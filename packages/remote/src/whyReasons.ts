@@ -3,6 +3,7 @@
  * and each row a read reads, and what pending writes show of them (#248).
  */
 import { Array as Arr, Option } from 'effect'
+import { Verdict } from 'metakit'
 import {
   Expr,
   Judge,
@@ -162,12 +163,6 @@ const rowReasons = (
   return reasons
 }
 
-const truths: Readonly<Record<'true' | 'false' | 'unknown', WhyTerm['truth']>> = {
-  true: 'True',
-  false: 'False',
-  unknown: 'Null',
-}
-
 /** Each `where` predicate of the list's body, judged over the row as the client holds it. */
 const termsOf = (reader: WhyReader, identity: string, entity: string, id: string) =>
   Option.match(reader.bodyOf(identity), {
@@ -183,7 +178,7 @@ const termsOf = (reader: WhyReader, identity: string, entity: string, id: string
           })),
         onSome: held =>
           body.where.map(predicate =>
-            Judge.match(
+            Verdict.match(
               Judge.predicate(predicate, held, {
                 input: encoded,
                 operators: tableOf(reader.operators),
@@ -191,12 +186,18 @@ const termsOf = (reader: WhyReader, identity: string, entity: string, id: string
                 rows: holder.rows,
               }),
               {
-                onKnown: (truth): WhyTerm => ({
+                True: (): WhyTerm => ({
                   term: Expr.show(predicate),
-                  truth: truths[`${truth}`],
+                  truth: 'True',
                   reason: Option.none(),
                 }),
-                onUnknown: (reason): WhyTerm => ({
+                // The witness is SQL's null, which a term shows apart from false.
+                False: ({ witness }): WhyTerm => ({
+                  term: Expr.show(predicate),
+                  truth: Option.isSome(witness) ? 'Null' : 'False',
+                  reason: Option.none(),
+                }),
+                Unknown: ({ reason }): WhyTerm => ({
                   term: Expr.show(predicate),
                   truth: 'Unknown',
                   reason: Option.some(reason),

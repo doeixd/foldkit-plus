@@ -12,6 +12,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Collation, Entity, Expr, Held, Judge, Order, Relation, Write } from 'foldkit-entity'
 import { Mutation, Query, Remote } from 'foldkit-remote'
 import { Law } from 'foldkit-remote/testing'
+import { Verdict } from 'metakit'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
@@ -125,10 +126,7 @@ const homeOf = (stored: () => MemoryServed<string>): QuerySource<string> => ({
         .rows('Post')
         .filter(post =>
           Option.exists(rows.row(Post, post['id']), row =>
-            Judge.match(Judge.query(homeBody, given, row, { rows }), {
-              onKnown: truth => truth,
-              onUnknown: () => false,
-            }),
+            Verdict.isTrue(Judge.query(homeBody, given, row, { rows })),
           ),
         )
         .map(post => ({ id: String(post['id']), at: Number(post['createdAt']) }))

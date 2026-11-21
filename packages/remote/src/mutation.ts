@@ -3,7 +3,8 @@
  * the derived members it moves, the fields its answer must carry, and the
  * invariants and `may` it breaks, and what `Data.can` tells of them.
  */
-import { Effect, Match, Option, Record as Rec, Result, Schema } from 'effect'
+import { Effect, Match, Option, Record as Rec, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import {
   Entity as DomainEntity,
   Write as DomainWrite,
@@ -634,10 +635,10 @@ export const brokenByWrite = (
 
 /**
  * Whether `row`, a held row the declared write would land on, holds what the
- * write's `when` asks: true or false when the client can tell, and why not
- * when an input key the `when` reads was not given, or the store lacks a
- * field or operator it reads. `encoded` is the input as the server reads it,
- * by key. A write with no `when` asks nothing.
+ * write's `when` asks: `True` or `False` when the client can tell, and `Unknown`
+ * with why not when an input key the `when` reads was not given, or the store
+ * lacks a field or operator it reads. `encoded` is the input as the server
+ * reads it, by key. A write with no `when` asks nothing.
  */
 export const metByWrite = (
   write: AnyWrite,
@@ -646,19 +647,16 @@ export const metByWrite = (
   context: ExprContext,
   store: EntityStore,
   operators: MemoryOperators,
-): Result.Result<boolean, string> =>
+): Verdict.Verdict<never> =>
   Option.match(write.when, {
-    onNone: () => Result.succeed(true),
+    onNone: () => Verdict.True(),
     onSome: body => {
       const missing = Query.dependencies(body).inputs.filter(key => !Object.hasOwn(encoded, key))
       if (missing.length > 0)
-        return Result.fail(
+        return Verdict.Unknown(
           `${write.input.entity.name}'s condition reads ${missing.join(', ')}, not given`,
         )
-      return Judge.match<boolean, Result.Result<boolean, string>>(
-        Judge.query(body, encoded, row, { operators, context, rows: holderOf(store).rows }),
-        { onKnown: truth => Result.succeed(truth), onUnknown: reason => Result.fail(reason) },
-      )
+      return Judge.query(body, encoded, row, { operators, context, rows: holderOf(store).rows })
     },
   })
 
