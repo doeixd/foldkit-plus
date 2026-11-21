@@ -480,7 +480,7 @@ Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
 One language for every rule and question (a query's `where` and order, an
 invariant, a state, a write's `when`, a guard's row rule). Three interpreters
 answer it alike: SQL (`foldkit-remote-drizzle`), `evaluate` (every row of one
-table, in memory) and `Judge` (what a holder has: `Known`, or `Unknown` with
+table, in memory) and `Judge` (what a holder has: a metakit `Verdict`, `Unknown` with
 why). Before writing one:
 
 - It follows SQL, not JavaScript: a comparison with null is unknown, and `not`
@@ -737,9 +737,10 @@ Expr.path(Feed.Post.relations.author,
   list orders by one.
 - `evaluate` (one plain row) refuses a path or an exists. `Judge.query(body,
   input, row)` reads a `HeldRow` (`Held.rows(tables)` over plain records) and
-  answers a `Verdict`: `Known` (SQL's answer) or `Unknown` with why, when the
+  answers a metakit `Verdict` (read with `Verdict.match` from `metakit`): `True` or `False`
+  (SQL's answer), or `Unknown` with why, when the
   answer rests on a field or row the holder lacks or may not see, or an operator
-  only the server runs. SQL's null stays a known answer. An exists is false only
+  only the server runs. SQL's null is `False`, its witness `'null'`. An exists is false only
   where `HeldRow.pointing(relation, pinned)` misses no row: `pinned` is what its
   filter fixes (`Judge.pins(predicates, { input, context })`: each `eq` of a field
   and a literal, an input or the viewer, and whether that is all), so a holder of

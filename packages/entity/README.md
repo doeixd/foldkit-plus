@@ -858,13 +858,14 @@ const holder = Held.rows([
   { entity: User, rows: [{ id: 'u1', handle: 'ada' }], complete: false },
 ])
 Judge.query(ByHandle, { handle: 'ada' }, Option.getOrThrow(holder.row(Post, 'p1')))
-// { _tag: 'Known', truth: true }
+// { _tag: 'True', evidence: none }
 Judge.query(ByHandle, { handle: 'ada' }, Option.getOrThrow(holder.row(Post, 'p2')))
-// { _tag: 'Unknown', reason: 'User u2 is not held' }
+// { _tag: 'Unknown', reason: 'User u2 is not held', obligation: none }
 ```
 
-A verdict is `Known` or `Unknown`. A known predicate's truth is SQL's three
-values, its null decided (a row is not kept on it); unknown means the answer
+A verdict is metakit's `Verdict` (read it with `Verdict.match` from `metakit`):
+`True`, `False` or `Unknown`. A predicate SQL leaves null is `False` (a row is
+not kept on it; `Judge.predicate` gives the witness `'null'`); `Unknown` means the answer
 rests on a field or row the holder lacks or may not see, or on an operator only
 the server runs. What can decide anyway does: a null beside an unheld value,
 `and`'s false, `or`'s true, an exists' held witness. An exists is false only

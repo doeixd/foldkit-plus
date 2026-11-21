@@ -736,15 +736,16 @@ seconds, `0` never) of its Effect clock, else its own clock, reporting `ClockSke
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and
 invariants: [entity.md](entity.md).
 
-`Data.can(model, M, partialInput)` reads what the Model holds and answers `Can.Yes`,
-`Can.No({ refusal })` (`Forbidden { reason }`, `Unmet`, `Invalid { entity, rule, message, path }`,
-the server's order) or `Can.Undecided({ reasons })` (row, field, `may` member or input key missing; an
-increment or computed field not worked out). A hint: `Data.mutate` still asks the server.
-Throws for a mutation not declared with `Mutation.write`. Match with `Can.match`.
+`Data.can(model, M, partialInput)` reads what the Model holds and answers a metakit `Verdict` (`Verdict.match` from `metakit`): `True`;
+`False` whose witness is the `CanRefusal` (`Forbidden { reason }`, `Unmet`, `Invalid { entity, rule, message, path }`,
+the server's order); or `Unknown` (row, field, `may` member or input key missing; an
+increment or computed field not worked out), its reasons joined by `; `. A hint: `Data.mutate` still asks the server.
+Throws for a mutation not declared with `Mutation.write`. `Can.toWire` and `Can.fromWire` convert to and from
+the JSON shape `CanWire` (`Yes`, `No { refusal }`, `Undecided { reasons }`).
 `Data.capability(M, toInput)` gives a `foldkit-agent` variant `{ authorize, applies }` from it
-(`Forbidden` refuses in `authorize` with its words, `Unmet` and `Invalid` in `applies`, `Undecided`
+(`Forbidden` refuses in `authorize` with its words, `Unmet` and `Invalid` in `applies`, `Unknown`
 allows), and `Data.available(M, model => Option<partialInput>)` an `available` (false with no row
-named or on `No`). Judged as the Model's viewer, so compose `authorize` with the agent's principal
+named or on `False`). Judged as the Model's viewer, so compose `authorize` with the agent's principal
 check, and `available` (asked at discovery, before `authorize`) shows any caller the viewer's answer;
 plain functions, so Remote needs no agent package.
 

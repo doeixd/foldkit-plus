@@ -308,7 +308,7 @@ supplied: true } }`). Select `may: true` and read it with
 
 `may` says one of three things of a row interaction: yes, no, or nothing, where
 its rule reads another row and one row cannot decide it. `May.answer(may,
-'Update')` is the three as an `Option<boolean>`. `May.can` is true only on a
+'Update')` is the three as a metakit `Verdict` (`True`, `False`, `Unknown`). `May.can` is true only on a
 yes and `May.refused(may, 'Update')` only on a no: hide or disable on
 `refused`, so what was not said stays live and the server decides it.
 `May.locks(Todo)` (`Crud.editor`'s `locks`) locks a key only where the row's
@@ -374,7 +374,7 @@ Guard, `Expr`, and `Laws` share one typed expression tree (`Guard and from/when 
 - **Structural safety guarantees:**
   - `GuardServer.writer` checks `Update` row rules on **both `before` and `after`** (blocking privilege escape), checks each member/`Link` rule on `after` with that one change undone, checks cascading `Delete` child rows in the same statement, and pins writes with `revision` (retrying up to 3 times on concurrent edits).
   - `GuardServer.validate` and `GuardServer.writer` block hidden-field side channels: queries cannot filter/sort by Read-ruled members, writes cannot read them in `when`/`expect`/`compute`, and invariant failures over them return generic `Invalid`.
-  - `May.answer` is three-valued (`Option<boolean>`); disable UI only on `May.refused` so undecided actions stay live for the server.
+  - `May.answer` is three-valued (a metakit `Verdict`); disable UI only on `May.refused` so undecided actions stay live for the server.
 - **Authority stays separate from validity:** `Entity.invariant` and `Laws.check` never assume discretionary Guards as hypotheses. Guards are alternatives (`[isOwner, isAdmin]`) that change with roles; invariants hold for everyone (`Forbidden` vs `Unmet` vs `Invalid`).
 
 ## Known traps

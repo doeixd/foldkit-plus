@@ -114,7 +114,7 @@ When deleting a parent row cascades to child rows, `GuardServer.writer` checks e
 
 A browser holds only the rows it has fetched and never runs `guard.principal()` functions. Treating unknown permission as "no" locks buttons the user can click; treating it as "yes" misleads the UI.
 
-Piping `Guards.may` onto an Entity adds a server-computed `may` field per row. Reading it with `May.answer(may, 'Update')` (imported from `foldkit-guard`) returns three values: `Option.some(true)` (allowed), `Option.some(false)` (denied), or `Option.none()` (undecided). Use `May.refused(may, 'Update')` to disable controls only on a known "no", leaving undecided actions live for the server to judge.
+Piping `Guards.may` onto an Entity adds a server-computed `may` field per row. Reading it with `May.answer(may, 'Update')` (imported from `foldkit-guard`) returns a metakit `Verdict`: `True` (allowed), `False` (denied), or `Unknown` (undecided). Use `May.refused(may, 'Update')` to disable controls only on a known "no", leaving undecided actions live for the server to judge.
 
 ## Real scenarios you can model today
 

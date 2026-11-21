@@ -23,7 +23,7 @@ Every `Expr` value is interpreted by three engines depending on where it runs:
 
 1. **SQL compiler (`foldkit-remote-drizzle`):** Translates the expression into parameterized SQLite, Postgres, or D1 queries.
 2. **In-memory evaluator (`evaluate`):** Runs the expression over a complete table of rows in memory.
-3. **Partial holder judge (`Judge`):** Evaluates the expression over whatever rows and fields the browser currently holds, returning `Known(true | false | unknown)` when decidable or `Unknown(reason)` when a required row or field is missing.
+3. **Partial holder judge (`Judge`):** Evaluates the expression over whatever rows and fields the browser currently holds, returning a metakit `Verdict`: `True` or `False` when decidable (SQL's null is `False`), or `Unknown` with a reason when a required row or field is missing.
 
 Two rules guarantee that SQL and memory produce identical results:
 
@@ -332,11 +332,11 @@ const page = Held.rows([
 const verdict = (id: string) =>
   Option.map(page.row(Post, id), row => Judge.query(ByAuthorName, { name: 'Ada' }, row))
 
-verdict('p1') // some({ _tag: 'Known', truth: true })
-verdict('p3') // some({ _tag: 'Unknown', reason: 'Author a2 is not held' })
+verdict('p1') // some(Verdict.True())
+verdict('p3') // some(Verdict.Unknown('Author a2 is not held'))
 ```
 
-Read verdicts with `Judge.match`. Known verdicts match SQL; `Unknown` leaves uncertain list updates to the next server query rather than guessing. Short-circuit logic still resolves whenever possible (such as `false` in an `and`, or one held matching child in an `exists`).
+Read verdicts with `Verdict.match` from `metakit`. `True` and `False` match SQL; `Unknown` leaves uncertain list updates to the next server query rather than guessing. Short-circuit logic still resolves whenever possible (such as `false` in an `and`, or one held matching child in an `exists`).
 
 ### Using expressions in invariants, states, writes, and guards
 
