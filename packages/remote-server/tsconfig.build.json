@@ -8,6 +8,7 @@
   "references": [
     { "path": "../entity/tsconfig.build.json" },
     { "path": "../metadata/tsconfig.build.json" },
+    { "path": "../metakit/tsconfig.build.json" },
     { "path": "../remote/tsconfig.build.json" }
   ]
 }

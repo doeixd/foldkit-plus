@@ -65,6 +65,7 @@ import {
   type EntitySource,
   type EntitySourceContext,
   type QuerySource,
+  type StoreCapabilities,
   type WriteRequirement,
   type WriteWhen,
 } from 'foldkit-remote-server'
@@ -1351,9 +1352,35 @@ const holdsIntegers = (column: AnyColumn | undefined): boolean =>
  */
 const writeOperations = supported.filter(operation => operation !== 'viewer' && operation !== 'now')
 
+/**
+ * What the database behind `table` guarantees of concurrent writes, as the
+ * writer uses it. SQLite runs one writing transaction at a time (D1 is SQLite
+ * behind one writer, its batch one transaction), and the writer judges a rule
+ * in the statement that writes, so every write runs alone. Postgres runs
+ * transactions at once under READ COMMITTED unless it is set otherwise, and
+ * the writer locks no row but the one it writes.
+ */
+const storeOf = (table: Table, serializable: boolean): StoreCapabilities =>
+  is(table, SQLiteTable)
+    ? { name: 'SQLite', isolation: 'serializable', parentRowLock: false }
+    : {
+        name: 'Postgres',
+        isolation: serializable ? 'serializable' : 'read-committed',
+        parentRowLock: false,
+      }
+
 export const writer = <P = unknown>(
   binding: AnyEntityBinding,
-  options: { readonly ledger?: WriteLedger<P> } = {},
+  options: {
+    readonly ledger?: WriteLedger<P>
+    /**
+     * Say `'serializable'` only when the Postgres database runs this writer's
+     * statements at that level (`default_transaction_isolation`): the writer
+     * does not set it. `RemoteServer.write` then lets a rule that reads other
+     * rows through, which it refuses on Postgres otherwise. SQLite needs none.
+     */
+    readonly isolation?: 'serializable'
+  } = {},
 ): EntityWriter<P, DrizzleDatabase> => {
   const ledger = options.ledger
   // `set` is keyed by the table's own property names, not by its columns' SQL names.
@@ -2219,6 +2246,7 @@ export const writer = <P = unknown>(
     increments: true,
     assignments: true,
     requires: true,
+    store: storeOf(binding.table, options.isolation === 'serializable'),
     operators: binding.operators.memory,
     commutes,
     invariants: true,

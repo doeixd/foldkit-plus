@@ -284,6 +284,15 @@ describe('GuardServer.writer with a revision', () => {
     expect(row()).toMatchObject({ owner_id: 'grace', title: 'Mine' })
   })
 
+  it('keeps what the writer says its store guarantees', () => {
+    const guarded = GuardServer.writer(Todo, Policy, writer(Db.Todo), { revision: 'revision' })
+    expect(guarded.store).toEqual({
+      name: 'SQLite',
+      isolation: 'serializable',
+      parentRowLock: false,
+    })
+  })
+
   it('refuses a revision not stored as a number, which the writer cannot move on', () => {
     expect(() => GuardServer.writer(Todo, Policy, writer(Db.Todo), { revision: 'title' })).toThrow(
       `Todo's revision "title" is not stored as a number`,
