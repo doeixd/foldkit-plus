@@ -94,7 +94,10 @@ export const noteLog = rowChangeLog(Db.Note)
 /** What moves a note's revision on a change no writer of this server made. */
 export const noteRevision = revisionTrigger(Db.Note, 'revision')
 
-const NoteSource = source(Db.Note, { filter: GuardServer.filter(Note, Policy) })
+const NoteSource = source(Db.Note, {
+  filter: GuardServer.filter(Note, Policy),
+  revision: 'revision',
+})
 const NotesSource = query(Notes, { entity: Db.Note })
 
 /**

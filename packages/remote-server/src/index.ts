@@ -3583,13 +3583,26 @@ export const RemoteServer = {
           )
         }
 
+        const readRevisions = new Map<string, number>()
+        if (Option.isSome(read)) {
+          for (const row of read.value.result.entities as ReadonlyArray<NormalizedPatch>) {
+            if (typeof row.revision === 'number') {
+              readRevisions.set(`${row.entity}:${row.id}`, row.revision)
+            }
+          }
+        }
+
         return {
           output,
-          entities: sent.map(patch => ({
-            entity: patch.entity,
-            id: patch.id,
-            values: patch.values,
-          })),
+          entities: sent.map(patch => {
+            const revision = patch.revision ?? readRevisions.get(`${patch.entity}:${patch.id}`)
+            return {
+              entity: patch.entity,
+              id: patch.id,
+              values: patch.values,
+              ...(revision === undefined ? {} : { revision }),
+            }
+          }),
           connections: outcome.connections,
           deleted: outcome.deleted.map(gone => ({ entity: gone.entity, id: gone.id })),
           ...Option.match(read, { onNone: () => ({}), onSome: value => ({ read: value }) }),

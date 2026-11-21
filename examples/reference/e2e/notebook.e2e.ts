@@ -157,6 +157,12 @@ const isAdd = (request: Request): boolean => {
   return body.includes('"operation":"mutate"') && body.includes('"AddNote"')
 }
 
+/** Whether `request` is a page's edit of a note, as Remote's HTTP client sends it. */
+const isEdit = (request: Request): boolean => {
+  const body = request.method() === 'POST' ? (request.postData() ?? '') : ''
+  return body.includes('"operation":"mutate"') && body.includes('"EditNote"')
+}
+
 declare global {
   interface Window {
     /** The page's elements as the Worker sent them, before any script ran. */
@@ -359,4 +365,95 @@ test('each served page names itself in the head, and the running page keeps one'
   ).toEqual([['HEAD', 'Your notes, kept in step across your devices.']])
   expect(errors()).toEqual([])
   await babbage.close()
+})
+
+// #480: two edits of one note committed in order on the server, whose HTTP
+// answers arrive out of order. The second edit must stay visible throughout
+// (stale first answer must not clobber it) and after reload.
+test('two edits of one note answered out of order keep the second edit throughout and after reload', async () => {
+  const context = await browser.newContext()
+  const turing1 = await context.newPage()
+  const errors1 = Behaviors.consoleErrors(turing1)
+  await signUp(turing1, 'Turing')
+
+  await turing1.getByLabel('Title').fill('Original title')
+  await turing1.getByLabel('Note', { exact: true }).fill('Body text.')
+  await Promise.all([
+    turing1.waitForResponse(response => isAdd(response.request())),
+    turing1.getByRole('button', { name: 'Add' }).click(),
+  ])
+  await notes(turing1).getByRole('link', { name: 'Original title' }).click()
+  await turing1.getByRole('heading', { name: 'Original title' }).waitFor()
+
+  const noteUrl = turing1.url()
+  const turing2 = await context.newPage()
+  const errors2 = Behaviors.consoleErrors(turing2)
+  await turing2.goto(noteUrl)
+  await turing2.getByRole('heading', { name: 'Original title' }).waitFor()
+
+  const deferred = () => {
+    let resolve!: () => void
+    const promise = new Promise<void>(r => {
+      resolve = r
+    })
+    return { promise, resolve }
+  }
+  const firstCommitted = deferred()
+  const releaseFirstAnswer = deferred()
+  const firstDelivered = deferred()
+  const secondAnswered = deferred()
+
+  await context.route('**/remote', async (route: Route) => {
+    const req = route.request()
+    if (!isEdit(req)) return route.fallback()
+    const body = req.postData() ?? ''
+    if (body.includes('First edit')) {
+      const firstResponse = await route.fetch()
+      firstCommitted.resolve()
+      await releaseFirstAnswer.promise
+      await route.fulfill({ response: firstResponse })
+      firstDelivered.resolve()
+      return
+    }
+    if (body.includes('Second edit')) {
+      const secondResponse = await route.fetch()
+      await route.fulfill({ response: secondResponse })
+      secondAnswered.resolve()
+      return
+    }
+    return route.fallback()
+  })
+
+  // Edit #1 (tab 1): committed to D1 first (revision +1), HTTP answer held in flight.
+  await turing1.getByRole('button', { name: 'Edit' }).click()
+  await turing1.getByLabel('Title').fill('First edit')
+  await turing1.getByRole('button', { name: 'Save' }).click()
+  await firstCommitted.promise
+  await turing1.getByRole('heading', { name: 'First edit' }).waitFor()
+
+  // Tab 1 returns to the live notes list while Edit #1's HTTP answer is still held.
+  await turing1.getByRole('link', { name: 'All notes' }).click()
+  await notes(turing1).getByRole('link', { name: 'First edit' }).waitFor()
+
+  // Edit #2 (tab 2): committed to D1 second (revision +2), HTTP answer lands FIRST.
+  await turing2.getByRole('button', { name: 'Edit' }).click()
+  await turing2.getByLabel('Title').fill('Second edit')
+  await turing2.getByRole('button', { name: 'Save' }).click()
+  await secondAnswered.promise
+  await turing2.getByRole('heading', { name: 'Second edit' }).waitFor()
+
+  // Release the stale HTTP answer for Edit #1: tab 1's pending layer clears and
+  // MUST show 'Second edit' (never reverting to stale 'First edit').
+  releaseFirstAnswer.resolve()
+  await firstDelivered.promise
+  await notes(turing1).getByRole('link', { name: 'Second edit' }).waitFor({ timeout: 15_000 })
+  expect(await notes(turing1).getByRole('link', { name: 'First edit' }).count()).toBe(0)
+  expect(await turing2.getByRole('heading', { name: 'Second edit' }).isVisible()).toBe(true)
+
+  // Reload: D1 holds the second edit, so it remains visible after reload.
+  await turing1.reload()
+  await notes(turing1).getByRole('link', { name: 'Second edit' }).waitFor()
+  expect(errors1()).toEqual([])
+  expect(errors2()).toEqual([])
+  await context.close()
 })
