@@ -30,6 +30,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-remote`: a read answered while a write is pending no longer loses to that write's late answer. When the read brought a field a value other than the one the answer names (another writer's later change), the answer is written and the field is read again, as it already was for a live patch. Applies where the domain reads live.
 - `foldkit-surface`: `Projection.of` names a nested projection's paths from the key it is under.
 - `foldkit-remote-domain`: `DomainRemote.command` with `written`, `Lower.check` and `Lower.write` throw for a write declared over the Entity passed to `Guards.attach` instead of the one it returned; they used to treat it as unguarded.
 - `foldkit-guard`: `Guards.matrix` prints a descriptor without the guards its Entity carries as `guards on another descriptor`, not `no guards`.
