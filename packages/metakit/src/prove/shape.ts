@@ -1,6 +1,6 @@
 import { Option, Predicate, Schema, SchemaAST } from 'effect'
 import type { Slice } from '../abstract/unordered.js'
-import { isText } from '../ops/kind.js'
+import { textChecksOf, type TextChecks } from '../ops/kind.js'
 import * as Path from '../path.js'
 
 /** What a Schema says of each path. */
@@ -20,8 +20,8 @@ export interface PathInfo {
   readonly exclusiveMax: Option.Option<number>
   /** A number whose Schema accepts NaN, which has no order. */
   readonly nan: boolean
-  /** Text whose Schema refuses a NUL (`Text.schema`), so no operation refuses it for one. */
-  readonly nulFree: boolean
+  /** What the checks on text ask of it (none for any other sort); `nulFree` of `Text.schema`. */
+  readonly text: TextChecks
 }
 
 /** A path that may read as null, and what a witness writes there: null, undefined, or no key. */
@@ -138,7 +138,7 @@ const readShape = (
       literals: [],
       ...noBounds,
       nan: false,
-      nulFree: false,
+      text: { minLength: 0, maxLength: Infinity, nulFree: false, modelled: true },
       ...more,
     })
   }
@@ -189,7 +189,9 @@ const readShape = (
     })
   }
   if (SchemaAST.isBoolean(inner)) return info('bool')
-  if (SchemaAST.isString(inner)) return info('text', { nulFree: isText(inner) })
+  if (SchemaAST.isString(inner)) {
+    return info('text', { text: textChecksOf(inner) })
+  }
   return info('other')
 }
 

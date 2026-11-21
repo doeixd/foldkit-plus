@@ -95,6 +95,14 @@ const REPLACEMENT = String.fromCharCode(0xfffd)
 /** `text` as SQLite's and Postgres's drivers hold it: each lone surrogate as U+FFFD. */
 export const wellFormed = (text: string): string => text.replace(LONE_SURROGATE, REPLACEMENT)
 
+/**
+ * A value as every reader compares it: text as a database holds it
+ * (`wellFormed`), so `'\uD800'` and `'�'` are one text to equality, a
+ * `Match`, the checker and the solver alike; any other value as it is.
+ */
+export const textIdentity = (value: unknown): unknown =>
+  typeof value === 'string' ? wellFormed(value) : value
+
 /** Whether one of `values` (or a nested array candidate) is text holding a NUL character. */
 export const holdsNul = (values: ReadonlyArray<unknown>): boolean =>
   values.some(value =>

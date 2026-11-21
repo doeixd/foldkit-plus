@@ -66,7 +66,9 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
 
   const textCodes = new Map<string, number>()
   const codeTexts = new Map<number, string>()
-  const codeOf = (text: string): number => {
+  // One code per text as evaluation compares it: a lone surrogate is U+FFFD (`Node.textIdentity`).
+  const codeOf = (raw: string): number => {
+    const text = Node.wellFormed(raw)
     const known = textCodes.get(text)
     if (known !== undefined) return known
     const code = textCodes.size + 1
@@ -434,7 +436,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
           onSome: lower,
           onNone: () => {
             // Evaluation refuses a value no case names; only a Schema that names every value rules it out.
-            const named = new Set(cases.map(([value]) => value))
+            const named = new Set(cases.map(([value]) => Node.wellFormed(value)))
             const info = Node.$is('Path')(on)
               ? shape.paths.get(Path.format(on.segments))
               : undefined
@@ -442,7 +444,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
               info !== undefined &&
               info.sort === 'text' &&
               info.literals.length > 0 &&
-              info.literals.every(value => named.has(String(value)))
+              info.literals.every(value => named.has(Node.wellFormed(String(value))))
             if (!covered) {
               throw new Unsupported('a match that may meet a value none of its cases names')
             }

@@ -14,12 +14,9 @@ import type { Expr } from '../path.js'
 import { call, type EnvOfInput, type ExprInput, type NullOf, type ValueOfInput } from './core.js'
 import { cannotRefuse, isPortableRead } from './kind.js'
 
-const normalizeText = (value: unknown): unknown =>
-  typeof value === 'string' ? Node.wellFormed(value) : value
-
 const sameValue = (a: unknown, b: unknown): boolean => {
-  const left = normalizeText(a)
-  const right = normalizeText(b)
+  const left = Node.textIdentity(a)
+  const right = Node.textIdentity(b)
   return Object.is(left, right) || (left === 0 && right === 0) || Equal.equals(left, right)
 }
 

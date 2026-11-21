@@ -4,9 +4,11 @@ import * as Interval from './interval.js'
 import type { AbstractState } from './state.js'
 import { MAX_SPLITS } from './support.js'
 
+/** The arm `value` takes, its text compared as evaluation compares it (`Node.textIdentity`). */
 export const resolveMatchArm = (node: Node.Match, value: unknown): Option.Option<Node.Node> => {
+  const held = Node.textIdentity(value)
   for (const [k, arm] of node.cases) {
-    if (k === value) return Option.some(arm)
+    if (Node.wellFormed(k) === held) return Option.some(arm)
   }
   return node.otherwise
 }
@@ -30,7 +32,7 @@ export const matchCandidates = (
   const candidates = domain.filter(
     value =>
       (value === null ? known !== false : known !== true) &&
-      (excluded === undefined || !excluded.has(value)),
+      (excluded === undefined || !excluded.has(Node.textIdentity(value))),
   )
   if (candidates.length === 0 || candidates.length > MAX_SPLITS) return Option.none()
   return Option.some(candidates)
@@ -45,7 +47,7 @@ export const withCandidate = (
   const branch = state.clone()
   if (candidate === null) branch.nullFacts.set(pk, true)
   else {
-    branch.eqFacts.set(pk, candidate)
+    branch.eqFacts.set(pk, Node.textIdentity(candidate))
     branch.nullFacts.set(pk, false)
   }
   return branch

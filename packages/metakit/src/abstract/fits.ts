@@ -1,7 +1,8 @@
 /** `AbstractState.fits`, kept apart from the class: `this` is the state. */
 import { Option, Schema, SchemaAST } from 'effect'
 import * as Node from '../node.js'
-import { present } from '../ops/kind.js'
+import { present, textChecksOf } from '../ops/kind.js'
+import * as Str from '../ops/str.js'
 import * as Verdict from '../verdict.js'
 import { flat, isPrimitive, type FieldInfo, type FieldKind } from './fields.js'
 import { abstractOf } from './rowOf.js'
@@ -93,15 +94,35 @@ function fitsTerm(
       sourceKind === 'boolean' || (Node.$is('Call')(value) && value.op.returns === 'boolean')
         ? proved('zone')
         : unknown,
-    text: () =>
-      sourceKind === 'text' || (Node.$is('Call')(value) && value.op.returns === 'text')
-        ? proved('zone')
-        : unknown,
+    text: () => {
+      const target = present(info.ast)[0]!
+      // One Schema object on both sides admits the same values.
+      if (Option.exists(source, s => present(s.ast)[0] === target)) return proved('zone')
+      const made = Node.$is('Call')(value) && value.op.returns === 'text'
+      if (sourceKind !== 'text' && !made) return unknown
+      const checks = textChecksOf(target)
+      if (!checks.modelled) return unknown
+      // A text operation refuses a NUL, so what it gives holds none.
+      if (checks.nulFree && !made && !state.portable(value)) return unknown
+      // A Schema counts UTF-16 units, at least one and at most two per character `str.len` counts.
+      const length = Node.Call({ op: Str.lenOp, args: [value] })
+      const lit = (bound: number): Node.Node => Node.Lit({ value: bound })
+      return Verdict.and(
+        checks.minLength > 0
+          ? state.entailsLeq(lit(checks.minLength), length, false)
+          : proved('interval'),
+        Number.isFinite(checks.maxLength)
+          ? state.entailsLeq(length, lit(Math.floor(checks.maxLength / 2)), false)
+          : proved('interval'),
+      )
+    },
     literal: () => {
       const allowed: ReadonlyArray<unknown> = Option.getOrElse(info.literals, () => [])
       const held = Node.$is('Path')(value) ? state.eqFacts.get(Node.key(value)) : undefined
+      // A fact holds text up to `wellFormed`: one holding U+FFFD may stand for a lone surrogate.
+      const exact = typeof held !== 'string' || !held.includes('�')
       const possible =
-        held !== undefined && isPrimitive(held)
+        held !== undefined && isPrimitive(held) && exact
           ? Option.some([held])
           : Option.flatMap(source, s => s.literals)
       return Option.match(possible, {

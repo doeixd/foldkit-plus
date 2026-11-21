@@ -6,7 +6,9 @@ import * as Node from '../node.js'
 import { notOp, orOp } from '../ops/bool.js'
 import { inOp } from '../ops/eq.js'
 import { isNullOp } from '../ops/null.js'
+import { isPortableRead, type TextChecks } from '../ops/kind.js'
 import { gtOp, gteOp, ltOp, lteOp } from '../ops/ord.js'
+import { lenOp } from '../ops/str.js'
 import * as Path from '../path.js'
 import type { ProveOptions } from '../prove.js'
 import * as Transition from '../transition.js'
@@ -74,6 +76,28 @@ const call = (op: Node.Op, ...args: ReadonlyArray<Node.Node>): Node.Node => Node
 const lit = (value: unknown): Node.Node => Node.Lit({ value })
 
 /**
+ * What the checks on a text field ask of a written value, as goals: its
+ * length, by `str.len`, which counts characters where a Schema counts UTF-16
+ * units (one or two a character), so a maximum `m` is shown of `m / 2`
+ * characters. A check no goal says (a pattern), or no NUL where the value
+ * may hold one, leaves the proof undecided.
+ */
+const textFits = (checks: TextChecks, value: Node.Node): ReadonlyArray<Node.Node> => {
+  if (!checks.modelled) throw new Unsupported('a check on text the solver does not model')
+  const made = Node.$is('Call')(value) && value.op.returns === 'text'
+  if (checks.nulFree && !made && !isPortableRead(value)) {
+    throw new Unsupported('text that may hold a NUL written to a field that refuses one')
+  }
+  const length = call(lenOp, value)
+  return [
+    ...(checks.minLength > 0 ? [call(gteOp, length, lit(checks.minLength))] : []),
+    ...(Number.isFinite(checks.maxLength)
+      ? [call(lteOp, length, lit(Math.floor(checks.maxLength / 2)))]
+      : []),
+  ]
+}
+
+/**
  * What the state Schema asks of a written field beyond its rules: a field
  * that may not be null is not, and a bound or a set of literals declared
  * inside `NullOr` or `optional` (which no rule reads) holds of what is written.
@@ -87,6 +111,7 @@ const writtenFits = (info: PathInfo, value: Node.Node, shape: Shape): ReadonlyAr
     ...bound(lteOp, info.max),
     ...bound(gtOp, info.exclusiveMin),
     ...bound(ltOp, info.exclusiveMax),
+    ...(info.sort === 'text' ? textFits(info.text, value) : []),
     ...(info.literals.length > 0 && info.sort !== 'other'
       ? [call(inOp, value, lit(info.literals))]
       : []),
@@ -144,16 +169,17 @@ export const proveTransition = <State, Input, Emit, Supplied>(
 
   const shape = shapeOf(slices)
   const rules = Expr.refinementsOf(stateSchema).map(rule => Node.prefix(rule.node, ['state']))
-  const fits = tr.writes.flatMap(write =>
-    Option.match(Option.fromUndefinedOr(shape.paths.get(Path.format(['state', ...write.target]))), {
-      onNone: () => [],
-      onSome: info => writtenFits(info, write.value.node, shape),
-    }),
-  )
+  const fits = (): ReadonlyArray<Node.Node> =>
+    tr.writes.flatMap(write =>
+      Option.match(
+        Option.fromUndefinedOr(shape.paths.get(Path.format(['state', ...write.target]))),
+        { onNone: () => [], onSome: info => writtenFits(info, write.value.node, shape) },
+      ),
+    )
 
   let goals: ReadonlyArray<Node.Node>
   try {
-    goals = [...rules.map(rule => afterWrites(rule, tr.writes)), ...fits]
+    goals = [...rules.map(rule => afterWrites(rule, tr.writes)), ...fits()]
   } catch (error) {
     if (!(error instanceof Unsupported)) throw error
     return Effect.succeed({

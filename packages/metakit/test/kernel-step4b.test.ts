@@ -236,6 +236,109 @@ describe('partial evaluation folds a strict call beside a known null by the Sche
   })
 })
 
+describe('a lone surrogate is U+FFFD to every reader, as a database driver holds it', () => {
+  const both = Schema.Literals(['\uD800', '�'])
+  const Pair = Schema.Struct({ a: both, b: both })
+  const pair = Path.forSchema(Pair)
+  const env = { a: '\uD800', b: '�' } as const
+
+  it('to equality, a match, the checker and the solver alike', async () => {
+    const held = Bool.and(Eq.is(pair.a, '\uD800'), Eq.is(pair.b, '�'))
+    const apart = Expr.implies(held, Eq.isNot(pair.a, pair.b))
+    expect(Expr.evaluate(apart, env)).toBe(false)
+    expect(Verdict.isTrue(Abstract.checkInvariant(Pair, apart))).toBe(false)
+    expect(Verdict.isTrue(await run(Prove.invariant(Pair, apart)))).toBe(false)
+    const matched = Expr.matchOrElse(pair.a, { '�': 1 }, 0)
+    expect(Expr.evaluate(matched, env)).toBe(1)
+    const unmatched = Expr.implies(Eq.is(pair.a, '\uD800'), Eq.is(matched, 0))
+    expect(Verdict.isTrue(Abstract.checkInvariant(Pair, unmatched))).toBe(false)
+    expect(Verdict.isTrue(await run(Prove.invariant(Pair, unmatched)))).toBe(false)
+  }, 30_000)
+
+  it('to a match whose case is a lone surrogate, in evaluation and the checker', () => {
+    const always = Eq.is(Expr.matchOrElse(pair.a, { '\uD800': 1 }, 0), 1)
+    expect(Expr.evaluate(always, { a: '�', b: '�' })).toBe(true)
+    expect(Verdict.isTrue(Abstract.checkInvariant(Pair, always))).toBe(true)
+  })
+
+  it('to the checker, from what a rule says of a field', async () => {
+    const Ruled = Schema.Struct({ a: Schema.String }).pipe(Expr.refine($ => Eq.is($.a, '\uD800')))
+    const a = Path.forSchema(Ruled).a
+    expect(Verdict.isTrue(Abstract.checkInvariant(Ruled, Eq.isNot(a, '�')))).toBe(false)
+    expect(Verdict.isTrue(await run(Prove.invariant(Ruled, Eq.isNot(a, '�'))))).toBe(false)
+  }, 30_000)
+})
+
+describe('text written to a field with checks fits only where they are shown', () => {
+  const State = Schema.Struct({
+    a: Schema.String,
+    b: Schema.NonEmptyString,
+    c: Schema.String.check(Schema.isMaxLength(2)),
+    d: Schema.String,
+  })
+  const input = Schema.Struct({})
+
+  it('trimmed text is not shown to be non-empty', async () => {
+    const trims = Transition.make({
+      state: State,
+      input,
+      apply: ({ state }) => [Transition.set(state.b, Str.trim(state.a))],
+    })
+    // The step writes '' to a field whose Schema refuses it.
+    const stepped = Result.getOrThrow(Transition.run(trims, { a: '   ', b: 'x', c: '', d: '' }, {}))
+    expect(Schema.is(State)(stepped)).toBe(false)
+    expect(Verdict.isTrue(Abstract.checkTransition(State, trims))).toBe(false)
+    expect(Verdict.isTrue(await run(Prove.transition(State, trims)))).toBe(false)
+  }, 30_000)
+
+  it('nor text that may hold a NUL into Text, nor anything into a pattern', async () => {
+    const Checked = Schema.Struct({
+      a: Schema.String,
+      t: Text.schema,
+      p: Schema.String.check(Schema.isPattern(/^x/)),
+    })
+    const write = (to: 't' | 'p') =>
+      Transition.make({
+        state: Checked,
+        input,
+        apply: ({ state }) => [Transition.set(to === 't' ? state.t : state.p, state.a)],
+      })
+    for (const to of ['t', 'p'] as const) {
+      expect(Verdict.isTrue(Abstract.checkTransition(Checked, write(to)))).toBe(false)
+      expect(Verdict.isTrue(await run(Prove.transition(Checked, write(to))))).toBe(false)
+    }
+    const trimmed = Transition.make({
+      state: Checked,
+      input,
+      apply: ({ state }) => [Transition.set(state.t, Str.trim(state.a))],
+    })
+    expect(Verdict.isTrue(Abstract.checkTransition(Checked, trimmed))).toBe(true)
+  }, 30_000)
+
+  it('a plain path is not shown to fit a maximum length', async () => {
+    const copies = Transition.make({
+      state: State,
+      input,
+      apply: ({ state }) => [Transition.set(state.c, state.d)],
+    })
+    expect(Verdict.isTrue(Abstract.checkTransition(State, copies))).toBe(false)
+    expect(Verdict.isTrue(await run(Prove.transition(State, copies)))).toBe(false)
+  }, 30_000)
+
+  it('a literal, a field of the same Schema and text of no check still fit', () => {
+    const fitting = Transition.make({
+      state: State,
+      input,
+      apply: ({ state }) => [
+        Transition.set(state.b, 'x'),
+        Transition.set(state.c, state.c),
+        Transition.set(state.d, Str.trim(state.a)),
+      ],
+    })
+    expect(Verdict.isTrue(Abstract.checkTransition(State, fitting))).toBe(true)
+  })
+})
+
 describe('Text.schema: text holding no NUL', () => {
   const Named = Schema.Struct({ k: Schema.Int, s: Schema.NullOr(Text.schema), t: Text.schema })
   const n = Path.forSchema(Named)

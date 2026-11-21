@@ -40,8 +40,9 @@ export const matchArm = (
   target: unknown,
 ): { readonly arm: Node.Node } | { readonly value: null | Node.Refusal } => {
   if (Node.isRefusal(target)) return { value: target }
+  const held = Node.textIdentity(target)
   for (const [value, arm] of match.cases) {
-    if (target === value) return { arm }
+    if (held === Node.wellFormed(value)) return { arm }
   }
   if (Option.isSome(match.otherwise)) return { arm: match.otherwise.value }
   if (target === null) return { value: null }

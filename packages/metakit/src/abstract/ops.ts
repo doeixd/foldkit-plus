@@ -145,13 +145,17 @@ const comparison = (
 const ascending = (args: ReadonlyArray<Node.Node>) => [args[0]!, args[1]!] as const
 const descending = (args: ReadonlyArray<Node.Node>) => [args[1]!, args[0]!] as const
 
-/** The operand that is not a literal, with the literal it is compared to. */
+/**
+ * The operand that is not a literal, with the literal it is compared to, its
+ * text as equality compares it: the facts a state keeps hold text so.
+ */
 const termAndLiteral = (
   args: ReadonlyArray<Node.Node>,
 ): Option.Option<readonly [term: Node.Node, literal: unknown]> => {
   const [a, b] = [args[0]!, args[1]!]
-  if (Node.$is('Lit')(b) && !Node.$is('Lit')(a)) return Option.some([a, b.value ?? null])
-  if (Node.$is('Lit')(a) && !Node.$is('Lit')(b)) return Option.some([b, a.value ?? null])
+  const of = (lit: Node.Lit): unknown => Node.textIdentity(lit.value ?? null)
+  if (Node.$is('Lit')(b) && !Node.$is('Lit')(a)) return Option.some([a, of(b)])
+  if (Node.$is('Lit')(a) && !Node.$is('Lit')(b)) return Option.some([b, of(a)])
   return Option.none()
 }
 
