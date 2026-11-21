@@ -84,6 +84,19 @@ To see what a failed result asks of you: a `refuted` transition needs its guard 
 
 The checkers treat every number as ordered: `x <= 0` is what is left when `x > 0` is false. That is not so of `NaN`, which plain `Schema.Number` accepts and evaluation refuses to compare. A proof that reads such a field, in the guard, in an invariant or in a written value, stays `undecided` and its reason names the path. Declare the field `Schema.Finite` or `Schema.Int` to have it proved. A counterexample is still reported: its values are ordinary numbers.
 
+## A rule over text stays `undecided`
+
+Postgres cannot store text holding a NUL character (U+0000), so evaluation refuses every text operation and equality that meets one, before it looks at a null, and `and` or `or` do not let their other side decide past a refusal. Plain `Schema.String` accepts a NUL, so a rule that reads such a field may be refused and the checkers leave it `undecided`. Declare the field `Text.schema` from `metakit/domain`, which refuses a NUL where it is decoded:
+
+```ts
+import { Schema } from 'effect'
+import { Text } from 'metakit/domain'
+
+const Owned = Schema.Struct({ owner: Text.schema, balance: Schema.Int })
+```
+
+A rule over `Owned`'s `owner` can then be proved, and partial evaluation answers `Expr.judge` as soon as one side of a comparison is a known null.
+
 ## A transition is `refuted` by a null, or by a number past 2^53 − 1
 
 The solver reads a rule as `Expr.eval` does. A field that may be null (`Schema.NullOr`, `Schema.optionalKey`, a field under a nullable parent) makes every comparison of it null, and a rule holds only where it is true: say what a null means with `Expr.any(Null.isNull(x), …)` (`Null` is imported from `metakit` like `Num`). An integer result outside ±(2^53 − 1) is refused by evaluation, so a rule over unbounded integers that adds or multiplies them is refuted at the edge: bound the fields.

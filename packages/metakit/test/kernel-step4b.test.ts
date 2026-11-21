@@ -15,6 +15,7 @@ import {
   Eq,
   Expr,
   Node,
+  Null,
   Num,
   Ord,
   Path,
@@ -195,6 +196,12 @@ describe('a refusal decides before null and is not absorbed', () => {
     const nanSide = Bool.or(Eq.is(l.k, l.k), Ord.gt(l.x, 0))
     expect(Result.isFailure(Expr.evalResult(nanSide, { k: 1, x: NaN }))).toBe(true)
     expect(Verdict.isTrue(Abstract.checkInvariant(Loose, nanSide))).toBe(false)
+    const Maybe = Schema.Struct({ k: Schema.Int, x: Schema.NullOr(Schema.Number) })
+    const m = Path.forSchema(Maybe)
+    // `coalesce` gives its operand back, NaN included.
+    const coalesced = Bool.or(Eq.is(m.k, m.k), Ord.gt(Null.coalesce(m.x, 0), 0))
+    expect(Result.isFailure(Expr.evalResult(coalesced, { k: 1, x: NaN }))).toBe(true)
+    expect(Verdict.isTrue(Abstract.checkInvariant(Maybe, coalesced))).toBe(false)
     // Where k > 0 fails, k + MAX <= MAX holds; where it holds, the sum is refused.
     const MAX = Number.MAX_SAFE_INTEGER
     const byCases = Bool.or(Ord.gt(l.k, 0), Ord.lte(Num.add(l.k, MAX), MAX))

@@ -85,8 +85,8 @@ function notNaN(this: AbstractState, node: Node.Node): boolean {
     Lit: ({ value }) =>
       Array.isArray(value) ? !value.some(item => Number.isNaN(item)) : !Number.isNaN(value),
     Path: path => Option.exists(this.fieldOf(path), info => info.kind !== 'number' || info.finite),
-    // A number an operation gives is finite or refused, and its refusal is asked of separately.
-    Call: () => true,
+    // A number an operation gives is finite or refused (asked of separately); `coalesce` gives an operand.
+    Call: ({ op, args }) => op.returns !== 'operand' || args.every(arg => notNaN.call(this, arg)),
     If: () => false,
     Match: () => false,
     Opaque: () => false,

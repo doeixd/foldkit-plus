@@ -384,8 +384,8 @@ One cost follows. A page that runs `Expr.judge` carries the whole table, where t
 
 | Operation | Declares | Reader |
 | --- | --- | --- |
-| `bool.and` | identity `true`; absorbing `false`; idempotent; commutative; associative | partial evaluation; the fold `every` |
-| `bool.or` | identity `false`; absorbing `true`; idempotent; commutative; associative | partial evaluation; the fold `any` |
+| `bool.and` | identity `true`; absorbing `false` over values that are not refused; idempotent; commutative; associative | partial evaluation; the fold `every` |
+| `bool.or` | identity `false`; absorbing `true` over values that are not refused; idempotent; commutative; associative | partial evaluation; the fold `any` |
 | `bool.not`, `num.neg` | involution; `num.neg` also monotone down | partial evaluation; the checker |
 | `eq.is`, `eq.isNot` | reflexive | partial evaluation |
 | `num.add` | identity 0; commutative; associative unless refused; inverse `num.sub`; monotone up, up | the fold `sum`; the way `add`; the checker |

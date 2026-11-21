@@ -106,6 +106,17 @@ export default [
     '(!refusesNaN.has(node.op.id) || node.args.every(arg => notNaN.call(this, arg)))',
     'true',
   ),
+  {
+    ...mutation(
+      step,
+      'the checker takes what coalesce gives back as never NaN',
+      values,
+      "Call: ({ op, args }) => op.returns !== 'operand' || args.every(arg => notNaN.call(this, arg)),",
+      'Call: () => true,',
+    ),
+    survives:
+      'notRefused asks notNaN only of operands it already holds not refused, and a coalesce (a Value row) is that only where it has a value, which rules out NaN; the guard keeps the claim true should that change.',
+  },
   // A refusal decides before null and is not absorbed.
   mutation(
     step,
