@@ -1,6 +1,6 @@
 # Remote: server-owned data cached in the Model
 
-Checked against `foldkit-remote` 0.28.0, `foldkit-remote-server` 0.24.0, `foldkit-remote-drizzle` 0.21.0 and `foldkit-plus` 0.23.0.
+Checked against `foldkit-remote` 0.29.0, `foldkit-remote-server` 0.26.0, `foldkit-remote-drizzle` 0.23.0 and `foldkit-plus` 0.25.0.
 
 `foldkit-remote` keeps a **normalized, disposable cache of server-owned facts
 inside the Foldkit Model**. Features declare which entity fields they need;
@@ -976,7 +976,11 @@ entry) and the `httpWithLive` client. A live read installs on its domain the
 code that streams and applies changes (the live capability), so a page that
 reads nothing live keeps none of it, and a domain that reads nothing live
 refuses a `LiveReceived`, naming itself. The transport's `RemoteClient.live`
-is unchanged.
+is unchanged. Where the domain reads live, a read answered beside a pending
+write is kept as a live patch is: when the read brought a field a value other
+than the one the write's late answer names, the field is written and then read
+again (only a read says which is newer), so another writer's later change is
+not overwritten for good.
 A list read with `liveQuery(Data, Q, input, { select, first })` rides the same
 live entry while a Surface reads it: the stream sends
 the list as the read does (at most 32 lists a stream), and the server's live

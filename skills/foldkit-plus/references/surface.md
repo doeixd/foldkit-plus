@@ -1,6 +1,6 @@
 # foldkit-surface
 
-Checked against `foldkit-surface` 0.15.0 and `foldkit-metadata` 0.2.0.
+Checked against `foldkit-surface` 0.17.0 and `foldkit-metadata` 0.3.0.
 
 ## What it is and what it owns
 
@@ -327,8 +327,10 @@ a `Metadata` per node (`Metadata.empty` by default) and merges its parts with
 rejects copies and hand-built values.
 
 `foldkit-metadata` also holds `Evidence`, records that a transition keeps a law
-(`Enumerated` from `Laws.check`, `Walked` from `Walk.run`, `RuntimeOnly` by hand
-with a reason). `Evidence.issuedBy(record)` is the producer, none for a record
+(`Enumerated` from `Laws.check`, or `Bounded` when it decided a pair from the
+numbers' declared bounds; `Walked` from `Walk.run`; `Scenario` from
+`Scenario.run`; `RuntimeOnly` by hand with a reason). A match over every kind
+(`Evidence.$match`) needs an arm for each. `Evidence.issuedBy(record)` is the producer, none for a record
 typed by hand or spread from an issued one (or issued through another copy of
 the package); a name has one `Evidence.issuer`, and a second throws.
 `Evidence.runtimeOnly({ transition, law, why })` throws on an empty `why`. Not

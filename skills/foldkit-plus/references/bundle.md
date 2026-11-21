@@ -1,6 +1,6 @@
 # foldkit-bundle
 
-Checked against `foldkit-bundle` 0.14.0 and `foldkit-bundle-surface` 0.10.0.
+Checked against `foldkit-bundle` 0.14.0 and `foldkit-bundle-surface` 0.12.0.
 
 Packages a Foldkit **Submodel once** (Model, Message, init, update,
 Subscriptions, Managed Resources, view, helpers) and places it in a parent.
@@ -145,6 +145,10 @@ package:
   by side.
 - `TodoSync.wiring()` and `AppAgent.wiring()` are contract-only, so the Module
   sees Sync and Agent without routing anything through them.
+- A placement's own contract (`foldkit-bundle-surface`) owns its Model path and
+  also lists it under `observes`, since the child's view is drawn from the
+  Model there: the Module and a Graph say a write to that path reaches the
+  placement. It lists that path alone, not what view inputs also read.
 
 Two items claiming one Message tag fail `assemble` at startup, naming both —
 unless every claimant declares the tag `shared`: then each folds it in list
