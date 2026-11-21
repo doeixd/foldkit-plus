@@ -26,6 +26,7 @@ import type {
   applyConnectionEvent,
   applyEntityEvent,
   awaitEchoes,
+  keepRead,
   settleKept,
 } from './liveEvents.js'
 import type { Kept } from './kept.js'
@@ -251,6 +252,8 @@ export interface LiveCapability {
   readonly applyConnection: typeof applyConnectionEvent
   /** What a write's answer leaves the streams to send back (#485). */
   readonly awaitEchoes: typeof awaitEchoes
+  /** What a read answered beside a pending write keeps of the fields it moved (#480). */
+  readonly keepRead: typeof keepRead
   /** What an answer does to the values kept from before a stream's patches (#498, #499). */
   readonly settleKept: typeof settleKept
   /**

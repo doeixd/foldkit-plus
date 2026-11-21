@@ -133,6 +133,36 @@ const keptBefore = (
 }
 
 /**
+ * `kept` once a read is about to write `rows` over `store`, less those it
+ * `held`, while the requests in `pending` are in flight. A field the read moves
+ * is kept as a patch's is: the read may be past a write whose answer is still
+ * on its way, and no stream opened after it sends the value again (#480).
+ */
+export const keepRead = (
+  kept: Kept,
+  store: EntityStore,
+  rows: ReadonlyArray<{
+    readonly entity: string
+    readonly id: string
+    readonly values: Readonly<Record<string, unknown>>
+  }>,
+  held: ReadonlySet<EntityKey>,
+  pending: ReadonlySet<string>,
+  now: number,
+): Kept => {
+  if (pending.size === 0) return kept
+  for (const { entity, id, values } of rows) {
+    const key = entityKey(entity, id)
+    if (held.has(key)) continue
+    const moved = Object.keys(values).filter(
+      field => !Equal.equals(own(store[key]?.values, field), values[field]),
+    )
+    kept = keptBefore(kept, key, store[key], moved, pending, now)
+  }
+  return kept
+}
+
+/**
  * What an answer does to the values kept from before a stream's patches: the
  * fields it writes leave `kept`, and those that a stream patched while the
  * request was pending, to something other than the answer's value, are
