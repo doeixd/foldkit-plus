@@ -6,6 +6,8 @@ Grounded in the existing `packages/metakit` implementation (15-op v1 core, `meta
 
 ## Status (2026-11-21)
 
+Succeeded by [metakit-unification-PLAN.md](./metakit-unification-PLAN.md), which carries every open item below.
+
 | Phase | State |
 | --- | --- |
 | 2 | Built, then independently reviewed and corrected: evaluation is null-strict in every reader, the evaluator refuses unsafe results as typed values, the synchronous checker was rewritten, prover witnesses are replayed, SQL and Drizzle share one lowering, and a seeded parity suite runs on PGlite and SQLite. `Decimal.mul` exists in memory; its SQL lowering is not built. |
