@@ -125,7 +125,7 @@ REFUTED Withdraw [PIN BROKEN]
 | `metakit/domain` | Browser / server | Currency-safe `Money`, fixed-scale `Decimal` (`Decimal.mul` and `Money.mul` round half-even, in memory only), timezone-free `CalendarDay`, `OrderedEnum`, and `Domain.domainOf`. |
 | `metakit/aggregates` | Browser / server | `Rows.sum` (of integers), `Rows.count` (O(1) group deltas) and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any` (semilattice). Imports no SQL. |
 | `metakit/aggregates/sql` | Server | `RowsSql.toSql(aggregate, options)`: an aggregate as a SQL expression. |
-| `metakit/machine` | Browser / server | Declarative state machine (`dispatch`, TEA `update`, `canDispatch`, `affordances`, `footprints`). |
+| `metakit/machine` | Browser / server | Declarative state machine (`dispatch`, TEA `update`, `canDispatch`, `affordances`, `footprints`); `lift` and `compose` build a parent machine from child machines. |
 | `metakit/inspect` | Browser / server | Form `fieldSpecs` and an enriched `toJsonSchema`, read straight off the Schema. |
 | `metakit/graph` | Build / SSR / planner | Static `Graph.analyze` (`affectedBy`, `deadBindings`), SSR `Graph.pruneStatic`, and `Graph.queryReadiness`. |
 | `metakit/policy` | Browser / server | Named rules over a row and a principal (`Policy.make`), and the synchronous `checkImplication` and `checkConsistent`. |

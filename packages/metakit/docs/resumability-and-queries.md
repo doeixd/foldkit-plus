@@ -60,6 +60,46 @@ const analysis = Graph.analyze(AccountMachine, bindings)
 
 If a binding contains an `Expr.opaque` node without explicit `reads`, `Graph.analyze` conservatively marks it affected by every transition that writes at least one path.
 
+## Build one machine from the machines of its parts
+
+A model is usually made of parts, and a part's transitions are written against the part alone: `Withdraw` above knows an account, not the household that holds two of them. To analyze the whole model you need each transition's reads and writes as paths from the whole.
+
+`Machine.lift(path, machine)` moves every transition of a part's machine under `path`, and `Machine.compose` makes one machine from the lifted parts and the whole's own transitions. Each part is given a name, which goes in front of its tags, so one machine used at two paths gives two sets of messages.
+
+```ts
+const Household = Schema.Struct({
+  name: Schema.String,
+  checking: Account,
+  savings: Schema.NullOr(Account),
+})
+const home = Path.from(Household)
+
+const HouseholdMachine = Machine.compose({
+  state: Household,
+  transitions: {},
+  children: {
+    Checking: Machine.lift(home.checking, AccountMachine),
+    Savings: Machine.lift(home.savings, AccountMachine),
+  },
+})
+// Object.keys(HouseholdMachine.transitions)
+//   -> ['CheckingWithdraw', 'CheckingFreeze', 'SavingsWithdraw', 'SavingsFreeze']
+// HouseholdMachine.footprints.SavingsWithdraw.writes -> [['savings', 'balance']]
+
+const household = Graph.analyze(HouseholdMachine, {
+  checkingBalance: home.checking.balance,
+  savings: home.savings,
+})
+// household.affectedBy.CheckingWithdraw -> ['checkingBalance']
+// household.affectedBy.SavingsWithdraw  -> ['savings']
+```
+
+What to expect from a composed machine:
+
+- **A part that is not there refuses its messages.** `savings` may be null: `SavingsWithdraw` is refused while it is, and `affordances` lists it as `disabled`. A key that is absent (an optional field) is refused the same way when dispatched, and reads as `pending` in `affordances`, which takes a missing key to mean "not known yet".
+- **Two transitions cannot share a tag.** `Checking` with `Withdraw` and an own transition named `CheckingWithdraw` do not compile, and `Machine.compose` throws naming both. The name `''` keeps a part's tags as they are.
+- **A composed machine is a machine.** Lift it again under a larger model, prove it with `Prove.machine`, or give it to `Graph.analyze`.
+
 ## Shrink SSR resume payloads (`Graph.pruneStatic`)
 
 At SSR time, pass known server-side values (feature flags, tenant settings, fixed constants) to `Graph.pruneStatic`. Bindings that fold completely to a literal move into `staticValues` (including known `null`, which stays distinct from omitted `Unknown` fields), and `resumePaths` returns the exact minimal model paths still needed by `liveBindings`.

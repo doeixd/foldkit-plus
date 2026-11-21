@@ -10,6 +10,7 @@
 import { Option, Result } from 'effect'
 import type { Schema } from 'effect'
 import type * as Expr from './expr.js'
+import * as Path from './path.js'
 import * as Transition from './transition.js'
 import * as Verdict from './verdict.js'
 
@@ -161,4 +162,113 @@ export const make = <
     affordances,
     footprints: footprints as Machine<State, Transitions>['footprints'],
   }
+}
+
+/** A child Machine's transitions, each lifted to run inside `Outer` (`Machine.lift`). */
+export interface Lifted<Outer, Transitions extends Readonly<Record<string, unknown>>> {
+  readonly transitions: {
+    readonly [K in keyof Transitions & string]: Transition.Transition<
+      Outer,
+      TransitionInput<Transitions[K]>,
+      TransitionEmit<Transitions[K]>
+    >
+  }
+}
+
+/**
+ * Lift every transition of a child `machine` along `path`, as `Transition.lift`
+ * does one: each reads and writes under `path`, and is refused where the
+ * state holds no child there, so `path` may lead to a nullable or optional
+ * field. Give the result to `Machine.compose`.
+ */
+export const lift = <Outer, Child, Transitions extends Readonly<Record<string, unknown>>>(
+  path: Path.Path<Outer, Child | null | undefined>,
+  machine: Machine<Child, Transitions>,
+): Lifted<Outer, Transitions> => {
+  const at = Path.make<Outer, Child>(path.segments, path.ast)
+  return {
+    transitions: Object.fromEntries(
+      Object.entries(machine.transitions).map(([tag, transition]) => [
+        tag,
+        Transition.lift(at, transition as Transition.Transition<Child, unknown, unknown>),
+      ]),
+    ) as Lifted<Outer, Transitions>['transitions'],
+  }
+}
+
+type Parts<State> = Readonly<
+  Record<string, { readonly transitions: Readonly<Record<string, AnyTransition<State>>> }>
+>
+
+type TagsOf<Children extends Parts<never>, Name> = Name extends keyof Children & string
+  ? `${Name}${keyof Children[Name]['transitions'] & string}`
+  : never
+
+/** The tags two transitions of a composition would share; `never` where each is its own. */
+export type SharedTags<Own, Children extends Parts<never>> =
+  | (keyof Own & TagsOf<Children, keyof Children>)
+  | {
+      [Name in keyof Children]: TagsOf<Children, Name> &
+        TagsOf<Children, Exclude<keyof Children, Name>>
+    }[keyof Children]
+
+/** The transitions of a composition: its own, and each child's under its name then the child's tag. */
+export type Composed<Own, Children extends Parts<never>> = Own & {
+  readonly [
+    Named in {
+      [Name in keyof Children & string]: {
+        [Tag in keyof Children[Name]['transitions'] & string]: {
+          readonly tag: `${Name}${Tag}`
+          readonly transition: Children[Name]['transitions'][Tag]
+        }
+      }[keyof Children[Name]['transitions'] & string]
+    }[keyof Children & string] as Named['tag']
+  ]: Named['transition']
+}
+
+/**
+ * One Machine over `state` from its own `transitions` and those of
+ * `children`: lifted child Machines (`Machine.lift`) or Machines over the same
+ * state. A child's transition is named by the child's key followed by its own
+ * tag (`Left` and `Added` make `LeftAdded`; the key `''` keeps the tag), so
+ * one child Machine lifted at two paths gives two sets of Messages. Two
+ * transitions that would share a tag do not compile, and throw.
+ */
+export const compose = <
+  S extends Schema.Top,
+  Own extends Readonly<Record<string, AnyTransition<S['Type']>>>,
+  Children extends Parts<S['Type']>,
+>(
+  config: {
+    readonly state: S
+    readonly transitions: Own
+    readonly children: Children
+  } & ([SharedTags<Own, Children>] extends [never]
+    ? unknown
+    : { readonly 'Machine.compose: two transitions share this tag': SharedTags<Own, Children> }),
+): Machine<S['Type'], Composed<Own, Children>> => {
+  const from = new Map<string, string>()
+  const transitions = new Map<string, AnyTransition<S['Type']>>()
+  const add = (tag: string, transition: AnyTransition<S['Type']>, source: string): void => {
+    const first = from.get(tag)
+    if (first !== undefined) {
+      throw new Error(
+        `[metakit] Machine.compose: ${first} and ${source} both name a transition "${tag}"`,
+      )
+    }
+    from.set(tag, source)
+    transitions.set(tag, transition)
+  }
+  for (const [tag, transition] of Object.entries(config.transitions)) {
+    add(tag, transition, 'the transitions')
+  }
+  for (const [name, child] of Object.entries(config.children)) {
+    for (const [tag, transition] of Object.entries(child.transitions)) {
+      add(`${name}${tag}`, transition, `the child "${name}"`)
+    }
+  }
+  return make({
+    state: config.state,
+    transitions: Object.fromEntries(transitions) as Composed<Own, Children>,
+  })
 }
