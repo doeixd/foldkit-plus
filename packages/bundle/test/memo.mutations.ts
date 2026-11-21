@@ -95,4 +95,10 @@ export default [
     'const key = pathEpoch === undefined ? model : pathEpoch()',
     'const key = model',
   ),
+  edit(
+    'a hidden placement keeps its drawing for when it is shown again',
+    '../src/placed.ts',
+    '              kept.delete(slotId)\n',
+    '',
+  ),
 ]

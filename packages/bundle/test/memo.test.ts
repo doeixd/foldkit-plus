@@ -5,7 +5,7 @@
  * again and leaves its sibling's drawing as it was, and `memo: false` draws
  * on every render. `Link.child` keeps its drawing the same way.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -376,6 +376,60 @@ describe('A collection', () => {
       await vi.waitFor(() => expect(document.getElementById('epoch-child')?.textContent).toBe('1'))
       // pathEpoch advanced -> redrawn!
       expect(draws).toBe(2)
+    } finally {
+      handle.dispose()
+    }
+  })
+})
+
+describe('A placed child kept on a pathEpoch', () => {
+  const GotMaybe = Link.wrapper('GotMaybe', CounterMessage)
+  const Shown = Schema.Struct({ maybe: Schema.Option(Counter) })
+  type Shown = typeof Shown.Type
+  const ShownMessage = defineMessageUnion({ Hid: {}, Showed: {}, ...GotMaybe.cases })
+  type ShownMessage = typeof ShownMessage.Type
+  // The epoch never moves: only the hide can forget the drawing.
+  const Maybe = counter('maybe').at(Link.optional<Shown>()('maybe', GotMaybe), {
+    pathEpoch: () => 0,
+  })
+  const placements = Bundle.assemble<Shown, ShownMessage>()([Maybe])
+
+  it('draws a child shown again after it was hidden, though the epoch is the same', async () => {
+    draws.clear()
+    const container = document.createElement('div')
+    container.id = 'bundle-memo-shown'
+    document.body.appendChild(container)
+    timedFrames()
+    const handle = Runtime.embed(
+      Runtime.makeElement(
+        placements.complete({
+          Model: Shown,
+          container,
+          init: () => placements.init({ maybe: Option.some({ count: 0 }) }),
+          update: placements.update((model, message) => {
+            if (message._tag === 'Hid') return { model: { maybe: Option.none() } }
+            return { model: { ...model, maybe: Option.some({ count: 7 }) } }
+          }),
+          view: (model: Shown, h: HtmlBuilder<ShownMessage>) =>
+            h.main(
+              [],
+              [
+                Maybe.view(model, h),
+                h.button([h.Id('hide'), h.OnClick(ShownMessage.Hid())], ['hide']),
+                h.button([h.Id('show'), h.OnClick(ShownMessage.Showed())], ['show']),
+              ],
+            ),
+          subscriptions: placements.subscriptions(),
+          managedResources: placements.resources(),
+        }),
+      ),
+    )
+    try {
+      await vi.waitFor(() => expect(text('.maybe')).toBe('0'))
+      click('#hide')
+      await vi.waitFor(() => expect(document.querySelector('.maybe')).toBeNull())
+      click('#show')
+      await vi.waitFor(() => expect(text('.maybe')).toBe('7'))
     } finally {
       handle.dispose()
     }
