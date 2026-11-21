@@ -257,6 +257,56 @@ test.each([
   120_000,
 )
 
+/**
+ * Declared writes are read through `foldkit-surface/writes`, so a page with a
+ * Surface and no declared writes keeps no metakit and no lazy slot; and the
+ * development check is a file of its own, which a page that reaches it only
+ * in a branch the build folds away drops, built or source. The last page
+ * reaches the check outright and keeps it, so the one before can fail.
+ */
+test('a page keeps no metakit for a Surface without declared writes, and no write check outside development', async () => {
+  const root = scratchIn('surface', 'published-')
+  made.push(root)
+  const index = await buildPublished('surface', root)
+  const entries = {
+    index: [index, join(packages, 'surface', 'src', 'index.ts')],
+    writes: [join(dirname(index), 'writes.js'), join(packages, 'surface', 'src', 'writes.ts')],
+  } as const
+  // One build at a time: each writes the page it bundles into `root`.
+  const kept = async (entry: keyof typeof entries, page: string) => {
+    const [built, source] = entries[entry]
+    const ids = async (file: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: file }])).map(({ id }) => id)
+    return [await ids(built), await ids(source)]
+  }
+  const holds = (ids: ReadonlyArray<string>, file: RegExp) => ids.some(id => file.test(id))
+  const metakit = /\/metakit\/(src|dist)\//
+  const writes = /\/writes\.(js|ts)$/
+  const check = /\/writesCheck\.(js|ts)$/
+
+  for (const ids of await kept(
+    'index',
+    `import { Surface } from 'pkg'\nexport const used = Surface.rootView`,
+  )) {
+    expect(holds(ids, /\/(dist\/index\.js|src\/index\.ts)$/)).toBe(true)
+    expect(ids.filter(id => metakit.test(id) || writes.test(id) || check.test(id))).toEqual([])
+  }
+  for (const ids of await kept(
+    'writes',
+    // What a production build makes of `import.meta.env.DEV ? … : …`; this build runs as a test's.
+    `import { Writes, WritesCheck } from 'pkg'\nexport const used = false ? WritesCheck.verify : Writes.of`,
+  )) {
+    expect(holds(ids, writes)).toBe(true)
+    expect(ids.filter(id => check.test(id))).toEqual([])
+  }
+  for (const ids of await kept(
+    'writes',
+    `import { WritesCheck } from 'pkg'\nexport const used = WritesCheck.verify`,
+  )) {
+    expect(holds(ids, check)).toBe(true)
+  }
+}, 240_000)
+
 test('a page reading only Expr.eval and Num.lte from metakit keeps no sql, prove, conformance, z3, or zone modules', async () => {
   const root = scratchIn('metakit', 'published-')
   made.push(root)
