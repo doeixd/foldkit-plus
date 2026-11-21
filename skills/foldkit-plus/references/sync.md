@@ -296,32 +296,37 @@ that writes its laws as callbacks carries none of it.
 To replay an edit from a single declaration, wrap a metakit `Transition.make`
 in `Declared.transition` and put it under its Message tag in
 `make({ transitions })`. Use `Schema.Struct({ model: shared.schema })` for its
-state and the variant constructor, such as `Message.ClearedTodos`, for its
-input.
+state and the variant constructor, such as `CounterMessage.Incremented`, for
+its input. A counter that stops at 10:
 
 ```ts
-import { Arr, Num, Path, Transition } from 'metakit'
+import { Num, Path, Transition } from 'metakit'
 import { Declared } from 'foldkit-sync/metakit'
 
-const shared = Projection.pick(App.model.todos)
-const { model } = Path.forEnv({ model: shared.schema })
-const Clearable = forApplication(App).make({
-  documentId: DocumentId.make('clearable'),
-  shared,
-  durable: MessageSet.make(App, [Message.CreatedTodo, Message.ClearedTodos]),
+const Counter = Schema.Struct({ count: Schema.Number })
+const CounterMessage = defineMessageUnion({ Incremented: {} })
+const CounterApp = Surface.application({
+  Model: Counter,
+  Message: CounterMessage,
+  initial: { count: 0 },
+  update: (counter: typeof Counter.Type) => ({ model: { count: counter.count + 1 } }),
+})
+const counted = Projection.pick(CounterApp.model.count)
+const { model } = Path.forEnv({ model: counted.schema })
+const Bounded = forApplication(CounterApp).make({
+  documentId: DocumentId.make('bounded'),
+  shared: counted,
+  durable: MessageSet.make(CounterApp, [CounterMessage.Incremented]),
   laws: {
-    atMost100Todos: {
-      holds: Declared.holds(Num.lte(Arr.count(model.todos), 100)),
-      message: 'A list holds 100 todos',
-    },
+    atMost10: { holds: Declared.holds(Num.lte(model.count, 10)), message: 'It stops at 10' },
   },
   transitions: {
-    ClearedTodos: Declared.transition(
+    Incremented: Declared.transition(
       Transition.make({
-        state: Schema.Struct({ model: shared.schema }),
-        input: Message.ClearedTodos,
-        when: ({ state }) => Arr.nonEmpty(state.model.todos),
-        apply: ({ state }) => [Transition.set(state.model.todos, [])],
+        state: Schema.Struct({ model: counted.schema }),
+        input: CounterMessage.Incremented,
+        when: ({ state }) => Num.lt(state.model.count, 10),
+        apply: ({ state }) => [Transition.set(state.model.count, Num.add(state.model.count, 1))],
       }),
     ),
   },
