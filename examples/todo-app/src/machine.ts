@@ -13,7 +13,10 @@
  *   null stores `Option.none()`.
  * - `emits` lists the records a step hands to `update`, read over the Model
  *   before the step; `app.ts` turns each into its Command (a focus, a timer,
- *   a durable fact, minting an id and a time).
+ *   a durable fact).
+ * - A new todo's id and time are `supplied`: made once when its Message runs
+ *   (`surface.ts`) and sent on in the durable `SubmittedTodo` fact, so a
+ *   replay and the server see the same values.
  * - `UrlChanged` and `MirrorRestored` are the mirrors' own steps (`surface.ts`
  *   passes them in): ordinary code, declared by what it reads and writes
  *   (`Transition.opaque`).
@@ -24,6 +27,9 @@ import * as Machine from 'metakit/machine'
 import type { MirrorRestored } from 'foldkit-mirror'
 import type { Url } from 'foldkit/url'
 import { Message, Model } from './app.js'
+
+/** What a new todo is supplied when its Message runs (`surface.ts` makes them): its id and time. */
+const newTodo = { id: Schema.String, now: Schema.Number }
 
 /** Whether `text` holds anything once its edges are trimmed. */
 const filled = (text: Parameters<typeof Str.trim>[0]) => Eq.isNot(Str.trim(text), '')
@@ -120,24 +126,36 @@ export const transitions = {
       ),
     ],
   }),
-  // The composer's draft becomes a todo: its id and time are minted by the Command.
+  // The composer's draft becomes a todo, with the id and time it is supplied.
   DraftSubmitted: Transition.make({
     state: Model,
     input: Message.DraftSubmitted,
+    supplied: newTodo,
     when: ({ state }) => filled(state.draft),
     apply: ({ state }) => [Transition.set(state.draft, '')],
-    emits: ({ state }) => [
-      Transition.emit('Mint', { title: Str.trim(state.draft), requestId: null }),
+    emits: ({ state, supplied }) => [
+      Transition.emit('Submit', {
+        id: supplied.id,
+        title: Str.trim(state.draft),
+        createdAt: supplied.now,
+        requestId: null,
+      }),
     ],
   }),
   // An agent's request leaves the person's draft as it is.
   RequestedTodo: Transition.make({
     state: Model,
     input: Message.RequestedTodo,
+    supplied: newTodo,
     when: ({ input }) => filled(input.title),
     apply: () => [],
-    emits: ({ input }) => [
-      Transition.emit('Mint', { title: Str.trim(input.title), requestId: input.requestId }),
+    emits: ({ input, supplied }) => [
+      Transition.emit('Submit', {
+        id: supplied.id,
+        title: Str.trim(input.title),
+        createdAt: supplied.now,
+        requestId: input.requestId,
+      }),
     ],
   }),
   DeleteRequested: Transition.make({

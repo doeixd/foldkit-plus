@@ -76,7 +76,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   }
 
   // 2. app.ts — a human uses the app. `RequestedTodo` is an intent; its
-  //    Command mints the id and the timestamp and emits the durable fact.
+  //    transition is supplied the id and the timestamp, and its Command
+  //    emits the durable fact.
   say('')
   say('# the human adds two todos (app.ts)')
   await store.dispatch(Message.RequestedTodo({ title: 'Write the proposal' }))

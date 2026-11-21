@@ -15,12 +15,13 @@
  *   `Sync.forApplication` enforces this: a durable Message whose transition
  *   returns a Command or touches a local field is refused at `submit`.
  * - **Effectful intents** are local Messages whose `update` returns a Command.
- *   The Command does the impure work (mint an id, read the clock) and emits the
- *   durable fact. `RequestedTodo` -> `SubmittedTodo` is the pattern.
+ *   An id and a time are supplied to the intent's transition when it runs
+ *   (`surface.ts`), and its Command sends them on in the durable fact.
+ *   `RequestedTodo` -> `SubmittedTodo` is the pattern.
  * - **Local Messages** change per-device UI state (draft, filter, editing) and
  *   never leave the tab.
  */
-import { Clock, Effect, Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import * as Dom from 'foldkit/dom'
 import { Url } from 'foldkit/url'
 import { Mirror } from 'foldkit-mirror'
@@ -43,7 +44,7 @@ export const Todo = Schema.Struct({
   title: Schema.String,
   completed: Schema.Boolean,
   priority: Priority,
-  /** Milliseconds since the epoch, minted by the Command that created the todo. */
+  /** Milliseconds since the epoch, supplied to the Message that created the todo. */
   createdAt: Schema.Number,
 })
 export type Todo = typeof Todo.Type
@@ -97,7 +98,7 @@ export const Message = defineMessageUnion({
    */
   DraftSubmitted: {},
   /**
-   * An agent asked for a todo. The Command mints the id and
+   * An agent asked for a todo. Its transition is supplied the id and
    * the timestamp; `requestId` is the call that waits for the fact (an agent's
    * invocation), carried onto it so two requests for one title are told apart.
    * Messages cross ports and the journal as they are, so it is a plain optional
@@ -160,14 +161,6 @@ export const initialModel: Model = {
 
 type Return = Update.Return<Model, Message>
 
-/** Mints what a durable fact needs and cannot compute itself: an id and a time. */
-const mintTodo = (title: string, request: { readonly requestId?: string }) => ({
-  name: 'MintTodo',
-  effect: Effect.map(Clock.currentTimeMillis, createdAt =>
-    Message.SubmittedTodo({ id: crypto.randomUUID(), title, createdAt, ...request }),
-  ),
-})
-
 const focusSelector = (selector: string) => ({
   name: 'Focus',
   effect: Dom.focus(selector).pipe(Effect.ignore, Effect.as(Message.CompletedFocus())),
@@ -188,8 +181,8 @@ type Emitted = EmitOf<TodoMachine['transitions']>
 
 /**
  * The Command table for each record `machine.ts` emits: ordinary code, run
- * after the step, so it may do what the language cannot (mint an id, read the
- * clock, sort the rows shown). Passed to `Declared.of` in `surface.ts`.
+ * after the step, so it may do what the language cannot (move focus, wait,
+ * sort the rows shown). Passed to `Declared.of` in `surface.ts`.
  */
 export const todoCommands: CommandTable<Emitted, Model, Message> = {
   Rename: ({ id, title }) =>
@@ -198,8 +191,15 @@ export const todoCommands: CommandTable<Emitted, Model, Message> = {
       : [{ name: 'Rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) }],
   Focus: ({ id }) => (id === null ? [] : [focusTitle(id)]),
   // A request's id is absent from a draft's, and from a request that has none.
-  Mint: ({ title, requestId }) => [
-    mintTodo(title, typeof requestId === 'string' ? { requestId } : {}),
+  Submit: ({ id, title, createdAt, requestId }) => [
+    fact(
+      Message.SubmittedTodo({
+        id,
+        title,
+        createdAt,
+        ...(typeof requestId === 'string' ? { requestId } : {}),
+      }),
+    ),
   ],
   Delete: ({ id }) => [fact(Message.DeletedTodo({ id }))],
   // Focus moves to the next row in the order shown, or the one before at the end.

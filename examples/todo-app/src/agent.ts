@@ -8,7 +8,7 @@
  * Three things to notice:
  *
  * - `add_todo` exposes `RequestedTodo`, the *intent*, not `SubmittedTodo`, the
- *   fact. The agent never mints an id or a timestamp; the Command does. Its
+ *   fact. The agent never makes an id or a timestamp; its transition is supplied them. Its
  *   `completion` contract says the call is done when the correlated
  *   `SubmittedTodo` is applied, so `dispatch` resolves with the fact.
  * - `rename_list` completes on *state*, not on a Message: it is done when the
@@ -40,7 +40,7 @@ export const AppAgent = TodoAgent.make({
       description: 'Add a todo with the given title',
       // The external input is declared, decoded, and mapped onto the intent.
       // An agent supplies a title and nothing else; the id and the timestamp
-      // are minted by the Command that `RequestedTodo` runs.
+      // are supplied to `RequestedTodo`'s transition when it runs.
       input: Schema.Struct({
         title: Schema.String.annotate({ description: 'What the todo says' }),
       }),

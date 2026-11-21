@@ -58,7 +58,7 @@ describe('the mounted app', () => {
     }
   })
 
-  it('applies an intent, persists the fact it minted, and renders through the slots', async () => {
+  it('applies an intent, persists the fact it sent, and renders through the slots', async () => {
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
       setTimeout(() => callback(performance.now()), 0),
     )

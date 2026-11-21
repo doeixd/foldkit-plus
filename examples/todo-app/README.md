@@ -19,10 +19,10 @@ whole page works from the keyboard.
 
 Start with adding a todo. The composer emits `DraftSubmitted`, which names no
 title: `update` reads the draft from the Model, since the view's copy is the
-frame last drawn, and returns a Command that supplies an id and timestamp; its
-`SubmittedTodo` result is the durable fact. Sync persists and exchanges that
-fact. The agent's `add_todo` enters through `RequestedTodo`, which carries its
-title and mints the same fact.
+frame last drawn. Its transition is supplied a new id and the time when it
+runs, and returns a Command that sends them on in `SubmittedTodo`, the durable
+fact. Sync persists and exchanges that fact. The agent's `add_todo` enters
+through `RequestedTodo`, which carries its title and sends the same fact.
 
 Before adding another feature, classify its state: shared intent belongs in
 the Sync projection, disposable URL/preferences belong in Mirror, and transient
@@ -98,7 +98,7 @@ value.
 
 | File | What it teaches |
 | --- | --- |
-| `app.ts` | The Model, the Message union, and `update`. Three kinds of Message: durable facts, effectful intents, and local state. Why an id is minted in a Command and never in `update`. |
+| `app.ts` | The Model, the Message union, and `update`. Three kinds of Message: durable facts, effectful intents, and local state. Why an id is supplied to a transition and carried in the fact, never made by a durable Message's step. |
 | `principal.ts` | Two principals for two boundaries: the agent's and the server's. The same `isOwner` rule serves both. |
 | `surface.ts` | `Surface.application` and the feature Surfaces. A Surface is what a part of the UI observes and may cause; its Message list is a compile-time capability boundary. It also declares the two mirrors: `Mirror.url` keeps the filter in the URL (`?filter=active`, linkable, read back on navigation) and `Mirror.kv` remembers the composer's draft in Web Storage. Both observe the Model and own nothing, and `update` takes their reducer as an argument so the Model stays a leaf of the import graph. |
 | `style.ts` | Slots, Styles, Behaviors, and a Theme. Appearance and interaction attached from outside the views. `Style.recipe`, `Style.whenInput`, `pseudo`/`media`/`nest` compiling to one stylesheet. |
@@ -122,8 +122,8 @@ local field.
 
 **Facts carry their own nondeterminism.** `SubmittedTodo` carries the id and
 the timestamp. `DraftSubmitted` and `RequestedTodo` are intents: local, and
-their `update` returns a Command that reads the clock, mints the id, and emits
-the fact. The agent
+their transitions are supplied a new id and the time (`supply` in
+`surface.ts`, run once per step), which their Command sends on in the fact. The agent
 exposes the intent, not the fact, and waits for the fact through a completion
 contract. Where the outcome is a state rather than a new fact, it waits for the
 state: `rename_list` is done when the list carries the title, whoever set it.

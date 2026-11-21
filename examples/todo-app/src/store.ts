@@ -5,7 +5,7 @@
  * transcript can run without a DOM.
  *
  * It runs Commands, because the example's intent-to-fact pattern depends on
- * them: `RequestedTodo` mints its fact in a Command, and `dispatch` settles
+ * them: `RequestedTodo` sends its fact in a Command, and `dispatch` settles
  * only once the fact has been applied.
  */
 import { Effect } from 'effect'

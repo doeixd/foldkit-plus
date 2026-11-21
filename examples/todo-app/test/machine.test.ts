@@ -191,7 +191,9 @@ describe('declared writes', () => {
     expect(names(editing, Message.EditingSubmitted())).toEqual(['Rename', 'Focus'])
     expect(names(editing, Message.EditingCommitted())).toEqual(['Rename'])
     expect(names({ ...editing, editDraft: '  ' }, Message.EditingCommitted())).toEqual([])
-    expect(names(initialModel, Message.RequestedTodo({ title: ' Tea ' }))).toEqual(['MintTodo'])
+    expect(names(initialModel, Message.RequestedTodo({ title: ' Tea ' }))).toEqual([
+      'foldkit-sync/fact',
+    ])
     expect(names(initialModel, Message.RequestedTodo({ title: '  ' }))).toEqual([])
   })
 

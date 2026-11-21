@@ -15,7 +15,7 @@ import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
 import { Projection, Surface, type Surface as SurfaceType } from 'foldkit-surface'
 import type * as Update from 'foldkit/update'
-import { Declared } from 'foldkit-surface/declared'
+import { Declared, type SuppliedStep } from 'foldkit-surface/declared'
 import { WritesCheck } from 'foldkit-surface/writes'
 import { Message, Model, initialModel, todoCommands } from './app.js'
 import { makeMachine, type TodoMachine } from './machine.js'
@@ -38,17 +38,28 @@ export const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.model.draf
 /** Every Message's transition (`machine.ts`), the mirrors' steps declared by what they read and write. */
 export const todoMachine: TodoMachine = makeMachine({ url: Filters.reduce, restored: Prefs.reduce })
 
+/** What a new todo's transition is supplied: a fresh id and the time now. */
+const newTodo = () => ({ id: crypto.randomUUID(), now: Date.now() })
+
 /**
  * Every Message's transition (`machine.ts`), joined to its Command table and
  * `Writes` path-skipping through `Declared.of`: no hand-written `Message.match`
  * forwarding table is needed.
  */
-export const declared = Declared.of(App, todoMachine, {
+export const declared: Declared<
+  Model,
+  Message,
+  keyof TodoMachine['transitions'] & string,
+  never,
+  SuppliedStep<TodoMachine['transitions'], Message>
+> = Declared.of(App, todoMachine, {
   commands: todoCommands,
+  // A new todo's id and time, made once per step and sent on in `SubmittedTodo`.
+  supply: { DraftSubmitted: newTodo, RequestedTodo: newTodo },
   sends: {
     Rename: ['RenamedTodo'],
     Focus: ['CompletedFocus'],
-    Mint: ['SubmittedTodo'],
+    Submit: ['SubmittedTodo'],
     Delete: ['DeletedTodo'],
     FocusNeighbour: ['CompletedFocus'],
     ExpireUndo: ['UndoExpired'],
