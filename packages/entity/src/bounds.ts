@@ -316,7 +316,7 @@ const monotone = (
 ): Value => {
   const { operator, args } = call
   const name = nameOf(operator)
-  if (Option.isNone(at.operators.get(operator)))
+  if (!at.operators.has(operator))
     return Value.Opaque({ reason: `${name} is not in the operator table` })
   const directions: Array<'increasing' | 'decreasing'> = []
   for (let position = 0; position < args.length; position++) {

@@ -23,9 +23,4 @@ export default [
     ],
     tests,
   },
-  {
-    name: 'evaluate refuses a null membership list again',
-    edits: [{ file: evaluate, find: "if (isNull(among)) return 'unknown'", replace: '' }],
-    tests,
-  },
 ]

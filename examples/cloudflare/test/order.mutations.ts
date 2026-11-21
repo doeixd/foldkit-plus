@@ -12,7 +12,7 @@ export default [
     name: 'text is compared as UTF-16 units',
     edits: [
       {
-        file: '../../../packages/entity/src/evaluate.ts',
+        file: '../../../packages/entity/src/rowOrder.ts',
         find: 'return fold ? byCodePoint(foldAscii(left), foldAscii(right)) : byCodePoint(left, right)',
         replace: 'return left < right ? -1 : left > right ? 1 : 0',
       },

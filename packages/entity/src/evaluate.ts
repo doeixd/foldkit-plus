@@ -10,519 +10,79 @@
  * that wants rows, a server assembling a page from values it already holds, or
  * a client judging rows it already has.
  *
- * It lives in `foldkit-entity` because it is the **reference semantics** of the
- * IR this package owns — what §6.0.1 means operationally rather than in prose —
- * and a specification's reference implementation belongs with the
- * specification. The rule that keeps it here: **it may depend on the IR and
- * nothing else.** The moment it wants a Remote concept it has moved to the
- * wrong place and should leave.
- *
- * **It follows SQL, not JavaScript.** Where the two disagree this follows SQL,
- * because SQL is what the other interpreter runs. The important case is null:
- * `null = null` is unknown in SQL and a row is not matched by it, where
- * JavaScript would happily call the two equal.
+ * It builds an environment from the rows it holds and asks metakit's
+ * evaluator, through the translation of `lower.ts` (`judgeRun.ts`), so every
+ * reader in memory answers alike. **It follows SQL, not JavaScript**: `null =
+ * null` is unknown and a row is not matched by it. A refusal (text holding a
+ * NUL, arithmetic past the safe integer range) is a failure, never an answer.
  */
 import { Match, Option, Schema, SchemaAST } from 'effect'
-import { absurd } from 'effect/Function'
-import { Verdict } from 'metakit'
-import { Collation } from './collation.js'
-import { uncollatedText } from './uncollated.js'
-import { Expr, Query, dependenciesOf, isPredicate, missingName, noOperators } from './expr.js'
+import type { Collation } from './collation.js'
+import type { EntityIdentity } from './index.js'
+import { Node, Verdict } from 'metakit'
+import { evalNode } from 'metakit/build'
+import type { ExprContext } from './context.js'
+import { Expr, Query, dependenciesOf } from './expr.js'
 import type {
   AnyExpr,
   AnyQuery,
-  CallExpr,
-  ExistsPredicate,
-  OneRelation,
   Operandish,
   Operation,
   OperatorDescriptor,
-  OperatorTable,
-  OrderTerm,
   Predicate,
-  TestPredicate,
 } from './expr.js'
-import { Held, type HeldRow, type HeldRows, type Pinned } from './held.js'
-import type { AnyEntity } from './index.js'
+import { Held, type HeldRow, type HeldRows } from './held.js'
+import { flatRow, loweringOf, noRow, run, type Over, type Row } from './judgeRun.js'
+import { callOperator, foreignOf } from './lowerOperator.js'
 import { kernelOperators } from './memoryTable.js'
-import type { MemoryImplementation, MemoryOperators } from './operators.js'
-import { contextValue, type ExprContext, type NowExpr, type ViewerExpr } from './context.js'
-import { own } from './record.js'
+import type { MemoryOperators } from './operators.js'
+import { pinsOf, type Pins } from './pins.js'
+import {
+  ContextMissingError,
+  OperatorMissingError,
+  QueryEvaluateError,
+  RowsMissingError,
+  refusedBy,
+} from './queryErrors.js'
+import { byTerms, checkKeys, checkTerms, keysOf, ordered } from './rowOrder.js'
 
-/** A row as this interpreter reads one: values by field key. */
-export type Row = Readonly<Record<string, unknown>>
-
-export class QueryEvaluateError extends Error {
-  constructor(message: string) {
-    super(`[foldkit-entity] ${message}`)
-    this.name = 'QueryEvaluateError'
-  }
-}
-
-/**
- * A call of a primitive operator the table does not implement. Its own class,
- * because a form judging an invariant reads it as a judgement it cannot make
- * (`Undecided`), not as a failure.
- */
-export class OperatorMissingError extends QueryEvaluateError {
-  readonly operator: OperatorDescriptor
-  /** The operator by its id, and its version past the first. */
-  readonly named: string
-  /** `operators`, the table that lacks it, names the versions of it that it does hold. */
-  constructor(operator: OperatorDescriptor, operators: OperatorTable = noOperators) {
-    super(`this interpreter does not run the operator "${missingName(operator, operators)}"`)
-    this.name = 'OperatorMissingError'
-    this.operator = operator
-    this.named = operatorName(operator)
-  }
-}
-
-/** An operator by its id, and its version when that is not the first. */
-const operatorName = (operator: OperatorDescriptor): string =>
-  operator.version === 1 ? operator.id : `${operator.id}@${operator.version}`
-
-/**
- * What a predicate is judged over: the row, the input it was given, and the row
- * a write would leave, which an invariant reads (`Next`).
- */
-interface Scope {
-  readonly row: View
-  readonly input: Row
-  readonly next: View
-  /** How a primitive operator is run. */
-  readonly operators: MemoryOperators
-  /**
-   * Whether this is `Judge`, for which an operator the table lacks is one more
-   * thing it does not know; elsewhere it refuses the run.
-   */
-  readonly judging: boolean
-  /** What `Expr.viewer` and `Expr.now` read; a run given none refuses them. */
-  readonly context?: ExprContext | undefined
-  /** The row of `entity` with this id, where a path from the viewer starts. */
-  readonly find: (entity: AnyEntity, id: unknown) => View | null | Unheld
-}
-
-/** A run given one row: the viewer's row is another, which it does not have. */
-const noRows = (entity: AnyEntity): Unheld =>
-  new Unheld(`a path from the viewer reads a ${entity.name}, another row`)
-
-/**
- * A run that reads `Expr.viewer` or `Expr.now` and was given no context. No
- * row causes it, so `evaluateEach` refuses the run rather than each row.
- */
-export class ContextMissingError extends QueryEvaluateError {
-  constructor(term: ViewerExpr<unknown> | NowExpr<unknown>, why: string) {
-    super(`this run reads ${Expr.show(term)}, but ${why}`)
-    this.name = 'ContextMissingError'
-  }
-}
-
-const contextOf = (node: ViewerExpr<unknown> | NowExpr<unknown>, scope: Scope): unknown => {
-  if (scope.context === undefined) {
-    throw new ContextMissingError(node, 'was given no context to read it from')
-  }
-  return Option.getOrThrowWith(
-    contextValue(node, scope.context),
-    () => new ContextMissingError(node, 'its context has no reading of the time'),
-  )
-}
-
-/**
- * What the interpreter does not know: a value, or a truth, that rests on
- * something the holder does not have. Never a value a row holds, which is
- * what lets one sit among values. SQL has no such thing; its unknown is null.
- */
-class Unheld {
-  constructor(readonly reason: string) {}
-}
-
-const isUnheld = (value: unknown): value is Unheld => value instanceof Unheld
-
-/** A truth, or that it rests on something not held: what `holds` comes to. */
-type Judged = Truth | Unheld
-
-/** A row as the interpreter reads it, whoever holds it: values may be `Unheld`. */
-interface View {
-  readonly field: (key: string) => unknown
-  /** The row a `one` relation points at; null for none. */
-  readonly follow: (relation: OneRelation) => View | null | Unheld
-  readonly pointing: (
-    relation: OneRelation,
-    pinned: Pinned,
-  ) => {
-    readonly rows: ReadonlyArray<View>
-    readonly missing: Option.Option<string>
-  }
-}
-
-/**
- * One plain row, all a two-valued run is given: a key it lacks is null, as
- * SQL binds a missing value, and no other row can be reached from it.
- */
-const flat = (row: Row): View => ({
-  field: key => own(row, key),
-  follow: relation => new Unheld(`${relation.owner.name}.${relation.key} leads to another row`),
-  pointing: relation => ({
-    rows: [],
-    missing: Option.some(`${relation.owner.name}.${relation.key} is read from other rows`),
-  }),
-})
-
-/** A holder's row as the interpreter reads it. */
-const viewOf = (row: HeldRow): View => ({
-  field: key =>
-    Held.match(row.field(key), { onHeld: value => value, onUnheld: reason => new Unheld(reason) }),
-  follow: relation =>
-    Held.match<Option.Option<HeldRow>, View | null | Unheld>(row.follow(relation), {
-      onHeld: target => Option.match(target, { onNone: () => null, onSome: viewOf }),
-      onUnheld: reason => new Unheld(reason),
-    }),
-  pointing: (relation, pinned) => {
-    const { rows, missing } = row.pointing(relation, pinned)
-    return { rows: rows.map(viewOf), missing }
-  },
-})
-
-/** A run that is given no row: whatever it reads of one, it lacks. */
-const noRow: View = flat({})
-
-/**
- * The row `via` reaches from `from`: null when a link is null or reaches a row
- * the holder knows is not there.
- */
-const reached = (from: View, via: ReadonlyArray<OneRelation>): View | null | Unheld => {
-  let at: View | null | Unheld = from
-  for (const relation of via) {
-    if (at === null || isUnheld(at)) return at
-    at = at.follow(relation)
-  }
-  return at
-}
-
-/** What a conjunction fixes by field, and whether that is all it says (`Judge.pins`). */
-export interface Pins {
-  readonly pins: Pinned
-  readonly whole: boolean
-}
-
-/** A value two `eq`s agree on exactly, on both sides of the wire: never null, NaN or a structure. */
-const pinnable = (value: unknown): boolean =>
-  typeof value === 'string' ||
-  typeof value === 'boolean' ||
-  typeof value === 'bigint' ||
-  (typeof value === 'number' && !Number.isNaN(value))
-
-/** An `eq` of a field of the row and something else, the field first. */
-const fieldAndSide = Match.type<Predicate>().pipe(
-  Match.tag(
-    'Eq',
-    ({ left, right }): Option.Option<readonly [{ readonly key: string }, Operandish]> =>
-      Option.orElse(
-        Option.map(fieldOf(left), field => [field, right] as const),
-        () => Option.map(fieldOf(right), field => [field, left] as const),
-      ),
-  ),
-  Match.orElse((): Option.Option<readonly [{ readonly key: string }, Operandish]> => Option.none()),
-)
-
-const pinsOf = (
-  predicates: ReadonlyArray<Predicate>,
-  input: Row,
-  context: ExprContext | undefined,
-): Pins => {
-  const pins = new Map<string, unknown>()
-  let whole = true
-  const given = (node: Operandish): Option.Option<unknown> =>
-    Match.value(node).pipe(
-      Match.tags({
-        Literal: ({ value }) => Option.some<unknown>(value),
-        Input: ({ key }) => Option.some<unknown>(own(input, key)),
-        Viewer: viewer => (context === undefined ? Option.none() : contextValue(viewer, context)),
-      }),
-      Match.orElse(() => Option.none()),
-    )
-  for (const predicate of predicates) {
-    const pin = Option.flatMap(fieldAndSide(predicate), ([field, side]) =>
-      Option.map(Option.filter(given(side), pinnable), value => [field.key, value] as const),
-    )
-    if (Option.isNone(pin)) {
-      whole = false
-      continue
-    }
-    const [key, value] = pin.value
-    if (pins.has(key) && pins.get(key) !== value) whole = false
-    pins.set(key, value)
-  }
-  return { pins, whole }
-}
-
-const fieldOf = Match.type<Operandish>().pipe(
-  Match.tag('Field', field => Option.some(field)),
-  Match.orElse((): Option.Option<{ readonly key: string }> => Option.none()),
-)
-
-/** A filter's conjuncts; built once, since `exists` asks for every row judged. */
-const operandsOf = Match.type<Predicate>().pipe(
-  Match.tag('And', ({ operands }): ReadonlyArray<Predicate> => operands),
-  Match.orElse(single => [single]),
-)
-
-/**
- * Whether some row pointing at the one `via` reaches holds the filter: true
- * as soon as a held one does, false only when every one is held and none
- * does. SQL's exists is never null; reached through a path that reaches no
- * row, it is, as the path's field would be.
- */
-const exists = (node: ExistsPredicate, scope: Scope): Judged => {
-  const anchor = reached(scope.row, node.via)
-  if (anchor === null) return 'unknown'
-  if (isUnheld(anchor)) return anchor
-  const pinned = Option.match(node.where, {
-    onNone: (): Pinned => new Map(),
-    onSome: where => pinsOf(operandsOf(where), scope.input, scope.context).pins,
-  })
-  const { rows, missing } = anchor.pointing(node.relation, pinned)
-  let unheld = Option.map(missing, reason => new Unheld(reason))
-  for (const row of rows) {
-    const truth = Option.match(node.where, {
-      onNone: (): Judged => true,
-      onSome: where => holds(where, { ...scope, row, next: noRow }),
-    })
-    if (truth === true) return true
-    if (isUnheld(truth)) unheld = Option.orElse(unheld, () => Option.some(truth))
-  }
-  return Option.getOrElse(unheld, (): Judged => false)
-}
-
-const valueOf = (node: AnyExpr, scope: Scope): unknown => {
-  switch (node._tag) {
-    case 'Field':
-      return scope.row.field(node.key)
-    case 'Next':
-      return scope.next.field(node.field.key)
-    case 'Literal':
-      return node.value
-    case 'Input':
-      return own(scope.input, node.key)
-    case 'Call':
-      return called(node, scope)
-    case 'Viewer':
-    case 'Now':
-      return contextOf(node, scope)
-    case 'Path': {
-      const row = reached(scope.row, node.via)
-      return row === null || isUnheld(row) ? row : row.field(node.field.key)
-    }
-    case 'ViewerPath': {
-      // A visitor, or a viewer of another Entity, has no row to start from.
-      const id = contextOf(node.viewer, scope)
-      if (id === null) return null
-      const start = scope.find(node.viewer.target(), id)
-      const row = start === null || isUnheld(start) ? start : reached(start, node.via)
-      return row === null || isUnheld(row) ? row : row.field(node.field.key)
-    }
-    default:
-      return absurd(node)
-  }
-}
-
-/**
- * What a run given one row could not decide without another: a path's or an
- * exists' row. It refuses rather than read the others as absent, which would
- * drop a row from a list on no evidence. `Judge` reads them from a holder.
- */
-export class RowsMissingError extends QueryEvaluateError {
-  constructor(reason: string) {
-    super(`${reason}, which a run over one row cannot read; judge it with \`Judge\``)
-    this.name = 'RowsMissingError'
-  }
-}
-
-/** A two-valued run's answer: what it could not decide is refused. */
-const settled = (judged: Judged): Truth => {
-  if (isUnheld(judged)) throw new RowsMissingError(judged.reason)
-  return judged
-}
-
-/**
- * What a call comes to, as a value (a predicate's truth as SQL's, unknown as
- * null). A defined operator's is what it means, as SQL compiles it; a
- * primitive one's is the table's implementation, or it is refused by name.
- */
-const called = (call: CallExpr<unknown> | TestPredicate, scope: Scope): unknown => {
-  const expansion: Option.Option<AnyExpr | Predicate> = call.expansion
-  return Option.match(expansion, {
-    onSome: body => sideOf(body, scope),
-    onNone: () =>
-      Option.match(scope.operators.get(call.operator), {
-        onSome: run => ran(call, run, scope),
-        onNone: () => {
-          // An operator only the server runs: a holder cannot say what it comes to.
-          if (scope.judging) {
-            return new Unheld(
-              `this holder does not run the operator "${operatorName(call.operator)}"`,
-            )
-          }
-          throw new OperatorMissingError(call.operator, scope.operators)
-        },
-      }),
-  })
-}
-
-/**
- * A call of a primitive operator run, its arguments worked out over the
- * scope. With an argument not held it is not run: null when a strict
- * operator is given a null besides, as SQL's would be, else not known.
- */
-const ran = (
-  call: CallExpr<unknown> | TestPredicate,
-  run: MemoryImplementation['run'],
-  scope: Scope,
-): unknown => {
-  const values = call.args.map(arg => sideOf(arg, scope))
-  const unheld = values.find(isUnheld)
-  if (unheld !== undefined) {
-    return call.operator.nulls === 'strict' && values.some(isNull) ? null : unheld
-  }
-  return runWith(
-    call.operator,
-    run,
-    values,
-    call.collation,
-    call._tag === 'Test',
-    scope.operators.checked,
-  )
-}
-
-/**
- * A primitive operator run over values: strict about null and NUL before it
- * is asked, a throw it makes named as its own, and, in a checked table, its
- * answer held to its output schema (a predicate's null is its unknown).
- */
-const runWith = (
-  operator: OperatorDescriptor,
-  run: MemoryImplementation['run'],
-  values: ReadonlyArray<unknown>,
-  collation: Option.Option<Collation>,
-  predicate: boolean,
-  checked: boolean,
-): unknown => {
-  // NUL before null: SQL refuses text holding it where it is compiled, whatever
-  // else the call is given, so a null beside it must not answer first.
-  if (values.some(holdsNul)) {
-    throw new QueryEvaluateError(
-      `the operator "${operatorName(operator)}" was given text holding a NUL character, which SQL text cannot hold portably`,
-    )
-  }
-  if (operator.nulls === 'strict' && values.some(isNull)) return null
-  let answer: unknown
-  try {
-    // A value never given (an input left out, a key the row lacks) is null to an
-    // implementation that handles null, as SQL binds it.
-    answer = run(
-      values.map(value => (value === undefined ? null : value)),
-      { collation },
-    )
-  } catch (error) {
-    if (error instanceof QueryEvaluateError) throw error
-    throw new QueryEvaluateError(
-      `the operator "${operatorName(operator)}" failed: ${error instanceof Error ? error.message : String(error)}`,
-    )
-  }
-  const unknownTruth = predicate && answer === null
-  if (checked && !unknownTruth && !Schema.is(Schema.toEncoded(operator.output))(answer)) {
-    throw new QueryEvaluateError(
-      `the operator "${operatorName(operator)}" answered ${JSON.stringify(answer)}, which its output schema does not admit`,
-    )
-  }
-  return answer
-}
-
-/**
- * A primitive operator over stored values, as a call of it is run: what a
- * computed assignment comes to (`Write.apply`). Refused, as a call is, when
- * `operators` does not implement it.
- */
-export const applyOperator = (
-  operator: OperatorDescriptor,
-  values: ReadonlyArray<unknown>,
-  options: {
-    readonly collation: Option.Option<Collation>
-    readonly operators: MemoryOperators
-  },
-): unknown =>
-  Option.match(options.operators.get(operator), {
-    onNone: () => {
-      throw new OperatorMissingError(operator, options.operators)
-    },
-    onSome: run =>
-      runWith(
-        operator,
-        run,
-        values,
-        options.collation,
-        SchemaAST.isBoolean(Schema.toEncoded(operator.output).ast),
-        options.operators.checked,
-      ),
-  })
-
-/** A predicate operator's answer as a truth: null is unknown, anything but a boolean refused. */
-const truthOf = (call: TestPredicate, answer: unknown): Judged => {
-  if (isUnheld(answer)) return answer
-  if (answer === null || answer === undefined) return 'unknown'
-  if (typeof answer !== 'boolean') {
-    throw new QueryEvaluateError(
-      `the operator "${operatorName(call.operator)}" answered ${JSON.stringify(answer)}, which is not a truth`,
-    )
-  }
-  return answer
-}
+export type { Row } from './judgeRun.js'
+export type { Pins } from './pins.js'
+export {
+  ContextMissingError,
+  OperatorMissingError,
+  QueryEvaluateError,
+  RowsMissingError,
+} from './queryErrors.js'
+export { compareRows } from './rowOrder.js'
 
 /** SQL's unknown: neither true nor false, and a row is kept only on true. */
 type Truth = boolean | 'unknown'
 
-const isNull = (value: unknown): boolean => value === null || value === undefined
+/** What a predicate comes to: SQL's three values, of which a row is kept only on `true`. */
+export type PredicateTruth = Truth
 
-const { foldAscii } = Collation
-
-const NUL = String.fromCharCode(0)
-
-/**
- * Whether `value` is text holding a NUL, which Postgres text cannot hold and
- * SQLite compares only up to: no two interpreters agree on it.
- */
-const holdsNul = (value: unknown): boolean => typeof value === 'string' && value.includes(NUL)
-
-/**
- * Whether `value` is NaN, which no two interpreters agree on either: SQLite
- * stores it as null, Postgres orders it after every number and equal to
- * itself, JavaScript equal to nothing. Refused where values compare or
- * order, as NUL is.
- */
-const isNaNValue = (value: unknown): boolean => typeof value === 'number' && Number.isNaN(value)
-
-const refusedNaN = (what: string): QueryEvaluateError =>
-  new QueryEvaluateError(
-    `${what} was given NaN, which SQLite stores as null and Postgres orders after every number`,
-  )
-
-/** Refuses NaN given to a comparison (a literal or an input), before a null beside it answers. */
-const refuseGivenNaN = (what: string, sides: ReadonlyArray<readonly [Operandish, unknown]>) => {
-  if (
-    sides.some(
-      ([side, value]) =>
-        !isPredicate(side) &&
-        (side._tag === 'Literal' || side._tag === 'Input') &&
-        isNaNValue(value),
-    )
-  ) {
-    throw refusedNaN(what)
+/** A predicate's value as a truth: null is SQL's unknown. */
+const truthOf = (value: unknown): Truth => {
+  if (value === null) return 'unknown'
+  if (typeof value !== 'boolean') {
+    throw new QueryEvaluateError(`a predicate gave ${JSON.stringify(value)}, which is not a truth`)
   }
+  return value
 }
 
-/** A predicate used as a value is its own truth; anything else is its value. */
-const sideOf = (node: Operandish, scope: Scope): unknown =>
-  isPredicate(node) ? truthValue(holds(node, scope)) : valueOf(node, scope)
+/** A two-valued run's answer: what it could not decide is refused. */
+const settled = (held: Held<unknown>): unknown =>
+  Held.match(held, {
+    onHeld: value => value,
+    onUnheld: reason => {
+      throw new RowsMissingError(reason)
+    },
+  })
+
+/** One operand over a plain row, two-valued: its value, refused where it needs another row. */
+const valueOver = (key: object, node: Operandish, over: Omit<Over, 'judging'>): unknown =>
+  settled(run(loweringOf(key, [node]), { ...over, judging: false })[0]!)
 
 /**
  * What an operand comes to over no row: a call of literals and inputs, run by
@@ -538,203 +98,50 @@ export const valueOfOperand = (
     readonly operators?: MemoryOperators | undefined
     readonly context?: ExprContext | undefined
   } = {},
-): unknown => {
-  const value = sideOf(node, {
+): unknown =>
+  valueOver(node, node, {
     row: noRow,
-    input: options.input ?? {},
     next: noRow,
+    input: options.input ?? {},
     operators: options.operators ?? kernelOperators,
-    judging: false,
-    find: noRows,
     context: options.context,
   })
-  if (isUnheld(value)) throw new RowsMissingError(value.reason)
-  return value
-}
 
 /**
- * Refuses a value the query was given (a literal or an input) holding a NUL,
- * before any null beside it can answer: SQL refuses such a parameter where it
- * compiles, whatever the row holds. A NUL stored in a row is refused after,
- * as SQL meets it only beside a value that is not null.
+ * A primitive operator over stored values, as a call of it is run: what a
+ * computed assignment comes to (`Write.apply`). Refused, as a call is, when
+ * `operators` does not implement it, and where metakit refuses its values.
  */
-const refuseGivenNul = (
-  message: string,
-  sides: ReadonlyArray<readonly [Operandish, unknown]>,
-): void => {
-  if (
-    sides.some(
-      ([side, value]) =>
-        !isPredicate(side) && (side._tag === 'Literal' || side._tag === 'Input') && holdsNul(value),
-    )
-  ) {
-    throw new QueryEvaluateError(message)
+export const applyOperator = (
+  operator: OperatorDescriptor,
+  values: ReadonlyArray<unknown>,
+  options: {
+    readonly collation: Option.Option<Collation>
+    readonly operators: MemoryOperators
+  },
+): unknown => {
+  if (Option.isSome(operator.definedAs) || !options.operators.has(operator)) {
+    throw new OperatorMissingError(operator, options.operators)
   }
+  const foreign = new Map<string, OperatorDescriptor>()
+  const node = callOperator(
+    operator,
+    values.map(value => Node.Lit({ value: value === undefined ? null : value })),
+    options.collation,
+    foreign,
+  )
+  const value = evalNode(
+    node,
+    {},
+    foreignOf(
+      { nodes: [], keys: [], related: new Map(), viewers: new Map(), foreign },
+      options.operators,
+    ),
+  )
+  if (Node.isRefusal(value)) throw refusedBy(value)
+  // A predicate operator's unknown is null, as SQL's.
+  return value === null && SchemaAST.isBoolean(Schema.toEncoded(operator.output).ast) ? null : value
 }
-
-/**
- * A predicate compared as a value. SQL's unknown is null there too, so an
- * unknown compared to anything stays unknown rather than becoming false.
- */
-const truthValue = (truth: Judged): unknown => (truth === 'unknown' ? null : truth)
-
-/**
- * A predicate's truth, SQL's three values, or `Unheld` where it rests on what
- * the holder lacks. A null decides before anything unheld beside it, as it
- * decides SQL's answer whatever the other side holds; past that, what is not
- * held is not known, except where `and`'s false or `or`'s true settles it.
- */
-const holds = (node: Predicate, scope: Scope): Judged => {
-  switch (node._tag) {
-    case 'Exists':
-      return exists(node, scope)
-    case 'Test':
-      return truthOf(node, called(node, scope))
-    case 'Eq': {
-      const left = sideOf(node.left, scope)
-      const right = sideOf(node.right, scope)
-      // `null = anything` is unknown in SQL, including `null = null`. A row is
-      // kept only when a comparison is true, so an unknown drops it either way;
-      // saying so explicitly is what keeps this honest about three-valued logic
-      // rather than accidentally right about it.
-      const nul =
-        'an equality was given text holding a NUL character, which SQL text cannot hold portably'
-      refuseGivenNul(nul, [
-        [node.left, left],
-        [node.right, right],
-      ])
-      refuseGivenNaN('an equality', [
-        [node.left, left],
-        [node.right, right],
-      ])
-      if (isNull(left) || isNull(right)) return 'unknown'
-      if (isUnheld(left)) return left
-      if (isUnheld(right)) return right
-      if (holdsNul(left) || holdsNul(right)) throw new QueryEvaluateError(nul)
-      if (isNaNValue(left) || isNaNValue(right)) throw refusedNaN('an equality')
-      return left === right
-    }
-    case 'Null': {
-      // The one comparison SQL never leaves unknown: asking whether a value
-      // is absent always has an answer, unless the value is not held.
-      const value = valueOf(node.operand, scope)
-      return isUnheld(value) ? value : isNull(value) !== node.present
-    }
-    case 'Contains': {
-      const value = valueOf(node.value, scope)
-      const search = sideOf(node.search, scope)
-      // `null like anything` is unknown, which is why an empty search is not
-      // the same as no filter over a column that can be null.
-      refuseGivenNul(
-        'a containment test was given text holding a NUL character, which SQL text cannot hold portably',
-        [
-          [node.search, search],
-          [node.value, value],
-        ],
-      )
-      if (isNull(value) || isNull(search)) return 'unknown'
-      if (isUnheld(value)) return value
-      if (isUnheld(search)) return search
-      if (typeof value !== 'string' || typeof search !== 'string') {
-        throw new QueryEvaluateError('a containment test was given something that is not text')
-      }
-      // Postgres text cannot hold NUL and SQLite's `like` stops at it, so no
-      // two interpreters agree on such a value: refused rather than answered.
-      if (holdsNul(value) || holdsNul(search)) {
-        throw new QueryEvaluateError(
-          'a containment test was given text holding a NUL character, which SQL text cannot hold portably',
-        )
-      }
-      // Case-insensitive for ASCII letters only, because that is what
-      // `Expr.contains` documents and what the compiled SQL folds both sides to.
-      return foldAscii(value).includes(foldAscii(search))
-    }
-    case 'In': {
-      const among = valueOf(node.among, scope)
-      if (isUnheld(among)) return among
-      // A list that is null (an optional input not given) is unknown, as `x in
-      // null` is in SQL and as a comparison with null is: `whenGiven` guards
-      // it, and every operand of an `or` is still asked.
-      if (isNull(among)) return 'unknown'
-      if (!Array.isArray(among)) {
-        throw new QueryEvaluateError('a membership test was given a list that is not a list')
-      }
-      // SQL's `in`: an empty list is false whatever the value, then a null
-      // value is unknown, a match is true, and no match against a list
-      // holding a null is unknown, since that null might have been it.
-      if (among.length === 0) return false
-      const value = valueOf(node.value, scope)
-      if (holdsNul(value) || among.some(holdsNul)) {
-        throw new QueryEvaluateError(
-          'a membership test was given text holding a NUL character, which SQL text cannot hold portably',
-        )
-      }
-      if (isNaNValue(value) || among.some(isNaNValue)) throw refusedNaN('a membership test')
-      if (isNull(value)) return 'unknown'
-      if (isUnheld(value)) return value
-      if (among.some(each => each === value)) return true
-      return among.some(isNull) ? 'unknown' : false
-    }
-    // Every operand is asked, with no short cut: SQL fixes no order, so one
-    // that refuses its value (a NUL) refuses here whichever operand decided.
-    case 'And': {
-      const truths = node.operands.map(operand => holds(operand, scope))
-      if (truths.includes(false)) return false
-      // Unheld before SQL's unknown: with an unknown beside it, an unheld
-      // operand could still make the whole false.
-      const unheld = truths.find(isUnheld)
-      if (unheld !== undefined) return unheld
-      return truths.includes('unknown') ? 'unknown' : true
-    }
-    case 'Or': {
-      const truths = node.operands.map(operand => holds(operand, scope))
-      if (truths.includes(true)) return true
-      const unheld = truths.find(isUnheld)
-      if (unheld !== undefined) return unheld
-      return truths.includes('unknown') ? 'unknown' : false
-    }
-    case 'Not': {
-      const truth = holds(node.operand, scope)
-      return truth === 'unknown' || isUnheld(truth) ? truth : !truth
-    }
-    case 'Compare': {
-      const left = valueOf(node.left, scope)
-      const right = valueOf(node.right, scope)
-      const nul =
-        'a comparison was given text holding a NUL character, which SQL text cannot hold portably'
-      refuseGivenNul(nul, [
-        [node.left, left],
-        [node.right, right],
-      ])
-      refuseGivenNaN('a comparison', [
-        [node.left, left],
-        [node.right, right],
-      ])
-      if (isNull(left) || isNull(right)) return 'unknown'
-      if (isUnheld(left)) return left
-      if (isUnheld(right)) return right
-      if (holdsNul(left) || holdsNul(right)) throw new QueryEvaluateError(nul)
-      if (isNaNValue(left) || isNaNValue(right)) throw refusedNaN('a comparison')
-      // Numbers with numbers and text with text, as `orderBy` compares them,
-      // so a comparison and an ordering never disagree about what is first.
-      const kind = typeof left
-      if (kind !== typeof right || (kind !== 'number' && kind !== 'string')) {
-        throw new QueryEvaluateError('a comparison was given values that do not order together')
-      }
-      const order = compare(left, right, node.collation)
-      return Match.value(node.operator).pipe(
-        Match.when('lt', () => order < 0),
-        Match.when('lte', () => order <= 0),
-        Match.when('gt', () => order > 0),
-        Match.when('gte', () => order >= 0),
-        Match.exhaustive,
-      )
-    }
-  }
-}
-
-/** What a predicate comes to: SQL's three values, of which a row is kept only on `true`. */
-export type PredicateTruth = Truth
 
 /** What a predicate reads besides its input, asked once per node: nodes are frozen. */
 const readsBeyond = new WeakMap<Predicate, { readonly field: boolean; readonly context: boolean }>()
@@ -766,17 +173,7 @@ export const decided = (
   return reads.field || (reads.context && context === undefined)
     ? Option.none()
     : Option.some(
-        settled(
-          holds(node, {
-            row: noRow,
-            input,
-            next: noRow,
-            operators,
-            judging: false,
-            find: noRows,
-            context,
-          }),
-        ),
+        truthOf(valueOver(node, node, { row: noRow, next: noRow, input, operators, context })),
       )
 }
 
@@ -788,16 +185,7 @@ export const truthOver = (
   next: Row = {},
   operators: MemoryOperators = kernelOperators,
 ): PredicateTruth =>
-  settled(
-    holds(node, {
-      row: flat(row),
-      input,
-      next: flat(next),
-      operators,
-      judging: false,
-      find: noRows,
-    }),
-  )
+  truthOf(valueOver(node, node, { row: flatRow(row), next: flatRow(next), input, operators }))
 
 /**
  * What `Judge.predicate` comes to, as metakit's `Verdict`: `False` where SQL's
@@ -806,12 +194,15 @@ export const truthOver = (
  */
 export type PredicateVerdict = Verdict.Verdict<'null'>
 
-const verdictOf = (truth: PredicateTruth): PredicateVerdict => {
-  if (truth === 'unknown') return Verdict.False(Option.some('null' as const))
-  return truth ? Verdict.True() : Verdict.False<'null'>()
-}
-
-const unknownBecause = <W = never>(reason: string): Verdict.Verdict<W> => Verdict.Unknown(reason)
+const verdictOf = (held: Held<unknown>): PredicateVerdict =>
+  Held.match(held, {
+    onUnheld: (reason): PredicateVerdict => Verdict.Unknown(reason),
+    onHeld: value => {
+      const truth = truthOf(value)
+      if (truth === 'unknown') return Verdict.False(Option.some('null' as const))
+      return truth ? Verdict.True() : Verdict.False<'null'>()
+    },
+  })
 
 /** What a verdict reads over, besides the row judged. */
 interface JudgeOptions {
@@ -826,17 +217,6 @@ interface JudgeOptions {
   readonly rows?: HeldRows | undefined
 }
 
-/** How a judgement reaches a row by its id: through the holder's rows, when it was given them. */
-const finder =
-  (rows: HeldRows | undefined) =>
-  (entity: AnyEntity, id: unknown): View | null | Unheld =>
-    rows === undefined
-      ? noRows(entity)
-      : Held.match<Option.Option<HeldRow>, View | null | Unheld>(rows.find(entity, id), {
-          onHeld: found => Option.match(found, { onNone: () => null, onSome: viewOf }),
-          onUnheld: reason => new Unheld(reason),
-        })
-
 /**
  * The reference interpreter over what a holder has (`HeldRow`), three-valued:
  * where an answer rests on a row or field the holder lacks or may not see, or
@@ -850,18 +230,19 @@ export const Judge = {
     predicate: Predicate,
     row: HeldRow,
     options: JudgeOptions & { readonly next?: HeldRow | undefined } = {},
-  ): PredicateVerdict => {
-    const judged = holds(predicate, {
-      row: viewOf(row),
-      input: options.input ?? {},
-      next: options.next === undefined ? noRow : viewOf(options.next),
-      operators: options.operators ?? kernelOperators,
-      judging: true,
-      context: options.context,
-      find: finder(options.rows),
-    })
-    return isUnheld(judged) ? unknownBecause(judged.reason) : verdictOf(judged)
-  },
+  ): PredicateVerdict =>
+    verdictOf(
+      run(loweringOf(predicate, [predicate]), {
+        row,
+        owner: ownerOf(predicate),
+        next: options.next ?? noRow,
+        input: options.input ?? {},
+        operators: options.operators ?? kernelOperators,
+        judging: true,
+        context: options.context,
+        rows: options.rows,
+      })[0]!,
+    ),
 
   /**
    * Whether a held row is in a query's result: known when every predicate
@@ -882,23 +263,23 @@ export const Judge = {
         `query "${body.entity.name}" was given text holding a NUL character, or NaN, which no two backends agree on`,
       )
     }
-    const scope: Scope = {
-      row: viewOf(row),
-      input,
+    // Every predicate is asked, as `evaluate` asks them: one may refuse its value.
+    const verdicts = run(loweringOf(body, body.where), {
+      row,
+      owner: body.entity.identity,
       next: noRow,
+      input,
       operators: options.operators ?? kernelOperators,
       judging: true,
       context: options.context,
-      find: finder(options.rows),
-    }
-    // Every predicate is asked, as `evaluate` asks them: one may refuse its value.
-    const truths = body.where.map(each => holds(each, scope))
-    if (truths.some(truth => truth === false || truth === 'unknown')) return Verdict.False()
-    const unheld = truths.find(isUnheld)
-    if (unheld !== undefined) return unknownBecause(unheld.reason)
+      rows: options.rows,
+    }).map(verdictOf)
+    if (verdicts.some(Verdict.isFalse)) return Verdict.False()
+    const unheld = verdicts.find(Verdict.isUnknown)
+    if (unheld !== undefined) return Verdict.Unknown(unheld.reason)
     return options.serverOnly === undefined
       ? Verdict.True()
-      : unknownBecause(`the server also filters by ${options.serverOnly}`)
+      : Verdict.Unknown(`the server also filters by ${options.serverOnly}`)
   },
 
   /**
@@ -914,214 +295,45 @@ export const Judge = {
   ): Pins => pinsOf(predicates, options.input ?? {}, options.context),
 }
 
-/** Every predicate must hold: the list is the conjunction, as it is in a `Query`. */
+const owners = new WeakMap<Predicate, Option.Option<EntityIdentity<string>>>()
+
+/** The Entity whose row a predicate reads, which a hop through a relation starts from. */
+const ownerOf = (predicate: Predicate): EntityIdentity<string> | undefined => {
+  let known = owners.get(predicate)
+  if (known === undefined) {
+    const read = dependenciesOf(predicate)
+    const reached = read.reaches.map(each =>
+      Match.valueTags(each, {
+        Path: ({ via }) => Option.fromUndefinedOr(via[0]?.owner),
+        Exists: ({ via, relation }) => Option.some(via[0]?.owner ?? relation.target().identity),
+        ViewerPath: () => Option.none<EntityIdentity<string>>(),
+      }),
+    )
+    known = Option.firstSomeOf([Option.fromUndefinedOr(read.fields[0]?.owner), ...reached])
+    owners.set(predicate, known)
+  }
+  return Option.getOrUndefined(known)
+}
+
+/** Whether a plain row is in the body's result: every predicate must be true. */
 const matches = (
   body: AnyQuery,
   row: Row,
   input: Row,
-  operators: MemoryOperators,
-  context: ExprContext | undefined,
-): boolean =>
+  scope: Omit<Over, 'row' | 'next' | 'input' | 'judging'>,
+) =>
   // Every predicate is asked, as `and` asks every operand: SQL fixes no order, so
   // one that refuses its value refuses whichever comes first in the list.
-  body.where
-    .map(node =>
-      settled(
-        holds(node, {
-          row: flat(row),
-          input,
-          next: noRow,
-          operators,
-          judging: false,
-          find: noRows,
-          context,
-        }),
-      ),
-    )
+  run(loweringOf(body, body.where), {
+    ...scope,
+    row: flatRow(row),
+    owner: body.entity.identity,
+    next: noRow,
+    input,
+    judging: false,
+  })
+    .map(held => truthOf(settled(held)))
     .every(truth => truth === true)
-
-/** The kinds of value this interpreter orders by; every key of one term must share one. */
-const comparable = new Set(['string', 'number', 'boolean'])
-
-/**
- * Text by code point, as SQLite's `BINARY` and Postgres's `"C"` compare it.
- * JavaScript's `<` compares UTF-16 code units, which puts a character past
- * U+FFFF (two units, the first from U+D800) before U+E000 to U+FFFF, where
- * every byte-ordered backend puts it after.
- */
-const byCodePoint = (left: string, right: string): number => {
-  let i = 0
-  let j = 0
-  while (i < left.length && j < right.length) {
-    const a = left.codePointAt(i)!
-    const b = right.codePointAt(j)!
-    if (a !== b) return a < b ? -1 : 1
-    i += a > 0xffff ? 2 : 1
-    j += b > 0xffff ? 2 : 1
-  }
-  return i < left.length ? 1 : j < right.length ? -1 : 0
-}
-
-/** Two keys of one term, text by its collation (code point when none is declared). */
-const compare = (left: unknown, right: unknown, collation: Option.Option<Collation>): number => {
-  if (typeof left === 'string' && typeof right === 'string') {
-    const fold = Option.exists(collation, declared => declared._tag === 'AsciiFold')
-    return fold ? byCodePoint(foldAscii(left), foldAscii(right)) : byCodePoint(left, right)
-  }
-  if (typeof left === 'boolean' && typeof right === 'boolean') {
-    return Number(left) - Number(right)
-  }
-  return (left as number) - (right as number)
-}
-
-/** What an order's keys are worked out with: a call may read the input, and runs by the table. */
-interface OrderScope {
-  readonly input: Row
-  readonly operators: MemoryOperators
-  readonly context?: ExprContext | undefined
-}
-
-/** Each term's key for one row: a field's value, or what a call comes to over the row. */
-const keysOf = (row: Row, terms: ReadonlyArray<OrderTerm>, scope: OrderScope) =>
-  terms.map(term => {
-    const key = valueOf(term.expr, {
-      row: flat(row),
-      input: scope.input,
-      next: noRow,
-      operators: scope.operators,
-      judging: false,
-      find: noRows,
-      context: scope.context,
-    })
-    // One row's NaN would make every comparison with it NaN, and the sort of
-    // every other row with it: refused for that row.
-    if (isNaNValue(key)) throw refusedNaN(`an order by ${Expr.show(term.expr)}`)
-    return key
-  })
-
-/**
- * Refuses an ordering this interpreter will not answer for, before sorting, so
- * the refusal names the first offending row in row order rather than whichever
- * pair the engine's sort happened to compare first. Every term is checked over
- * every row's keys: a key whose kind differs from the first present one's. A
- * null key is not refused; the term says where it goes.
- */
-const checkOrder = (
-  keys: ReadonlyArray<ReadonlyArray<unknown>>,
-  terms: ReadonlyArray<OrderTerm>,
-  query: string,
-) =>
-  terms.forEach((term, index) => {
-    if (term.expr._tag !== 'Field' && term.expr._tag !== 'Call') {
-      throw new QueryEvaluateError(
-        `query "${query}" orders by something that is neither a field nor a call`,
-      )
-    }
-    if (Option.exists(term.collation, declared => declared._tag === 'Locale')) {
-      throw new QueryEvaluateError(
-        `query "${query}" orders ${Expr.show(term.expr)} by a backend's locale collation, which only that backend has`,
-      )
-    }
-    let first: string | undefined
-    for (const row of keys) {
-      const value = row[index]
-      if (isNull(value)) continue
-      const kind = typeof value
-      first ??= kind
-      if (kind !== first || !comparable.has(kind)) {
-        throw new QueryEvaluateError(
-          `query "${query}" orders by values this interpreter cannot compare (${first} and ${kind})`,
-        )
-      }
-    }
-  })
-
-/**
- * Refuses an order over text with no declared collation: JavaScript would
- * answer by code point where SQLite compares bytes and Postgres follows its
- * locale. Asked wherever the answer depends on the order, and not of a
- * membership judged alone (`evaluateEach`), which no order decides.
- */
-const checkCollated = (terms: ReadonlyArray<OrderTerm>, query: string) => {
-  for (const term of terms) {
-    const uncollated = uncollatedText(term)
-    if (Option.isSome(uncollated)) {
-      throw new QueryEvaluateError(`query "${query}" cannot be ordered: ${uncollated.value}`)
-    }
-  }
-}
-
-/** Two rows' keys by checked terms: negative when `left` sorts first. */
-const byTerms = (
-  terms: ReadonlyArray<OrderTerm>,
-  left: ReadonlyArray<unknown>,
-  right: ReadonlyArray<unknown>,
-): number => {
-  for (const [index, term] of terms.entries()) {
-    const absentLeft = isNull(left[index])
-    const absentRight = isNull(right[index])
-    // Where a row without a value goes is the term's to say, whichever the
-    // direction; two such rows tie, for the next term.
-    if (absentLeft || absentRight) {
-      if (absentLeft && absentRight) continue
-      return absentLeft === (term.nulls === 'first') ? -1 : 1
-    }
-    const sign = compare(left[index], right[index], term.collation)
-    if (sign !== 0) return term.direction === 'asc' ? sign : -sign
-  }
-  return 0
-}
-
-const ordered = (
-  rows: ReadonlyArray<Row>,
-  terms: ReadonlyArray<OrderTerm>,
-  query: string,
-  scope: OrderScope,
-) => {
-  // Keys are worked out and checked however few the rows, so a term refused over
-  // one row is refused as it is over many, as `evaluateEach` refuses it.
-  if (terms.length === 0) return [...rows]
-  checkCollated(terms, query)
-  // Each row's keys worked out once, not once per comparison: a call may be dear.
-  const keyed = rows.map(row => ({ row, keys: keysOf(row, terms, scope) }))
-  checkOrder(
-    keyed.map(({ keys }) => keys),
-    terms,
-    query,
-  )
-  return keyed.sort((left, right) => byTerms(terms, left.keys, right.keys)).map(({ row }) => row)
-}
-
-/**
- * Where `left` sorts against `right` under these terms (`Query.orderFor`'s),
- * as `evaluate` sorts: negative when it comes first. A call among them runs
- * over each row with `input` and `operators` (the kernel's when not given).
- * Refuses what `evaluate` refuses, for these two rows: a term over neither a
- * field nor a call, a locale collation, text with no declared collation, keys
- * of different kinds, or an operator the table lacks. For a client placing
- * one row among others it holds.
- */
-export const compareRows = (
-  terms: ReadonlyArray<OrderTerm>,
-  left: Row,
-  right: Row,
-  query: string,
-  options: {
-    readonly input?: Row | undefined
-    readonly operators?: MemoryOperators | undefined
-    readonly context?: ExprContext | undefined
-  } = {},
-): number => {
-  const scope = {
-    input: options.input ?? {},
-    operators: options.operators ?? kernelOperators,
-    context: options.context,
-  }
-  const keys = [keysOf(left, terms, scope), keysOf(right, terms, scope)] as const
-  checkCollated(terms, query)
-  checkOrder(keys, terms, query)
-  return byTerms(terms, keys[0], keys[1])
-}
 
 /**
  * The operations this interpreter runs. It is the reference, so this is the
@@ -1186,7 +398,7 @@ export const evaluate = (
   const { context } = options
   assertSupported(body, operators)
   return ordered(
-    rows.filter(row => matches(body, row, input, operators, context)),
+    rows.filter(row => matches(body, row, input, { operators, context })),
     Query.orderFor(body, input),
     body.entity.name,
     { input, operators, context },
@@ -1226,13 +438,14 @@ export const evaluateEach = (
   const { context } = options
   assertSupported(body, operators)
   const terms = Query.orderFor(body, input)
+  checkTerms(terms, body.entity.name)
   const read = [...body.where, ...terms.map(term => term.expr)]
   const scope = { input, operators, context }
   const keyed: Array<{ readonly row: Row; readonly keys: ReadonlyArray<unknown> }> = []
   const refused: Row[] = []
   for (const row of rows) {
     try {
-      if (matches(body, row, input, operators, context))
+      if (matches(body, row, input, { operators, context }))
         keyed.push({ row, keys: keysOf(row, terms, scope) })
     } catch (error) {
       if (
@@ -1245,7 +458,7 @@ export const evaluateEach = (
       refused.push(row)
     }
   }
-  checkOrder(
+  checkKeys(
     keyed.map(({ keys }) => keys),
     terms,
     body.entity.name,
@@ -1257,6 +470,8 @@ export const evaluateEach = (
     refused,
   }
 }
+
+const NUL = String.fromCharCode(0)
 
 /**
  * Whether a constant of `read`, or a value of `input` that `inputs` name, is
@@ -1271,6 +486,8 @@ const givenUnportable = (
   Expr.givesUnportable(...read) ||
   inputs.some(key => {
     const value = input[key]
-    const unportable = (each: unknown) => holdsNul(each) || isNaNValue(each)
+    const unportable = (each: unknown) =>
+      (typeof each === 'string' && each.includes(NUL)) ||
+      (typeof each === 'number' && Number.isNaN(each))
     return Array.isArray(value) ? value.some(unportable) : unportable(value)
   })

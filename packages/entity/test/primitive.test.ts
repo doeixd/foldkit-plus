@@ -114,9 +114,15 @@ describe('A primitive operator', () => {
 
   it('refuses text holding a NUL before the implementation sees it', () => {
     const body = where(Expr.eq(joined(fields.code, `a${String.fromCharCode(0)}`), 'x'))
-    expect(() => ids(body, Operators.memory(joinedLive))).toThrow(
-      'the operator "acme.joined" was given text holding a NUL character',
+    const seen: Array<string> = []
+    const watched = Operators.implement(joined, (left, right) => {
+      seen.push(right)
+      return `${left}${right}`
+    })
+    expect(() => ids(body, Operators.memory(watched))).toThrow(
+      'acme.joined: text holding a NUL character',
     )
+    expect(seen).toEqual([])
   })
 
   it('names itself when its implementation throws', () => {
@@ -126,19 +132,32 @@ describe('A primitive operator', () => {
       }),
     )
     expect(() => ids(where(Expr.eq(joined(fields.code, '!'), 'x')), table)).toThrow(
-      'the operator "acme.joined" failed: boom',
+      'acme.joined: acme.joined@1: boom',
     )
   })
 
-  it('has its answer held to its output schema by a checked table', () => {
+  it('is refused for an answer of another kind than it declares, checked table or not', () => {
     const wrong = Operators.memory(
       // @ts-expect-error a number is not the text it gives
       Operators.implement(joined, () => 7),
     )
     const body = where(Expr.eq(joined(fields.code, '!'), 'x'))
-    expect(() => ids(body, wrong)).not.toThrow()
+    expect(() => ids(body, wrong)).toThrow('acme.joined: expected a text, got number')
     expect(() => ids(body, Operators.checked(wrong))).toThrow(
-      'the operator "acme.joined" answered 7, which its output schema does not admit',
+      'acme.joined: expected a value its output schema admits, got number',
+    )
+  })
+
+  it('has its answer held to its output schema by a checked table', () => {
+    const short = Expr.operator('acme.short', {
+      input: [Schema.String],
+      output: Schema.String.check(Schema.isMaxLength(1)),
+    })
+    const long = Operators.memory(Operators.implement(short, () => 'ab'))
+    const body = where(Expr.eq(short(fields.code), 'x'))
+    expect(() => ids(body, long)).not.toThrow()
+    expect(() => ids(body, Operators.checked(long))).toThrow(
+      'expected a value its output schema admits',
     )
   })
 
@@ -147,7 +166,7 @@ describe('A primitive operator', () => {
       // @ts-expect-error text is not the truth it gives
       Operators.implementHandlingNulls(blank, () => 'yes'),
     )
-    expect(() => ids(where(blank(fields.note)), table)).toThrow('which is not a truth')
+    expect(() => ids(where(blank(fields.note)), table)).toThrow('expected a boolean, got string')
   })
 })
 

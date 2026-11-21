@@ -88,8 +88,8 @@ export default [
     name: 'keys of different kinds are compared anyway',
     edits: [
       {
-        file: '../../entity/src/evaluate.ts',
-        find: 'checkOrder(keys, terms, query)',
+        file: '../../entity/src/rowOrder.ts',
+        find: 'checkKeys(keys, terms, query)',
         replace: 'void terms',
       },
     ],

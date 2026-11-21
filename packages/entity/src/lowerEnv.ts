@@ -7,15 +7,15 @@
  * `{ rows, whole }` under `<Entity.relation`, `whole` when the holder has
  * every one.
  */
-import { Match, Option } from 'effect'
+import { Option } from 'effect'
 import { Node } from 'metakit'
 import type { ExprContext } from './context.js'
 import { relationsOf } from './descriptor.js'
-import { Judge } from './evaluate.js'
-import type { OneRelation, Predicate } from './expr.js'
+import type { OneRelation } from './expr.js'
 import { Held, type HeldRow, type HeldRows, type Pinned } from './held.js'
 import type { EntityIdentity } from './index.js'
 import { ASKER, type Lowered, type RelatedSlot } from './lower.js'
+import { conjuncts, pinsOf as pinsOfFilter } from './pins.js'
 import { own, put } from './record.js'
 
 /** What the nodes read, as a tree of segments. */
@@ -72,14 +72,19 @@ const visit = (node: Node.Node, resolve: (segments: ReadonlyArray<string>) => Ne
 /** What the judged row is, and what else the nodes may read. */
 export interface EnvSource {
   readonly row: HeldRow
-  /** The Entity `row` (and `next`) is a row of. */
-  readonly owner: EntityIdentity<string>
+  /**
+   * The Entity `row` (and `next`) is a row of; without it no relation of
+   * theirs is followed, and what one reaches is not known.
+   */
+  readonly owner?: EntityIdentity<string> | undefined
   readonly next?: HeldRow | undefined
   readonly input?: Readonly<Record<string, unknown>> | undefined
   /** Who asks and when; without it `viewer` and `now` are not known. */
   readonly context?: ExprContext | undefined
   /** Where the viewer's row is found; without them its fields are not known. */
   readonly rows?: HeldRows | undefined
+  /** Told each segment list left out of the environment, with the holder's reason. */
+  readonly unheld?: ((segments: ReadonlyArray<string>, reason: string) => void) | undefined
 }
 
 const oneRelation = (owner: EntityIdentity<string>, key: string): OneRelation => {
@@ -89,12 +94,6 @@ const oneRelation = (owner: EntityIdentity<string>, key: string): OneRelation =>
   }
   return member as OneRelation
 }
-
-/** A filter's conjuncts, as `Judge.pins` reads them. */
-const conjuncts = Match.type<Predicate>().pipe(
-  Match.tag('And', ({ operands }): ReadonlyArray<Predicate> => operands),
-  Match.orElse(single => [single]),
-)
 
 /**
  * The environment `lowered`'s nodes read over `source`. The values `pinned`
@@ -110,22 +109,35 @@ export const envOf = (lowered: Lowered, source: EnvSource): Readonly<Record<stri
   const pinsOf = ({ filters }: RelatedSlot): Pinned => {
     const [first, ...rest] = filters.map(Option.getOrUndefined)
     if (first === undefined || rest.some(other => other !== first)) return new Map()
-    return Judge.pins(conjuncts(first), { input, context: source.context }).pins
+    return pinsOfFilter(conjuncts(first), input, source.context).pins
   }
-  const fill = (row: HeldRow, owner: EntityIdentity<string>, wanted: Need) => {
+  const left = (segments: ReadonlyArray<string>) => (reason: string) => {
+    source.unheld?.(segments, reason)
+  }
+  const fill = (
+    row: HeldRow,
+    owner: EntityIdentity<string> | undefined,
+    wanted: Need,
+    at: ReadonlyArray<string>,
+  ) => {
     const record: Record<string, unknown> = {}
     for (const [segment, child] of wanted) {
+      const here = [...at, segment]
       if (segment.startsWith('@')) {
+        if (owner === undefined) {
+          left(here)('the row was given without its Entity, so no relation of it is followed')
+          continue
+        }
         const relation = oneRelation(owner, segment.slice(1))
         Held.match(row.follow(relation), {
-          onUnheld: () => undefined,
+          onUnheld: left(here),
           onHeld: target =>
             put(
               record,
               segment,
               Option.match(target, {
                 onNone: () => null,
-                onSome: reached => fill(reached, relation.target().identity, child),
+                onSome: reached => fill(reached, relation.target().identity, child, here),
               }),
             ),
         })
@@ -135,13 +147,14 @@ export const envOf = (lowered: Lowered, source: EnvSource): Readonly<Record<stri
           throw new Error(`[foldkit-entity] lowerEnv: no relation is held under ${segment}`)
         }
         const { rows, missing } = row.pointing(slot.relation, pinsOf(slot))
+        Option.map(missing, left(here))
         put(record, segment, {
-          rows: rows.map(each => fill(each, slot.relation.owner, child)),
+          rows: rows.map(each => fill(each, slot.relation.owner, child, [...here, '*'])),
           whole: Option.isNone(missing),
         })
       } else {
         Held.match(row.field(segment), {
-          onUnheld: () => undefined,
+          onUnheld: left(here),
           onHeld: value => put(record, segment, value ?? null),
         })
       }
@@ -150,8 +163,10 @@ export const envOf = (lowered: Lowered, source: EnvSource): Readonly<Record<stri
   }
   const env: Record<string, unknown> = {}
   const wanted = (slice: string): Need => need.get(slice) ?? new Map()
-  put(env, 'row', fill(source.row, source.owner, wanted('row')))
-  if (source.next !== undefined) put(env, 'next', fill(source.next, source.owner, wanted('next')))
+  put(env, 'row', fill(source.row, source.owner, wanted('row'), ['row']))
+  if (source.next !== undefined) {
+    put(env, 'next', fill(source.next, source.owner, wanted('next'), ['next']))
+  }
   const given: Record<string, unknown> = {}
   // An input not given is null, as SQL binds it.
   for (const key of wanted('input').keys()) put(given, key, own(input, key) ?? null)
@@ -178,7 +193,10 @@ export const envOf = (lowered: Lowered, source: EnvSource): Readonly<Record<stri
             const asker = { [ASKER]: id }
             const fields: Need = new Map([...child].filter(([key]) => key !== ASKER))
             return Held.match(found, {
-              onUnheld: () => asker,
+              onUnheld: reason => {
+                left(['viewer', name])(reason)
+                return asker
+              },
               onHeld: row =>
                 Option.match(row, {
                   // A row the reader may not see: what is read of it, its id too, is null.
@@ -187,7 +205,10 @@ export const envOf = (lowered: Lowered, source: EnvSource): Readonly<Record<stri
                     for (const key of fields.keys()) put(hidden, key, null)
                     return hidden
                   },
-                  onSome: held => ({ ...fill(held, entity.identity, fields), ...asker }),
+                  onSome: held => ({
+                    ...fill(held, entity.identity, fields, ['viewer', name]),
+                    ...asker,
+                  }),
                 }),
             })
           },

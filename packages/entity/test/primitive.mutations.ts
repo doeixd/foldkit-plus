@@ -7,6 +7,7 @@ const expr = '../src/expr.ts'
 const evaluate = '../src/evaluate.ts'
 const operators = '../src/operators.ts'
 const memoryTable = '../src/memoryTable.ts'
+const lowerOperator = '../src/lowerOperator.ts'
 const invariant = '../src/invariant.ts'
 const tests = [
   'packages/entity/test/primitive.test.ts',
@@ -22,46 +23,22 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 export default [
   // ---- running a call
   edit(
-    'a strict operator is asked about a null',
-    evaluate,
-    "if (operator.nulls === 'strict' && values.some(isNull)) return null",
-    '',
-  ),
-  edit(
     'text holding NUL reaches an implementation',
-    evaluate,
-    'if (values.some(holdsNul)) {',
+    lowerOperator,
+    "if (values.some(value => typeof value === 'string' && value.includes(NUL))) {",
     'if (false) {',
-  ),
-  edit(
-    'a throw from an implementation goes out unnamed',
-    evaluate,
-    'if (error instanceof QueryEvaluateError) throw error',
-    'throw error',
   ),
   edit(
     'a checked table checks nothing',
-    evaluate,
-    'if (checked && !unknownTruth',
-    'if (false && !unknownTruth',
-  ),
-  edit(
-    'a predicate may answer something that is not a truth',
-    evaluate,
-    "if (typeof answer !== 'boolean') {",
-    'if (false) {',
-  ),
-  edit(
-    'a predicate answering null is not unknown',
-    evaluate,
-    "if (answer === null || answer === undefined) return 'unknown'",
-    '',
+    lowerOperator,
+    'return operators.checked &&',
+    'return false &&',
   ),
   edit(
     'a table is never asked',
-    evaluate,
-    'Option.match(scope.operators.get(call.operator), {',
-    'Option.match(Option.none<never>(), {',
+    '../src/judgeRun.ts',
+    'const foreign: ForeignImplementations = foreignOf(lowered, over.operators)',
+    'const foreign: ForeignImplementations = {}',
   ),
   edit(
     'evaluate ignores the table it is given',
@@ -78,14 +55,14 @@ export default [
   edit(
     'deciding over the input ignores the table',
     evaluate,
-    '            operators,\n            judging: false,\n            find: noRows,\n            context,\n',
-    '            operators: kernelOperators,\n            judging: false,\n            find: noRows,\n            context,\n',
+    '{ row: noRow, next: noRow, input, operators, context }',
+    '{ row: noRow, next: noRow, input, operators: kernelOperators, context }',
   ),
   edit(
     'a row is judged with the kernel whatever the table',
     evaluate,
-    '      next: flat(next),\n      operators,\n',
-    '      next: flat(next),\n      operators: kernelOperators,\n',
+    '{ row: flatRow(row), next: flatRow(next), input, operators }',
+    '{ row: flatRow(row), next: flatRow(next), input, operators: kernelOperators }',
   ),
 
   // ---- tables
@@ -116,9 +93,9 @@ export default [
   ),
   edit(
     'startsWith never folds',
-    memoryTable,
-    "const folded = Option.exists(collation, each => each._tag === 'AsciiFold')",
-    'const folded = false',
+    lowerOperator,
+    '(args, fold) => Node.Call({ op: Str.startsWithOp, args: args.map(fold) }),',
+    '(args) => Node.Call({ op: Str.startsWithOp, args }),',
   ),
 
   // ---- declaring and calling

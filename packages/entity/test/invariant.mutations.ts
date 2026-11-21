@@ -87,8 +87,8 @@ export default [
   ),
   edit(
     'the evaluator reads the row after as the row',
-    'return scope.next.field(node.field.key)',
-    'return scope.row.field(node.field.key)',
+    'truthOf(valueOver(node, node, { row: flatRow(row), next: flatRow(next), input, operators }))',
+    'truthOf(valueOver(node, node, { row: flatRow(row), next: flatRow(row), input, operators }))',
     '../src/evaluate.ts',
   ),
   edit(

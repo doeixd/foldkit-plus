@@ -87,6 +87,7 @@ const Thing = Entity.define(
   'Thing',
   Schema.Struct({ id: Schema.String, label: Schema.NullOr(Schema.String), rank: Schema.Number }),
 )
+const Counted = Entity.define('Counted', Schema.Struct({ id: Schema.String, rank: Schema.Int }))
 const one = (values: Readonly<Record<string, unknown>>, hidden: ReadonlyArray<string> = []) =>
   Option.getOrThrow(
     Held.rows([{ entity: Thing, rows: [{ id: 'x', ...values }], hidden }]).row(Thing, 'x'),
@@ -128,14 +129,27 @@ describe('Judge, operator by operator', () => {
   })
 
   it.each([
+    { what: 'eq', predicate: Expr.eq(Counted.fields.rank, given) },
+    { what: 'compare', predicate: Expr.lt(Counted.fields.rank, given) },
+  ])(
+    '$what of a null beside an unheld integer is null, as SQL is whatever the other holds',
+    ({ predicate }) => {
+      const noRank = Option.getOrThrow(
+        Held.rows([{ entity: Counted, rows: [{ id: 'x' }] }]).row(Counted, 'x'),
+      )
+      expect(truth(Judge.predicate(predicate, noRank, { input: { given: null } }))).toBe('unknown')
+      expect(truth(Judge.predicate(predicate, noRank, { input: { given: 1 } }))).toBe('unheld')
+    },
+  )
+
+  it.each([
     { what: 'eq', predicate: Expr.eq(Thing.fields.rank, given) },
     { what: 'compare', predicate: Expr.lt(Thing.fields.rank, given) },
   ])(
-    '$what of a null beside an unheld value is null, as SQL is whatever the other holds',
+    '$what of a null beside an unheld plain number is unknown: the number may be NaN, which refuses before null',
     ({ predicate }) => {
       const noRank = one({ label: 'a' })
-      expect(truth(Judge.predicate(predicate, noRank, { input: { given: null } }))).toBe('unknown')
-      expect(truth(Judge.predicate(predicate, noRank, { input: { given: 1 } }))).toBe('unheld')
+      expect(truth(Judge.predicate(predicate, noRank, { input: { given: null } }))).toBe('unheld')
     },
   )
 
@@ -161,7 +175,7 @@ describe('Judge, operator by operator', () => {
     expect(truth(Judge.predicate(falseOr, unheld))).toBe('unheld')
   })
 
-  it('a strict operator given a null beside an unheld argument is null, not unknown', () => {
+  it('a primitive operator given a null beside an unheld argument is unknown: its implementation may refuse', () => {
     const both = Expr.operator('test.both', {
       input: [Schema.NullOr(Schema.String), Schema.NullOr(Schema.String)],
       output: Schema.Boolean,
@@ -181,7 +195,7 @@ describe('Judge, operator by operator', () => {
         operators,
       },
     )
-    expect(truth(judged)).toBe('unknown')
+    expect(truth(judged)).toBe('unheld')
   })
 
   it('an operator the holder does not run is unknown, where evaluate refuses it', () => {
@@ -224,7 +238,16 @@ describe('the two-valued interpreter, given one row', () => {
   })
 
   it('still decides what does not rest on the other row', () => {
-    const settled = Expr.or(Expr.eq(M.fields.rank, 1), Expr.exists(B.relations.member))
-    expect(truthOver(settled, { id: 'm1', rank: 1 })).toBe(true)
+    expect(
+      truthOver(Expr.or(Expr.eq(M.fields.rank, 1), Expr.isNull(M.fields.rank)), {
+        id: 'm1',
+        rank: 1,
+      }),
+    ).toBe(true)
+  })
+
+  it('does not settle an or by its own row beside an exists, which is not judged without its rows', () => {
+    const beside = Expr.or(Expr.eq(M.fields.rank, 1), Expr.exists(B.relations.member))
+    expect(() => truthOver(beside, { id: 'm1', rank: 1 })).toThrow(RowsMissingError)
   })
 })

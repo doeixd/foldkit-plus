@@ -110,42 +110,6 @@ export default [
     tests: ir,
   },
   {
-    name: 'an and with a false operand is only unknown',
-    edits: [
-      { file: evaluate, find: '      if (truths.includes(false)) return false\n', replace: '' },
-    ],
-    tests: semantics,
-  },
-  {
-    name: 'an or with a true operand is only unknown',
-    edits: [
-      { file: evaluate, find: '      if (truths.includes(true)) return true\n', replace: '' },
-    ],
-    tests: semantics,
-  },
-  {
-    name: 'lt holds where the two order together',
-    edits: [
-      {
-        file: evaluate,
-        find: "Match.when('lt', () => order < 0)",
-        replace: "Match.when('lt', () => order <= 0)",
-      },
-    ],
-    tests: comparisons,
-  },
-  {
-    name: 'a comparison ignores its collation',
-    edits: [
-      {
-        file: evaluate,
-        find: 'const order = compare(left, right, node.collation)',
-        replace: 'const order = compare(left, right, Option.none())',
-      },
-    ],
-    tests: comparisons,
-  },
-  {
     name: 'text with no collation is compared anyway',
     edits: [
       {
@@ -187,16 +151,5 @@ export default [
     name: 'a comparison is not named among the operations',
     edits: [{ file: expr, find: "found.operations.add('compare')", replace: 'void 0' }],
     tests: comparisons,
-  },
-  {
-    name: 'not of an unknown is true',
-    edits: [
-      {
-        file: evaluate,
-        find: "return truth === 'unknown' || isUnheld(truth) ? truth : !truth",
-        replace: 'return isUnheld(truth) ? truth : truth !== true',
-      },
-    ],
-    tests: semantics,
   },
 ]

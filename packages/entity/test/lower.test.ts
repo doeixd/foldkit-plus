@@ -1,10 +1,10 @@
 /**
- * The differential test of the translation (`src/lower.ts`, step 4 of the
- * kernel convergence note): every conformance case run through today's judge
- * over the old nodes and through metakit's evaluation of the translated
- * nodes, predicate by predicate and row by row, and the whole query against
- * the case's `expected`. The two must give one answer, except where
- * `differences` names the case and says why.
+ * The regression test of the switch (step 5 of the kernel convergence note):
+ * the judge reads metakit's evaluation of the translation (`src/lower.ts`),
+ * so over every conformance case it answers as metakit's evaluator does over
+ * the translated nodes, predicate by predicate and row by row, and the whole
+ * query answers the case's `expected`. Where the old judge answered otherwise
+ * (`differences`), the judge now gives metakit's answer.
  */
 import { Verdict } from 'metakit'
 import { describe, expect, it } from 'vitest'
@@ -32,35 +32,48 @@ import {
   type ConformanceCase,
 } from '../src/conformance/index.js'
 import { compared, entityJudged, idOf, metakitJudged, metakitQuery } from './lowerHarness.js'
-import { differences, type Difference } from './lowerDifferences.js'
+import { differences } from './lowerDifferences.js'
 import { kindCases } from './lowerKindCases.js'
 
-/** Each row where the two judges part, by predicate. */
-const parted = (
+interface Answered {
+  readonly row: string
+  readonly at: number
+  readonly entity: string
+  readonly metakit: string
+}
+
+/** Where the judge and metakit part (none), and the judge's answer at each listed difference. */
+const held = (what: string, answers: ReadonlyArray<Answered>) => ({
+  parted: answers.filter(({ entity, metakit }) => entity !== metakit),
+  listed: differences
+    .filter(difference => difference.what === what)
+    .map(({ row, at }) => ({
+      row,
+      at,
+      answer: answers.find(each => each.row === row && each.at === at)?.entity,
+    })),
+})
+
+const nowOf = (what: string) =>
+  differences
+    .filter(difference => difference.what === what)
+    .map(({ row, at, now }) => ({ row, at, answer: now }))
+
+const listed = (what: string) => nowOf(what).length > 0
+
+const answered = (
   body: AnyQuery,
   holder: HeldRows,
   input: Readonly<Record<string, unknown>>,
   context?: ExprContext,
-): ReadonlyArray<Pick<Difference, 'row' | 'at' | 'entity' | 'metakit'>> =>
+): ReadonlyArray<Answered> =>
   holder.rows(body.entity).flatMap(row =>
-    body.where.flatMap((predicate, at) => {
-      const { entity, metakit } = compared(predicate, {
-        entity: body.entity,
-        row,
-        input,
-        context,
-        rows: holder,
-      })
-      return entity === metakit ? [] : [{ row: idOf(row), at, entity, metakit }]
-    }),
+    body.where.map((predicate, at) => ({
+      row: idOf(row),
+      at,
+      ...compared(predicate, { entity: body.entity, row, input, context, rows: holder }),
+    })),
   )
-
-const expectedOf = (what: string) =>
-  differences
-    .filter(difference => difference.what === what)
-    .map(({ row, at, entity, metakit }) => ({ row, at, entity, metakit }))
-
-const listed = (what: string) => expectedOf(what).length > 0
 
 const evaluated = (c: ConformanceCase, given: ReadonlyArray<Readonly<Record<string, unknown>>>) => {
   try {
@@ -76,10 +89,13 @@ const flat = [
   ...variantCases.map(c => ({ c, given: variantRows })),
 ]
 
-describe('every flat conformance case, through both judges', () => {
+describe('every flat conformance case, the judge and metakit alike', () => {
   it.each(flat)('$c.what', ({ c, given }) => {
     const holder = Held.rows([{ entity: c.body.entity, rows: given }])
-    expect(parted(c.body, holder, c.input)).toEqual(expectedOf(c.what))
+    expect(held(c.what, answered(c.body, holder, c.input))).toEqual({
+      parted: [],
+      listed: nowOf(c.what),
+    })
     const ids = metakitQuery(
       c.body.entity,
       c.body.where,
@@ -88,15 +104,17 @@ describe('every flat conformance case, through both judges', () => {
       { input: c.input },
     )
     expect(evaluated(c, given)).toEqual(c.expected)
-    // A case whose rows part is pinned above, row by row.
     if (!listed(c.what)) expect(ids).toEqual(c.expected)
   })
 })
 
-describe('every refusal, through both judges', () => {
+describe('every refusal, the judge and metakit alike', () => {
   it.each([...refusals, ...primitiveRefusals])('$what', c => {
     const holder = Held.rows([{ entity: c.body.entity, rows }])
-    expect(parted(c.body, holder, c.input)).toEqual(expectedOf(c.what))
+    expect(held(c.what, answered(c.body, holder, c.input))).toEqual({
+      parted: [],
+      listed: nowOf(c.what),
+    })
     expect(() => evaluate(c.body, c.input, rows)).toThrow(QueryEvaluateError)
     const ids = metakitQuery(c.body.entity, c.body.where, [], holder.rows(c.body.entity), {
       input: c.input,
@@ -111,7 +129,10 @@ describe('every relational case, over everything the reader may see', () => {
   it.each(relationalCases)('$what', c => {
     const holder = Held.rows(everything!.tables)
     const context = relationalContext(c)
-    expect(parted(c.body, holder, c.input, context)).toEqual(expectedOf(c.what))
+    expect(held(c.what, answered(c.body, holder, c.input, context))).toEqual({
+      parted: [],
+      listed: nowOf(c.what),
+    })
     const kept = holder
       .rows(c.body.entity)
       .filter(row => Verdict.isTrue(Judge.query(c.body, c.input, row, { context, rows: holder })))
@@ -137,16 +158,15 @@ describe('every relational case, over less than the reader may see', () => {
     const judged = holder.rows(c.body.entity).flatMap(row =>
       c.body.where.map((predicate, at) => {
         const over = { entity: c.body.entity, row, input: c.input, context, rows: holder }
-        const entity = entityJudged(predicate, over)
-        const metakit = metakitJudged(predicate, over)
-        return { row: idOf(row), at, entity, metakit }
+        return {
+          row: idOf(row),
+          at,
+          entity: entityJudged(predicate, over),
+          metakit: metakitJudged(predicate, over),
+        }
       }),
     )
-    expect(judged.filter(({ entity, metakit }) => entity !== metakit)).toEqual(expectedOf(name))
-  })
-
-  it('leaves no difference a decision does not cover', () => {
-    expect(differences.filter(({ kind }) => kind === 'uncovered')).toEqual([])
+    expect(held(name, judged)).toEqual({ parted: [], listed: nowOf(name) })
   })
 
   it('names in each difference a case this test or lowerKinds.test.ts runs', () => {

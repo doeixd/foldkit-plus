@@ -11,7 +11,7 @@ const tests = [
   'packages/remote/test/matching.test.ts',
 ]
 const expr = '../src/expr.ts'
-const evaluate = '../src/evaluate.ts'
+const evaluate = '../src/rowOrder.ts'
 const cursor = '../../remote-drizzle/src/cursor.ts'
 const compile = '../../remote-drizzle/src/compile.ts'
 

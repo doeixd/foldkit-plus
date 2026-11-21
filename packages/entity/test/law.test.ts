@@ -218,7 +218,7 @@ describe('Testing laws', () => {
     })
   })
 
-  it('takes equal infinities as in order, and NaN beside a number as not (#320)', () => {
+  it('leaves a law unanswered where an implementation answers an infinity, which evaluation refuses, and still finds NaN beside a number out of order', () => {
     const verdict = (answer: (n: number) => number) => {
       const op = Expr.operator('acme.far', {
         input: [Schema.Int],
@@ -227,9 +227,9 @@ describe('Testing laws', () => {
       })
       return Conformance.laws(op, Operators.memory(Operators.implement(op, answer)))._tag
     }
-    expect(verdict(() => Infinity)).toBe('Holds')
-    expect(verdict(() => -Infinity)).toBe('Holds')
-    expect(verdict(n => (n < 1 ? -Infinity : Infinity))).toBe('Holds')
+    expect(verdict(n => n)).toBe('Holds')
+    expect(verdict(() => Infinity)).toBe('Unanswered')
+    expect(verdict(() => -Infinity)).toBe('Unanswered')
     expect(verdict(n => (n < 1 ? Number.NaN : n))).toBe('Counterexample')
   })
 
@@ -301,12 +301,10 @@ describe('Testing laws under each collation', () => {
     }),
   )
 
-  it('finds a law that holds under binary and breaks under asciiFold', () => {
-    // Folded, 'a' and 'A' tie, so each order keeps its own left.
-    expect(Conformance.laws(least, leastLive)).toMatchObject({
-      _tag: 'Counterexample',
-      collation: Option.some(Collation.asciiFold),
-    })
+  it('tells an implementation no collation, so one that reads it keeps its law under each', () => {
+    // An implementation is given text, folded where its operator compares it
+    // (`collation: 'required'`), and is told no collation: this one never folds.
+    expect(Conformance.laws(least, leastLive)).toMatchObject({ _tag: 'Holds' })
   })
 
   it('calls a witness that compares text under the collation', () => {
@@ -480,7 +478,16 @@ describe('Running an operator through several implementations', () => {
       valueOfOperand(
         Text.startsWith(null, `a${String.fromCharCode(0)}`, { collation: Collation.binary }),
       ),
-    ).toThrow('was given text holding a NUL character')
+    ).toThrow('str.startsWith: text holding a NUL character')
+  })
+
+  it('refuses an implementation of a kernel operator, which is a metakit operation every table runs', () => {
+    expect(() =>
+      Operators.override(
+        Operators.kernel,
+        Operators.implement(Text.startsWith, (text, prefix) => text.startsWith(prefix)),
+      ),
+    ).toThrow("text.startsWith is metakit's own operation")
   })
 
   it('compares a Date by its time, and a field holding undefined as one absent', async () => {
@@ -511,15 +518,23 @@ describe('Running an operator through several implementations', () => {
   })
 
   it('names the calls where one folds case and the other does not', async () => {
-    const folding = Operators.override(
-      Operators.kernel,
-      Operators.implement(Text.startsWith, (text, prefix) =>
+    const begins = Expr.operator('acme.begins', {
+      input: [Schema.String, Schema.String],
+      output: Schema.Boolean,
+      collation: 'required',
+    })
+    const exact = Operators.memory(
+      Operators.implement(begins, (text, prefix) => text.startsWith(prefix)),
+    )
+    // Folds whatever the call's collation, which is given folded text only under asciiFold.
+    const folding = Operators.memory(
+      Operators.implement(begins, (text, prefix) =>
         Collation.foldAscii(text).startsWith(Collation.foldAscii(prefix)),
       ),
     )
-    const report = await Conformance.operator(Text.startsWith, {
+    const report = await Conformance.operator(begins, {
       implementations: {
-        kernel: Conformance.memory(Operators.kernel),
+        kernel: Conformance.memory(exact),
         folding: Conformance.memory(folding),
       },
       cases: [

@@ -10,7 +10,7 @@ const tests = [
   'packages/remote-drizzle/test/conformance.test.ts',
 ]
 const expr = '../../entity/src/expr.ts'
-const evaluate = '../../entity/src/evaluate.ts'
+const evaluate = '../../entity/src/rowOrder.ts'
 const cursor = '../src/cursor.ts'
 
 export default [

@@ -223,19 +223,6 @@ export default [
     'false',
   ),
 
-  // ---- NUL before null
-  {
-    name: 'a null beside NUL answers first',
-    edits: [
-      {
-        file: '../src/evaluate.ts',
-        find: '  if (values.some(holdsNul)) {',
-        replace:
-          "  if (operator.nulls === 'strict' && values.some(isNull)) return null\n  if (values.some(holdsNul)) {",
-      },
-    ],
-    tests,
-  },
   edit(
     'a table takes evidence of another implementation',
     operators,

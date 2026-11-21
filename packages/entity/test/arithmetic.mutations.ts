@@ -5,7 +5,7 @@
  */
 const expr = '../src/expr.ts'
 const memory = '../src/memoryTable.ts'
-const sql = '../../remote-drizzle/src/operators.ts'
+const sql = '../../metakit/src/sqlLowering.ts'
 const write = '../src/write.ts'
 const invariant = '../src/invariant.ts'
 const entityTests = [
@@ -32,29 +32,17 @@ export default [
     'Expr.or(condition, then) as',
   ),
   edit(
-    'memory adds as it subtracts',
-    memory,
-    '(left as number) + (right as number)',
-    '(left as number) - (right as number)',
-  ),
-  edit(
-    'memory subtracts the first from the second',
-    memory,
-    '(left as number) - (right as number)',
-    '(right as number) - (left as number)',
-  ),
-  edit(
     'SQL subtracts as it adds',
     sql,
-    'sql`(${left} - ${right})`',
-    'sql`(${left} + ${right})`',
+    "'num.sub': numeric(() => '-'),",
+    "'num.sub': numeric(() => '+'),",
     sqlTests,
   ),
   edit(
     'SQL adds the first to itself',
     sql,
-    'sql`(${left} + ${right})`',
-    'sql`(${left} + ${left})`',
+    "'num.add': numeric(() => '+'),",
+    "'num.add': (args, ctx) => both(args, ctx, left => q`(${left} + ${left})`),",
     sqlTests,
   ),
   edit(

@@ -18,11 +18,17 @@ describe('each node kind and operator sort no conformance case reaches, through 
       row: idOf(over.row),
       ...compared(c.predicate, over),
     }))
-    expect(Object.fromEntries(answers.map(({ row, entity }) => [row, entity]))).toEqual(c.answers)
-    const expected = differences
-      .filter(difference => difference.what === c.what)
-      .map(({ row, entity, metakit }) => ({ row, entity, metakit }))
-    expect(answers.filter(({ entity, metakit }) => entity !== metakit)).toEqual(expected)
+    // A case the switch changed answers as metakit does at each listed row.
+    const now = Object.fromEntries(
+      differences
+        .filter(difference => difference.what === c.what)
+        .map(({ row, now }) => [row, now]),
+    )
+    expect(Object.fromEntries(answers.map(({ row, entity }) => [row, entity]))).toEqual({
+      ...c.answers,
+      ...now,
+    })
+    expect(answers.filter(({ entity, metakit }) => entity !== metakit)).toEqual([])
   })
 })
 

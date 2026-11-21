@@ -168,9 +168,9 @@ export default [
     name: 'an exists fixes nothing of the rows it counts',
     edits: [
       {
-        file: '../../entity/src/evaluate.ts',
-        find: '  const { rows, missing } = anchor.pointing(node.relation, pinned)',
-        replace: '  const { rows, missing } = anchor.pointing(node.relation, new Map())',
+        file: '../../entity/src/lowerEnv.ts',
+        find: 'const { rows, missing } = row.pointing(slot.relation, pinsOf(slot))',
+        replace: 'const { rows, missing } = row.pointing(slot.relation, new Map())',
       },
     ],
     tests,

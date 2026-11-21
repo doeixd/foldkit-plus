@@ -266,9 +266,12 @@ describe('A pending follow', () => {
 
   it('leaves to the server a held post whose author the store lacks', () => {
     const store = Data.storeOf(following(loaded(), 'bo'))
+    // p1 is the viewer's own, but the exists beside it over rows the store may
+    // lack is not judged, and an or is settled by a side that cannot refuse:
+    // it is left to the server too.
     expect(matching(store, Home, { accountId: 'me' })).toEqual({
-      matched: ['Post:p3', 'Post:p2', 'Post:p1', 'Post:p4'],
-      skipped: ['Post:p5'],
+      matched: ['Post:p3', 'Post:p2', 'Post:p4'],
+      skipped: ['Post:p1', 'Post:p5'],
     })
   })
 

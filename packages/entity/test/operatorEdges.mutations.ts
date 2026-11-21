@@ -19,13 +19,6 @@ export default [
     'if (false) {',
     ['packages/entity/test/collation.test.ts'],
   ),
-  edit(
-    'a null beside a given NUL answers first',
-    evaluate,
-    "!isPredicate(side) && (side._tag === 'Literal' || side._tag === 'Input') && holdsNul(value),",
-    'false,',
-    ['packages/entity/test/query-values.test.ts'],
-  ),
   edit('an order term is not counted', expr, "checkSize('orderBy', self.where, orderBy)", '', [
     'packages/entity/test/operator.test.ts',
   ]),
@@ -43,14 +36,8 @@ export default [
   ),
   edit(
     'one row is in order whatever its keys',
-    evaluate,
+    '../src/rowOrder.ts',
     'if (terms.length === 0) return [...rows]',
     'if (terms.length === 0 || rows.length < 2) return [...rows]',
-  ),
-  edit(
-    'a value never given reaches a handled operator as undefined',
-    evaluate,
-    'values.map(value => (value === undefined ? null : value)),',
-    'values,',
   ),
 ]

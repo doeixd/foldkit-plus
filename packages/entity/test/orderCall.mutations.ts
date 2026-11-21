@@ -5,6 +5,7 @@
 const tests = ['packages/entity/test/orderCall.test.ts']
 const expr = '../src/expr.ts'
 const evaluate = '../src/evaluate.ts'
+const rowOrder = '../src/rowOrder.ts'
 
 export default [
   {
@@ -107,7 +108,7 @@ export default [
   },
   {
     name: "an order's call reads no input",
-    edits: [{ file: evaluate, find: 'input: scope.input,', replace: 'input: {},' }],
+    edits: [{ file: rowOrder, find: 'input: scope.input,', replace: 'input: {},' }],
     tests,
   },
   {
@@ -125,7 +126,7 @@ export default [
     name: 'compareRows ignores the input it is given',
     edits: [
       {
-        file: evaluate,
+        file: rowOrder,
         find: 'input: options.input ?? {},\n    operators:',
         replace: 'input: {},\n    operators:',
       },
@@ -136,7 +137,7 @@ export default [
     name: 'compareRows ignores the table it is given',
     edits: [
       {
-        file: evaluate,
+        file: rowOrder,
         find: 'operators: options.operators ?? kernelOperators,\n    context: options.context,\n  }\n',
         replace: 'operators: kernelOperators,\n    context: options.context,\n  }\n',
       },
@@ -147,7 +148,7 @@ export default [
     name: 'the evaluator orders by fields alone',
     edits: [
       {
-        file: evaluate,
+        file: rowOrder,
         find: "if (term.expr._tag !== 'Field' && term.expr._tag !== 'Call') {",
         replace: "if (term.expr._tag !== 'Field') {",
       },

@@ -20,14 +20,14 @@ export default [
   edit(
     'a memory table holds no version of anything',
     memoryTable,
-    '.filter(({ operator }) => operator.id === id)',
+    '.filter(operator => operator.id === id)',
     '.filter(() => false)',
   ),
   edit(
     'a run names the missing operator alone',
-    evaluate,
-    'throw new OperatorMissingError(call.operator, scope.operators)',
-    'throw new OperatorMissingError(call.operator)',
+    '../src/judgeRun.ts',
+    'throw new OperatorMissingError(operator, over.operators)',
+    'throw new OperatorMissingError(operator)',
   ),
   edit(
     'an operator over stored values names the missing operator alone',

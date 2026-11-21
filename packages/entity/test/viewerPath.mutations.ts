@@ -6,7 +6,7 @@ const tests = ['packages/entity/test/viewerPath.test.ts']
 const expr = '../src/expr.ts'
 const write = '../src/write.ts'
 const sets = '../src/sets.ts'
-const evaluate = '../src/evaluate.ts'
+const lowerEnv = '../src/lowerEnv.ts'
 const held = '../src/held.ts'
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
@@ -23,21 +23,21 @@ export default [
   ),
   edit(
     'a visitor starts a path from the viewer',
-    evaluate,
-    '      if (id === null) return null\n',
-    '',
+    lowerEnv,
+    '// A visitor, or a viewer of another Entity.\n          onNone: () => null,',
+    '// A visitor, or a viewer of another Entity.\n          onNone: () => ({}),',
   ),
   edit(
     "a path from the viewer reads the viewer's own row",
-    evaluate,
-    ': reached(start, node.via)',
-    ': start',
+    '../src/lower.ts',
+    "[...hops(['viewer', entity.name], path.via), path.field.key],",
+    "['viewer', entity.name, path.field.key],",
   ),
   edit(
     'a row the holder knows absent is unknown',
-    evaluate,
-    'onHeld: found => Option.match(found, { onNone: () => null, onSome: viewOf }),',
-    "onHeld: found => Option.match(found, { onNone: () => new Unheld('x'), onSome: viewOf }),",
+    lowerEnv,
+    'for (const key of fields.keys()) put(hidden, key, null)',
+    '',
   ),
   edit(
     'a holder finds a row it lacks absent from an incomplete table',

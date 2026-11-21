@@ -287,6 +287,11 @@ export const Operators = {
   checked: (base: MemoryOperators): MemoryOperators =>
     table(base.implementations, true, base.evidence),
 
-  /** The kernel's own operators (`Text.startsWith`, `Expr.add`, `Expr.sub`): every memory interpreter's default. */
+  /**
+   * A table implementing nothing: every memory interpreter's default. Like
+   * every table it runs the kernel's own operators (`Text.startsWith`,
+   * `Expr.add`, `Expr.sub`), which are metakit's operations, and refuses an
+   * implementation of one.
+   */
   kernel: kernelOperators,
 }

@@ -91,9 +91,9 @@ export default [
   // ---- the sweep
   edit(
     'an input is read with what it inherits',
-    '../src/evaluate.ts',
-    'return own(scope.input, node.key)',
-    'return scope.input[node.key]',
+    '../src/lowerEnv.ts',
+    'put(given, key, own(input, key) ?? null)',
+    'put(given, key, input[key] ?? null)',
   ),
   edit(
     'a sort input is read with what it inherits',

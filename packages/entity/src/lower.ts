@@ -10,11 +10,12 @@
  * `<Entity.relation`), `next`, `input`, `viewer` (per Entity name, the
  * asker's row or null, with their id under `#asker`) and `now`; a filter of
  * `Expr.exists` reads the pointing row under `each`. `lowerEnv.ts` builds
- * that environment from held rows. No reader imports either file yet, so
- * neither reaches a page.
+ * that environment from held rows; every judge in memory reads both
+ * (`judgeRun.ts`).
  */
-import { Match, Option, Schema } from 'effect'
+import { Match, Option, Schema, SchemaAST } from 'effect'
 import { Bool, Eq, Node, Null, Ord, Str } from 'metakit'
+import { Text } from 'metakit/domain'
 import type {
   AnyExpr,
   CompareOperator,
@@ -79,6 +80,38 @@ const read = (segments: ReadonlyArray<string>, schema: Schema.Top, nullable = fa
     ),
   })
 
+/** The check `Text.schema` makes, which readers know as text holding no NUL. */
+const nulFree = Option.getOrThrow(Option.fromUndefinedOr(Text.schema.ast.checks))
+
+/**
+ * A stored form, its text as `Text.schema` describes it: an Entity's write
+ * refuses text holding a NUL (`Entity.input`), so no stored text holds one,
+ * and partial evaluation may drop or fold beside a field it cannot refuse.
+ */
+const stored = (ast: SchemaAST.AST): SchemaAST.AST => {
+  if (SchemaAST.isUnion(ast)) {
+    return new SchemaAST.Union(ast.types.map(stored), ast.options, ast.annotations, ast.checks)
+  }
+  if (!SchemaAST.isString(ast)) return ast
+  return new SchemaAST.String(
+    ast.annotations,
+    ast.checks === undefined ? nulFree : [...ast.checks, ...nulFree],
+  )
+}
+
+/** A stored row's field: its encoded Schema, its text known to hold no NUL. */
+const readStored = (
+  segments: ReadonlyArray<string>,
+  schema: Schema.Top,
+  nullable = false,
+): Node.Node => {
+  const ast = stored(Schema.toEncoded(schema).ast)
+  return Node.Path({
+    segments,
+    ast: Option.some(nullable ? Schema.NullOr(Schema.make(ast)).ast : ast),
+  })
+}
+
 const callOf = (op: Node.AnyOp, args: ReadonlyArray<Node.Node>): Node.Node =>
   Node.Call({ op, args })
 
@@ -118,20 +151,21 @@ const tableFor = (scope: Scope): LowerTable => {
   const lower = (node: Operandish): Node.Node => lowerNode(node, scope)
   return {
     Literal: ({ value }) => Node.Lit({ value }),
-    Field: field => read([scope.slice, field.key], field.schema),
+    Field: field => readStored([scope.slice, field.key], field.schema),
     Input: input => read(['input', input.key], input.schema),
-    Next: ({ field }) => read(['next', field.key], field.schema),
+    Next: ({ field }) => readStored(['next', field.key], field.schema),
     Now: now => read(['now'], now.schema),
     Viewer: viewer => {
       const entity = viewer.target()
       scope.viewers.set(entity.name, entity)
       return read(['viewer', entity.name, ASKER], viewer.schema, true)
     },
-    Path: path => read([...hops([scope.slice], path.via), path.field.key], path.field.schema, true),
+    Path: path =>
+      readStored([...hops([scope.slice], path.via), path.field.key], path.field.schema, true),
     ViewerPath: path => {
       const entity = path.viewer.target()
       scope.viewers.set(entity.name, entity)
-      return read(
+      return readStored(
         [...hops(['viewer', entity.name], path.via), path.field.key],
         path.field.schema,
         true,

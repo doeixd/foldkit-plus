@@ -17,15 +17,15 @@ const guide = (name: string, file: string, find: string, replace: string) => ({
 export default [
   edit(
     'in memory, not of an unknown holds, so a post with no editor is kept',
-    '../../../packages/entity/src/evaluate.ts',
-    "return truth === 'unknown' || isUnheld(truth) ? truth : !truth",
-    'return isUnheld(truth) ? truth : truth !== true',
+    '../../../packages/entity/src/lower.ts',
+    'Not: ({ operand }) => callOf(Bool.notOp, [lower(operand)]),',
+    'Not: ({ operand }) => callOf(Bool.notOp, [callOf(Null.coalesceOp, [lower(operand), Node.Lit({ value: false })])]),',
   ),
   edit(
     'in memory, contains is exact about case',
-    '../../../packages/entity/src/evaluate.ts',
-    'return foldAscii(value).includes(foldAscii(search))',
-    'return value.includes(search)',
+    '../../../packages/entity/src/lower.ts',
+    'callOf(Str.lowerAsciiOp, [lower(search)]),',
+    'lower(search),',
   ),
   edit(
     'SQL searches a title from its start only',
@@ -59,9 +59,9 @@ export default [
   ),
   guide(
     'the guide: not of an unknown comparison keeps the draft',
-    '../../../packages/entity/src/evaluate.ts',
-    "return truth === 'unknown' || isUnheld(truth) ? truth : !truth",
-    'return isUnheld(truth) ? truth : truth !== true',
+    '../../../packages/entity/src/lower.ts',
+    'Not: ({ operand }) => callOf(Bool.notOp, [lower(operand)]),',
+    'Not: ({ operand }) => callOf(Bool.notOp, [callOf(Null.coalesceOp, [lower(operand), Node.Lit({ value: false })])]),',
   ),
   guide(
     'the guide: a viewer of any Entity reads as an author',

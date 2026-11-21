@@ -33,9 +33,9 @@ export default [
   ),
   edit(
     'a run with no context reads a visitor',
-    evaluate,
-    "throw new ContextMissingError(node, 'was given no context to read it from')",
-    'return null',
+    '../src/judgeRun.ts',
+    "throw new ContextMissingError(term, 'was given no context to read it from')",
+    'return',
   ),
   edit(
     'evaluateEach refuses a missing context row by row',
@@ -52,8 +52,8 @@ export default [
   edit(
     'evaluate is not given the context',
     evaluate,
-    'rows.filter(row => matches(body, row, input, operators, context)),',
-    'rows.filter(row => matches(body, row, input, operators, undefined)),',
+    'rows.filter(row => matches(body, row, input, { operators, context })),',
+    'rows.filter(row => matches(body, row, input, { operators, context: undefined })),',
   ),
   edit(
     'an assignment computes from the context',

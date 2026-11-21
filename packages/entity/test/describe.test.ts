@@ -11,6 +11,7 @@ import {
   OperatorDescription,
   Operators,
   Query,
+  Text,
   applyOperator,
   evaluate,
   valueOfOperand,
@@ -22,13 +23,11 @@ const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, slug: Sche
 
 describe('An operator described', () => {
   it('describes every kernel operator as its contract says, through JSON', () => {
-    for (const { operator } of Operators.kernel.implementations) {
-      const described = Operators.describe({ descriptor: operator })
+    for (const operator of [Text.startsWith, Expr.add, Expr.sub]) {
+      const described = Operators.describe(operator)
       expect(decode(JSON.parse(JSON.stringify(described)))).toEqual(described)
     }
-    expect(
-      Operators.describe({ descriptor: Operators.kernel.implementations[0]!.operator }),
-    ).toMatchObject({
+    expect(Operators.describe(Text.startsWith)).toMatchObject({
       name: 'text.startsWith',
       input: [
         { anyOf: [{ type: 'string' }, { type: 'null' }] },
@@ -38,6 +37,15 @@ describe('An operator described', () => {
       collation: 'required',
       defined: false,
     })
+  })
+
+  it('lists no kernel operator among a table it implements: each is a metakit operation, run by every table', () => {
+    expect(Operators.describeTable(Operators.kernel)).toEqual([])
+    expect(Operators.kernel.has(Expr.add.descriptor)).toBe(true)
+    expect(Option.getOrThrow(Operators.kernel.named('number.add'))).toBe(Expr.add.descriptor)
+    expect(() => Operators.memory(Operators.implement(Expr.add, (a, b) => a + b))).toThrow(
+      "number.add is metakit's own operation",
+    )
   })
 
   it('names a later version, says it is defined, and lists its laws, never its body', () => {

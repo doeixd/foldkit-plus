@@ -37,14 +37,49 @@ describe('A rule that cannot apply', () => {
     ['neverOverdrawn', ['balance']],
     ['withinDailyLimit', ['withdrawnToday']],
   ])('is kept: closing an account leaves %s nothing to bind', (rule, over) => {
+    // `vacuous` no longer: the member is a plain `Schema.Number`, which may be
+    // NaN, and a comparison refuses NaN before `or` is settled by its other
+    // side; the bounds keep it instead.
     expect(verdict(report, 'CloseAccount', rule)).toMatchObject({
       _tag: 'Kept',
-      by: 'vacuous',
+      by: 'bounds',
       over,
     })
     expect(
       Option.map(pairOf(report, 'CloseAccount', rule).evidence, record => record._tag),
-    ).toEqual(Option.some('Enumerated'))
+    ).toEqual(Option.some('Bounded'))
+  })
+})
+
+describe('A rule that cannot apply, over a number that cannot be NaN', () => {
+  const Ledger = Entity.define(
+    'Ledger',
+    Schema.Struct({
+      id: Schema.String,
+      status: Schema.Literals(['open', 'closed']),
+      balance: Schema.Finite,
+    }),
+  )
+  const solvent = Entity.invariant<typeof Ledger>(
+    'solvent',
+    ({ after }) => Expr.or(Expr.not(Expr.eq(after.status, 'open')), Expr.gte(after.balance, 0)),
+    { message: 'An open ledger is never below zero' },
+  )
+  const Kept = Ledger.pipe(solvent)
+  const Opened = Entity.refine(Kept, 'Opened', { status: 'open' })
+  const Shut = Entity.refine(Kept, 'Shut', { status: 'closed' })
+
+  it('is kept as vacuous: the comparison it leaves open cannot refuse', () => {
+    const close = Write.update(
+      Entity.input(Kept, Schema.Struct({ id: Schema.String, status: Schema.Literal('closed') })),
+      { id: 'id', from: Opened, becomes: Shut },
+    )
+    const report = Laws.check({ writes: [{ name: 'Close', write: close }] })
+    expect(verdict(report, 'Close', 'solvent')).toMatchObject({
+      _tag: 'Kept',
+      by: 'vacuous',
+      over: ['balance'],
+    })
   })
 })
 
@@ -292,8 +327,8 @@ describe('Laws.show on the account', () => {
         'OpenAccount     x neverOverdrawn              kept: 1 row enumerated',
         'OpenAccount     x withinDailyLimit            kept: 1 row enumerated',
         'OpenAccount     x aClosedAccountStaysClosed   kept: a create has no row before',
-        'CloseAccount    x neverOverdrawn              kept: holds whatever balance holds, over 1 row enumerated',
-        'CloseAccount    x withinDailyLimit            kept: holds whatever withdrawnToday holds, over 1 row enumerated',
+        'CloseAccount    x neverOverdrawn              kept: proved from the bounds on balance, for every row and input within them',
+        'CloseAccount    x withinDailyLimit            kept: proved from the bounds on withdrawnToday, for every row and input within them',
         'CloseAccount    x aClosedAccountStaysClosed   kept: 1 row enumerated',
         'DepositMoney    x neverOverdrawn              kept: proved from the bounds on balance, for every row and input within them',
         'DepositMoney    x withinDailyLimit            kept: writes no member it reads',

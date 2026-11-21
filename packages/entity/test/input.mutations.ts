@@ -49,9 +49,9 @@ export default [
   ),
   edit(
     "a row's inherited key is its value",
-    '../src/evaluate.ts',
-    'field: key => own(row, key),',
-    'field: key => row[key],',
+    '../src/judgeRun.ts',
+    'field: key => Held.of(own(row, key) ?? null),',
+    'field: key => Held.of(row[key] ?? null),',
   ),
   {
     name: 'a numeric id is taken for no id',

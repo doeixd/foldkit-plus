@@ -5,7 +5,6 @@
  */
 const expr = '../src/expr.ts'
 const evaluate = '../src/evaluate.ts'
-const compile = '../../remote-drizzle/src/compile.ts'
 const cms = '../../cms/src/index.ts'
 const tanstack = '../../../examples/tanstack/src/interpreter.ts'
 const tests = [
@@ -104,18 +103,6 @@ export default [
     'false ? operator.id :',
   ),
   edit(
-    'a call of a predicate operator always holds',
-    evaluate,
-    'return truthOf(node, called(node, scope))',
-    'return true',
-  ),
-  edit(
-    'a call of a scalar operator is null',
-    evaluate,
-    'return called(node, scope)',
-    'return null',
-  ),
-  edit(
     'expanding keeps a predicate call',
     expr,
     'onSome: expandedPredicate,',
@@ -130,9 +117,9 @@ export default [
   ),
   edit(
     'the compiler compiles a call as written',
-    compile,
-    'predicates.map(node => predicate(Expr.expanded(node), target, input, query))',
-    'predicates.map(node => predicate(node, target, input, query))',
+    '../src/lowerOperator.ts',
+    'onSome: lower,',
+    'onSome: () => callOperator(call.operator, call.args.map(lower), call.collation, foreign),',
   ),
   edit(
     'the TanStack interpreter runs a call as written',

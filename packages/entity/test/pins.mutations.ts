@@ -2,7 +2,7 @@
  * What a conjunction fixes by field (#409), broken in turn:
  * `pnpm mutate packages/entity/test/pins.mutations.ts`.
  */
-const evaluate = '../src/evaluate.ts'
+const evaluate = '../src/pins.ts'
 const tests = ['packages/entity/test/pins.test.ts']
 
 export default [
