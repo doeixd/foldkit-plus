@@ -5,7 +5,7 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, Link } from 'foldkit-bundle'
-import { Module, Surface, type Contract } from 'foldkit-surface'
+import { Graph, Module, Surface, type Contract } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { BundleSurface } from '../src/index.js'
 
@@ -76,6 +76,23 @@ describe('BundleSurface.module', () => {
       owns: [['rows']],
       messages: ['GotRowMessage'],
     })
+  })
+
+  it('says a placement reads the path it owns, which the manifest lists', () => {
+    expect(BundleSurface.contract(App, SearchPlaced).observes).toEqual([['search']])
+    const module = BundleSurface.module(App, assembly)
+    expect(Module.manifest(module).contracts.map(contract => contract.observes)).toEqual([
+      [['search']],
+      [['rows']],
+    ])
+    // Reading its own path makes no level, law or finding in the graph.
+    expect(Graph.validate(module)).toEqual([])
+    expect(Graph.of(module).nodes.map(node => node._tag)).toEqual([
+      'Owner',
+      'Path',
+      'Owner',
+      'Path',
+    ])
   })
 
   it('reports a placement and a Sync contract that own the same path', () => {

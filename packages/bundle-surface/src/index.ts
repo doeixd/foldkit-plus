@@ -58,8 +58,10 @@ const link = <Root, Value, const Tag extends string, ChildMessage>(
 }
 
 /**
- * The contract of one placement or collection: it owns its Model path and names
- * the parent Message tags its Messages travel under.
+ * The contract of one placement or collection: it owns its Model path, reads
+ * it (the child's view is drawn from the Model there), and names the parent
+ * Message tags its Messages travel under. `observes` is that path alone: what
+ * a placement drawn with view inputs also reads is not in it.
  */
 const contract = <
   Root,
@@ -73,7 +75,7 @@ const contract = <
   name: placement.key,
   owner: ('owner' in placement.link ? placement.link.owner : undefined) ?? app.owner,
   owns: [placement.link.path],
-  observes: [],
+  observes: [placement.link.path],
   messages: placement.link.messages,
   metadata:
     placement.argsSummary === undefined ? [] : [{ name: 'args', entries: [placement.argsSummary] }],
