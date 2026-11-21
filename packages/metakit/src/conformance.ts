@@ -24,11 +24,23 @@ import * as Num from './ops/num.js'
 import * as Ord from './ops/ord.js'
 import { residualizeNode } from './ops/residualize.js'
 import * as Str from './ops/str.js'
-import { opProperties } from './properties.js'
+import { checkFoldProperties } from './foldChecks.js'
+import { foldProperties, opProperties, writeProperties } from './properties.js'
 import { checkProperties, sameAnswer, type PropertyReport } from './propertyChecks.js'
+import { checkWriteProperties, type WriteReport } from './writeChecks.js'
 import * as Verdict from './verdict.js'
 
 export { checkProperties, type PropertyFailure, type PropertyReport } from './propertyChecks.js'
+export { checkFoldProperties } from './foldChecks.js'
+export { checkWriteProperties, type WriteReport } from './writeChecks.js'
+
+/** `checkFoldProperties` of every fold, against what `foldProperties` declares of it. */
+export const checkAllFoldProperties = (): ReadonlyArray<PropertyReport> =>
+  Struct.keys(foldProperties).map(fold => checkFoldProperties(fold, foldProperties[fold]))
+
+/** `checkWriteProperties` of every way of writing, against what `writeProperties` lists of it. */
+export const checkAllWriteProperties = (): ReadonlyArray<WriteReport> =>
+  Struct.keys(writeProperties).map(way => checkWriteProperties(way, writeProperties[way]))
 
 /** Every primitive's descriptor: a new `CoreOpId` fails to compile until its operator is here. */
 export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {

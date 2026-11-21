@@ -96,7 +96,9 @@ Because `OrderedEnum` lowers to `Match` over integer ranks, the built-in checker
 `metakit/aggregates` distinguishes two kinds of summaries:
 
 - **Group aggregates** (`Rows.sum`, `Rows.count`) can undo a row's contribution, so inserts, deletes, and updates each take one step, however many rows there are, via `insertDelta`, `deleteDelta`, and `updateDelta`. The delta is exact only over integers (with floats, `0.1 + 0.2 + 0.3 - 0.2` is `0.4000000000000001`), so `Rows.sum` accepts only an integer-valued contribution: `Schema.Int`, `Money` and `Decimal` fields and integer literals, through `+`, `-`, `*`, negation, `Expr.when` and `Expr.match`. Anything else (a `Schema.Number` field, `0.5`) throws where the aggregate is defined.
-- **Min, max, every and any** (`Rows.min`, `Rows.max`, `Rows.every`, `Rows.any`) cannot undo a row: an insert takes one step, and they flag `requiresRescanOnDelete: true` so callers know when a delete must look at the remaining rows again.
+- **Min, max, every and any** (`Rows.min`, `Rows.max`, `Rows.every`, `Rows.any`) cannot undo a row: an insert takes one step, and a delete of the row that held the answer must look at the remaining rows again.
+
+Which kind an aggregate is comes from what its fold keeps, in `foldProperties` (exported from `metakit`): `sum` and `count` are commutative, associative and invertible over the integers, and `min`, `max`, `every` and `any` are not invertible.
 
 Missing values get SQL's answers: `sum`, `min` and `max` skip a `null`, `sum` of no rows is `0`, and `min` and `max` of no rows are `Option.none()`. A row whose predicate is unknown counts as failing `every` and as not matching `any` or `count`. A `NaN` in `min` or `max` makes the answer `NaN` whatever the order of the rows; declare the field `Schema.Int` or `Schema.Finite` if it should never hold one.
 

@@ -1,19 +1,21 @@
 /**
- * Cross-record Aggregates (`metakit/aggregates`) tagged by algebraic structure.
- * This module evaluates in memory and imports no SQL, so a page can use it;
- * `metakit/aggregates/sql` compiles the same aggregates to SQL.
+ * Cross-record Aggregates (`metakit/aggregates`). This module evaluates in
+ * memory and imports no SQL, so a page can use it; `metakit/aggregates/sql`
+ * compiles the same aggregates to SQL. What each keeps is not declared here:
+ * it is read off the fold's row of `foldProperties`.
  *
- * - **Abelian Groups** (`algebra: 'group'`: `Rows.sum`, `Rows.count`):
- *   invertible, so an insert, update or delete moves the value by an O(1)
- *   delta (`new - old`). The delta is exact because the contribution must be
- *   integer-valued (a `Schema.Int`, `Money` or `Decimal` field, or integer
- *   arithmetic over them): floating-point addition is not invertible
- *   (`0.1 + 0.2 + 0.3 - 0.2` is `0.4000000000000001`). The symbolic deltas let
- *   `Prove.transition` prove a rule over any number of rows.
- * - **Commutative Monoids / Semilattices** (`algebra: 'semilattice'`:
- *   `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any`): not invertible, so an
- *   insert is O(1) while deleting or updating the extremum rescans the rows
- *   (`requiresRescanOnDelete: true`).
+ * - **Totals** (`Rows.sum`, `Rows.count`): the folds `sum` and `count` are
+ *   commutative, associative and invertible over the integers, so an insert,
+ *   update or delete moves the value by an O(1) delta (`new - old`), starting
+ *   from the fold's identity. The delta is exact only over that domain, so
+ *   the contribution must be integer-valued (a `Schema.Int`, `Money` or
+ *   `Decimal` field, or integer arithmetic over them): floating-point
+ *   addition is not invertible (`0.1 + 0.2 + 0.3 - 0.2` is
+ *   `0.4000000000000001`). The symbolic deltas let `Prove.transition` prove a
+ *   rule over any number of rows.
+ * - **Extremes and tests** (`Rows.min`, `Rows.max`, `Rows.every`,
+ *   `Rows.any`): their folds are not invertible, so an insert is O(1) while
+ *   deleting or updating the extremum rescans the rows.
  *
  * Missing values follow SQL: `sum`, `min` and `max` skip a `null`
  * contribution, `count` with a predicate and `any` count an unknown predicate
@@ -28,12 +30,10 @@ import { toNode, wrap, type ExprInput } from './ops/core.js'
 import * as Num from './ops/num.js'
 import * as Path from './path.js'
 import type { PathAccessor } from './path.js'
-
-export type AggregateAlgebra = 'group' | 'semilattice'
+import { foldProperties } from './properties.js'
 
 interface GroupAggregate<Row, A extends number> {
-  readonly algebra: 'group'
-  readonly requiresRescanOnDelete: false
+  /** The total over no row: the fold's identity. */
   readonly identity: A
   readonly rowSchema: Schema.Codec<Row>
   /** Per-row contribution expression (for `count`, `1` or `if pred then 1 else 0`). */
@@ -64,8 +64,6 @@ export interface Count<Row> extends GroupAggregate<Row, number> {
 }
 
 interface SemilatticeAggregate<Row, A, E> {
-  readonly algebra: 'semilattice'
-  readonly requiresRescanOnDelete: true
   readonly rowSchema: Schema.Codec<Row>
   readonly expr: Expr.Expr<Row, E>
   /** Evaluate over a concrete array of rows. */
@@ -141,11 +139,27 @@ const isIntegerValued = (node: Node.Node): boolean =>
 const isMissing = (value: unknown): value is null | undefined =>
   value === null || value === undefined
 
+/**
+ * A total kept by deltas: exact only where the fold is commutative,
+ * associative and invertible, and only over the domain each holds over, so a
+ * contribution outside it is refused here, because its deltas would drift.
+ */
 const groupAggregate = <Row, A extends number>(
+  fold: 'sum' | 'count',
   rowSchema: Schema.Top,
   contribution: Expr.Expr<Row, A>,
 ): GroupAggregate<Row, A> => {
-  const zero = 0 as A
+  const { identity, commutative, associative, invertible } = foldProperties[fold]
+  const domains = [commutative?.over, associative?.over, invertible?.over]
+  if (identity === undefined || domains.includes(undefined)) {
+    throw new Error(`[metakit] Rows.${fold}: its fold keeps no total by deltas`)
+  }
+  if (domains.includes('integers') && !isIntegerValued(contribution.node)) {
+    throw new Error(
+      `[metakit] Rows.${fold} needs an integer-valued contribution (a Schema.Int, Money or Decimal field, integer literals, and + - * over them), got ${Expr.show(contribution)}: its O(1) deltas are exact only over integers`,
+    )
+  }
+  const zero = identity.value as A
   // SQL `SUM` skips a null; a missing contribution moves nothing.
   const valueOf = (row: Row): A => {
     const value = Expr.eval(contribution, row)
@@ -154,8 +168,6 @@ const groupAggregate = <Row, A extends number>(
   const liftTo = <Key extends string>(key: Key) =>
     Expr.lift(Path.field<{ readonly [K in Key]: Row }, Key>(key), contribution)
   return {
-    algebra: 'group',
-    requiresRescanOnDelete: false,
     identity: zero,
     rowSchema: rowSchema as unknown as Schema.Codec<Row>,
     contribution,
@@ -169,26 +181,21 @@ const groupAggregate = <Row, A extends number>(
 }
 
 /**
- * Abelian group aggregate: the sum of an integer-valued contribution over the
- * rows (`0` when empty; a `null` contribution adds nothing). The contribution
- * must read only integer-valued fields (`Schema.Int`, `Money`, `Decimal`) and
- * integer literals through `+`, `-`, `*`, negation, `if` and `match`; anything
- * else is refused here, because its deltas would drift.
+ * The sum of an integer-valued contribution over the rows (`0` when empty; a
+ * `null` contribution adds nothing). The contribution must read only
+ * integer-valued fields (`Schema.Int`, `Money`, `Decimal`) and integer
+ * literals through `+`, `-`, `*`, negation, `if` and `match`; anything else
+ * is refused, because its deltas would drift.
  */
 export const sum = <S extends Schema.Top, A extends number>(
   rowSchema: S,
   build: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], A | null>,
-): Sum<S['Type'], A> => {
-  const contribution = wrap<S['Type'], A>(toNode(build(Path.forSchema(rowSchema))))
-  if (!isIntegerValued(contribution.node)) {
-    throw new Error(
-      `[metakit] Rows.sum needs an integer-valued contribution (a Schema.Int, Money or Decimal field, integer literals, and + - * over them), got ${Expr.show(contribution)}: its O(1) deltas are exact only over integers`,
-    )
-  }
-  return { _tag: 'Sum', ...groupAggregate(rowSchema, contribution) }
-}
+): Sum<S['Type'], A> => ({
+  _tag: 'Sum',
+  ...groupAggregate('sum', rowSchema, wrap<S['Type'], A>(toNode(build(Path.forSchema(rowSchema))))),
+})
 
-/** Abelian group aggregate: the number of rows, or of rows whose predicate is true. */
+/** The number of rows, or of rows whose predicate is true. */
 export const count = <S extends Schema.Top>(
   rowSchema: S,
   predicate?: ($: PathAccessor<S['Type'], S['Type']>) => ExprInput<S['Type'], boolean | null>,
@@ -202,7 +209,7 @@ export const count = <S extends Schema.Top>(
     onNone: () => Expr.lit(1),
     onSome: p => Expr.when(p, { then: 1, else: 0 }),
   })
-  return { _tag: 'Count', predicate: pred, ...groupAggregate(rowSchema, contribution) }
+  return { _tag: 'Count', predicate: pred, ...groupAggregate('count', rowSchema, contribution) }
 }
 
 /**
@@ -228,8 +235,6 @@ const extremum = <Row>(
 ): SemilatticeAggregate<Row, Option.Option<number>, number> => {
   const step = extremumStep(better)
   return {
-    algebra: 'semilattice',
-    requiresRescanOnDelete: true,
     rowSchema: rowSchema as unknown as Schema.Codec<Row>,
     expr,
     evaluate: rows =>
@@ -265,8 +270,6 @@ const predicateAggregate = <Row>(
   // Only `true` holds: an unknown predicate counts as false.
   const holds = (row: Row): boolean => Expr.eval(expr, row) === true
   return {
-    algebra: 'semilattice',
-    requiresRescanOnDelete: true,
     rowSchema: rowSchema as unknown as Schema.Codec<Row>,
     expr,
     evaluate: rows => rows.reduce((acc, row) => fold(acc, holds(row)), empty),

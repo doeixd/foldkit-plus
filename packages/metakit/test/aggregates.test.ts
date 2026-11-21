@@ -1,7 +1,7 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Effect, Option, Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Eq, Expr, Num, Ord, Transition, Verdict } from 'metakit'
+import { Eq, Expr, Num, Ord, Transition, Verdict, foldProperties } from 'metakit'
 import * as Rows from 'metakit/aggregates'
 import * as RowsSql from 'metakit/aggregates/sql'
 import * as Prove from 'metakit/prove'
@@ -37,16 +37,19 @@ afterAll(async () => {
   await db.close()
 })
 
-describe('metakit/aggregates (group vs semilattice)', () => {
-  it('tags group vs semilattice algebraic structure and verifies O(1) IVM deltas', () => {
-    expect(TotalAmount.algebra).toBe('group')
-    expect(TotalAmount.requiresRescanOnDelete).toBe(false)
-    expect(SettledCount.algebra).toBe('group')
-    expect(MinAmount.algebra).toBe('semilattice')
-    expect(MinAmount.requiresRescanOnDelete).toBe(true)
-    expect(MaxAmount.algebra).toBe('semilattice')
-    expect(AllSettled.algebra).toBe('semilattice')
-    expect(AnyPositive.algebra).toBe('semilattice')
+describe('metakit/aggregates (totals by delta, extremes by rescan)', () => {
+  it('reads what each keeps off foldProperties, and keeps a total by O(1) deltas', () => {
+    // A total kept by deltas is commutative, associative and invertible over the integers.
+    for (const fold of ['sum', 'count'] as const) {
+      expect(foldProperties[fold].invertible).toEqual({ over: 'integers' })
+      expect(foldProperties[fold].identity).toEqual({ value: 0 })
+    }
+    expect(TotalAmount.identity).toBe(0)
+    expect(SettledCount.identity).toBe(0)
+    // An extreme's fold is not invertible: a delete of it rescans.
+    for (const fold of ['min', 'max', 'every', 'any'] as const) {
+      expect(foldProperties[fold].invertible).toBeUndefined()
+    }
 
     // O(1) incremental maintenance of Abelian group aggregates matches full recompute
     let list: Array<Entry> = []

@@ -146,7 +146,8 @@ const sameNumber = (a: number, b: number): boolean =>
 /**
  * A running value over rows, changed one row at a time. `value` may look at
  * every counted row: `min` and `max` do when the row that held the extreme
- * left (metakit's `requiresRescanOnDelete`), and only then.
+ * left (their folds are not invertible in metakit's `foldProperties`), and
+ * only then.
  */
 interface Fold<Row> {
   readonly add: (row: Row) => void
