@@ -14,13 +14,13 @@ const edit = (name: string, find: string, replace: string, file = server) => ({
 export default [
   edit(
     'a store that cannot serialize a parent is let through',
-    '      Temporal.mount(writer.store, reaching)\n',
+    '      mount(writer.store, reaching)\n',
     '',
   ),
   edit(
     'a writer naming no store is let through',
-    '        throw new Error(\n          `[foldkit-remote-server] write ${reaching.map(({ rule }) => `"${rule}"`).join(\', \')} reads other rows',
-    '        return undefined as never\n        throw new Error(\n          `[foldkit-remote-server] write ${reaching.map(({ rule }) => `"${rule}"`).join(\', \')} reads other rows',
+    '      if (writer.store === undefined) {',
+    '      if (writer.store === undefined) return undefined as never\n      if (false) {',
   ),
   edit(
     'a precondition reading other rows asks nothing',

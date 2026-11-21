@@ -4,6 +4,7 @@ import { Num, Transition } from 'metakit'
 import * as Rows from 'metakit/aggregates'
 import * as Machine from 'metakit/machine'
 import * as Prove from 'metakit/prove'
+import type * as Store from 'metakit/store'
 import * as Temporal from 'metakit/temporal'
 
 const Counter = Schema.Struct({ count: Schema.Int })
@@ -25,10 +26,10 @@ const needed = Temporal.requirements({
   machine: Counters,
   aggregates: { total: Rows.sum(Row, $ => $.size) },
 })
-expectTypeOf(needed).toEqualTypeOf<ReadonlyArray<Temporal.Requirement<'Add' | 'Reset' | 'total'>>>()
-expectTypeOf<Temporal.Requirement['needs']>().toEqualTypeOf<'row-atomic' | 'parent-serialized'>()
+expectTypeOf(needed).toEqualTypeOf<ReadonlyArray<Store.Requirement<'Add' | 'Reset' | 'total'>>>()
+expectTypeOf<Store.Requirement['needs']>().toEqualTypeOf<'row-atomic' | 'parent-serialized'>()
 
-const unknownLevel: Temporal.StoreCapabilities = {
+const unknownLevel: Store.StoreCapabilities = {
   name: 'kv',
   // @ts-expect-error a store's isolation is one of the three levels
   isolation: 'snapshot',

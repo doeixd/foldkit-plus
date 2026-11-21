@@ -111,7 +111,7 @@ describe('a write whose rule reads other rows', () => {
 
   it('is refused through a writer that names no store', () => {
     expect(() => register('RetitleWhileOpen', undefined)).toThrow(
-      'write "RetitleWhileOpen precondition" reads other rows, which needs parent-serialized, but its writer for Task does not say what its store guarantees (store)',
+      'write "RetitleWhileOpen precondition" reads other rows, but its writer for Task names no store (store)',
     )
   })
 

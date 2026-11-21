@@ -1,5 +1,6 @@
-/** Mutations for `metakit/temporal`: the store refusal, the derived obligations and the walk. */
+/** Mutations for `metakit/store` and `metakit/temporal`: the store refusal, the derived obligations and the walk. */
 const file = '../src/temporal.ts'
+const store = '../src/store.ts'
 const prove = '../src/prove.ts'
 const tests = ['packages/metakit/test/temporal.test.ts']
 
@@ -14,21 +15,25 @@ export default [
     'a read-committed store with no parent lock is taken to serialize a parent',
     "(store.isolation === 'read-committed' && store.parentRowLock)",
     "store.isolation === 'read-committed'",
+    store,
   ),
   mutation(
     'a parent lock is taken to serialize a parent on an eventual store',
     "(store.isolation === 'read-committed' && store.parentRowLock)",
     'store.parentRowLock',
+    store,
   ),
   mutation(
     'an eventual store is taken to write a row as one step',
     "'row-atomic': store => store.isolation !== 'eventual',",
     "'row-atomic': () => true,",
+    store,
   ),
   mutation(
     'mount lets a refused store through',
     'if (cannot.length > 0) throw new StoreRefused',
     'if (cannot.length < 0) throw new StoreRefused',
+    store,
   ),
   mutation(
     'a blind write into a ruled state asks nothing',

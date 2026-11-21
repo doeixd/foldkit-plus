@@ -350,7 +350,7 @@ test('a page reading only Expr.eval and Num.lte from metakit keeps no sql, prove
   expect(built.some(id => /\/dist\/ops\/ord\.js$/.test(id))).toBe(true)
   expect(source.some(id => /\/src\/ops\/ord\.ts$/.test(id))).toBe(true)
   const forbidden =
-    /\/(sql|sqlLowering|drizzle|prove|conformance|domain|aggregates|aggregatesSql|machine|inspect|graph|policy|temporal|abstract\/(zone|interval|check)|ops\/(num|null|eq|str|arr))\.(js|ts)$|z3-solver|drizzle-orm/
+    /\/(sql|sqlLowering|drizzle|prove|conformance|domain|aggregates|aggregatesSql|machine|inspect|graph|policy|store|temporal|abstract\/(zone|interval|check)|ops\/(num|null|eq|str|arr))\.(js|ts)$|z3-solver|drizzle-orm/
   expect([...built, ...source].filter(id => forbidden.test(id))).toEqual([])
 }, 120_000)
 
@@ -393,3 +393,24 @@ test.each([
   },
   120_000,
 )
+
+/**
+ * `foldkit-remote-server` checks a writer's store on every server, so
+ * `metakit/store` is that one module: no expression, transition or walk code.
+ * Broken by hand: a read of `rulesOf` from `./expr.js` inside `mount` turned
+ * it red, built and source.
+ */
+test('a server reading metakit/store keeps no other metakit module, built or source', async () => {
+  const root = scratchIn('metakit', 'published-')
+  made.push(root)
+  const page = `import { mount } from 'pkg'\nexport const used = mount`
+  const modules = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const index = await buildPublished('metakit', root)
+  const built = await modules(join(dirname(index), 'store.js'))
+  const source = await modules(join(packages, 'metakit', 'src', 'store.ts'))
+  const metakit = (ids: ReadonlyArray<string>) =>
+    ids.filter(id => /\/(src|dist)\//.test(id) && !id.includes('node_modules'))
+  expect(metakit(built).map(id => id.slice(id.lastIndexOf('/') + 1))).toEqual(['store.js'])
+  expect(metakit(source).map(id => id.slice(id.lastIndexOf('/') + 1))).toEqual(['store.ts'])
+}, 120_000)

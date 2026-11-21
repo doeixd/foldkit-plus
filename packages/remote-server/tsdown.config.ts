@@ -6,6 +6,6 @@ export default defineConfig({
   dts: true,
   clean: true,
   target: 'es2022',
-  // `metakit/temporal`: a writer's store declaration is its type, and one vocabulary with metakit's.
+  // `metakit/store`: a writer's store declaration is its type, and one vocabulary with metakit's.
   deps: { neverBundle: ['effect', 'foldkit', 'foldkit-remote', /^metakit(\/.*)?$/] },
 })

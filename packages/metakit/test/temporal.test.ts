@@ -3,6 +3,7 @@ import { Expr, Num, Transition } from 'metakit'
 import * as Rows from 'metakit/aggregates'
 import * as Machine from 'metakit/machine'
 import * as Prove from 'metakit/prove'
+import * as Store from 'metakit/store'
 import * as Temporal from 'metakit/temporal'
 import { describe, expect, it } from 'vitest'
 
@@ -39,10 +40,11 @@ const aggregates = {
   entryLimit: Rows.count(Entry),
 }
 
-const store = (
-  isolation: Temporal.Isolation,
-  parentRowLock: boolean,
-): Temporal.StoreCapabilities => ({ name: `${isolation}-store`, isolation, parentRowLock })
+const store = (isolation: Store.Isolation, parentRowLock: boolean): Store.StoreCapabilities => ({
+  name: `${isolation}-store`,
+  isolation,
+  parentRowLock,
+})
 
 describe('what each declared rule needs of its store', () => {
   it('reads row-atomic off a transition and parent-serialized off an aggregate', () => {
@@ -96,7 +98,7 @@ describe('mounting on a store', () => {
     { needed: rows, on: store('read-committed', true) },
   ])('mounts on $on.name (lock: $on.parentRowLock)', ({ needed, on }) => {
     expect(needed.length).toBeGreaterThan(0)
-    expect(() => Temporal.mount(on, needed)).not.toThrow()
+    expect(() => Store.mount(on, needed)).not.toThrow()
   })
 
   it.each([
@@ -111,14 +113,14 @@ describe('mounting on a store', () => {
     },
     { needed: rows, on: store('eventual', true), rule: 'entryLimit', needs: 'parent-serialized' },
   ])('throws on $on.name (lock: $on.parentRowLock) for $rule', ({ needed, on, rule, needs }) => {
-    expect(() => Temporal.mount(on, needed)).toThrow(Temporal.StoreRefused)
-    expect(() => Temporal.mount(on, needed)).toThrow(`store "${on.name}"`)
-    expect(() => Temporal.mount(on, needed)).toThrow(`"${rule}" needs ${needs}`)
+    expect(() => Store.mount(on, needed)).toThrow(Store.StoreRefused)
+    expect(() => Store.mount(on, needed)).toThrow(`store "${on.name}"`)
+    expect(() => Store.mount(on, needed)).toThrow(`"${rule}" needs ${needs}`)
   })
 
   it('names only the rules the store cannot hold', () => {
     const all = Temporal.requirements({ machine: Bank, aggregates })
-    expect(Temporal.refused(store('read-committed', false), all).map(({ rule }) => rule)).toEqual([
+    expect(Store.refused(store('read-committed', false), all).map(({ rule }) => rule)).toEqual([
       'balanceIsItsEntries',
       'entryLimit',
     ])
