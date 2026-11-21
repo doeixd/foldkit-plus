@@ -6,7 +6,14 @@ const tests = ['packages/agent/test/applies.test.ts']
 
 /** The check as it stands after `authorize`, moved or rewritten by the mutations below. */
 const check = `      if (variant.applies !== undefined) {
-        const applies = variant.applies({ principal, input: decoded, model })
+        // As \`authorize\` above: a hook that throws says the call does not apply.
+        const applies = (() => {
+          try {
+            return variant.applies({ principal, input: decoded, model })
+          } catch {
+            return false
+          }
+        })()
         if (applies !== true) {
           return yield* CapabilityUnavailableError.of(
             name,
