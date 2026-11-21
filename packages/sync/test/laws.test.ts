@@ -231,6 +231,23 @@ describe('a law', () => {
     ).toThrow('violates a shared-state invariant')
   })
 
+  it('rejects a transition under a tag the document does not record', () => {
+    const local = SyncDeclared.transition(
+      Transition.make({
+        state: Schema.Struct({ model: options.shared.schema }),
+        input: Message.ChangedFilter,
+        apply: () => [],
+      }),
+    )
+    expect(() =>
+      Sync.forApplication(App).make({
+        ...options,
+        // @ts-expect-error ChangedFilter is neither durable nor server-only
+        transitions: { ChangedFilter: local },
+      }),
+    ).toThrow('Sync.make: "ChangedFilter" is not a recorded Message')
+  })
+
   it('refuses a Message whose transition guard is false, in the replica and in the journal', async () => {
     const only = [{ id: 'only', title: 'The one todo' }]
     const Single = Sync.forApplication(App)
@@ -263,6 +280,9 @@ describe('a law', () => {
     expect(Exit.isFailure(await submit('b'))).toBe(true)
     expect((await run(replica.shared)).todos).toEqual(only)
     expect((await run(replica.status)).pending).toBe(1)
+    // A tag with no declaration is still replayed by the application's update.
+    await run(replica.submit(Message.RemovedTodo({ id: 'only' })))
+    expect((await run(replica.shared)).todos).toEqual([])
   })
   it('refuses at 100 every durable Message that grows the list, as Invalid naming the law', async () => {
     const journal = openJournal(Capped)

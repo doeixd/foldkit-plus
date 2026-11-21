@@ -472,21 +472,13 @@ export const mount = <
     notifyEach(messageListeners, message)
     if (!durable.has(message._tag))
       return app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>
-    const declared = sync.footprints !== undefined && Object.hasOwn(sync.footprints, message._tag)
-    let result: Update.Return<Model, RuntimeMessage, Resources>
-    if (declared) {
-      const before = sync.projection.get(model)
-      try {
-        const after = sync.replay(before, message)
-        result = { model: after === before ? model : sync.projection.set(model, after) }
-      } catch {
-        // Submit reports the refusal through the ordinary persistence-failure path.
-        result = { model }
-      }
-    } else {
-      result = app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>
-    }
-    const outside = declared ? [] : readsOutside(model, message)
+    // A declared transition applies itself to the shared fields; a refused one leaves the
+    // Model, and submit reports it through the ordinary persistence-failure path.
+    const declared = sync.live(model, message)
+    const result: Update.Return<Model, RuntimeMessage, Resources> = Option.isSome(declared)
+      ? { model: declared.value }
+      : (app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>)
+    const outside = Option.isSome(declared) ? [] : readsOutside(model, message)
     if (outside.length > 0) {
       // Not applied and not submitted: every other replica and the server replay this Message over
       // the slice alone, so the slice shown here would be one that none of them ever holds.

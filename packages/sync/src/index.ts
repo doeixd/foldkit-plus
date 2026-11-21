@@ -142,6 +142,7 @@ export {
   type AuthorizeDecision,
   type AuthorizePolicy,
   type AuthorizeRequest,
+  type DeclaredReplay,
   type DeclaredTransition,
   type DefinedSync,
   type Footprint,

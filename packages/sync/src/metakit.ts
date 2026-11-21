@@ -5,7 +5,7 @@
  */
 import { Option, Result, Schema } from 'effect'
 import { Abstract, Bool, Expr, Transition, Verdict } from 'metakit'
-import type { DeclaredTransition, Law } from './make.js'
+import { messageTag, tagOf, type DeclaredTransition, type Law } from './make.js'
 
 type Model<Shared> = { readonly model: Shared }
 
@@ -31,22 +31,27 @@ const holds = <Shared>(
  * A durable Message's replay from a metakit `Transition` over `{ model }`.
  * A Message whose guard is false is refused. `make` rejects a guard proved
  * unreachable under the laws written with `holds`, or a transition proved to
- * break one.
+ * break one. The check, its words and the replay by tag all live here, so a
+ * document that declares no transition carries none of them.
  */
 const transition = <Shared, Message>(
   declared: Transition.Transition<Model<Shared>, Message>,
-): DeclaredTransition<Shared, Message> => ({
-  replay: (shared, message) => {
+): DeclaredTransition<Shared, Message> => {
+  const replay = (shared: Shared, message: Message): Shared => {
     const result = Transition.run(declared, { model: shared }, message)
     if (Result.isFailure(result)) throw new Error(result.failure.reason)
     return result.success.model
-  },
-  footprint: Transition.footprint(declared),
-  check: ({ shared, input, laws }) => {
+  }
+  /** Why the declaration is unsound for a document with these Schemas and laws, or none. */
+  const check = (
+    shared: Schema.Codec<Shared, unknown>,
+    input: Schema.Codec<Message>,
+    laws: ReadonlyArray<Pick<Law<Shared, string>, 'holds'>>,
+  ): Option.Option<string> => {
     if (Option.isSome(declared.emits))
       return Option.some('emits a Command; durable transitions are state-only')
     const known = laws.flatMap(law => {
-      const expression = expressions.get(law as Law<unknown, string>['holds'])
+      const expression = expressions.get(law.holds as Law<unknown, string>['holds'])
       return expression === undefined ? [] : [expression as Expr.Expr<Model<Shared>, boolean>]
     })
     const state = Schema.Struct({ model: shared }).pipe(Expr.refine(() => Expr.all(...known)))
@@ -60,8 +65,37 @@ const transition = <Shared, Message>(
     )
       return Option.some('violates a shared-state invariant')
     return Option.none()
-  },
-})
+  }
+  const footprint = Transition.footprint(declared)
+  return {
+    bind: ({ tag, shared, projection, constructors, laws, next }) => {
+      const input = constructors.find(constructor => messageTag(constructor) === tag)
+      if (input === undefined) throw new Error(`Sync.make: "${tag}" is not a recorded Message`)
+      // The constructor found by this tag is the Schema of this transition's Message.
+      const unsound = check(shared, input as Schema.Codec<Message>, laws)
+      if (Option.isSome(unsound)) throw new Error(`Sync.make: "${tag}" ${unsound.value}`)
+      // A Message of the document under this tag is the one this was declared for.
+      const own = (message: unknown): message is Message =>
+        Option.exists(tagOf(message), named => named === tag)
+      return {
+        replay: (value, message) =>
+          own(message) ? replay(value, message) : next.replay(value, message),
+        live: (model, message) => {
+          if (!own(message)) return next.live(model, message)
+          const before = projection.get(model)
+          try {
+            const after = replay(before, message)
+            return Option.some(after === before ? model : projection.set(model, after))
+          } catch {
+            // Refused: the replica's submit reports it, and the Model stays.
+            return Option.some(model)
+          }
+        },
+        footprints: { ...next.footprints, [tag]: footprint },
+      }
+    },
+  }
+}
 
 /**
  * Laws and transitions of a Sync document declared as metakit expressions.

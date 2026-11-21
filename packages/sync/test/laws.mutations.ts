@@ -11,8 +11,41 @@ export default [
     edits: [
       {
         file: '../src/mount.ts',
-        find: 'declared ? [] : readsOutside(model, message)',
+        find: 'Option.isSome(declared) ? [] : readsOutside(model, message)',
         replace: 'readsOutside(model, message)',
+      },
+    ],
+    tests: ['packages/sync/test/mount.test.ts'],
+  },
+  {
+    name: 'the mount never asks a declared transition',
+    edits: [
+      {
+        file: '../src/mount.ts',
+        find: 'const declared = sync.live(model, message)',
+        replace: 'const declared = Option.none<Model>()',
+      },
+    ],
+    tests: ['packages/sync/test/mount.test.ts'],
+  },
+  {
+    name: 'a declared transition that changes nothing gives the mount a new Model',
+    edits: [
+      {
+        file: '../src/metakit.ts',
+        find: 'Option.some(after === before ? model : projection.set(model, after))',
+        replace: 'Option.some(projection.set(model, after))',
+      },
+    ],
+    tests: ['packages/sync/test/mount.test.ts'],
+  },
+  {
+    name: 'a declared Message refused in the mount throws out of update',
+    edits: [
+      {
+        file: '../src/metakit.ts',
+        find: '          } catch {\n',
+        replace: '          } catch (error) {\n            throw error\n',
       },
     ],
     tests: ['packages/sync/test/mount.test.ts'],
@@ -41,10 +74,10 @@ export default [
     tests,
   },
   {
-    name: 'make ignores what a transition finds unsound',
+    name: 'a transition found unsound is bound all the same',
     edits: [
       {
-        file: '../src/make.ts',
+        file: '../src/metakit.ts',
         find: 'if (Option.isSome(unsound)) throw',
         replace: 'if (false) throw',
       },
@@ -56,11 +89,44 @@ export default [
     edits: [
       {
         file: '../src/make.ts',
-        find: 'transition.check({ shared: sharedCodec, input, laws })',
-        replace: 'transition.check({ shared: sharedCodec, input, laws: [] })',
+        find: 'laws: Object.values(options.laws ?? {}),',
+        replace: 'laws: [],',
       },
     ],
     tests,
+  },
+  {
+    name: 'a transition under a tag the document does not record is bound',
+    edits: [
+      {
+        file: '../src/metakit.ts',
+        find: 'if (input === undefined) throw',
+        replace: 'if (false) throw',
+      },
+    ],
+    tests: ['packages/sync/test/laws.test.ts', 'packages/sync/test/mount.test.ts'],
+  },
+  {
+    name: 'a declared transition replays every tag of the document',
+    edits: [
+      {
+        file: '../src/metakit.ts',
+        find: 'Option.exists(tagOf(message), named => named === tag)',
+        replace: 'true',
+      },
+    ],
+    tests: ['packages/sync/test/laws.test.ts', 'packages/sync/test/mount.test.ts'],
+  },
+  {
+    name: 'make drops the replay a declared transition gives',
+    edits: [
+      {
+        file: '../src/make.ts',
+        find: 'const replay = declared.replay',
+        replace: 'const replay = fallbackReplay',
+      },
+    ],
+    tests: ['packages/sync/test/laws.test.ts', 'packages/sync/test/mount.test.ts'],
   },
   {
     name: 'a Message whose guard is false is replayed as a no-op',

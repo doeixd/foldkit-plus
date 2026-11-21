@@ -68,14 +68,14 @@ export type ServerMsgOf<SMs extends readonly unknown[]> = [SMs[number]] extends 
   : MsgOf<SMs>
 
 /** Reads the tag off a Foldkit Message constructor without constructing one. */
-const messageTag = (constructor: unknown): string | undefined => {
+export const messageTag = (constructor: unknown): string | undefined => {
   const literal = (constructor as { fields?: { _tag?: { ast?: { literal?: unknown } } } }).fields
     ?._tag?.ast?.literal
   return typeof literal === 'string' ? literal : undefined
 }
 
 /** A Message's tag. The application's union is generic here, so its `_tag` is read, not typed. */
-const tagOf = (message: unknown): Option.Option<string> =>
+export const tagOf = (message: unknown): Option.Option<string> =>
   Predicate.hasProperty(message, '_tag') && typeof message._tag === 'string'
     ? Option.some(message._tag)
     : Option.none()
@@ -126,19 +126,47 @@ export interface Footprint {
 
 /**
  * A durable Message's replay declared apart from the application's `update`,
- * as `foldkit-sync/metakit`'s `SyncDeclared.transition` builds it. `replay` throws
- * to refuse the Message. `check` runs once in `make`, given the shared and
- * input Schemas and the laws' `holds`, and answers why the declaration is
- * unsound, or none.
+ * as `foldkit-sync/metakit`'s `SyncDeclared.transition` builds it. `make`
+ * calls `bind` once with the document: it throws where `tag` is not one of
+ * `constructors` or the declaration is unsound under `laws`, and gives the
+ * document's `DeclaredReplay` with this tag's in it, `next` answering for
+ * every other tag. `Message` is only the Message the declaration was written
+ * for.
  */
 export interface DeclaredTransition<Shared, Message> {
-  readonly replay: (shared: Shared, message: Message) => Shared
-  readonly footprint: Footprint
-  readonly check: (document: {
+  readonly bind: <AppModel, All>(document: {
+    readonly tag: string
     readonly shared: Schema.Codec<Shared, unknown>
-    readonly input: Schema.Codec<Message>
-    readonly laws: ReadonlyArray<Law<Shared, string>['holds']>
-  }) => Option.Option<string>
+    /** Where the shared fields sit in the application's Model. */
+    readonly projection: {
+      readonly get: (model: AppModel) => Shared
+      readonly set: (model: AppModel, shared: Shared) => AppModel
+    }
+    /** The durable and server-only Message constructors. */
+    readonly constructors: ReadonlyArray<unknown>
+    readonly laws: ReadonlyArray<Pick<Law<Shared, string>, 'holds'>>
+    readonly next: DeclaredReplay<Shared, AppModel, All>
+  }) => DeclaredReplay<Shared, AppModel, All>
+  /** Not read: it keeps a declaration for one Message from standing under another's tag. */
+  readonly _message?: (message: Message) => void
+}
+
+/**
+ * How a document replays its Messages: by the application's `update` (or
+ * `make`'s `replay`), with each declared transition's `bind` putting its own
+ * tag before that.
+ */
+export interface DeclaredReplay<Shared, AppModel, Message> {
+  /** The shared fields after a Message. It throws to refuse one. */
+  readonly replay: (shared: Shared, message: Message) => Shared
+  /**
+   * For a Message with a declared transition, the Model after it, which is
+   * the Model given where the Message is refused or changes nothing; none for
+   * a Message with no declaration, which the application's `update` handles.
+   */
+  readonly live: (model: AppModel, message: Message) => Option.Option<AppModel>
+  /** The static paths of each declared transition, by tag; absent when none is declared. */
+  readonly footprints?: Readonly<Record<string, Footprint>>
 }
 
 /** `make`'s laws, keyed by id: each over the shared fields, and nothing else of the Model. */
@@ -324,6 +352,8 @@ export interface DefinedSync<
     shared: Schema.Struct.Type<Fields>,
     message: Message,
   ) => Schema.Struct.Type<Fields>
+  /** `DeclaredReplay`'s `live`: what the mount applies for a Message with a declared transition. */
+  readonly live: (model: AppModel, message: Message) => Option.Option<AppModel>
   /** The durable constructors: what a replica submits. */
   readonly messages: Ms
   /** The server-only constructors: what only the server appends. */
@@ -610,37 +640,24 @@ const build = <
     // `AppScope` does not constrain its schemas' services; a Foldkit Message union
     // and a Struct are pure, so the low-level contract's `never` is satisfied.
     const sharedCodec = shared.schema as unknown as Schema.Codec<Shared, unknown>
-    const transitions = new Map<string, DeclaredTransition<Shared, Message>>()
-    const footprints: Record<string, Footprint> = Object.create(null)
-    if (options.transitions !== undefined) {
-      const inputs = new Map(
-        [...durable.constructors, ...(serverOnly?.constructors ?? [])].map(
-          constructor =>
-            [messageTag(constructor), constructor as unknown as Schema.Codec<Message>] as const,
-        ),
-      )
-      const laws = Object.values(options.laws ?? {}).map(law => law.holds)
-      for (const [tag, transition] of Object.entries(options.transitions) as Array<
+    // Each declared transition checks itself and puts its own tag before the rest.
+    const declared = (
+      Object.entries(options.transitions ?? {}) as Array<
         [string, DeclaredTransition<Shared, Message>]
-      >) {
-        const input = inputs.get(tag)
-        if (input === undefined) throw new Error(`Sync.make: "${tag}" is not a recorded Message`)
-        const unsound = transition.check({ shared: sharedCodec, input, laws })
-        if (Option.isSome(unsound)) throw new Error(`Sync.make: "${tag}" ${unsound.value}`)
-        transitions.set(tag, transition)
-        footprints[tag] = transition.footprint
-      }
-    }
-    const replay =
-      transitions.size === 0
-        ? fallbackReplay
-        : (value: Shared, message: Message): Shared => {
-            const tag = tagOf(message)
-            const transition = Option.isSome(tag) ? transitions.get(tag.value) : undefined
-            return transition === undefined
-              ? fallbackReplay(value, message)
-              : transition.replay(value, message)
-          }
+      >
+    ).reduce<DeclaredReplay<Shared, AppModel, Message>>(
+      (next, [tag, transition]) =>
+        transition.bind({
+          tag,
+          shared: sharedCodec,
+          projection: shared,
+          constructors: [...durable.constructors, ...(serverOnly?.constructors ?? [])],
+          laws: Object.values(options.laws ?? {}),
+          next,
+        }),
+      { replay: fallbackReplay, live: () => Option.none() },
+    )
+    const replay = declared.replay
     const stamps = options.stamp as
       | Record<string, (message: Message, commit: CommitStamp) => Message>
       | undefined
@@ -725,8 +742,7 @@ const build = <
       journalContract,
       surface,
       projection: shared,
-      ...(transitions.size === 0 ? {} : { footprints: Object.freeze(footprints) }),
-      replay,
+      ...declared,
       messages: durable.constructors,
       serverOnlyMessages: serverOnly?.constructors ?? [],
       laws,

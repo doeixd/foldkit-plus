@@ -5,7 +5,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Command from 'foldkit/command'
 import type * as Update from 'foldkit/update'
 import { Closure, MessageSet, Projection, Surface } from 'foldkit-surface'
-import { Transition } from 'metakit'
+import { Arr, Num, Transition } from 'metakit'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   documentId,
@@ -265,6 +265,44 @@ describe('Sync.mount', () => {
     } finally {
       reads.mockRestore()
     }
+  })
+
+  it('is handed the Model itself by a declared Message that is refused or changes nothing', () => {
+    const shared = Projection.pick(App.model.todos)
+    const state = Schema.Struct({ model: shared.schema })
+    const replacement = [{ id: 'declared', title: 'From the transition' }]
+    const sync = forApplication(App).make({
+      documentId: documentId('declarative-live'),
+      shared,
+      durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
+      transitions: {
+        // Refused once the list holds a todo.
+        CreatedTodo: SyncDeclared.transition(
+          Transition.make({
+            state,
+            input: Message.CreatedTodo,
+            when: ({ state }) => Num.lt(Arr.count(state.model.todos), 1),
+            apply: ({ state }) => [Transition.set(state.model.todos, replacement)],
+          }),
+        ),
+        // Writes what is there already.
+        RenamedTodo: SyncDeclared.transition(
+          Transition.make({
+            state,
+            input: Message.RenamedTodo,
+            apply: ({ state }) => [Transition.set(state.model.todos, state.model.todos)],
+          }),
+        ),
+      },
+    })
+    const created = Message.CreatedTodo({ id: 'app', title: 'From update' })
+    const filled = Option.getOrThrow(sync.live(initial, created))
+    expect(filled.todos).toEqual(replacement)
+    expect(Option.getOrThrow(sync.live(filled, created))).toBe(filled)
+    const renamed = Message.RenamedTodo({ id: 'declared', title: 'Renamed' })
+    expect(Option.getOrThrow(sync.live(filled, renamed))).toBe(filled)
+    // No declaration: the application's update handles it.
+    expect(sync.live(filled, Message.SelectedTodo({ id: 'a' }))).toEqual(Option.none())
   })
 
   it('dispatches a Message as its type is, though its fields encode otherwise', async () => {
