@@ -28,7 +28,7 @@ export {
 } from 'foldkit-metadata'
 export { Closure, type ClosureProjection, ClosureViolation } from './closure.js'
 import type { ContractLaws } from './graph.js'
-import { labelOf, pathText, tableCell } from './text.js'
+import { isPrefix, labelOf, pathText, tableCell } from './text.js'
 export {
   Graph,
   GraphEdge,
@@ -1096,6 +1096,24 @@ type ViewBuilder<Message> = Omit<HtmlBuilder<Message>, keyof HtmlBuilder<never> 
 /** A renderer for a Surface's projected Model, with its Message set narrowed. */
 export type Renderer<Model, Message> = (model: Model, h: ViewBuilder<Message>) => Html
 
+/**
+ * What each Message is declared to write, as far as a drawing needs it:
+ * `Writes.of` (`foldkit-surface/writes`) makes one, and `Surface.rootView`'s
+ * `writes` option takes it.
+ */
+export interface DeclaredWrites<Root> {
+  /**
+   * `draw`, kept while no Message since its last drawing was declared to write
+   * a path in `reads`. None for `reads` is a region that reads what no path
+   * names: every Message that changes the Model draws it again.
+   */
+  readonly region: <Builder>(
+    name: string,
+    reads: Option.Option<DependencyTree>,
+    draw: (root: Root, h: Builder) => Html,
+  ) => (root: Root, h: Builder) => Html
+}
+
 /** `unknown` when `Sub` is a subtype of `Super`, `never` otherwise. */
 type Subset<Sub, Super> = [Sub] extends [Super] ? unknown : never
 
@@ -1729,11 +1747,20 @@ export const Surface = {
    * The application boundary: consume the Root Model, project it, and hand the
    * projected Model to the renderer. `Subset` rejects a Surface whose Messages
    * the application builder cannot route.
+   *
+   * With `writes` (`Writes.of`, from `foldkit-surface/writes`), the drawing is
+   * kept while no Message since it was made is declared to write a path the
+   * Surface's projection reads: the projection is not read and Foldkit does
+   * not diff the tree. A Message with no declared transition, a Model that
+   * `writes.track` did not see made, and a projection that reads what no path
+   * names (a Remote read) all draw again. `render` must read only its Model,
+   * and the view stands at one position of the tree.
    */
   rootView: <Root, Model, Message, Params>(
     surface: Surface<Root, Model, Message, Params>,
     params: Params,
     render: Renderer<Model, Message>,
+    options?: { readonly writes?: DeclaredWrites<Root> },
   ): (<AppMessage>(
     root: Root,
     h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
@@ -1741,10 +1768,15 @@ export const Surface = {
     const projection = surface.projection(params)
     // Sound narrowing: the renderer can only construct this Surface's Messages,
     // and `Subset` guarantees the application builder accepts them.
-    return <AppMessage>(
-      root: Root,
-      h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
-    ): Html => render(projection.read(root), h as unknown as ViewBuilder<Message>)
+    const draw = (root: Root, h: unknown): Html =>
+      render(projection.read(root), h as ViewBuilder<Message>)
+    return options?.writes === undefined
+      ? draw
+      : options.writes.region(
+          surface.name,
+          unnamed(projection) ? Option.none() : Option.some(projection.dependencies),
+          draw,
+        )
   },
 
   /**
@@ -1924,8 +1956,6 @@ export type ModuleItem<Root> =
 
 const label = labelOf
 const pathKey = pathText
-const isPrefix = (prefix: readonly string[], path: readonly string[]): boolean =>
-  prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])
 
 // A carried contract wins: a sync contract also has a `projection` (writable, not a function).
 const toContract = <Root>(item: ModuleItem<Root>): Contract =>

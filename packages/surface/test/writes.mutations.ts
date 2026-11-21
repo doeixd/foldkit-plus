@@ -1,0 +1,140 @@
+/**
+ * `Writes` and `WritesCheck`: `pnpm mutate packages/surface/test/writes.mutations.ts`.
+ */
+const tests = ['packages/surface/test/writes.test.ts', 'packages/surface/test/writesCheck.test.ts']
+
+const edit = (name: string, find: string, replace: string, file = '../src/writes.ts') => ({
+  name,
+  edits: [{ file, find, replace }],
+  tests,
+})
+
+const check = (name: string, find: string, replace: string) =>
+  edit(name, find, replace, '../src/writesCheck.ts')
+
+export default [
+  // The matcher under-reports: a view is kept although a declared write reaches it.
+  edit(
+    'no declared Message draws a view again',
+    'tags.filter(tag => affectedBy[tag].length > 0)',
+    'tags.filter(() => false)',
+  ),
+  edit(
+    'a read no path names is taken to read nothing',
+    'onNone: () => Expr.opaque<Root, void>({ name }, run),',
+    'onNone: () => Expr.opaque<Root, void>({ name, reads: [] }, run),',
+  ),
+  edit(
+    'a projection that names no path is given as reading none',
+    'unnamed(projection) ? Option.none() : Option.some(projection.dependencies),',
+    'Option.some(projection.dependencies),',
+    '../src/index.ts',
+  ),
+  edit(
+    'a Message with no transition draws nothing again',
+    'if (Option.isNone(regions)) all++',
+    'if (Option.isNone(regions)) all += 0',
+  ),
+  edit('track trusts a Model it did not see made', '      if (!isCurrent(model)) all++\n', ''),
+  edit(
+    'a view trusts a Model it did not see made',
+    'if (!isCurrent(root)) {\n          all++',
+    'if (!isCurrent(root)) {\n          all += 0',
+  ),
+  // These draw more than is needed, or break the keeping.
+  edit(
+    'a view does not take the Model it drew as the current one',
+    '          current = Option.some(root)\n',
+    '',
+  ),
+  edit('track forgets the Model it made', '      current = Option.some(result.model)\n', ''),
+  edit(
+    'a declared Message draws every view again',
+    'else for (const region of regions.value) region.own++',
+    'else all++',
+  ),
+  edit(
+    'a Message that changes nothing counts as a write',
+    'if (result.model !== model) {',
+    'if (true) {',
+  ),
+  edit(
+    'rootView ignores the writes',
+    'return options?.writes === undefined',
+    'return true',
+    '../src/index.ts',
+  ),
+  edit(
+    'a server render keeps drawings',
+    '        if ((globalThis as Record<symbol, unknown>)[SERVER_RENDER] === true) return draw(root, h)\n',
+    '',
+  ),
+  edit(
+    'a drawing that throws in a frame is drawn again',
+    '          if (started !== before) throw error\n',
+    '',
+  ),
+  edit(
+    'no drawing where there is no runtime frame',
+    '          return draw(root, h)\n        }\n      }',
+    '          throw error\n        }\n      }',
+  ),
+  edit(
+    'a transition no Message names is taken',
+    'if (!Object.hasOwn(messages, tag) || messageTag(messages[tag]) !== tag) {',
+    'if (false) {',
+  ),
+  edit(
+    'every declared Message is said to write nothing',
+    '? Option.some(machine.footprints[tag as Tag].writes)',
+    '? Option.some([])',
+  ),
+
+  check(
+    'an undeclared write is not reported',
+    'if (paths.length > 0) report(',
+    'if (false) report(',
+  ),
+  check(
+    'a declared write is reported as undeclared',
+    ' || declared.some(write => isPrefix(write, path))',
+    '',
+  ),
+  check(
+    'a write declared below a change covers it',
+    'declared.some(write => isPrefix(write, path))',
+    'declared.some(write => isPrefix(path, write))',
+  ),
+  check('a struct is compared whole, not by its fields', '  if (walk) {', '  if (false) {'),
+  check(
+    'a value rebuilt equal is a change',
+    '} else if (!Equal.equals(before, after)) {',
+    '} else {',
+  ),
+  check(
+    'an array that grew is walked by index',
+    '? Array.isArray(after) && before.length === after.length',
+    '? Array.isArray(after)',
+  ),
+  check(
+    'the closed Surfaces are not checked',
+    'of outside(model, message, result.model)) {',
+    'of []) {',
+  ),
+  edit(
+    "a closed Surface's own Message is reported as outside it",
+    '      hasTagIn(surface.tags, message) ? [] : moved(surface, before, after),',
+    '      moved(surface, before, after),',
+    '../src/closure.ts',
+  ),
+  check(
+    'a finding is logged, not thrown, by default',
+    'options.report ?? fail',
+    'options.report ?? warn',
+  ),
+  check(
+    'a finding does not say which Message',
+    'report(outsideWrite(tag, surface))',
+    "report(outsideWrite('', surface))",
+  ),
+]

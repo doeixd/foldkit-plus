@@ -12,7 +12,7 @@ import { Data, Option } from 'effect'
 import { lawFactsOf, type LawEntry } from 'foldkit-entity'
 import { Evidence } from 'foldkit-metadata'
 import type { Contract, Finding, Module } from './index.js'
-import { labelOf, pathText, tableCell } from './text.js'
+import { isPrefix, labelOf, pathText, tableCell } from './text.js'
 
 /** Where a path is: a Model field (`['todos']`) or an Entity member (`['Product', 'stock']`). */
 export type GraphSpace = 'model' | 'entity'
@@ -125,9 +125,6 @@ interface Assembled {
   readonly contributors: ReadonlyMap<string, ReadonlyArray<string>>
   readonly unmatched: ReadonlyArray<Unmatched>
 }
-
-const isPrefix = (prefix: ReadonlyArray<string>, path: ReadonlyArray<string>): boolean =>
-  prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])
 
 /** One path is within the other: writing `['todos']` writes `['todos', 'title']`, and the reverse. */
 const overlaps = (a: Located, b: Located): boolean =>

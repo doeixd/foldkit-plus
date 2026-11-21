@@ -96,6 +96,50 @@ export type ClosureViolation = Data.TaggedEnum<{
 }>
 export const ClosureViolation = Data.taggedEnum<ClosureViolation>()
 
+/** The Surfaces a closure check takes: those declared `closed: true` are tested. */
+export type ClosedSurfaces<Root> = ReadonlyArray<{
+  readonly name: string
+  readonly closed: boolean
+  readonly messages: readonly unknown[]
+  /** Read only to refuse a Surface with params. */
+  readonly Params: unknown
+  /** `never`: whatever params a Surface takes, it is only ever called with none. */
+  readonly projection: (params: never) => Projection<Root, unknown>
+}>
+
+interface Closed<Root> {
+  readonly name: string
+  readonly projection: ClosureProjection<Root, unknown>
+  readonly tags: ReadonlySet<string>
+}
+
+const closedOf = <Root>(
+  surfaces: ClosedSurfaces<Root>,
+  caller: string,
+): ReadonlyArray<Closed<Root>> =>
+  surfaces
+    .filter(surface => surface.closed)
+    .map(surface => {
+      if (surface.Params !== undefined) {
+        throw new Error(`${caller}: Surface "${surface.name}" declares params`)
+      }
+      // No params schema, checked above: the Surface takes none.
+      const projection: ClosureProjection<Root, unknown> = surface.projection(undefined as never)
+      return { name: surface.name, projection, tags: new Set(messageTags(surface)) }
+    })
+
+const moved = <Root>(
+  { name, projection }: Closed<Root>,
+  before: Root,
+  after: Root,
+): ReadonlyArray<ClosureViolation> => {
+  const { codec, read } = partsOf(projection)
+  const [was, now] = [read(before), read(after)]
+  return Object.is(was, now) || equivalence(codec)(was, now)
+    ? []
+    : [ClosureViolation.Outside({ surface: name })]
+}
+
 /**
  * A step check over the Surfaces declared `closed: true`, for a walk. For a Message in a
  * Surface's `messages`, `Closure.reads` must be empty; for any other Message the projection
@@ -107,40 +151,37 @@ const violations = <Root, Message>(
     readonly initial: Root
     readonly update: (model: Root, message: Message) => { readonly model: Root }
   },
-  surfaces: ReadonlyArray<{
-    readonly name: string
-    readonly closed: boolean
-    readonly messages: readonly unknown[]
-    /** Read only to refuse a Surface with params. */
-    readonly Params: unknown
-    /** `never`: whatever params a Surface takes, it is only ever called with none. */
-    readonly projection: (params: never) => Projection<Root, unknown>
-  }>,
+  surfaces: ClosedSurfaces<Root>,
 ): ((before: Root, message: Message, after: Root) => ReadonlyArray<ClosureViolation>) => {
-  const closed = surfaces
-    .filter(surface => surface.closed)
-    .map(surface => {
-      if (surface.Params !== undefined) {
-        throw new Error(`Closure.violations: Surface "${surface.name}" declares params`)
-      }
-      // No params schema, checked above: the Surface takes none.
-      const projection: ClosureProjection<Root, unknown> = surface.projection(undefined as never)
-      return { name: surface.name, projection, tags: new Set(messageTags(surface)) }
-    })
+  const closed = closedOf(surfaces, 'Closure.violations')
   return (before, message, after) =>
-    closed.flatMap(({ name, projection, tags }): ReadonlyArray<ClosureViolation> => {
+    closed.flatMap((surface): ReadonlyArray<ClosureViolation> => {
       // tag-check: open, `Message` is the application's own, which this cannot name
-      if (hasTagIn(tags, message)) {
-        const fields = reads(app, projection, before, message)
-        return fields.length === 0 ? [] : [ClosureViolation.Reads({ surface: name, fields })]
+      if (hasTagIn(surface.tags, message)) {
+        const fields = reads(app, surface.projection, before, message)
+        return fields.length === 0
+          ? []
+          : [ClosureViolation.Reads({ surface: surface.name, fields })]
       }
-      const { codec, read } = partsOf(projection)
-      const [was, now] = [read(before), read(after)]
-      return Object.is(was, now) || equivalence(codec)(was, now)
-        ? []
-        : [ClosureViolation.Outside({ surface: name })]
+      return moved(surface, before, after)
     })
 }
 
+/**
+ * The `Outside` half of `violations`, which runs no `update`: the closed Surfaces a Message
+ * outside their `messages` moved from `before` to `after`. What a check on every Message of
+ * a running application can afford (`WritesCheck.verify`).
+ */
+const outside = <Root, Message>(
+  surfaces: ClosedSurfaces<Root>,
+): ((before: Root, message: Message, after: Root) => ReadonlyArray<ClosureViolation>) => {
+  const closed = closedOf(surfaces, 'Closure.outside')
+  return (before, message, after) =>
+    closed.flatMap(surface =>
+      // tag-check: open, `Message` is the application's own, which this cannot name
+      hasTagIn(surface.tags, message) ? [] : moved(surface, before, after),
+    )
+}
+
 /** Checks that a projection is closed under `update`: `Closure.reads` names what it still depends on. */
-export const Closure = { reads, violations }
+export const Closure = { reads, violations, outside }
