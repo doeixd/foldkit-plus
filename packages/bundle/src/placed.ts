@@ -183,11 +183,13 @@ export interface PlaceConfig<
    */
   readonly memo?: false
   /**
-   * Optional epoch reader driven by declared write paths (#586, e.g. from
-   * `foldkit-surface/writes`). When provided, the kept drawing keys on this
-   * epoch rather than child Model reference identity.
+   * Optional epoch reader driven by declared write paths (#586, e.g.
+   * `writes.epochFor` from `foldkit-surface/writes`), given the parent's Model
+   * at each draw so it can tell a Model no tracked `update` made. When
+   * provided, the kept drawing keys on this epoch rather than child Model
+   * reference identity.
    */
-  readonly pathEpoch?: (() => unknown) | undefined
+  readonly pathEpoch?: ((parent: Parent) => unknown) | undefined
 }
 
 /** A lifted resource record: each child entry in parent terms, keyed by the placement. */
@@ -497,13 +499,16 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
   const childView: ErasedView | undefined = bundle.view
   // One kept drawing per slot: a lazy slot belongs to one position in the tree.
   const kept = new Map<string, (model: unknown, h: HtmlBuilder<any>) => Html>()
+  // The parent being drawn, set just before a kept drawing runs, for `pathEpoch`.
+  let drawnParent: unknown
+  const pathEpoch = config.pathEpoch
   const keptIn = (slotId: string, view: ErasedView) => {
     const known = kept.get(slotId)
     if (known !== undefined) return known
     const made = keptDrawing(
       (model, h) => h.submodel({ slotId, model, view, toParentMessage: link.toParentMessage }),
       view,
-      config.pathEpoch === undefined ? undefined : { pathEpoch: config.pathEpoch },
+      pathEpoch === undefined ? undefined : { pathEpoch: () => pathEpoch(drawnParent) },
     )
     kept.set(slotId, made)
     return made
@@ -521,6 +526,7 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
               return null
             },
             onSome: model => {
+              drawnParent = parent
               // A view drawn without inputs takes none: handing it some would
               // shift its builder to the third argument.
               const viewInputs =

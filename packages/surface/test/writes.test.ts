@@ -78,21 +78,32 @@ describe('which declared Messages draw a Surface again', () => {
     const local = Writes.of(App, Declared)
     const tracked = local.track(update)
     const titleEpoch = local.epochFor([['title']])
-    const initialEpoch = titleEpoch()
-    // Counted writes ['count'], not ['title'] -> epoch unchanged after first tracked Model
+    // Counted writes ['count'], not ['title']: the epoch stays after the first tracked Model.
     const m1 = tracked(initial, Message.Counted()).model
-    const afterFirst = titleEpoch()
-    // Second Counted keeps titleEpoch unchanged!
+    const afterFirst = titleEpoch(m1)
     const m2 = tracked(m1, Message.Counted()).model
-    expect(titleEpoch()).toBe(afterFirst)
-    // Renamed writes ['title'] -> titleEpoch advances!
+    expect(titleEpoch(m2)).toBe(afterFirst)
+    // Renamed writes ['title']: the epoch moves.
     const m3 = tracked(m2, Message.Renamed({ title: 'Next' })).model
-    expect(titleEpoch()).toBeGreaterThan(afterFirst)
-    // Untracked Model (never seen by track) -> bumps `all` -> titleEpoch advances!
-    const beforeUntracked = titleEpoch()
-    tracked({ ...m3, count: 99 }, Message.Counted())
-    expect(titleEpoch()).toBeGreaterThan(beforeUntracked)
-    expect(initialEpoch).toBe(0)
+    expect(titleEpoch(m3)).toBeGreaterThan(afterFirst)
+    // A Model track never saw, handed to `update`: the epoch moves.
+    const beforeUntracked = titleEpoch(m3)
+    const m4 = tracked({ ...m3, count: 99 }, Message.Counted()).model
+    expect(titleEpoch(m4)).toBeGreaterThan(beforeUntracked)
+  })
+
+  it('moves epochFor for a Model drawn that no tracked update made, and only once (#586)', () => {
+    const local = Writes.of(App, Declared)
+    const tracked = local.track(update)
+    const titleEpoch = local.epochFor([['title']])
+    const made = tracked(initial, Message.Counted()).model
+    const before = titleEpoch(made)
+    expect(titleEpoch(made)).toBe(before)
+    // A checkpoint installed without `update` (`ModelRef.set`, hot reload).
+    const restored = { ...made, title: 'Restored' }
+    const after = titleEpoch(restored)
+    expect(after).toBeGreaterThan(before)
+    expect(titleEpoch(restored)).toBe(after)
   })
 })
 

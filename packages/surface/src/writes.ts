@@ -19,10 +19,9 @@ import {
   Surface,
   type AppScope,
   type DependencyTree,
-  type Invalid,
   type Renderer,
 } from './index.js'
-import { messageTag, tagOf } from './messageTags.js'
+import { messageTag, tagOf, type OnlyMessages } from './messageTags.js'
 import { registerRootViewHook } from './rootViewRegistry.js'
 
 export {
@@ -97,18 +96,16 @@ export interface Writes<Root, Message, Tag extends string> {
    */
   readonly install: () => () => void
   /**
-   * Returns a live epoch getter for `reads` (combining `all` for untracked
-   * Models with a per-region counter bumped by every declared write overlapping
-   * `reads`). Suitable as `pathEpoch` for `foldkit-bundle` placements (#586).
+   * An epoch for `reads`, read from the root Model being drawn: it moves on
+   * every declared write that overlaps `reads`, on every Message with no
+   * transition, and whenever `root` is a Model `track` did not make (a restored
+   * checkpoint, hot reload). Pass it as `pathEpoch` to a `foldkit-bundle`
+   * placement on the root (#586).
    */
-  readonly epochFor: (reads: DependencyTree) => () => number
+  readonly epochFor: (reads: DependencyTree) => (root: Root) => number
   /** Each view defined with these writes, in the order they were defined. */
   readonly regions: () => ReadonlyArray<RegionFacts<Tag>>
 }
-
-type OnlyMessages<Cases, Transitions> = [Exclude<keyof Transitions, keyof Cases>] extends [never]
-  ? unknown
-  : Invalid<"Writes.of: a transition is named by one of the application's Message tags">
 
 /** Set by `foldkit-ssr` while a server renders, where a kept drawing would carry another request's markers. */
 const SERVER_RENDER = Symbol.for('foldkit-plus.serverRender')
@@ -168,6 +165,13 @@ const of = <
   // The Model the counts are true of: the last a tracked update made, or a view drew.
   let current = Option.none<Root>()
   const isCurrent = (model: Root): boolean => Option.isSome(current) && current.value === model
+  // A Model drawn with an unknown past draws every view again, and the counts are true of it from here.
+  const adopt = (root: Root): void => {
+    if (!isCurrent(root)) {
+      all++
+      current = Option.some(root)
+    }
+  }
 
   const writes: Writes<Root, Schema.Schema.Type<MessageUnion<Cases>>, Tag> = {
     declared: message =>
@@ -235,11 +239,7 @@ const of = <
       }
       return (root: Root, h: unknown): Html => {
         if ((globalThis as Record<symbol, unknown>)[SERVER_RENDER] === true) return drawn(root, h)
-        // A Model with an unknown past: drawn, and the counts are true of it from here.
-        if (!isCurrent(root)) {
-          all++
-          current = Option.some(root)
-        }
+        adopt(root)
         latest = root
         const before = started
         try {
@@ -270,7 +270,10 @@ const of = <
       )
       const region: Region = { own: 0 }
       for (const tag of redrawnBy) redraws.get(tag)?.push(region)
-      return () => all + region.own
+      return root => {
+        adopt(root)
+        return all + region.own
+      }
     },
 
     regions: () => facts,

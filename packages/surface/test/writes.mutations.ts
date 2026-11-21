@@ -33,13 +33,13 @@ export default [
   edit('track trusts a Model it did not see made', '      if (!isCurrent(model)) all++\n', ''),
   edit(
     'a view trusts a Model it did not see made',
-    'if (!isCurrent(root)) {\n          all++',
-    'if (!isCurrent(root)) {\n          all += 0',
+    '        adopt(root)\n        latest = root',
+    '        latest = root',
   ),
   // These draw more than is needed, or break the keeping.
   edit(
     'a view does not take the Model it drew as the current one',
-    '          current = Option.some(root)\n',
+    '      current = Option.some(root)\n',
     '',
   ),
   edit('track forgets the Model it made', '      current = Option.some(result.model)\n', ''),
@@ -157,5 +157,10 @@ export default [
     'owning contract violations are not reported',
     'if (violated.length > 0) report(ownerWrite(tag, entry.owner, violated))',
     'if (false) report(ownerWrite(tag, entry.owner, violated))',
+  ),
+  edit(
+    'epochFor ignores a Model track did not make',
+    '      return root => {\n        adopt(root)\n',
+    '      return _root => {\n',
   ),
 ]

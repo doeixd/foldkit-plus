@@ -1,4 +1,16 @@
 import { Option, Predicate } from 'effect'
+import type { Invalid } from './index.js'
+
+/**
+ * Refuses a Machine with a transition no Message of the application names.
+ * One type for `Writes.of` and `Declared.of`, so the Machine `Declared.of`
+ * checked passes `Writes.of`'s check as it is.
+ */
+export type OnlyMessages<Cases, Transitions> = [Exclude<keyof Transitions, keyof Cases>] extends [
+  never,
+]
+  ? unknown
+  : Invalid<"every transition must be named by one of the application's Message tags">
 
 /** The tag of a Message of an application this cannot name; none for a value that has none. */
 export const tagOf = (message: unknown): Option.Option<string> =>

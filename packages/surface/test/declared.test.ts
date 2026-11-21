@@ -112,17 +112,17 @@ describe('Declared.of', () => {
     })
     const titleEpoch = declared.writes.epochFor([['title']])
     const m1 = declared.update(initial, Message.Incremented({ by: 1 })).model
-    const e1 = titleEpoch()
+    const e1 = titleEpoch(m1)
     // Another Incremented does NOT write ['title'] -> titleEpoch unchanged!
     const m2 = declared.update(m1, Message.Incremented({ by: 2 })).model
-    expect(titleEpoch()).toBe(e1)
+    expect(titleEpoch(m2)).toBe(e1)
     // Renamed writes ['title'] -> titleEpoch advances!
     const m3 = declared.update(m2, Message.Renamed({ title: 'Changed' })).model
-    expect(titleEpoch()).toBeGreaterThan(e1)
+    expect(titleEpoch(m3)).toBeGreaterThan(e1)
     // Undeclared Noted changes model via fallback -> bumps `all` -> titleEpoch advances!
-    const e3 = titleEpoch()
-    declared.update(m3, Message.Noted({ note: 'fallback' }))
-    expect(titleEpoch()).toBeGreaterThan(e3)
+    const e3 = titleEpoch(m3)
+    const m4 = declared.update(m3, Message.Noted({ note: 'fallback' })).model
+    expect(titleEpoch(m4)).toBeGreaterThan(e3)
   })
 
   it('allows omitting config when a machine emits no records', () => {
@@ -160,13 +160,13 @@ describe('Declared.of', () => {
     const titleEpoch = declared.writes.epochFor([['title']])
     const noteEpoch = declared.writes.epochFor([['note']])
     const m1 = declared.update(initial, Message.Incremented({ by: 1 })).model
-    const titleBefore = titleEpoch()
-    const noteBefore = noteEpoch()
+    const titleBefore = titleEpoch(m1)
+    const noteBefore = noteEpoch(m1)
 
     // Confined child writes `['note']`: noteEpoch advances, titleEpoch stays exact!
-    declared.update(m1, Message.Noted({ note: 'inside' }))
-    expect(noteEpoch()).toBeGreaterThan(noteBefore)
-    expect(titleEpoch()).toBe(titleBefore)
+    const m2 = declared.update(m1, Message.Noted({ note: 'inside' })).model
+    expect(noteEpoch(m2)).toBeGreaterThan(noteBefore)
+    expect(titleEpoch(m2)).toBe(titleBefore)
 
     // WritesCheck enforces the confinement: if the opaque child writes outside `['note']`, it fails.
     const leaky = WritesCheck.verify(declared.writes, (model: Model, message: Message) =>
