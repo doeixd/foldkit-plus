@@ -4,6 +4,19 @@ Grounded in the existing `packages/metakit` implementation (15-op v1 core, `meta
 
 ---
 
+## Status (2026-11-21)
+
+| Phase | State |
+| --- | --- |
+| 2 | Built, then independently reviewed and corrected: evaluation is null-strict in every reader, the evaluator refuses unsafe results as typed values, the synchronous checker was rewritten, prover witnesses are replayed, SQL and Drizzle share one lowering, and a seeded parity suite runs on PGlite and SQLite. `Decimal.mul` exists in memory; its SQL lowering is not built. |
+| 3 | Built and reviewed. Sync's expression laws and transitions are in `foldkit-sync/metakit` (`SyncDeclared`); the guard check is `GuardCheck.policy` in `foldkit-guard/check`. Neither main entry imports metakit. |
+| 4.1 | Built: `foldkit-form/metakit`, `foldkit-agent/metakit`, `foldkit-mixins-form/declared`. |
+| 4.2 | Built: `foldkit-surface/writes`, `foldkit-remote/aggregate`. Open in #580: the plan short-circuit covers only a bare Surface and `Remote.observe`; a pending write on a large list still walks it. Open in #586 and #587: see the issues. |
+| 5 | Built: `metakit/store`, `metakit/temporal`, writer store capabilities. The out-of-order-edits test from #480 is in, and it found and fixed a defect in `foldkit-remote`. Not built: a Postgres parent-row lock; capability declarations for the Durable Object and sync stores. |
+| 6 | Composable machines are built (`Machine.lift`, `Machine.compose`). Partial hydration and Message-scoped splitting are not built: measured on domains-plus, both fall below the thresholds in `metakit-phase-6-DESIGN.md`, which records the baseline, the thresholds and when to reopen. |
+
+---
+
 ## Baseline: What Already Exists in `packages/metakit`
 
 Before starting Phase 2, note what is already shipped and tested on `ui-polish` so no work is duplicated:
