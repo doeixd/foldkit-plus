@@ -142,6 +142,9 @@ export interface ForeignOp {
 /** An operator a `Call` may name: a core one, which carries its evaluator, or a foreign one. */
 export type AnyOp = Op | ForeignOp
 
+/** Whether `op` is a foreign operation, which carries no evaluator. */
+export const isForeign = (op: AnyOp): op is ForeignOp => op._tag === 'Foreign'
+
 /** The prefixes of the core operators' ids, which a foreign operation may not take. */
 const RESERVED = ['bool.', 'eq.', 'null.', 'ord.', 'num.', 'str.', 'arr.', 'rows.']
 
@@ -294,6 +297,9 @@ const litKey = (value: unknown): string => {
   return `ref#${identityOf(value)}`
 }
 
+/** An operator's name in a key: a foreign one's with its version, so two versions are two terms. */
+const opKey = (op: AnyOp): string => (isForeign(op) ? `${op.id}@${op.version}` : op.id)
+
 /**
  * A string equal for two nodes exactly when they are the same term: the key
  * by which partial evaluation removes duplicates and the checkers name terms.
@@ -303,8 +309,7 @@ export const key = (node: Node): string =>
   $match(node, {
     Lit: ({ value }) => litKey(value),
     Path: ({ segments }) => `$${JSON.stringify(segments)}`,
-    Call: ({ op, args }) =>
-      `${op._tag === 'Foreign' ? `${op.id}@${op.version}` : op.id}(${args.map(key).join(',')})`,
+    Call: ({ op, args }) => `${opKey(op)}(${args.map(key).join(',')})`,
     If: ({ cond, then, otherwise }) => `if(${key(cond)},${key(then)},${key(otherwise)})`,
     Match: ({ on, cases, otherwise }) =>
       `match(${key(on)},${cases.map(([value, then]) => `${JSON.stringify(value)}:${key(then)}`).join(',')}${Option.match(

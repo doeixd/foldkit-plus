@@ -421,7 +421,7 @@ export class AbstractState {
       Value: () => fromZone,
       Term: ({ range, forward }) => {
         const op = node.op
-        if (op._tag !== 'Foreign' && node.args.every(Node.$is('Lit'))) {
+        if (!Node.isForeign(op) && node.args.every(Node.$is('Lit'))) {
           const value = Node.apply(
             op,
             node.args.map(arg => arg.value),

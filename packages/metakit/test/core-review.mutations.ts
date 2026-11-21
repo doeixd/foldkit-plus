@@ -59,8 +59,8 @@ const checker = [
     soundness,
     'membership bounds a number by its smallest candidate',
     abstractOps,
-    'state.zone.constrainUpper(id.value, Math.max(...numbers))',
-    'state.zone.constrainUpper(id.value, Math.min(...numbers))',
+    'numbers.length === values.length) {\n        state.zone.constrainLower(id.value, Math.min(...numbers))\n        state.zone.constrainUpper(id.value, Math.max(...numbers))',
+    'numbers.length === values.length) {\n        state.zone.constrainLower(id.value, Math.min(...numbers))\n        state.zone.constrainUpper(id.value, Math.min(...numbers))',
   ),
   mutation(
     soundness,
@@ -233,8 +233,8 @@ const transitions = [
     edges,
     'a lifted opaque term runs over a child that is not there',
     transition,
-    'state === null || state === undefined ? null : fn({ state, input: outer.input }),',
-    'fn({ state, input: outer.input }),',
+    'state === null || state === undefined ? null : fn({ ...outer, state }),',
+    'fn({ ...outer, state }),',
   ),
   mutation(
     edges,
@@ -315,8 +315,8 @@ export default [
     nullStrict,
     'a rule that is null holds',
     expr,
-    'evalNode(expr.node, env) === true',
-    'evalNode(expr.node, env) !== false',
+    'evalNode(expr.node, env, options?.foreign) === true',
+    'evalNode(expr.node, env, options?.foreign) !== false',
   ),
   mutation(
     nullStrict,

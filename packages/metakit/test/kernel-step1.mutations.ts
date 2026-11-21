@@ -335,8 +335,8 @@ const foreign = [
     foreignTests,
     'a foreign call is one term whatever its version',
     '../src/node.ts',
-    "`${op._tag === 'Foreign' ? `${op.id}@${op.version}` : op.id}(${args.map(key).join(',')})`",
-    "`${op.id}(${args.map(key).join(',')})`",
+    '(isForeign(op) ? `${op.id}@${op.version}` : op.id)',
+    'op.id',
   ),
 ]
 

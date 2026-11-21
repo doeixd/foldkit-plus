@@ -66,9 +66,9 @@ export default [
     edits: [
       {
         file: '../src/metakit.ts',
-        find: 'const environment = Schema.Struct({ state, input })',
+        find: 'const environment = Schema.Struct({ state, input, supplied: Schema.Struct({}) })',
         replace:
-          'const environment = Schema.Struct({ state: Schema.Struct({ model: shared }), input })',
+          'const environment = Schema.Struct({ state: Schema.Struct({ model: shared }), input, supplied: Schema.Struct({}) })',
       },
     ],
     tests,

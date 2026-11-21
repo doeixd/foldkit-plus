@@ -144,7 +144,7 @@ export const residualizeNode = (
       }),
     Call: ({ op, args }) => {
       const nextArgs = args.map(arg => residualizeNode(arg, partialEnv, foreign))
-      if (op._tag === 'Foreign') {
+      if (Node.isForeign(op)) {
         return nextArgs.every(Node.$is('Lit')) && Object.hasOwn(foreign, op.id)
           ? Node.Lit({
               value: applyForeign(
@@ -278,7 +278,7 @@ const foreignCalls = (node: Node.Node): ReadonlyArray<Node.ForeignOp> =>
   Node.$match(node, {
     Lit: () => [],
     Path: () => [],
-    Call: ({ op, args }) => [...(op._tag === 'Foreign' ? [op] : []), ...args.flatMap(foreignCalls)],
+    Call: ({ op, args }) => [...(Node.isForeign(op) ? [op] : []), ...args.flatMap(foreignCalls)],
     If: ({ cond, then, otherwise }) => [cond, then, otherwise].flatMap(foreignCalls),
     Match: ({ on, cases, otherwise }) =>
       [on, ...cases.map(([, branch]) => branch), ...Option.toArray(otherwise)].flatMap(

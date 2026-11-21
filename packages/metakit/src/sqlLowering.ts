@@ -307,7 +307,7 @@ export const lowerNode = (
             : Result.succeed([SqlPiece.Column({ segments: rel })])
         },
         Call: ({ op, args }) => {
-          if (op._tag !== 'Foreign') return sqlOps[op.id](args, ctx)
+          if (!Node.isForeign(op)) return sqlOps[op.id](args, ctx)
           const lowered: Array<Sql> = []
           for (const arg of args) {
             const each = ctx.lower(arg)

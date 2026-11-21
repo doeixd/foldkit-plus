@@ -4,7 +4,7 @@
  * view and any may refuse or give null.
  */
 import { Option } from 'effect'
-import type * as Node from '../node.js'
+import * as Node from '../node.js'
 import * as Verdict from '../verdict.js'
 import * as Interval from './interval.js'
 import { abstractOps, type AbstractOp, type PredicateOp, type TermOp, type ValueOp } from './ops.js'
@@ -38,7 +38,7 @@ const foreignPredicate: PredicateOp = {
 const foreignValue: ValueOp = { _tag: 'Value', unportable: true, valued: () => false }
 
 export const abstractOf = (op: Node.AnyOp): AbstractOp => {
-  if (op._tag !== 'Foreign') return abstractOps[op.id]
+  if (!Node.isForeign(op)) return abstractOps[op.id]
   const rows: Readonly<Record<Node.ValueKind, AbstractOp>> = {
     number: foreignTerm,
     boolean: foreignPredicate,

@@ -126,7 +126,7 @@ export const evalNode = (
     Path: ({ segments }) => readSegments(env, segments),
     Call: ({ op, args }) => {
       const values = args.map(arg => evalNode(arg, env, foreign))
-      return op._tag === 'Foreign' ? applyForeign(op, values, foreign) : Node.apply(op, values)
+      return Node.isForeign(op) ? applyForeign(op, values, foreign) : Node.apply(op, values)
     },
     If: node => {
       const taken = ifArm(node, evalNode(node.cond, env, foreign))

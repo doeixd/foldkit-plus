@@ -244,8 +244,8 @@ export default [
   mutation(
     'a list of only null is written IN ()',
     lowering,
-    'if (items.length === 0) return',
-    'if (false) return',
+    'if (items.length === 0) return Result.succeed(q`(${needle} IS NULL)`)',
+    'if (false) return Result.succeed(q`(${needle} IS NULL)`)',
     loweringTests,
   ),
   mutation(
