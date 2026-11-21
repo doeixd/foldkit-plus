@@ -1754,7 +1754,7 @@ export const Surface = {
    * not diff the tree. A Message with no declared transition, a Model that
    * `writes.track` did not see made, and a projection that reads what no path
    * names (a Remote read) all draw again. `render` must read only its Model,
-   * and the view stands at one position of the tree.
+   * and the view, made once at module level, stands at one position of the tree.
    */
   rootView: <Root, Model, Message, Params>(
     surface: Surface<Root, Model, Message, Params>,
