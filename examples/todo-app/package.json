@@ -28,6 +28,7 @@
     "foldkit-primitives": "workspace:*",
     "foldkit-surface": "workspace:*",
     "foldkit-sync": "workspace:*",
+    "metakit": "workspace:*",
     "ws": "^8.22.0"
   },
   "devDependencies": {

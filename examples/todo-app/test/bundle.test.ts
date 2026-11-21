@@ -22,7 +22,13 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // 6.1 to 7.9 kB brotli~ and nothing else moved. It gained the connection strip with
 // its offline switch (network.ts), delete with undo, the focus Commands and the
 // empty states. Ceiling that plus about 1%, rounded up to the next 500 bytes.
-const CEILING = 166_000
+// 169,292 bytes on 2026-11-21, from 165,083: the application opts into `foldkit-surface/writes`
+// (`machine.ts`, `surface.ts`), so a Message draws again only the Surfaces that read what it
+// writes. It carries 12.2 kB minified of `metakit` (transition, residualize, node, path, eval,
+// graph, kind, machine, eq, verdict, expr, core), 1.1 kB of `foldkit-surface/writes`, and
+// 1.1 kB of the declarations; the verifier (`writesCheck`) stays out of the build. Ceiling that
+// plus about 1%, rounded up to the next 500 bytes.
+const CEILING = 171_000
 
 clientBudget({
   name: 'todo-app',

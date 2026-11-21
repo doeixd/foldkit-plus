@@ -28,6 +28,7 @@ import { Mirror } from 'foldkit-mirror'
 import { fact } from 'foldkit-sync'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
+import type { TodoMachine } from './machine.js'
 
 export const Priority = Schema.Union([
   Schema.Literal('low'),
@@ -189,8 +190,12 @@ const nextPriority: Record<Priority, Priority> = { low: 'normal', normal: 'high'
  */
 export type MirrorReducer = (model: Model, message: Message) => Model
 
+/**
+ * `update` runs `machine`'s Transition for each Message it declares one for (`machine.ts`).
+ * That module imports the Model and Messages from here, so it is a type here.
+ */
 export const makeUpdate =
-  (mirrors: MirrorReducer) =>
+  (mirrors: MirrorReducer, machine: TodoMachine) =>
   (model: Model, message: Message): Return =>
     Message.match<Return>(message, {
       // Mirrors: the URL and the store are read back into the Model.
@@ -206,16 +211,25 @@ export const makeUpdate =
               commands: [mintTodo(model.draft.trim(), {})],
             },
       // An agent's request leaves the person's draft as it is.
-      RequestedTodo: ({ title, requestId }) =>
-        title.trim() === ''
+      RequestedTodo: request =>
+        request.title.trim() === ''
           ? { model }
           : {
-              model,
-              commands: [mintTodo(title.trim(), requestId === undefined ? {} : { requestId })],
+              model: machine.update(model, { _tag: 'RequestedTodo', input: request })[0],
+              commands: [
+                mintTodo(
+                  request.title.trim(),
+                  request.requestId === undefined ? {} : { requestId: request.requestId },
+                ),
+              ],
             },
-      EditingCommitted: () => commitEdit(model),
-      EditingSubmitted: () => {
-        const committed = commitEdit(model)
+      EditingCommitted: edit =>
+        commitEdit(model, machine.update(model, { _tag: 'EditingCommitted', input: edit })[0]),
+      EditingSubmitted: edit => {
+        const committed = commitEdit(
+          model,
+          machine.update(model, { _tag: 'EditingSubmitted', input: edit })[0],
+        )
         return Option.match(model.editingId, {
           onNone: () => committed,
           onSome: id => ({
@@ -244,11 +258,11 @@ export const makeUpdate =
       },
       // The fact is applied within this transition (`fact`), so the todo is
       // drawn again before focus looks for it.
-      UndoRequested: () =>
+      UndoRequested: undo =>
         Option.match(model.undo, {
           onNone: () => ({ model }),
           onSome: todo => ({
-            model: modifyFields(model, { undo: () => Option.none() }),
+            model: machine.update(model, { _tag: 'UndoRequested', input: undo })[0],
             commands: [fact(Message.RestoredTodo({ todo })), focusTitle(todo.id)],
           }),
         }),
@@ -297,17 +311,23 @@ export const makeUpdate =
           : { model: modifyFields(model, { listTitle: () => title.trim() }) },
 
       // Local.
-      DraftChanged: ({ value }) => ({ model: modifyFields(model, { draft: () => value }) }),
-      FilterSelected: ({ filter }) => ({ model: modifyFields(model, { filter: () => filter }) }),
+      DraftChanged: changed => ({
+        model: machine.update(model, { _tag: 'DraftChanged', input: changed })[0],
+      }),
+      FilterSelected: selected => ({
+        model: machine.update(model, { _tag: 'FilterSelected', input: selected })[0],
+      }),
       EditingStarted: ({ id }) => ({
         model: modifyFields(model, {
           editingId: () => Option.some(id),
           editDraft: () => model.todos.find(todo => todo.id === id)?.title ?? '',
         }),
       }),
-      EditDraftChanged: ({ value }) => ({ model: modifyFields(model, { editDraft: () => value }) }),
-      EditingStopped: () => ({
-        model: modifyFields(model, { editingId: () => Option.none(), editDraft: () => '' }),
+      EditDraftChanged: changed => ({
+        model: machine.update(model, { _tag: 'EditDraftChanged', input: changed })[0],
+      }),
+      EditingStopped: stopped => ({
+        model: machine.update(model, { _tag: 'EditingStopped', input: stopped })[0],
         commands: Option.match(model.editingId, {
           onNone: () => [],
           onSome: id => [focusTitle(id)],
@@ -317,23 +337,26 @@ export const makeUpdate =
         Option.exists(model.undo, todo => todo.id === id)
           ? { model: modifyFields(model, { undo: () => Option.none() }) }
           : { model },
-      OfflineSet: ({ offline }) =>
-        offline === model.offline
-          ? { model }
-          : { model: modifyFields(model, { offline: () => offline }) },
-      SyncStatusChanged: ({ pending, failed }) =>
-        pending === model.pending && failed === model.syncFailed
-          ? { model }
-          : { model: modifyFields(model, { pending: () => pending, syncFailed: () => failed }) },
-      CompletedFocus: () => ({ model }),
+      OfflineSet: set => ({
+        model: machine.update(model, { _tag: 'OfflineSet', input: set })[0],
+      }),
+      SyncStatusChanged: status => ({
+        model: machine.update(model, { _tag: 'SyncStatusChanged', input: status })[0],
+      }),
+      CompletedFocus: focused => ({
+        model: machine.update(model, { _tag: 'CompletedFocus', input: focused })[0],
+      }),
     })
 
-/** An edit's end: the title is renamed through a fact unless it came out empty or the todo is gone. */
-const commitEdit = (model: Model): Return => {
-  if (Option.isNone(model.editingId)) return { model }
+/**
+ * An edit's end: `stopped` is the Model the Transition made of it (the editing
+ * cleared, or the Model itself where none is going on); the title is renamed
+ * through a fact unless it came out empty or the todo is gone.
+ */
+const commitEdit = (model: Model, stopped: Model): Return => {
+  if (Option.isNone(model.editingId)) return { model: stopped }
   const id = model.editingId.value
   const title = model.editDraft.trim()
-  const stopped = modifyFields(model, { editingId: () => Option.none(), editDraft: () => '' })
   if (title === '' || model.todos.every(todo => todo.id !== id)) return { model: stopped }
   return {
     model: stopped,

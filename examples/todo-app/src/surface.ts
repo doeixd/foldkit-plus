@@ -15,14 +15,16 @@ import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
 import { Projection, Surface, type Surface as SurfaceType } from 'foldkit-surface'
 import type * as Update from 'foldkit/update'
+import { Writes, WritesCheck } from 'foldkit-surface/writes'
 import { Message, Model, initialModel, makeUpdate } from './app.js'
+import { todoMachine } from './machine.js'
 
 /**
  * The application's own transitions. The assembly routes the mirrors'
  * Messages before `own` ever sees them, so the fallback only sees another
  * mirror's `MirrorRestored`, which is correctly ignored.
  */
-const ownUpdate = makeUpdate(model => model)
+const ownUpdate = makeUpdate(model => model, todoMachine)
 
 export const App = Surface.application({
   Model,
@@ -56,10 +58,27 @@ export const wiring = Page.assemble(Filters.wiring('UrlChanged'), Prefs.wiring()
  * `KeyValueStore` requirement rides along from the key-value mirror's wiring;
  * only its startup Command uses the store, and the runtime provides it.
  */
-export const update: (
+/** `update` without the writes' tracking, for the test that checks every Message against its Transition. */
+export const assembled: (
   model: Model,
   message: Message,
 ) => Update.Return<Model, Message, KeyValueStore.KeyValueStore> = wiring.update(ownUpdate)
+
+/**
+ * What each Message writes (`machine.ts`), joined to what each Surface reads:
+ * `view.ts` draws its Surfaces through `writes.rootView`, so a Message redraws
+ * only the Surfaces that read a field it is declared to write.
+ */
+export const writes = Writes.of(App, todoMachine)
+
+/**
+ * The application's `update`, noting which Message made each Model. In
+ * development every Message is also checked to change no more than its
+ * Transition declares, which a kept drawing would otherwise hide.
+ */
+export const update: typeof assembled = writes.track(
+  import.meta.env?.DEV === true ? WritesCheck.verify(writes, assembled) : assembled,
+)
 
 // --- the writable projections the sync contract replicates (see sync.ts) ------
 

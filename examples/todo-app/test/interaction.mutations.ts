@@ -52,8 +52,9 @@ export default [
     edits: [
       {
         file: app,
-        find: 'pending === model.pending && failed === model.syncFailed',
-        replace: 'false',
+        find: "model: machine.update(model, { _tag: 'SyncStatusChanged', input: status })[0],",
+        replace:
+          "model: { ...machine.update(model, { _tag: 'SyncStatusChanged', input: status })[0] },",
       },
     ],
     tests: [unit],
