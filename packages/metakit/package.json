@@ -103,7 +103,7 @@
     "typecheck": "tsc -b"
   },
   "peerDependencies": {
-    "drizzle-orm": ">=0.45.0",
+    "drizzle-orm": "1.0.0-rc.5",
     "effect": "^4.1.0",
     "z3-solver": ">=4.15.0"
   },
