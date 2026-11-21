@@ -125,17 +125,64 @@ describe('Declared.of', () => {
     expect(titleEpoch(m4)).toBeGreaterThan(e3)
   })
 
-  it('allows omitting config when a machine emits no records', () => {
-    const PureMachine = Machine.make({
-      state: Model,
-      transitions: { Incremented },
-    })
-    const declared = Declared.of(App, PureMachine)
-    const next = declared.update(initial, Message.Incremented({ by: 5 }))
+  it('allows omitting config when every Message has a transition that emits nothing', () => {
+    const CountMessage = defineMessageUnion({ Incremented: { by: Schema.Int } })
+    const Counting = Surface.application({ Model, Message: CountMessage })
+    const declared = Declared.of(
+      Counting,
+      Machine.make({
+        state: Model,
+        transitions: {
+          Incremented: Transition.make({
+            state: Model,
+            input: CountMessage.Incremented,
+            apply: ({ state, input }) => [Transition.add(state.count, input.by)],
+          }),
+        },
+      }),
+    )
+    const next = declared.update(initial, CountMessage.Incremented({ by: 5 }))
     expect(next.model).toEqual({ title: 'Untitled', count: 5, note: '' })
-    // Undeclared Message with no fallback is a safe no-op returning the exact model.
-    const unchanged = declared.update(next.model, Message.Noted({ note: 'ignored' }))
-    expect(unchanged.model).toBe(next.model)
+    expect(declared.undeclared).toEqual([])
+  })
+
+  it('requires a fallback while some Message has no transition, and refuses to be made without one', () => {
+    const PureMachine = Machine.make({ state: Model, transitions: { Incremented } })
+    // @ts-expect-error `Renamed`, `Saved` and `Noted` have no transition and no fallback handles them
+    expect(() => Declared.of(App, PureMachine)).toThrow(
+      'no transition for "Renamed", "Saved", "Noted", and no fallback to handle them',
+    )
+    const declared = Declared.of(App, PureMachine, { fallback: model => ({ model }) })
+    const unchanged = declared.update(initial, Message.Noted({ note: 'ignored' }))
+    expect(unchanged.model).toBe(initial)
+  })
+
+  it('throws where a transition emits a record the commands table has no handler for', () => {
+    const declared = Declared.of(App, PartialMachine, {
+      // @ts-expect-error `Persist` has no handler
+      commands: { LogTitle: () => [] },
+      fallback: model => ({ model }),
+    })
+    expect(() => declared.update(initial, Message.Renamed({ title: 'Hello' }))).toThrow(
+      'transition "Renamed" emitted "Persist", which has no handler in commands',
+    )
+  })
+
+  it('gives an untracked step: a Model it made draws every view again under the writes', () => {
+    const declared = Declared.of(App, PartialMachine, {
+      commands: { LogTitle: () => [], Persist: () => [] },
+      fallback: model => ({ model }),
+    })
+    const titleEpoch = declared.writes.epochFor([['title']])
+    const tracked = declared.update(initial, Message.Incremented({ by: 1 })).model
+    const before = titleEpoch(tracked)
+    // `update` saw this Model made, and `Incremented` writes no title: the epoch stays.
+    const current = declared.update(tracked, Message.Incremented({ by: 1 })).model
+    expect(titleEpoch(current)).toBe(before)
+    // `step` is wrapped by an outer `track`; on its own the writes never saw its Model made.
+    const stepped = declared.step(current, Message.Incremented({ by: 1 })).model
+    expect(stepped.count).toBe(3)
+    expect(titleEpoch(stepped)).toBeGreaterThan(before)
   })
 
   it('refuses sends naming an unknown or prototype Message tag at definition time', () => {
@@ -176,6 +223,87 @@ describe('Declared.of', () => {
     )
     expect(() => leaky(m1, Message.Noted({ note: 'x' }))).toThrow(
       /"Noted" changed title, and its transition declares it writes note/,
+    )
+  })
+})
+
+describe('Declared.of with supplied values', () => {
+  const Stamp = Schema.Struct({ stamp: Schema.Int, label: Schema.String })
+  type Stamp = typeof Stamp.Type
+  const StampMessage = defineMessageUnion({ Stamped: { label: Schema.String } })
+  type StampMessage = typeof StampMessage.Type
+  const Stamping = Surface.application({ Model: Stamp, Message: StampMessage })
+  const machine = Machine.make({
+    state: Stamp,
+    transitions: {
+      Stamped: Transition.make({
+        state: Stamp,
+        input: StampMessage.Stamped,
+        supplied: { now: Schema.Int },
+        apply: ({ state, input, supplied }) => [
+          Transition.set(state.stamp, supplied.now),
+          Transition.set(state.label, input.label),
+        ],
+      }),
+    },
+  })
+  const start: Stamp = { stamp: 0, label: '' }
+
+  it('runs supply once per step and hands its values to the transition', () => {
+    let clock = 100
+    const asked: Array<string> = []
+    const declared = Declared.of(Stamping, machine, {
+      supply: {
+        Stamped: message => {
+          asked.push(message.label)
+          return { now: clock++ }
+        },
+      },
+    })
+    const first = declared.update(start, StampMessage.Stamped({ label: 'a' })).model
+    expect(first).toEqual({ stamp: 100, label: 'a' })
+    const second = declared.update(first, StampMessage.Stamped({ label: 'b' })).model
+    expect(second).toEqual({ stamp: 101, label: 'b' })
+    expect(asked).toEqual(['a', 'b'])
+  })
+
+  it('records each step’s values, and a replay of them gives the same Models without supply', () => {
+    let clock = 7
+    const recorded: Array<{ readonly message: StampMessage; readonly supplied: { now: number } }> =
+      []
+    const live = Declared.of(Stamping, machine, {
+      supply: { Stamped: () => ({ now: clock++ }) },
+      record: step => recorded.push(step),
+    })
+    const labels = ['x', 'y', 'z']
+    const models: Array<Stamp> = []
+    let model = start
+    for (const label of labels) {
+      model = live.update(model, StampMessage.Stamped({ label })).model
+      models.push(model)
+    }
+    expect(recorded.map(step => step.supplied.now)).toEqual([7, 8, 9])
+
+    const replayer = Declared.of(Stamping, machine, {
+      supply: {
+        Stamped: () => {
+          throw new Error('a replay does not ask for new values')
+        },
+      },
+    })
+    let replayed = start
+    const replayedModels: Array<Stamp> = []
+    for (const step of recorded) {
+      replayed = replayer.replay(replayed, step).model
+      replayedModels.push(replayed)
+    }
+    expect(replayedModels).toEqual(models)
+  })
+
+  it('requires supply for a transition that declares supplied values, and refuses to be made without it', () => {
+    // @ts-expect-error `Stamped` takes `now`, and no supply makes it
+    expect(() => Declared.of(Stamping, machine)).toThrow(
+      'the transition "Stamped" takes supplied values, and supply has no entry for it',
     )
   })
 })
