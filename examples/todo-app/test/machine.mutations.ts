@@ -3,7 +3,6 @@
  * `pnpm mutate examples/todo-app/test/machine.mutations.ts`.
  */
 const machine = '../src/machine.ts'
-const app = '../src/app.ts'
 const unit = 'examples/todo-app/test/machine.test.ts'
 
 export default [
