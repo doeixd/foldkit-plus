@@ -17,21 +17,13 @@ import { innerOf } from './inner.js'
 import { matching, type Judged, type Matched } from './matching.js'
 import type { QueryDescriptor } from './query.js'
 import { stableStringify } from './query.js'
-import { assertRegistered } from './registered.js'
+import { assertRegistered, type QueryNames } from './registered.js'
 import { readRow } from './rowRead.js'
 import { relationOf } from './selection.js'
 import { entityKey } from './store.js'
 import { tableOf } from './table.js'
 
 type AnyDomain = RemoteDomain<any, any, any, any, any>
-
-/** The query names a domain registers. */
-type QueryNames<Domain> =
-  Domain extends RemoteDomain<any, any, any, infer Queries, any>
-    ? Queries[number] extends QueryDescriptor<infer Name, any, any>
-      ? Name
-      : never
-    : never
 
 /**
  * The rows of a loaded list that a body matches, decoded as the list decodes

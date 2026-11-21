@@ -10,6 +10,7 @@ import { Option } from 'effect'
 import { sameData } from './data.js'
 import { own, put } from './record.js'
 import { RELATION_ALIAS } from './relation.js'
+import { stepped } from './storeSteps.js'
 
 export type EntityKey = string
 
@@ -100,10 +101,8 @@ const emptyEntry: EntityEntry = {
 
 export const emptyStore: EntityStore = {}
 
-const replace = (store: EntityStore, key: EntityKey, entry: EntityEntry): EntityStore => ({
-  ...store,
-  [key]: entry,
-})
+const replace = (store: EntityStore, key: EntityKey, entry: EntityEntry): EntityStore =>
+  stepped(store, { ...store, [key]: entry }, [key])
 
 /**
  * The fields known at the revision a write leaves the row at. A write at the
@@ -237,10 +236,12 @@ export const writeEntities = (
 ): EntityStore => {
   if (writes.length === 0) return store
   let next: Record<EntityKey, EntityEntry> | undefined
+  const keys: EntityKey[] = []
   for (const write of writes) {
     const held = (next ?? store)[write.key]
     if (olderThanHeld(held, write.revision)) continue
     next ??= { ...store }
+    keys.push(write.key)
     next[write.key] = written(
       held ?? emptyEntry,
       write.values,
@@ -250,7 +251,7 @@ export const writeEntities = (
       write.revision,
     )
   }
-  return next ?? store
+  return stepped(store, next, keys)
 }
 
 /** `writeEntities` for one entity. */
@@ -273,6 +274,7 @@ export const setStale = (
   stale: boolean,
 ): EntityStore => {
   let next: Record<EntityKey, EntityEntry> | undefined
+  const keys: EntityKey[] = []
   for (const [key, fields] of marks) {
     const previous = (next ?? store)[key]
     if (previous === undefined) continue
@@ -285,9 +287,10 @@ export const setStale = (
     // Only ever added to or only ever removed from, so an equal size is the same set.
     if (staleFields.size === previous.stale.size) continue
     next ??= { ...store }
+    keys.push(key)
     next[key] = { ...previous, stale: staleFields }
   }
-  return next ?? store
+  return stepped(store, next, keys)
 }
 
 /** Marks present fields stale; fields that were never present stay missing. */
@@ -315,6 +318,7 @@ export const setUnavailable = (
   unavailable: boolean,
 ): EntityStore => {
   let next: Record<EntityKey, EntityEntry> | undefined
+  const keys: EntityKey[] = []
   for (const [key, fields] of marks) {
     const previous = (next ?? store)[key] ?? emptyEntry
     if (previous.tombstone) continue
@@ -326,9 +330,10 @@ export const setUnavailable = (
     }
     if (marked.size === previous.unavailable.size) continue
     next ??= { ...store }
+    keys.push(key)
     next[key] = { ...previous, unavailable: marked }
   }
-  return next ?? store
+  return stepped(store, next, keys)
 }
 
 /** Whether the server settled this field without a value, and nothing has written it since. */
@@ -368,15 +373,17 @@ export const askAgain = (
   marks: ReadonlyArray<readonly [key: EntityKey, fields: Iterable<string>]>,
 ): EntityStore => {
   let next: Record<EntityKey, EntityEntry> | undefined
+  const keys: EntityKey[] = []
   for (const [key, fields] of marks) {
     const previous = (next ?? store)[key]
     if (previous === undefined || !previous.tombstone) continue
     const asked = new Set([...previous.stale, ...fields])
     if (asked.size === previous.stale.size) continue
     next ??= { ...store }
+    keys.push(key)
     next[key] = { ...previous, stale: asked }
   }
-  return next ?? store
+  return stepped(store, next, keys)
 }
 
 /**
@@ -389,28 +396,32 @@ export const setFloors = (
   floors: ReadonlyArray<{ readonly key: EntityKey; readonly token: string }>,
 ): EntityStore => {
   let next: Record<EntityKey, EntityEntry> | undefined
+  const keys: EntityKey[] = []
   for (const { key, token } of floors) {
     const held = (next ?? store)[key] ?? emptyEntry
     if (held.floor === token) continue
     next ??= { ...store }
+    keys.push(key)
     // A newer write is asked about at once, however long the last one waited.
     const { behind: _waited, ...rest } = held
     next[key] = { ...rest, floor: token }
   }
-  return next ?? store
+  return stepped(store, next, keys)
 }
 
 /** Ends each row's read-after token: a read answered at it. */
 export const clearFloors = (store: EntityStore, keys: Iterable<EntityKey>): EntityStore => {
   let next: Record<EntityKey, EntityEntry> | undefined
+  const cleared: EntityKey[] = []
   for (const key of keys) {
     const held = (next ?? store)[key]
     if (held?.floor === undefined) continue
     next ??= { ...store }
+    cleared.push(key)
     const { floor: _cleared, ...rest } = held
     next[key] = rest
   }
-  return next ?? store
+  return stepped(store, next, cleared)
 }
 
 /**
@@ -435,14 +446,16 @@ export const behindAgain = (
   now: number,
 ): EntityStore => {
   let next: Record<EntityKey, EntityEntry> | undefined
+  const asked: EntityKey[] = []
   for (const key of keys) {
     const held = (next ?? store)[key]
     if (held?.floor === undefined) continue
     const tries = (held.behind?.tries ?? 0) + 1
     next ??= { ...store }
+    asked.push(key)
     next[key] = { ...held, behind: { tries, at: now + behindDelay(tries) } }
   }
-  return next ?? store
+  return stepped(store, next, asked)
 }
 
 /** Forgets everything known about the entity, including a tombstone. */
@@ -450,7 +463,7 @@ export const remove = (store: EntityStore, key: EntityKey): EntityStore => {
   if (store[key] === undefined) return store
   const next = { ...store }
   delete next[key]
-  return next
+  return stepped(store, next, [key])
 }
 
 export const entry = (store: EntityStore, key: EntityKey): Option.Option<EntityEntry> => {

@@ -12,6 +12,7 @@
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["./src/index.ts"],
+      "foldkit-remote/aggregate": ["./src/aggregate.ts"],
       "foldkit-remote/filter": ["./src/filter.ts"],
       "foldkit-remote/live": ["./src/live.ts"],
       "foldkit-remote/outbox": ["./src/outbox.ts"],
@@ -20,11 +21,27 @@
       "foldkit-remote/port": ["./src/port.ts"],
       "foldkit-remote/testing": ["./src/testing.ts"],
       "foldkit-remote/why": ["./src/why.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"]
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/writes": ["../surface/src/writes.ts"],
+      "metakit": ["../metakit/src/index.ts"],
+      "metakit/aggregates": ["../metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../metakit/src/aggregatesSql.ts"],
+      "metakit/conformance": ["../metakit/src/conformance.ts"],
+      "metakit/domain": ["../metakit/src/domain.ts"],
+      "metakit/drizzle": ["../metakit/src/drizzle.ts"],
+      "metakit/graph": ["../metakit/src/graph.ts"],
+      "metakit/inspect": ["../metakit/src/inspect.ts"],
+      "metakit/machine": ["../metakit/src/machine.ts"],
+      "metakit/policy": ["../metakit/src/policy.ts"],
+      "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/sql": ["../metakit/src/sql.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
   "references": [
+    {
+      "path": "../metakit/tsconfig.build.json"
+    },
     {
       "path": "../bundle/tsconfig.build.json"
     },
