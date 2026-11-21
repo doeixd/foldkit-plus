@@ -1972,7 +1972,6 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     | {
         readonly remote: RemoteModel
         readonly policy: RemotePolicy
-        readonly reads: ReadonlyArray<unknown>
         readonly until: number
         readonly dependencies: ReadDependencies
       }
@@ -2006,17 +2005,9 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     modelToDependencies: model => {
       const policy = policyAt(options.policy, model)
       const remote = bound.store.get(model)
-      const reads = Option.getOrUndefined(asked.reads(model))
       const at = now()
-      if (
-        last !== undefined &&
-        reads !== undefined &&
-        last.remote === remote &&
-        last.policy === policy &&
-        at < last.until &&
-        reads.length === last.reads.length &&
-        reads.every((value, index) => value === last!.reads[index])
-      )
+      // Kept only for an ask the store alone decides (`remember`).
+      if (last !== undefined && last.remote === remote && last.policy === policy && at < last.until)
         return last.dependencies
       const ask = asked.of(model)
       // A policy picked from the Model can change while the Remote model does not.
@@ -2024,7 +2015,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       let byAsked = planned.get(remote)
       const known = byAsked?.get(askedKey)
       const remember = (until: number, dependencies: ReadDependencies) => {
-        last = reads && { remote, policy, reads, until, dependencies }
+        if (asked.storeOnly) last = { remote, policy, until, dependencies }
         return dependencies
       }
       if (known !== undefined && at < known.until) return remember(known.until, known.dependencies)

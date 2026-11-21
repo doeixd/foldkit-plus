@@ -1664,7 +1664,10 @@ rows that changed (a write, a live patch, a pending write and its rollback, a
 row entering or leaving `where`); it adds everything up again after a restored
 snapshot, a viewer change, a Model older than the last, about a thousand
 unread store writes, or any store change when `where` or the Selection reads
-another row.
+another row. Like `filtered`, it is over every row loaded for the query, not
+the window of the read passed as `over`: with 120 rows loaded, an `over` that
+asks `first: 50` shows 50 and the aggregate is over 120, `complete` once the
+loaded rows reach both ends with no gap.
 
 <!-- docs-check standalone
 import { Schema as S } from 'effect'
@@ -1698,7 +1701,8 @@ const { value, complete } = aggregated(Data, model, invoices, UnpaidCents, {
 ```
 
 Mistakes: an aggregate made in the view is new each render and adds up from
-nothing every time; `Rows.sum` over a `Schema.Number` field throws (only
+nothing every time (a `{ where, input }` object made in the view only costs
+re-reading what the list and query say: define it once too); `Rows.sum` over a `Schema.Number` field throws (only
 integer contributions keep exact deltas); the aggregate's row may name fewer
 fields than the list selects, never one it does not select (a type error).
 Guide: [aggregates.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/remote/docs/aggregates.md).

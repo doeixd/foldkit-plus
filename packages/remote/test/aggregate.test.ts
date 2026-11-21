@@ -22,10 +22,12 @@ import {
   ConnectionChange,
   Query,
   Remote,
+  RemoteData,
   emptyLiveState,
   emptyStore,
   terminal,
   writeEntities,
+  type Page,
   type RemoteMessage,
 } from '../src/index.js'
 import { Walk, type WalkCase } from '../src/testing.js'
@@ -389,6 +391,44 @@ describe('The cheap path', () => {
     const other = Data.reduce(lower, answered({ i6: { due: 40 } }))
     expect(aggregated(Data, other, list, aggregate)).toEqual(recomputed(other, Earliest, false))
     expect(calls.evaluated).toBe(0)
+  })
+
+  it('follows a deleted row the server is asked about again and settles without values', () => {
+    const deleted = Data.reduce(whole(), {
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: { _tag: 'EntityDeleted', ref: { entity: 'Invoice', id: 'i3' }, cursor: 1 },
+      now: 3,
+    })
+    expect(kept(deleted, Counted, false)).toEqual({ value: 5, complete: true })
+    // The tombstone is forgotten: the row is on the list again, with nothing held of it.
+    const asked = Data.reduce(deleted, {
+      _tag: 'ReadReceived',
+      requests: [{ entity: 'Invoice', id: 'i3', fields: ['cents'] }],
+      result: { settled: [{ entity: 'Invoice', id: 'i3', fields: [] }], entities: [] },
+      now: 4,
+    })
+    expect(recomputed(asked, Counted, false).complete).toBe(false)
+    expect(disagreements(asked)).toEqual([])
+  })
+})
+
+describe('What it is over', () => {
+  it('is every row the list holds, past the window a read of the list shows', () => {
+    // `list` reads `first: 25`; the connection holds 50 rows, terminal at both ends.
+    const model = loadedWith(50)
+    const none = () => Option.none<{ readonly items: number; readonly hasNext: boolean }>()
+    const shown = RemoteData.match<Page<Row>, unknown>(list.read(model), {
+      Initial: none,
+      Loading: none,
+      Ready: page => Option.some({ items: page.items.length, hasNext: page.hasNext }),
+      Refreshing: none,
+      Failed: none,
+      NotFound: none,
+    })
+    expect(shown).toEqual(Option.some({ items: 25, hasNext: true }))
+    expect(aggregated(Data, model, list, Counted)).toEqual({ value: 50, complete: true })
+    expect(aggregated(Data, model, list, Counted)).toEqual(recomputed(model, Counted, false))
   })
 })
 

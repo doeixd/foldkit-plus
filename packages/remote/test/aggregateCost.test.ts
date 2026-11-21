@@ -60,6 +60,30 @@ const perChange = (count: number) => {
   return { rows: handed() - loaded, milliseconds }
 }
 
+describe('What the list and the query say', () => {
+  it('is worked out once for the objects a view passes, not on every call', () => {
+    // `Input` is read to encode the query's input into the kept value's name.
+    let encoded = 0
+    const Counted = Object.defineProperty({ ...Unpaid }, 'Input', {
+      get: () => {
+        encoded += 1
+        return Unpaid.Input
+      },
+    })
+    const where = { where: Counted, input: {} }
+    const model = loadedWith(10)
+    const first = aggregated(Data, model, list, Total, where)
+    const once = encoded
+    expect(once).toBeGreaterThan(0)
+    expect(aggregated(Data, model, list, Total, where)).toBe(first)
+    expect(aggregated(Data, { ...model, viewer: 'u1' }, list, Total, where)).toBe(first)
+    expect(encoded).toBe(once)
+    // Another object saying the same is worked out, and names the same kept value.
+    expect(aggregated(Data, model, list, Total, { where: Counted, input: {} })).toBe(first)
+    expect(encoded).toBeGreaterThan(once)
+  })
+})
+
 describe('One changed row', () => {
   it('hands the aggregate the same rows at 1,000 and at 100,000', () => {
     const small = perChange(1_000)

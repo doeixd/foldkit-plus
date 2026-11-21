@@ -21,25 +21,18 @@ export interface Asked {
 }
 
 /**
- * What a read entry asks of a Model, and the values beside the store it works that out
- * from: while all are the objects they were, the plan is too (#580). None where they
- * are not known (a `Surface.at` callback, `Data.active`, a `Surface.when`).
+ * What a read entry asks of a Model. `storeOnly` says the ask is worked out
+ * from nothing of the Model beside the store, so while the store is the object
+ * it was the plan is too (#580): a bare Surface, a Surface with fixed params.
  */
 export interface AskedRead<AppModel> {
   readonly of: (model: AppModel) => Asked
-  readonly reads: (model: AppModel) => Option.Option<ReadonlyArray<unknown>>
+  readonly storeOnly: boolean
 }
 
-/** For an ask that reads nothing of the Model. */
-export const readsNothing = (): Option.Option<ReadonlyArray<unknown>> => Option.some([])
-
-const readsUnknown = (): Option.Option<ReadonlyArray<unknown>> => Option.none()
-
-/** What an active entry reads beside the store: nothing for a bare Surface, unknown otherwise. */
-export const readsOf = <AppModel>(
-  entry: ActiveEntry<AppModel>,
-): ((model: AppModel) => Option.Option<ReadonlyArray<unknown>>) =>
-  'projectionOf' in entry || 'instancesOf' in entry ? readsUnknown : readsNothing
+/** Whether an active entry resolves without the Model: not a `Surface.at`, `Surface.when` or family, which may read anything of it. */
+export const storeOnly = <AppModel>(entry: ActiveEntry<AppModel>): boolean =>
+  !('projectionOf' in entry || 'instancesOf' in entry)
 
 export const askedOf = (projection: Projection<any, unknown>): Asked => ({
   requirements: requirementsOf(projection),

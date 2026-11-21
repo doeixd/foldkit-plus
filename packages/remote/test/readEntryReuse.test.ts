@@ -9,7 +9,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Remote, type RemoteMessage } from '../src/index.js'
+import { Remote, RemotePolicy, type RemoteMessage } from '../src/index.js'
 
 const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Model = Schema.Struct({ remote: Remote.Model, draft: Schema.String, route: Schema.String })
@@ -69,6 +69,34 @@ describe('A read entry reuses its plan', () => {
     const counted = built.count
     expect(read.modelToDependencies({ ...initial, draft: 'typing' })).toBe(first)
     expect(built.count).toBe(counted)
+  })
+
+  it('not across a change of the policy the Model picks', () => {
+    const { surface } = counted()
+    const read = Remote.observe(Data, surface, { id: 'i1' }, undefined, {
+      policy: (model: Model) =>
+        model.route === 'offline' ? RemotePolicy.cacheOnly : RemotePolicy.cacheFirst,
+    })
+    expect(asked(read.modelToDependencies(initial))).toEqual(['i1'])
+    // The same store, read under a policy that asks the server nothing.
+    expect(asked(read.modelToDependencies({ ...initial, route: 'offline' }))).toEqual([])
+  })
+
+  it('not past the time its plan says to read again', () => {
+    const { surface } = counted()
+    let clock = 10
+    const read = Remote.observe(Data, surface, { id: 'i1' }, undefined, {
+      policy: RemotePolicy.staleWhileRevalidate({ maxAge: 100 }),
+      now: () => clock,
+    })
+    const held = Data.reduce(initial, answered('i1'))
+    const fresh = read.modelToDependencies(held)
+    expect(fresh.expires?.at).toBe(100)
+    expect(fresh.refreshes).toEqual([])
+    clock = 50
+    expect(read.modelToDependencies({ ...held, draft: 'typing' })).toBe(fresh)
+    clock = 150
+    expect(asked({ requirements: read.modelToDependencies(held).refreshes })).toEqual(['i1'])
   })
 
   it('and works the ask out again where it may read the Model beside the store', () => {

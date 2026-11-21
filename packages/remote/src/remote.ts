@@ -45,14 +45,7 @@ import type { WhyReader } from './whyReasons.js'
 import { withInner } from './inner.js'
 import { storePaths } from './storePath.js'
 import { liveAskOf, liveEntry } from './liveEntry.js'
-import {
-  askedOf,
-  askedUnion,
-  readsNothing,
-  readsOf,
-  resolvedOf,
-  type NamedProjection,
-} from './active.js'
+import { askedOf, askedUnion, resolvedOf, storeOnly, type NamedProjection } from './active.js'
 
 import { inspectEntity, inspectRemote } from './inspect.js'
 import type { LiveEvent } from './liveState.js'
@@ -952,7 +945,7 @@ export const observe = <
 ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> =>
   observeEntry(
     bound,
-    { of: () => askedOf(surface.projection(params)), reads: readsNothing },
+    { of: () => askedOf(surface.projection(params)), storeOnly: true },
     toMessage,
     options,
   )
@@ -1816,7 +1809,7 @@ const bindDomain = <
       policies.set(entry, new Map(policies.get(entry)).set(key, policy))
       const ask = (model: AppModel) =>
         askedUnion(resolvedAt(model).map(({ projection }) => projection))
-      const asked = { of: ask, reads: readsOf(entry) }
+      const asked = { of: ask, storeOnly: storeOnly(entry) }
       entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, {
         ...options,
         policy,

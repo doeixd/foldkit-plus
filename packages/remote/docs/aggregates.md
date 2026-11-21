@@ -65,11 +65,20 @@ unpaid.complete // true
 `filtered` takes, and `aggregated` counts exactly the rows `filtered` would
 return. Leave the last argument out to count every row of the list.
 
-`complete` is `true` when the answer is about the whole list: every row could
-be judged by `Unpaid`, every counted row holds the fields the list selects, and
-the list has no more pages on either side and no gap between its pages. When it is `false`, `value` is the
-total of the rows that could be counted, so a view can say "at least
-$1,240.00" or ask for the rest.
+"The list" here is every row the page has loaded for that query and input,
+which can be more than one read of it shows. `invoices` asks for `first: 50`;
+if another part of the page loaded 120 rows of the same query, the aggregate
+is over the 120, though `invoices` itself shows 50 and says it has a next
+page. `filtered` counts the same way.
+
+`complete` is `true` when the answer is about everything the server has for
+the query: every loaded row could be judged by `Unpaid`, every counted row
+holds the fields the list selects, the server has said there is no page before
+the first loaded row or after the last, and no gap lies between the loaded
+pages. It is `false` when any of those fails. `value` is then the total of the
+rows that could be counted, so a view can say "at least $1,240.00" or ask for
+the rest. A read's own window does not enter into it: with 120 rows loaded to
+both ends, `complete` is `true` beside a list that shows 50.
 
 ## The six kinds, and what each gives
 
@@ -111,16 +120,24 @@ last called. It also does when `Unpaid` reads another row (an
 `Expr.path` through a relation) or the list's Selection joins one, on any
 change to the store, since a write to any row can then move which rows count.
 
+While any write in the domain is pending, each change to the store also walks
+the list's keys to see which rows are shown, as the list's own read does to
+place pending rows. No row is judged or added again unless it changed, so the
+aggregate is handed one row; the walk itself grows with the list.
+
 Define each aggregate once, at module level. The kept total belongs to the
 aggregate value, the domain, the list and the query, so an aggregate made
 inside the view is a new one each render and is added up from nothing each
-time.
+time. Define the last argument once too
+(`const unpaidOnly = { where: Unpaid, input: {} }`): what the list and the
+query say is worked out once for each such object, and again for a new one,
+though the kept total is the same.
 
 ## What it is not
 
-It counts the rows of a list you loaded, never the rows the server has: a
-total over the first 50 invoices is a total over 50 invoices, with
-`complete: false` while the list has another page. It includes what a pending
+It counts the rows the page has loaded, never the rows the server has: with
+50 invoices loaded and more on the server, the total is over those 50, with
+`complete: false` until the last page is loaded. It includes what a pending
 write shows, as the list does, and moves back when the write fails. For
 "which rows" rather than "how much",
 use [`filtered`](../README.md#filtering-a-loaded-list-without-asking-the-server).

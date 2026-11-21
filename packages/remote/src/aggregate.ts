@@ -52,10 +52,16 @@ export type AggregateValue<Agg> = Agg extends { readonly evaluate: (rows: never)
   : never
 
 /**
- * An aggregate over the rows of a list the client holds, never over the rows
- * that exist. `complete` is `filtered`'s: every row judged, every counted row
- * held whole, and the list terminal at both ends with no gap. When it is false
- * the value is over the rows that could be counted.
+ * An aggregate over every row the client has loaded for the list's query and
+ * input, as `filtered` is: not the rows that exist, and not the window the
+ * read given as `over` shows (a read asking `first: 25` of a list holding 50
+ * rows shows 25; the aggregate is over the 50).
+ *
+ * `complete` is `filtered`'s. It is false when a loaded row could not be
+ * judged by `where`, when a counted row lacks a field the list selects, when
+ * the server has not said the loaded rows reach the start and the end, or
+ * when a gap lies between loaded pages; the value is then over the rows that
+ * could be counted. The read's window does not enter into it.
  */
 export interface Aggregated<A> {
   readonly value: A
@@ -376,37 +382,14 @@ export function aggregated<Value>(
   where?: AggregateWhere<QueryDescriptor<any, any, any>>,
 ): Aggregated<never> {
   const by = where?.where
-  if (by !== undefined) {
-    assertRegistered(domain, 'Query', domain.registry.queries, by.name)
-    // A body over another Entity matches none of the list's rows, and would
-    // otherwise answer "the whole list, and nothing in it".
-    const filters = by.body?.entity.name
-    if (filters !== undefined && filters !== over.selection.entity)
-      throw new Error(
-        `Remote: query "${by.name}" is over "${filters}", but the list is of "${over.selection.entity}", so it cannot pick its rows`,
-      )
-  }
+  const input = where?.input
   watchStoreSteps(recordStep)
   const inner = innerOf<unknown>(domain)
   const remote: RemoteModel = domain.store.get(model)
   const identity = over.ref.identity
-  const relation = relationOf(over.selection)
-  const relationKey = stableStringify(relation)
   const operators = tableOf(domain.operators)
-  const input = where?.input
-  const memo = stateFor(
-    aggregate,
-    domain,
-    `${identity}\u0000${relationKey}\u0000${by?.name ?? ''}\u0000${
-      by === undefined ? '' : stableStringify(Schema.encodeSync(by.Input)(input))
-    }`,
-  )
-  // A row is read through other rows when the body follows a path or an
-  // exists, or the Selection joins a relation: a write to any row may move it.
-  const reachesOthers =
-    (by?.body !== undefined && reaches(by.body)) ||
-    relation.relations !== undefined ||
-    relation.windows !== undefined
+  const { relation, relationKey, key, reachesOthers } = declaredOf(domain, over, where)
+  const memo = stateFor(aggregate, domain, key)
 
   const inputs: Inputs = {
     entities: remote.entities,
@@ -608,16 +591,60 @@ export function aggregated<Value>(
   return state.result as Aggregated<never>
 }
 
-const reachingBodies = new WeakMap<object, boolean>()
+/** What a call's list and query say before any Model is read: worked out once per list and `where` object. */
+interface Declared {
+  readonly relation: ReturnType<typeof relationOf>
+  readonly relationKey: string
+  /** Names the kept value among an aggregate's: the list, what it selects, the query and its input. */
+  readonly key: string
+  /**
+   * A row is read through other rows when the body follows a path or an
+   * exists, or the Selection joins a relation: a write to any row may move it.
+   */
+  readonly reachesOthers: boolean
+}
 
-/** Whether a body reads other rows: a path, an exists, a path from the viewer. */
-const reaches = (body: Parameters<typeof Relational.dependencies>[0]): boolean => {
-  let known = reachingBodies.get(body)
-  if (known === undefined) {
-    known = Relational.dependencies(body).reaches.length > 0
-    reachingBodies.set(body, known)
+// By domain, list and `where` object (the list itself standing for no `where`),
+// so a view that passes the same objects each render derives nothing again.
+const declarations = new WeakMap<object, WeakMap<object, WeakMap<object, Declared>>>()
+
+const declaredOf = (
+  domain: AnyDomain,
+  over: QueryProjection<any, any, string, unknown>,
+  where: AggregateWhere<QueryDescriptor<any, any, any>> | undefined,
+): Declared => {
+  let byList = declarations.get(domain)
+  if (byList === undefined) declarations.set(domain, (byList = new WeakMap()))
+  let byWhere = byList.get(over)
+  if (byWhere === undefined) byList.set(over, (byWhere = new WeakMap()))
+  const known = byWhere.get(where ?? over)
+  if (known !== undefined) return known
+  const by = where?.where
+  if (by !== undefined) {
+    assertRegistered(domain, 'Query', domain.registry.queries, by.name)
+    // A body over another Entity matches none of the list's rows, and would
+    // otherwise answer "the whole list, and nothing in it".
+    const filters = by.body?.entity.name
+    if (filters !== undefined && filters !== over.selection.entity)
+      throw new Error(
+        `Remote: query "${by.name}" is over "${filters}", but the list is of "${over.selection.entity}", so it cannot pick its rows`,
+      )
   }
-  return known
+  const relation = relationOf(over.selection)
+  const relationKey = stableStringify(relation)
+  const declared: Declared = {
+    relation,
+    relationKey,
+    key: `${over.ref.identity}\u0000${relationKey}\u0000${by?.name ?? ''}\u0000${
+      by === undefined ? '' : stableStringify(Schema.encodeSync(by.Input)(where?.input))
+    }`,
+    reachesOthers:
+      (by?.body !== undefined && Relational.dependencies(by.body).reaches.length > 0) ||
+      relation.relations !== undefined ||
+      relation.windows !== undefined,
+  }
+  byWhere.set(where ?? over, declared)
+  return declared
 }
 
 /** Nothing the value is worked out from changed. */
