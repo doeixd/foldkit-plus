@@ -24,9 +24,6 @@ export const isOp: Node.Op<'eq.is'> = {
   returns: 'boolean',
   nulls: 'own',
   evaluate: nullSafe(sameValue),
-  laws: {
-    reflexive: { value: true },
-  },
 }
 
 export const isNotOp: Node.Op<'eq.isNot'> = {
@@ -34,9 +31,6 @@ export const isNotOp: Node.Op<'eq.isNot'> = {
   returns: 'boolean',
   nulls: 'own',
   evaluate: nullSafe((a, b) => !sameValue(a, b)),
-  laws: {
-    reflexive: { value: false },
-  },
 }
 
 /** A literal or a path: a term evaluation reads and cannot refuse. */

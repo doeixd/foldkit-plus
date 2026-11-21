@@ -3,7 +3,7 @@
  * (`judgeNode`) over a partially known environment.
  *
  * A call whose arguments are all known is evaluated; otherwise each
- * operator's `op.laws` shrink it. A law is applied only where it holds for
+ * operator's row of `opProperties` shrinks it. A law is applied only where it holds for
  * every value evaluation can meet, null and a refusal included, so the
  * residual evaluates as the expression does on every completion of the
  * environment.
@@ -16,6 +16,7 @@ import { Option, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import * as Path from '../path.js'
 import * as Verdict from '../verdict.js'
+import { opProperties } from '../properties.js'
 import { evalNode, ifArm, matchArm } from './eval.js'
 import { kindOf, present } from './kind.js'
 
@@ -73,23 +74,19 @@ const isLitEqual = (node: Node.Node, expected: unknown): boolean =>
 /** A literal or a path: a term evaluation reads and cannot refuse. */
 const isRead = (node: Node.Node): boolean => Node.$is('Lit')(node) || Node.$is('Path')(node)
 
-/** Generic size-reducing law engine driven purely by `op.laws`. */
+/** Size-reducing rewrites, from the operator's row of `opProperties`. */
 const applyLaws = (op: Node.Op, args: ReadonlyArray<Node.Node>): Option.Option<Node.Node> => {
-  const laws = op.laws
-  if (laws === undefined) return Option.none()
+  const laws = opProperties[op.id]
   // A law that returns an operand holds only where the operand is what the
   // operator would have returned: `x + 0` over text is refused, `x` is not.
   const ofKind = (operand: Node.Node): boolean =>
     Option.match(kindOf(operand), { onNone: () => false, onSome: kind => kind === op.returns })
 
-  if (args.length === 1 && laws.involution === true) {
+  if (args.length === 1) {
     const inner = args[0]!
-    if (
-      Node.$is('Call')(inner) &&
-      inner.op.id === op.id &&
-      inner.args.length === 1 &&
-      ofKind(inner.args[0]!)
-    ) {
+    const again = Node.$is('Call')(inner) && inner.op.id === op.id && inner.args.length === 1
+    if (again && laws.idempotent === true) return Option.some(inner)
+    if (again && laws.involution === true && ofKind(inner.args[0]!)) {
       return Option.some(inner.args[0]!)
     }
   }

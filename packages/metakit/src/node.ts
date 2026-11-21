@@ -64,34 +64,13 @@ export const illTyped = (at: string, expected: string, value: unknown): Refusal 
     detail: `expected ${expected}, got ${Array.isArray(value) ? 'an array' : typeof value}`,
   })
 
-/** What an operator's result is, which decides the laws that may return an operand of it. */
+/** What an operator's result is, which decides the properties that may return an operand of it. */
 export type ValueKind = 'number' | 'boolean'
 
 /**
- * Size-reducing rewrites `residualize` applies to an operator. Each holds for
- * every operand evaluation can meet: null, and a refusal, included.
- */
-export interface OpLaws {
-  /** `op(x, value) -> x` for an `x` of the operator's result kind. */
-  readonly identity?: { readonly value: unknown; readonly side: 'left' | 'right' | 'both' }
-  /** `op(x, value) -> result` for every `x`. */
-  readonly absorbing?: {
-    readonly value: unknown
-    readonly result: unknown
-    readonly side: 'left' | 'right' | 'both'
-  }
-  /** `op(x, x) -> x` for an `x` of the operator's result kind. */
-  readonly idempotent?: boolean
-  /** `op(x, x) -> value` where `x` is a literal or a path, which cannot be refused. */
-  readonly reflexive?: { readonly value: unknown }
-  /** `op(op(x)) -> x` for an `x` of the operator's result kind. */
-  readonly involution?: boolean
-}
-
-/**
- * An operator's descriptor: its id, its in-memory evaluator, and its laws. A
- * `Call` holds the descriptor itself, so a page that uses one operator ships
- * only that operator's evaluator.
+ * An operator's descriptor: its id and its in-memory evaluator. A `Call`
+ * holds the descriptor itself, so a page that uses one operator ships only
+ * that operator's evaluator. What it keeps is in `opProperties`.
  */
 export interface Op<Id extends CoreOpId = CoreOpId> {
   readonly id: Id
@@ -105,8 +84,7 @@ export interface Op<Id extends CoreOpId = CoreOpId> {
   readonly nulls: 'strict' | 'own'
   /** The operator on argument values. It never throws: it returns a `Refusal`. */
   readonly evaluate: (args: ReadonlyArray<unknown>) => unknown
-  readonly laws?: OpLaws
-  /** A size-reducing fold `laws` cannot say (`eq.in` over one candidate). */
+  /** A size-reducing fold no property says (`eq.in` over one candidate). */
   readonly fold?: (args: ReadonlyArray<Node>) => Option.Option<Node>
 }
 

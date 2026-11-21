@@ -23,11 +23,6 @@ export const andOp: Node.Op<'bool.and'> = {
   returns: 'boolean',
   nulls: 'own',
   evaluate: kleene('bool.and', false),
-  laws: {
-    identity: { value: true, side: 'both' },
-    absorbing: { value: false, result: false, side: 'both' },
-    idempotent: true,
-  },
 }
 
 export const orOp: Node.Op<'bool.or'> = {
@@ -35,11 +30,6 @@ export const orOp: Node.Op<'bool.or'> = {
   returns: 'boolean',
   nulls: 'own',
   evaluate: kleene('bool.or', true),
-  laws: {
-    identity: { value: false, side: 'both' },
-    absorbing: { value: true, result: true, side: 'both' },
-    idempotent: true,
-  },
 }
 
 export const notOp: Node.Op<'bool.not'> = {
@@ -48,9 +38,6 @@ export const notOp: Node.Op<'bool.not'> = {
   nulls: 'strict',
   evaluate: ([value]) =>
     typeof value === 'boolean' ? !value : Node.illTyped('bool.not', 'a boolean', value),
-  laws: {
-    involution: true,
-  },
 }
 
 /** Conjunction of two boolean expressions. */

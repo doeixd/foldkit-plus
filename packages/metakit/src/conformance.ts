@@ -10,7 +10,7 @@
  * The operators and their operand kinds are tables over `CoreOpId`, so a new
  * primitive fails to compile until it is covered here.
  */
-import { Arbitrary, Effect, Equal, Match, Option, Result, Schema, Struct } from 'effect'
+import { Arbitrary, Effect, Match, Option, Result, Schema, Struct } from 'effect'
 import { AbstractState, abstractOps, collectFields, type FieldInfo } from './abstract/check.js'
 import * as Interval from './abstract/interval.js'
 import * as Expr from './expr.js'
@@ -24,7 +24,11 @@ import * as Num from './ops/num.js'
 import * as Ord from './ops/ord.js'
 import { residualizeNode } from './ops/residualize.js'
 import * as Str from './ops/str.js'
+import { opProperties } from './properties.js'
+import { checkProperties, sameAnswer, type PropertyReport } from './propertyChecks.js'
 import * as Verdict from './verdict.js'
+
+export { checkProperties, type PropertyFailure, type PropertyReport } from './propertyChecks.js'
 
 /** Every primitive's descriptor: a new `CoreOpId` fails to compile until its operator is here. */
 export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
@@ -194,12 +198,6 @@ const choices = (kinds: ReadonlyArray<Operand>): ReadonlyArray<ReadonlyArray<Sam
     [[]],
   )
 
-/** Two results of evaluation that are one answer: equal values, or refusals for one reason. */
-const sameAnswer = (left: unknown, right: unknown): boolean =>
-  Node.isRefusal(left) || Node.isRefusal(right)
-    ? Node.isRefusal(left) && Node.isRefusal(right) && left.reason === right.reason
-    : Object.is(left, right) || (left === 0 && right === 0) || Equal.equals(left, right)
-
 /**
  * Hold one operator to one answer over every awkward operand: null, an absent
  * key, NaN, an infinity, the ends of the safe range, a float, the empty string
@@ -308,6 +306,15 @@ export const checkOpSoundness = (id: Node.CoreOpId): OpReport => {
 
 /** `checkOpSoundness` of every primitive. */
 export const checkAllOps = (): ReadonlyArray<OpReport> => Struct.keys(coreOps).map(checkOpSoundness)
+
+/** `checkProperties` of every primitive, against what `opProperties` declares of it. */
+export const checkAllProperties = (): ReadonlyArray<PropertyReport> =>
+  Struct.keys(coreOps).map(id =>
+    checkProperties(coreOps[id], opProperties[id], {
+      arity: operands[id].length,
+      resolve: other => coreOps[other],
+    }),
+  )
 
 /**
  * Property-test Tier 2 partial evaluation soundness against Tier 1 evaluation:

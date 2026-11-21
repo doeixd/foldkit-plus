@@ -65,7 +65,7 @@ const ulp = (n: number): number => Math.abs(n) * Number.EPSILON + Number.MIN_VAL
  * up), so a bound stays a bound of the real sum as well as of the double.
  * The error term of Knuth's TwoSum says which side the double fell on.
  */
-const directedAdd = (a: number, b: number, toward: -1 | 1): number => {
+export const directedAdd = (a: number, b: number, toward: -1 | 1): number => {
   const sum = a + b
   if (Number.isNaN(sum)) return toward * Infinity
   if (!Number.isFinite(sum)) return sum
@@ -85,6 +85,28 @@ export const neg = (a: Interval): Interval => {
 }
 
 export const sub = (a: Interval, b: Interval): Interval => add(a, neg(b))
+
+/**
+ * The result of an operation that is monotone in each argument, in the
+ * direction given for it: the low end from the operands' ends those
+ * directions pick for a low result, the high end likewise. `at` computes one
+ * end from the chosen operand ends, rounded away from the exact result
+ * toward `toward`.
+ */
+export const monotone =
+  (
+    directions: ReadonlyArray<'up' | 'down'>,
+    at: (ends: ReadonlyArray<number>, toward: -1 | 1) => number,
+  ) =>
+  (args: ReadonlyArray<Interval>): Interval => {
+    if (args.some(isBottom)) return bottom
+    const end = (toward: -1 | 1): number =>
+      at(
+        args.map((iv, index) => ((directions[index] === 'up') === (toward === -1) ? iv.lo : iv.hi)),
+        toward,
+      )
+    return between(end(-1), end(1))
+  }
 
 const safeMul = (x: number, y: number): Option.Option<number> => {
   if (x === 0 || y === 0) {

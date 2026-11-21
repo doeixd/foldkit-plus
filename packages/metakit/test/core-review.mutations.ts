@@ -72,7 +72,7 @@ const checker = [
   mutation(
     nullStrict,
     'subtraction declares zero a left identity',
-    num,
+    '../src/properties.ts',
     "identity: { value: 0, side: 'right' },",
     "identity: { value: 0, side: 'both' },",
   ),

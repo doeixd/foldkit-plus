@@ -4,6 +4,7 @@ import * as Arr from '../ops/arr.js'
 import * as Bool from '../ops/bool.js'
 import * as Eq from '../ops/eq.js'
 import * as Str from '../ops/str.js'
+import { opProperties } from '../properties.js'
 import * as Verdict from '../verdict.js'
 import * as Interval from './interval.js'
 import type { AbstractState } from './state.js'
@@ -55,6 +56,18 @@ const arithmetic = (relation: TermOp['relation'], forward: TermOp['forward']): T
   refuses: true,
   relation,
 })
+
+/**
+ * The interval of an operation the table declares monotone, from its ends;
+ * an operation declared nothing of is bounded by nothing.
+ */
+const monotone = (
+  id: Node.CoreOpId,
+  at: (ends: ReadonlyArray<number>, toward: -1 | 1) => number,
+): TermOp['forward'] => {
+  const directions = opProperties[id].monotone
+  return directions === undefined ? () => Interval.top : Interval.monotone(directions, at)
+}
 
 /** A length or a count: an integer that is never negative and never refused. */
 const measure: TermOp = {
@@ -335,10 +348,19 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   'ord.lte': comparison(ascending, false),
   'ord.gt': comparison(descending, true),
   'ord.gte': comparison(descending, false),
-  'num.add': arithmetic('add', args => Interval.add(args[0]!, args[1]!)),
-  'num.sub': arithmetic('sub', args => Interval.sub(args[0]!, args[1]!)),
+  'num.add': arithmetic(
+    'add',
+    monotone('num.add', ([a, b], toward) => Interval.directedAdd(a!, b!, toward)),
+  ),
+  'num.sub': arithmetic(
+    'sub',
+    monotone('num.sub', ([a, b], toward) => Interval.directedAdd(a!, -b!, toward)),
+  ),
   'num.mul': arithmetic('none', args => Interval.mul(args[0]!, args[1]!)),
-  'num.neg': arithmetic('none', args => Interval.neg(args[0]!)),
+  'num.neg': arithmetic(
+    'none',
+    monotone('num.neg', ([a]) => -a!),
+  ),
   'str.len': measure,
   'str.startsWith': search(Str.startsWithOp),
   'str.contains': search(Str.containsOp),

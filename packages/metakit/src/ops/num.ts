@@ -45,31 +45,20 @@ export const addOp: Node.Op<'num.add'> = {
   returns: 'number',
   nulls: 'strict',
   evaluate: arithmetic('num.add', (a, b) => a + b),
-  laws: {
-    identity: { value: 0, side: 'both' },
-  },
 }
 
-// No `x - x -> 0`: null minus null is null.
 export const subOp: Node.Op<'num.sub'> = {
   id: 'num.sub',
   returns: 'number',
   nulls: 'strict',
   evaluate: arithmetic('num.sub', (a, b) => a - b),
-  laws: {
-    identity: { value: 0, side: 'right' },
-  },
 }
 
-// No `x * 0 -> 0`: null times zero is null.
 export const mulOp: Node.Op<'num.mul'> = {
   id: 'num.mul',
   returns: 'number',
   nulls: 'strict',
   evaluate: arithmetic('num.mul', (a, b) => a * b),
-  laws: {
-    identity: { value: 1, side: 'both' },
-  },
 }
 
 export const negOp: Node.Op<'num.neg'> = {
@@ -77,9 +66,6 @@ export const negOp: Node.Op<'num.neg'> = {
   returns: 'number',
   nulls: 'strict',
   evaluate: arithmetic('num.neg', a => -a),
-  laws: {
-    involution: true,
-  },
 }
 
 export const add = <L extends Ord.NullableNumber, R extends Ord.NullableNumber>(
