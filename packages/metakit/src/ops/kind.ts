@@ -41,10 +41,16 @@ export const declaresNoNul = (check: SchemaAST.Check<unknown>): boolean => {
   return Predicate.hasProperty(domain, 'kind') && domain.kind === 'text'
 }
 
-const refusesNul = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): boolean =>
-  checks.some(check =>
-    check._tag === 'FilterGroup' ? refusesNul(check.checks) : declaresNoNul(check),
-  )
+const refusesNul = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): boolean => {
+  for (const check of checks) {
+    if (check._tag === 'FilterGroup') {
+      if (refusesNul(check.checks)) return true
+      continue
+    }
+    if (declaresNoNul(check)) return true
+  }
+  return false
+}
 
 /**
  * Text `Text.schema` from `metakit/domain` describes, refinements after it
