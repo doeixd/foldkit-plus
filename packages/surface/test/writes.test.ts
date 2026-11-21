@@ -73,6 +73,27 @@ describe('which declared Messages draw a Surface again', () => {
     expect(writes.declared(Message.Pinged())).toEqual(Option.some([]))
     expect(writes.declared(Message.Noted({ note: 'n' }))).toEqual(Option.none())
   })
+
+  it('tracks per-path epochs via epochFor, advancing on matching writes and untracked Models (#586)', () => {
+    const local = Writes.of(App, Declared)
+    const tracked = local.track(update)
+    const titleEpoch = local.epochFor([['title']])
+    const initialEpoch = titleEpoch()
+    // Counted writes ['count'], not ['title'] -> epoch unchanged after first tracked Model
+    const m1 = tracked(initial, Message.Counted()).model
+    const afterFirst = titleEpoch()
+    // Second Counted keeps titleEpoch unchanged!
+    const m2 = tracked(m1, Message.Counted()).model
+    expect(titleEpoch()).toBe(afterFirst)
+    // Renamed writes ['title'] -> titleEpoch advances!
+    const m3 = tracked(m2, Message.Renamed({ title: 'Next' })).model
+    expect(titleEpoch()).toBeGreaterThan(afterFirst)
+    // Untracked Model (never seen by track) -> bumps `all` -> titleEpoch advances!
+    const beforeUntracked = titleEpoch()
+    tracked({ ...m3, count: 99 }, Message.Counted())
+    expect(titleEpoch()).toBeGreaterThan(beforeUntracked)
+    expect(initialEpoch).toBe(0)
+  })
 })
 
 it('refuses a transition no Message of the application names', () => {

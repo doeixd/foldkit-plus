@@ -96,6 +96,12 @@ export interface Writes<Root, Message, Tag extends string> {
    * `writes.rootView`. Returns a disposer that restores plain rendering.
    */
   readonly install: () => () => void
+  /**
+   * Returns a live epoch getter for `reads` (combining `all` for untracked
+   * Models with a per-region counter bumped by every declared write overlapping
+   * `reads`). Suitable as `pathEpoch` for `foldkit-bundle` placements (#586).
+   */
+  readonly epochFor: (reads: DependencyTree) => () => number
   /** Each view defined with these writes, in the order they were defined. */
   readonly regions: () => ReadonlyArray<RegionFacts<Tag>>
 }
@@ -254,6 +260,18 @@ const of = <
           render: unknown,
         ) => (root: unknown, h: unknown) => Html,
       ),
+
+    epochFor: reads => {
+      const redrawnBy = affectedTags(
+        footprints as Readonly<
+          Record<Tag, { readonly writes: ReadonlyArray<ReadonlyArray<string>> }>
+        >,
+        reads.length === 0 ? Option.none() : Option.some(reads),
+      )
+      const region: Region = { own: 0 }
+      for (const tag of redrawnBy) redraws.get(tag)?.push(region)
+      return () => all + region.own
+    },
 
     regions: () => facts,
   }

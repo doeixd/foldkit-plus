@@ -11,6 +11,7 @@ import * as Node from '../src/node.js'
 import * as Eq from '../src/ops/eq.js'
 import * as Null from '../src/ops/null.js'
 import * as Ord from '../src/ops/ord.js'
+import * as Str from '../src/ops/str.js'
 import { judgeNode } from '../src/ops/residualize.js'
 import * as Path from '../src/path.js'
 import * as Prove from '../src/prove.js'
@@ -135,5 +136,39 @@ describe('Phase 1 adversarial soundness regressions', () => {
     if (Verdict.isUnknown(verdict)) {
       expect(Option.map(verdict.obligation, o => o.kind)).toEqual(Option.some('unsupported'))
     }
+  })
+
+  it('Transition.opaque refuses empty or overlapping write targets at definition time', () => {
+    const State = Schema.Struct({ a: Schema.String, nested: Schema.Struct({ x: Schema.Number }) })
+    expect(() =>
+      Transition.opaque({
+        name: 'Empty',
+        state: State,
+        input: Schema.Struct({}),
+        reads: () => [],
+        writes: () => [],
+        run: s => s,
+      }),
+    ).toThrow(/at least one written path/)
+    expect(() =>
+      Transition.opaque({
+        name: 'Overlap',
+        state: State,
+        input: Schema.Struct({}),
+        reads: () => [],
+        writes: ({ state }) => [state.nested, state.nested.x],
+        run: s => s,
+      }),
+    ).toThrow(/overlapping targets/)
+  })
+
+  it('fitsTerm recognizes text-returning calls (e.g. Str.trim) as fitting a text field', () => {
+    const State = Schema.Struct({ name: Schema.String })
+    const tr = Transition.make({
+      state: State,
+      input: Schema.Struct({}),
+      apply: ({ state }) => [Transition.set(state.name, Str.trim(state.name))],
+    })
+    expect(Verdict.isTrue(Abstract.checkTransition(State, tr))).toBe(true)
   })
 })

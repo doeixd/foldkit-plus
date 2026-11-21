@@ -80,6 +80,20 @@ export const opaque = <
   type Env = TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>
   const env = pathsOf(config.state, config.input, config.supplied ?? ({} as Sup))
   const targets = config.writes(env).map(path => targetOf(path, 'opaque'))
+  if (targets.length === 0) {
+    throw new Error(
+      `[metakit] Transition.opaque "${config.name}" must declare at least one written path`,
+    )
+  }
+  for (let i = 0; i < targets.length; i++) {
+    for (let j = i + 1; j < targets.length; j++) {
+      if (Path.isPrefix(targets[i]!, targets[j]!) || Path.isPrefix(targets[j]!, targets[i]!)) {
+        throw new Error(
+          `[metakit] Transition.opaque "${config.name}" declares overlapping targets "${Path.format(targets[i]!)}" and "${Path.format(targets[j]!)}"`,
+        )
+      }
+    }
+  }
   // A written path's value before is read too: partial evaluation runs the
   // body only once the state it rewrites is known.
   const reads = [

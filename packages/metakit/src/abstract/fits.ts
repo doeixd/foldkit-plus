@@ -93,7 +93,10 @@ function fitsTerm(
       sourceKind === 'boolean' || (Node.$is('Call')(value) && value.op.returns === 'boolean')
         ? proved('zone')
         : unknown,
-    text: () => (sourceKind === 'text' ? proved('zone') : unknown),
+    text: () =>
+      sourceKind === 'text' || (Node.$is('Call')(value) && value.op.returns === 'text')
+        ? proved('zone')
+        : unknown,
     literal: () => {
       const allowed: ReadonlyArray<unknown> = Option.getOrElse(info.literals, () => [])
       const held = Node.$is('Path')(value) ? state.eqFacts.get(Node.key(value)) : undefined

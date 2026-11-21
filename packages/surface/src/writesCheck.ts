@@ -169,26 +169,23 @@ const verify = <Root, Message, Return extends { readonly model: Root }>(
     if (result.model === model) return result
     const tag = Option.getOrElse(tagOf(message), () => 'an untagged Message')
     const declared = writes.declared(message)
-    if (Option.isSome(declared)) {
-      const paths: Array<ReadonlyArray<string>> = []
-      collect(model, result.model, declared.value, [], paths)
-      if (paths.length > 0) report(undeclaredWrite(tag, paths, declared.value))
+    const foreign = owners.filter(entry => !entry.messages.has(tag))
+    if (Option.isSome(declared) || foreign.length > 0) {
+      const changed: Array<ReadonlyArray<string>> = []
+      collect(model, result.model, [], [], changed)
+      if (Option.isSome(declared)) {
+        const undeclared = changed.filter(
+          path => !declared.value.some(write => isPrefix(write, path)),
+        )
+        if (undeclared.length > 0) report(undeclaredWrite(tag, undeclared, declared.value))
+      }
+      for (const entry of foreign) {
+        const violated = changed.filter(path => entry.owns.some(owned => pathsOverlap(path, owned)))
+        if (violated.length > 0) report(ownerWrite(tag, entry.owner, violated))
+      }
     }
     for (const { surface } of outside(model, message, result.model)) {
       report(outsideWrite(tag, surface))
-    }
-    if (owners.length > 0) {
-      const foreign = owners.filter(entry => !entry.messages.has(tag))
-      if (foreign.length > 0) {
-        const changed: Array<ReadonlyArray<string>> = []
-        collect(model, result.model, [], [], changed)
-        for (const entry of foreign) {
-          const violated = changed.filter(path =>
-            entry.owns.some(owned => pathsOverlap(path, owned)),
-          )
-          if (violated.length > 0) report(ownerWrite(tag, entry.owner, violated))
-        }
-      }
     }
     return result
   }

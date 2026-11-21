@@ -3,7 +3,7 @@
  * the store: shared by the read entries and `foldkit-remote/why`.
  */
 import { Option } from 'effect'
-import type { ActiveSurface, Projection, SurfaceSource } from 'foldkit-surface'
+import { pathsRead, type ActiveSurface, type Projection, type SurfaceSource } from 'foldkit-surface'
 import type { ActiveEntry } from './index.js'
 import { stableStringify } from './query.js'
 import {
@@ -50,6 +50,13 @@ export const askReads = <AppModel>(
   if (storeOnly(entry)) return []
   if ('activation' in entry && entry.activation !== undefined && !('from' in entry)) {
     return [entry.activation.path]
+  }
+  if ('from' in entry && entry.from !== undefined) {
+    const from = entry.from as ActiveEntry<AppModel>
+    if (storeOnly(from) && 'projection' in from && typeof from.projection === 'function') {
+      const deps = pathsRead(from.projection())
+      return Option.isSome(deps) ? deps.value : undefined
+    }
   }
   return undefined
 }
