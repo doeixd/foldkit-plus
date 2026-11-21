@@ -259,6 +259,13 @@ export type PlacementConfig<
    * since it is given nothing else: opt out for one that reads outside it.
    */
   readonly memo?: false
+  /**
+   * Keeps the drawing while this epoch, read from the parent's Model at each
+   * draw, stays the same, instead of while the child's Model is the same
+   * object: `writes.epochFor(paths)` from `foldkit-surface/writes` for a
+   * placement on the root (#586).
+   */
+  readonly pathEpoch?: (parent: Parent) => unknown
 } & ([Args] extends [void]
   ? { readonly args?: never }
   : { readonly args: ArgsSource<ParentSeed, Args> }) &
