@@ -97,21 +97,21 @@ export default [
   ),
   edit(
     'a write reports none of the rows it wrote',
-    '    keys.push(write.key)\n',
+    '      keys.push(key)\n',
     '',
-    '../src/store.ts',
+    '../src/storeSteps.ts',
   ),
   edit(
     'a read entry never reuses its plan',
-    '        last !== undefined &&\n        last.remote === remote &&',
-    '        false &&\n        last.remote === remote &&',
+    '        last !== undefined &&\n        reads !== undefined &&',
+    '        false &&\n        reads !== undefined &&',
     '../src/domain.ts',
     reuse,
   ),
   edit(
     'a read entry reuses its plan across a store change',
-    '        last !== undefined &&\n        last.remote === remote &&',
-    '        last !== undefined &&',
+    '        last.remote === remote &&\n',
+    '',
     '../src/domain.ts',
     reuse,
   ),
@@ -136,8 +136,8 @@ export default [
   ),
   edit(
     'a raw optic claims the empty path',
-    '  store.dependency === undefined || store.dependency.length === 0 ? [] : [store.dependency]',
-    '  store.dependency === undefined ? [] : [store.dependency]',
+    'store.dependency?.length ? [store.dependency] : []',
+    'store.dependency ? [store.dependency] : []',
     '../src/storePath.ts',
   ),
 ]

@@ -10,7 +10,7 @@ import { Option } from 'effect'
 import { sameData } from './data.js'
 import { own, put } from './record.js'
 import { RELATION_ALIAS } from './relation.js'
-import { stepped } from './storeSteps.js'
+import { editing, stepped } from './storeSteps.js'
 
 export type EntityKey = string
 
@@ -235,23 +235,23 @@ export const writeEntities = (
   now = 0,
 ): EntityStore => {
   if (writes.length === 0) return store
-  let next: Record<EntityKey, EntityEntry> | undefined
-  const keys: EntityKey[] = []
+  const edit = editing(store)
   for (const write of writes) {
-    const held = (next ?? store)[write.key]
+    const held = edit.get(write.key)
     if (olderThanHeld(held, write.revision)) continue
-    next ??= { ...store }
-    keys.push(write.key)
-    next[write.key] = written(
-      held ?? emptyEntry,
-      write.values,
-      write.updatedAt ?? now,
-      write.windows,
-      write.oldestAt,
-      write.revision,
+    edit.set(
+      write.key,
+      written(
+        held ?? emptyEntry,
+        write.values,
+        write.updatedAt ?? now,
+        write.windows,
+        write.oldestAt,
+        write.revision,
+      ),
     )
   }
-  return stepped(store, next, keys)
+  return edit.end()
 }
 
 /** `writeEntities` for one entity. */
@@ -273,10 +273,9 @@ export const setStale = (
   marks: ReadonlyArray<readonly [key: EntityKey, fields: Iterable<string>]>,
   stale: boolean,
 ): EntityStore => {
-  let next: Record<EntityKey, EntityEntry> | undefined
-  const keys: EntityKey[] = []
+  const edit = editing(store)
   for (const [key, fields] of marks) {
-    const previous = (next ?? store)[key]
+    const previous = edit.get(key)
     if (previous === undefined) continue
     const staleFields = new Set(previous.stale)
     for (const field of fields) {
@@ -286,11 +285,9 @@ export const setStale = (
     }
     // Only ever added to or only ever removed from, so an equal size is the same set.
     if (staleFields.size === previous.stale.size) continue
-    next ??= { ...store }
-    keys.push(key)
-    next[key] = { ...previous, stale: staleFields }
+    edit.set(key, { ...previous, stale: staleFields })
   }
-  return stepped(store, next, keys)
+  return edit.end()
 }
 
 /** Marks present fields stale; fields that were never present stay missing. */
@@ -317,10 +314,9 @@ export const setUnavailable = (
   marks: ReadonlyArray<readonly [key: EntityKey, fields: Iterable<string>]>,
   unavailable: boolean,
 ): EntityStore => {
-  let next: Record<EntityKey, EntityEntry> | undefined
-  const keys: EntityKey[] = []
+  const edit = editing(store)
   for (const [key, fields] of marks) {
-    const previous = (next ?? store)[key] ?? emptyEntry
+    const previous = edit.get(key) ?? emptyEntry
     if (previous.tombstone) continue
     const marked = new Set(previous.unavailable)
     for (const field of fields) {
@@ -329,11 +325,9 @@ export const setUnavailable = (
       } else marked.delete(field)
     }
     if (marked.size === previous.unavailable.size) continue
-    next ??= { ...store }
-    keys.push(key)
-    next[key] = { ...previous, unavailable: marked }
+    edit.set(key, { ...previous, unavailable: marked })
   }
-  return stepped(store, next, keys)
+  return edit.end()
 }
 
 /** Whether the server settled this field without a value, and nothing has written it since. */
@@ -372,18 +366,15 @@ export const askAgain = (
   store: EntityStore,
   marks: ReadonlyArray<readonly [key: EntityKey, fields: Iterable<string>]>,
 ): EntityStore => {
-  let next: Record<EntityKey, EntityEntry> | undefined
-  const keys: EntityKey[] = []
+  const edit = editing(store)
   for (const [key, fields] of marks) {
-    const previous = (next ?? store)[key]
+    const previous = edit.get(key)
     if (previous === undefined || !previous.tombstone) continue
     const asked = new Set([...previous.stale, ...fields])
     if (asked.size === previous.stale.size) continue
-    next ??= { ...store }
-    keys.push(key)
-    next[key] = { ...previous, stale: asked }
+    edit.set(key, { ...previous, stale: asked })
   }
-  return stepped(store, next, keys)
+  return edit.end()
 }
 
 /**
@@ -395,33 +386,27 @@ export const setFloors = (
   store: EntityStore,
   floors: ReadonlyArray<{ readonly key: EntityKey; readonly token: string }>,
 ): EntityStore => {
-  let next: Record<EntityKey, EntityEntry> | undefined
-  const keys: EntityKey[] = []
+  const edit = editing(store)
   for (const { key, token } of floors) {
-    const held = (next ?? store)[key] ?? emptyEntry
+    const held = edit.get(key) ?? emptyEntry
     if (held.floor === token) continue
-    next ??= { ...store }
-    keys.push(key)
     // A newer write is asked about at once, however long the last one waited.
     const { behind: _waited, ...rest } = held
-    next[key] = { ...rest, floor: token }
+    edit.set(key, { ...rest, floor: token })
   }
-  return stepped(store, next, keys)
+  return edit.end()
 }
 
 /** Ends each row's read-after token: a read answered at it. */
 export const clearFloors = (store: EntityStore, keys: Iterable<EntityKey>): EntityStore => {
-  let next: Record<EntityKey, EntityEntry> | undefined
-  const cleared: EntityKey[] = []
+  const edit = editing(store)
   for (const key of keys) {
-    const held = (next ?? store)[key]
+    const held = edit.get(key)
     if (held?.floor === undefined) continue
-    next ??= { ...store }
-    cleared.push(key)
     const { floor: _cleared, ...rest } = held
-    next[key] = rest
+    edit.set(key, rest)
   }
-  return stepped(store, next, cleared)
+  return edit.end()
 }
 
 /**
@@ -445,17 +430,14 @@ export const behindAgain = (
   keys: Iterable<EntityKey>,
   now: number,
 ): EntityStore => {
-  let next: Record<EntityKey, EntityEntry> | undefined
-  const asked: EntityKey[] = []
+  const edit = editing(store)
   for (const key of keys) {
-    const held = (next ?? store)[key]
+    const held = edit.get(key)
     if (held?.floor === undefined) continue
     const tries = (held.behind?.tries ?? 0) + 1
-    next ??= { ...store }
-    asked.push(key)
-    next[key] = { ...held, behind: { tries, at: now + behindDelay(tries) } }
+    edit.set(key, { ...held, behind: { tries, at: now + behindDelay(tries) } })
   }
-  return stepped(store, next, asked)
+  return edit.end()
 }
 
 /** Forgets everything known about the entity, including a tombstone. */

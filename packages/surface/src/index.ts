@@ -1096,17 +1096,9 @@ type ViewBuilder<Message> = Omit<HtmlBuilder<Message>, keyof HtmlBuilder<never> 
 /** A renderer for a Surface's projected Model, with its Message set narrowed. */
 export type Renderer<Model, Message> = (model: Model, h: ViewBuilder<Message>) => Html
 
-/**
- * What each Message is declared to write, as far as a drawing needs it:
- * `Writes.of` (`foldkit-surface/writes`) makes one, and `Surface.rootView`'s
- * `writes` option takes it.
- */
+/** What each Message is declared to write, as `Surface.rootView`'s `writes` takes it: `Writes.of` (`foldkit-surface/writes`) makes one. */
 export interface DeclaredWrites<Root> {
-  /**
-   * `draw`, kept while no Message since its last drawing was declared to write
-   * a path `reads` depends on. Where `reads` reads what no path names
-   * (`pathsRead` gives none), every Message that changes the Model draws it again.
-   */
+  /** `draw`, kept while no Message since its last drawing was declared to write a path `reads` depends on. */
   readonly region: <Builder>(
     name: string,
     reads: { readonly dependencies: DependencyTree },
@@ -1114,12 +1106,7 @@ export interface DeclaredWrites<Root> {
   ) => (root: Root, h: Builder) => Html
 }
 
-/**
- * The Model paths a Projection reads, or none when it reads something no path
- * names (a `Projection.fromReader`, a Remote read, anything composed of one):
- * nothing can be decided for it from paths. A function of its own, not a
- * member of `Projection`, so a page that never asks does not carry it.
- */
+/** The Model paths a Projection reads, or none when it reads something no path names (a `fromReader`, a Remote read). */
 export const pathsRead = (projection: {
   readonly dependencies: DependencyTree
 }): Option.Option<DependencyTree> =>
@@ -1759,13 +1746,10 @@ export const Surface = {
    * projected Model to the renderer. `Subset` rejects a Surface whose Messages
    * the application builder cannot route.
    *
-   * With `writes` (`Writes.of`, from `foldkit-surface/writes`), the drawing is
-   * kept while no Message since it was made is declared to write a path the
-   * Surface's projection reads: the projection is not read and Foldkit does
-   * not diff the tree. A Message with no declared transition, a Model that
-   * `writes.track` did not see made, and a projection that reads what no path
-   * names (a Remote read) all draw again. `render` must read only its Model,
-   * and the view, made once at module level, stands at one position of the tree.
+   * With `writes` (`Writes.of`, `foldkit-surface/writes`) the drawing is kept while no
+   * Message since is declared to write a path the projection reads. A Message with no
+   * declaration, an unseen Model and a projection reading no path (a Remote read) all
+   * draw again. `render` must read only its Model; the view stands at one position.
    */
   rootView: <Root, Model, Message, Params>(
     surface: Surface<Root, Model, Message, Params>,

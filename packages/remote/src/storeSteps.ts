@@ -1,16 +1,10 @@
 /**
- * Which rows a write changed, for a reader that keeps a value derived from
- * many rows (`foldkit-remote/aggregate`, #580). Each write in `store.ts`
- * copies the store and replaces some entries; it reports the copy, what it was
- * copied from, and the keys it replaced, so a reader can follow a row's
- * changes without comparing every key. A store made any other way (a
- * hydrated snapshot, a principal's change, eviction) reports nothing, and a
- * reader that cannot connect two stores reads the whole store again.
- *
- * Nothing listens until a reader asks to: a page that keeps no derived value
- * pays one comparison per write.
+ * Which rows a write changed, for `foldkit-remote/aggregate` (#580): each write in
+ * `store.ts` reports the copy, its source and the keys it replaced. A store made any
+ * other way reports nothing, and a reader then reads the whole store again. Nothing
+ * listens until an aggregate asks to.
  */
-import type { EntityKey, EntityStore } from './store.js'
+import type { EntityEntry, EntityKey, EntityStore } from './store.js'
 
 type Watcher = (from: EntityStore, to: EntityStore, keys: ReadonlyArray<EntityKey>) => void
 
@@ -30,4 +24,19 @@ export const stepped = (
   if (to === undefined) return from
   watcher?.(from, to, keys)
   return to
+}
+
+/** A write to the store: copied at the first `set`, `end` reports it (the given store if none). */
+export const editing = (store: EntityStore) => {
+  let next: Record<EntityKey, EntityEntry> | undefined
+  const keys: EntityKey[] = []
+  return {
+    get: (key: EntityKey): EntityEntry | undefined => (next ?? store)[key],
+    set: (key: EntityKey, entry: EntityEntry): void => {
+      next ??= { ...store }
+      keys.push(key)
+      next[key] = entry
+    },
+    end: (): EntityStore => stepped(store, next, keys),
+  }
 }

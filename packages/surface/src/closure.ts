@@ -167,12 +167,7 @@ const violations = <Root, Message>(
     })
 }
 
-/**
- * The `Outside` half of `violations`, which runs no `update`: the closed Surfaces a Message
- * outside their `messages` moved from `before` to `after`. What a check on every Message of
- * a running application can afford (`WritesCheck.verify`). Not a member of `Closure`, so a
- * page that reads `Closure` does not carry it.
- */
+/** The `Outside` half of `violations`, which runs no `update` (`WritesCheck.verify`); not on `Closure`, so a page reading it does not carry it. */
 export const movedOutside = <Root, Message>(
   surfaces: ClosedSurfaces<Root>,
 ): ((before: Root, message: Message, after: Root) => ReadonlyArray<ClosureViolation>) => {

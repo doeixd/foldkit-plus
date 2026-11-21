@@ -21,25 +21,21 @@ export interface Asked {
 }
 
 /**
- * What a read entry asks for a Model, and the values of the Model beside the
- * store that the ask is worked out from. While the store and each of these
- * are the objects they were at the last Model, the ask is the same, so the
- * entry's plan is too and `of` need not run (#580). None where they are not
- * known: a `Surface.at` callback or a `Data.active` entry may read anything,
- * and a `Surface.when`'s activation names a place a Site node's params read
- * beside the viewer, so it does not bound them either.
+ * What a read entry asks of a Model, and the values beside the store it works that out
+ * from: while all are the objects they were, the plan is too (#580). None where they
+ * are not known (a `Surface.at` callback, `Data.active`, a `Surface.when`).
  */
 export interface AskedRead<AppModel> {
   readonly of: (model: AppModel) => Asked
   readonly reads: (model: AppModel) => Option.Option<ReadonlyArray<unknown>>
 }
 
-/** For an ask that reads nothing of the Model: a bare Surface, a Surface with fixed params. */
+/** For an ask that reads nothing of the Model. */
 export const readsNothing = (): Option.Option<ReadonlyArray<unknown>> => Option.some([])
 
 const readsUnknown = (): Option.Option<ReadonlyArray<unknown>> => Option.none()
 
-/** What an active entry resolves from beside the store: nothing for a bare Surface, unknown otherwise. */
+/** What an active entry reads beside the store: nothing for a bare Surface, unknown otherwise. */
 export const readsOf = <AppModel>(
   entry: ActiveEntry<AppModel>,
 ): ((model: AppModel) => Option.Option<ReadonlyArray<unknown>>) =>

@@ -297,12 +297,7 @@ export type Start = 'now' | 'idle' | 'on-interaction'
 export interface ResumePart<Model> {
   readonly id: string
   readonly covers: ReadonlyArray<string>
-  /**
-   * The Model paths whose value `restore` sets from what `capture` sent: a
-   * Surface's read of one of them is covered by this part, as a read of the
-   * state is by the slice. `Remote.resume(Data)` names its store's field, which
-   * Remote's reads name as what they read. None by default.
-   */
+  /** The Model paths `restore` sets from what `capture` sent: a Surface's read of one is covered by this part. */
   readonly restores?: ReadonlyArray<ReadonlyArray<string>> | undefined
   readonly capture: (
     model: Model,

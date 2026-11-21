@@ -1967,9 +1967,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     RemoteModel,
     Map<string, { readonly until: number; readonly dependencies: ReadDependencies }>
   >()
-  // The last plan with what it was worked out from, checked before the ask is
-  // worked out again: a Message that touched neither the store nor what the
-  // ask reads (typing in a field) costs a few comparisons.
+  // The last plan and what it came from: a Message touching neither costs a few comparisons.
   let last:
     | {
         readonly remote: RemoteModel
@@ -2008,16 +2006,16 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     modelToDependencies: model => {
       const policy = policyAt(options.policy, model)
       const remote = bound.store.get(model)
-      const reads = asked.reads(model)
+      const reads = Option.getOrUndefined(asked.reads(model))
       const at = now()
       if (
         last !== undefined &&
+        reads !== undefined &&
         last.remote === remote &&
         last.policy === policy &&
         at < last.until &&
-        Option.isSome(reads) &&
-        reads.value.length === last.reads.length &&
-        reads.value.every((value, index) => value === last!.reads[index])
+        reads.length === last.reads.length &&
+        reads.every((value, index) => value === last!.reads[index])
       )
         return last.dependencies
       const ask = asked.of(model)
@@ -2026,9 +2024,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       let byAsked = planned.get(remote)
       const known = byAsked?.get(askedKey)
       const remember = (until: number, dependencies: ReadDependencies) => {
-        last = Option.isSome(reads)
-          ? { remote, policy, reads: reads.value, until, dependencies }
-          : undefined
+        last = reads && { remote, policy, reads, until, dependencies }
         return dependencies
       }
       if (known !== undefined && at < known.until) return remember(known.until, known.dependencies)
