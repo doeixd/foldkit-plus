@@ -27,7 +27,24 @@
       "foldkit-mixins/theme/knob-data": ["../../../packages/mixins/src/theme/knobData.ts"],
       "foldkit-mixins/theme/runtime": ["../../../packages/mixins/src/theme/runtime.ts"],
       "foldkit-mixins/utilities": ["../../../packages/mixins/src/utilities.ts"],
-      "foldkit-mixins/vite": ["../../../packages/mixins/src/vite.ts"]
+      "foldkit-mixins/vite": ["../../../packages/mixins/src/vite.ts"],
+      "metakit": ["../../../packages/metakit/src/index.ts"],
+      "metakit/aggregates": ["../../../packages/metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../../../packages/metakit/src/aggregatesSql.ts"],
+      "metakit/conformance": ["../../../packages/metakit/src/conformance.ts"],
+      "metakit/domain": ["../../../packages/metakit/src/domain.ts"],
+      "metakit/drizzle": ["../../../packages/metakit/src/drizzle.ts"],
+      "metakit/graph": ["../../../packages/metakit/src/graph.ts"],
+      "metakit/graph/match": ["../../../packages/metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../../../packages/metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../../../packages/metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../../../packages/metakit/src/inspect.ts"],
+      "metakit/machine": ["../../../packages/metakit/src/machine.ts"],
+      "metakit/policy": ["../../../packages/metakit/src/policy.ts"],
+      "metakit/prove": ["../../../packages/metakit/src/prove.ts"],
+      "metakit/sql": ["../../../packages/metakit/src/sql.ts"],
+      "metakit/store": ["../../../packages/metakit/src/store.ts"],
+      "metakit/temporal": ["../../../packages/metakit/src/temporal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
@@ -46,6 +63,9 @@
     },
     {
       "path": "../../../packages/mixins-form/tsconfig.build.json"
+    },
+    {
+      "path": "../../../packages/metakit/tsconfig.build.json"
     }
   ]
 }
