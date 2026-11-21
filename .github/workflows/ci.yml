@@ -204,8 +204,58 @@ jobs:
 
       - uses: ./.github/actions/setup-playwright
 
-      # Cap workers at 2 per runner so Chromium stays well within memory.
-      - run: pnpm test ${{ matrix.args }} --maxWorkers=2
+      # One worker per runner: Chromium sometimes closes its connection mid-run
+      # in a different shard each time (#582; cause unknown), and two workers
+      # share one machine's memory. A run that fails with that signature alone
+      # is run once more and the re-run is written to the job summary; any
+      # other failure, an assertion failure included, fails the job at once, and
+      # so does a second failure of the same shard. The signature is the error
+      # code with no failed test: a failed test prints ` FAIL `, a `Failed
+      # Tests` heading and `N failed` in the summary counts, and none of those
+      # appears when a file only failed to load.
+      - name: Browser tests (one re-run when the browser connection closes)
+        env:
+          ARGS: ${{ matrix.args }}
+          SHARD: ${{ matrix.name }}
+        run: |
+          set -o pipefail
+          first_log="$RUNNER_TEMP/browser-first.log"
+          second_log="$RUNNER_TEMP/browser-second.log"
+
+          # pipefail makes the pipeline's status pnpm's, not tee's.
+          run_tests() {
+            # shellcheck disable=SC2086
+            pnpm test $ARGS --maxWorkers=1 2>&1 | tee "$1"
+          }
+
+          status=0
+          run_tests "$first_log" || status=$?
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+
+          if grep -q 'VITEST_BROWSER_CONNECTION_CLOSED' "$first_log" \
+            && ! grep -Eq '(^|[[:space:]])FAIL[[:space:]]|Failed Tests|[0-9]+ failed' "$first_log"; then
+            file=$(grep -o 'Failed to run the test [^ ]*' "$first_log" | head -n 1 || true)
+            echo "::warning title=browser ($SHARD) re-run::The browser connection closed (VITEST_BROWSER_CONNECTION_CLOSED); running the shard once more. ${file}"
+            {
+              echo "### browser ($SHARD): re-run once"
+              echo
+              echo "The first run failed with \`VITEST_BROWSER_CONNECTION_CLOSED\` and no failed test (${file:-no file named}). Re-running the shard once; a second failure fails the job. See #582."
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            status=0
+            run_tests "$second_log" || status=$?
+            {
+              echo
+              if [ "$status" -eq 0 ]; then
+                echo "The re-run passed."
+              else
+                echo "The re-run failed (exit $status): treated as real."
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
 
       - if: matrix.pw_unit == '1'
         env:
