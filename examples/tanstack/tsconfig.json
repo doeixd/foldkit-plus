@@ -24,7 +24,21 @@
       "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
       "foldkit-remote/why": ["../../packages/remote/src/why.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
-      "foldkit-surface/writes": ["../../packages/surface/src/writes.ts"]
+      "foldkit-surface/writes": ["../../packages/surface/src/writes.ts"],
+      "metakit": ["../../packages/metakit/src/index.ts"],
+      "metakit/aggregates": ["../../packages/metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../../packages/metakit/src/aggregatesSql.ts"],
+      "metakit/conformance": ["../../packages/metakit/src/conformance.ts"],
+      "metakit/domain": ["../../packages/metakit/src/domain.ts"],
+      "metakit/drizzle": ["../../packages/metakit/src/drizzle.ts"],
+      "metakit/graph": ["../../packages/metakit/src/graph.ts"],
+      "metakit/inspect": ["../../packages/metakit/src/inspect.ts"],
+      "metakit/machine": ["../../packages/metakit/src/machine.ts"],
+      "metakit/policy": ["../../packages/metakit/src/policy.ts"],
+      "metakit/prove": ["../../packages/metakit/src/prove.ts"],
+      "metakit/sql": ["../../packages/metakit/src/sql.ts"],
+      "metakit/store": ["../../packages/metakit/src/store.ts"],
+      "metakit/temporal": ["../../packages/metakit/src/temporal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
@@ -43,6 +57,9 @@
     },
     {
       "path": "../../packages/surface/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/metakit/tsconfig.build.json"
     }
   ]
 }

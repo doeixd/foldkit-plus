@@ -23,6 +23,9 @@
     },
     {
       "path": "../remote-server/tsconfig.build.json"
+    },
+    {
+      "path": "../metakit/tsconfig.build.json"
     }
   ]
 }
