@@ -4036,6 +4036,9 @@ importers:
       foldkit-remote-server:
         specifier: workspace:*
         version: link:../remote-server
+      metakit:
+        specifier: workspace:*
+        version: link:../metakit
     devDependencies:
       '@electric-sql/pglite':
         specifier: 0.5.11

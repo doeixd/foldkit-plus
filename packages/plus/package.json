@@ -168,6 +168,11 @@
       "types": "./dist/entity.d.mts",
       "import": "./dist/entity.mjs"
     },
+    "./entity/lowering": {
+      "foldkit-plus:source": "./src/entity/lowering.ts",
+      "types": "./dist/entity/lowering.d.mts",
+      "import": "./dist/entity/lowering.mjs"
+    },
     "./entity/conformance": {
       "foldkit-plus:source": "./src/entity/conformance.ts",
       "types": "./dist/entity/conformance.d.mts",
@@ -777,6 +782,11 @@
       "foldkit-plus:source": "./src/surface/writes.ts",
       "types": "./dist/surface/writes.d.mts",
       "import": "./dist/surface/writes.mjs"
+    },
+    "./surface/declared": {
+      "foldkit-plus:source": "./src/surface/declared.ts",
+      "types": "./dist/surface/declared.d.mts",
+      "import": "./dist/surface/declared.mjs"
     },
     "./sync": {
       "foldkit-plus:source": "./src/sync.ts",
