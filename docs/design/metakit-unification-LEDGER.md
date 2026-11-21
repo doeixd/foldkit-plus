@@ -235,3 +235,9 @@ Add a row per phase and per budget it touches. Keep the earlier rows.
 | Phase and step | Budget or measure | Before (commit) | After (commit) | Note |
 | --- | --- | --- | --- | --- |
 | Phase 0, items 2 and 3 | every budget above | none | `845d4b9c2` | this ledger |
+| Phase 2 (dependency graph) | `metakit/graph/match` isolated subpath | `graph.ts` pulled `expr`/`sqlLowering` | `40a0a1c13` | `dist/graph/match.js` 1.09 kB gzip; zero `ops/residualize` or `sqlLowering` |
+| Phase 2 (formal verification) | TLC2 v2.19 model check | none | `781288b97` | `MetaKitSoundness.tla` (81 states, 0 errors); `WritesInvalidation.tla` (69,504 distinct states, depth 13, 0 errors) |
+| Phase 3 gate (`examples/todo-app`) | Messages declared | 11 of 25 (`70585f667`) | 25 of 25 (`92d3114e2`) | 23 pure transitions + 2 `Transition.opaque` (`UrlChanged`, `MirrorRestored`); passes >=21/25 gate |
+| Phase 3 gate (`examples/todo-app`) | Command-sending Messages via `Declared.of` | 0% (`70585f667`) | 100% (`92d3114e2`) | All 7 emitted record tags (`Rename`, `Focus`, `Mint`, `Delete`, `FocusNeighbour`, `ExpireUndo`, `Restore`) routed through `todoCommands`; -36 net lines in `app.ts`/`surface.ts` |
+| Phase 3 gate (`examples/todo-app`) | `tsc -b examples/todo-app` | none | 3.034 s (`21bbb5355`) | 2,114,035 own instantiations; `bundle.test.ts` brotli budget green |
+| Phase 3 gate (`examples/foldkit/domains-plus`) | Counted Message gap list | none | 41 own Messages (`21bbb5355`) | 19 pure declarable (13 no-op/completion + 3 Command-emitting + 3 state/list) + 22 confined `Transition.opaque` (13 widget-delegating + 9 search/URL/remote); >=3/4 gate holds with widget/opaque transitions |
