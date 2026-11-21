@@ -23,7 +23,9 @@ const Counters = Machine.make({
       apply: ({ state, input }) => [
         Transition.set(state.count, Num.add(state.count, input.amount)),
       ],
-      emits: ({ state, input }) => ({ was: state.count, added: input.amount }),
+      emits: ({ state, input }) => [
+        Transition.emit('Counted', { was: state.count, added: input.amount }),
+      ],
     }),
     Reset: Transition.make({
       state: Counter,
@@ -98,8 +100,8 @@ describe('a child Message on the composed Machine does what it does on the child
       expect(Result.isSuccess(composed)).toBe(Result.isSuccess(alone))
       if (Result.isSuccess(alone) && Result.isSuccess(composed)) {
         expect(composed.success.state).toEqual({ ...model, left: alone.success.state })
-        expect(composed.success.emit).toEqual(alone.success.emit)
-        expect(composed.success.emit).toEqual(Option.some({ was: count, added: amount }))
+        expect(composed.success.emitted).toEqual(alone.success.emitted)
+        expect(composed.success.emitted).toEqual([{ _tag: 'Counted', was: count, added: amount }])
         expect(composed.success.state.right).toBe(model.right)
       }
     },
@@ -111,14 +113,14 @@ describe('a child Message on the composed Machine does what it does on the child
       ['Left', model.left],
       ['Right', model.right],
     ] as const) {
-      expect(Boards.canDispatch(`${name}Reset`, { state: model })._tag).toBe(
-        Counters.canDispatch('Reset', { state: child })._tag,
+      expect(Machine.canDispatch(Boards, `${name}Reset`, { state: model })._tag).toBe(
+        Machine.canDispatch(Counters, 'Reset', { state: child })._tag,
       )
-      expect(Boards.canDispatch(`${name}Added`, { state: model, input: { amount: 3 } })._tag).toBe(
-        Counters.canDispatch('Added', { state: child, input: { amount: 3 } })._tag,
-      )
-      const alone = Counters.affordances(child)
-      const composed = Boards.affordances(model)
+      expect(
+        Machine.canDispatch(Boards, `${name}Added`, { state: model, input: { amount: 3 } })._tag,
+      ).toBe(Machine.canDispatch(Counters, 'Added', { state: child, input: { amount: 3 } })._tag)
+      const alone = Machine.affordances(Counters, child)
+      const composed = Machine.affordances(Boards, model)
       for (const kind of ['available', 'disabled', 'pending'] as const) {
         expect(composed[kind].filter(tag => tag.startsWith(name))).toEqual(
           alone[kind].map(tag => `${name}${tag}`),
@@ -152,7 +154,7 @@ describe('a child at a path that may hold none', () => {
   })
 
   it('a null child disables its Messages; a missing key is a state not yet known', () => {
-    const { disabled, pending } = Boards.affordances(start)
+    const { disabled, pending } = Machine.affordances(Boards, start)
     // `LeftReset` is the child's own refusal: its count is 0.
     expect(disabled).toEqual(['LeftReset', 'SpareAdded', 'SpareReset', 'SpareLabelled'])
     expect(pending).toEqual([
@@ -162,7 +164,9 @@ describe('a child at a path that may hold none', () => {
       'ExtraReset',
       'ExtraLabelled',
     ])
-    expect(Verdict.isFalse(Boards.canDispatch('SpareLabelled', { state: start }))).toBe(true)
+    expect(Verdict.isFalse(Machine.canDispatch(Boards, 'SpareLabelled', { state: start }))).toBe(
+      true,
+    )
   })
 
   it('runs where there is one', () => {

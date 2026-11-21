@@ -5,6 +5,9 @@
  *   `pnpm mutate packages/metakit/test/consumers-review.mutations.ts`
  */
 const machine = '../src/machine.ts'
+const can = '../src/can.ts'
+const render = '../src/sqlRender.ts'
+const statements = '../src/sqlStatements.ts'
 const inspect = '../src/inspect.ts'
 const sql = '../src/sql.ts'
 const drizzle = '../src/drizzle.ts'
@@ -17,6 +20,7 @@ const proveWitness = '../src/prove/witness.ts'
 const policy = '../src/policy.ts'
 const proveTests = ['packages/metakit/test/prove-review.test.ts']
 const graph = '../src/graph.ts'
+const readiness = '../src/graph/readiness.ts'
 const graphTests = ['packages/metakit/test/graph.test.ts']
 const parityTests = ['packages/metakit/test/sql-parity.test.ts']
 const integrationTests = ['packages/metakit/test/integrations.test.ts']
@@ -40,7 +44,7 @@ export default [
   ),
   mutation(
     'a tag naming no transition can be dispatched',
-    machine,
+    can,
     'onNone: () => Verdict.False(),',
     "onNone: () => Verdict.Unknown('no such transition'),",
     integrationTests,
@@ -159,14 +163,14 @@ export default [
   ),
   mutation(
     'a query is ready although SQL cannot lower it',
-    graph,
+    readiness,
     'onFailure: ({ reason }) => ({',
     'onFailure: ({ reason }): QueryReadiness<Env, A> => ({ ready: true, residual }) ?? ({',
     graphTests,
   ),
   mutation(
     'an empty row prefix reads every path as a missing parameter',
-    graph,
+    readiness,
     'segs => !Path.isPrefix(rowPrefix, segs)',
     'segs => rowPrefix.length === 0 || !Path.isPrefix(rowPrefix, segs)',
     graphTests,
@@ -215,7 +219,7 @@ export default [
   ),
   mutation(
     'a quote in an inlined text literal is not doubled',
-    lowering,
+    render,
     `value.replaceAll("'", "''")`,
     'value',
     loweringTests,
@@ -250,14 +254,14 @@ export default [
   ),
   mutation(
     'SQLite is handed a boolean to bind',
-    lowering,
+    render,
     "dialect === 'sqlite' && typeof value === 'boolean' ? (value ? 1 : 0) : value",
     'value',
     loweringTests,
   ),
   mutation(
     'two paths share one column name',
-    lowering,
+    render,
     'if (prior !== undefined && prior !== path) {',
     'if (false) {',
     loweringTests,
@@ -278,16 +282,16 @@ export default [
   ),
   mutation(
     'an UPDATE is built from an input the input Schema refuses',
-    lowering,
+    statements,
     '!Schema.is(transition.inputSchema.value)(input)',
     'false',
     loweringTests,
   ),
   mutation(
     'a CHECK passes a rule that is unknown of a null',
-    lowering,
-    "q`(${joined(rules, ' AND ')}) IS TRUE`",
-    "q`(${joined(rules, ' AND ')})`",
+    statements,
+    "text(') IS TRUE')",
+    "text(')')",
     loweringTests,
   ),
   mutation(

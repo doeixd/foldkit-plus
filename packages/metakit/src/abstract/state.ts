@@ -6,8 +6,11 @@ import { SAFE, type FieldInfo } from './fields.js'
 import { fits } from './fits.js'
 import * as Interval from './interval.js'
 import { evalMatchInterval, matchCandidates, resolveMatchArm } from './matches.js'
+import { foldProperties } from '../properties.js'
+import { countBounds, type CountBounds } from './lists.js'
 import { abstractOf } from './rowOf.js'
-import { MAX_SPLITS, isRead, show } from './support.js'
+import { MAX_SPLITS, show } from './support.js'
+import { hasValue, portable } from './values.js'
 import { Zone, ZERO } from './zone.js'
 
 /**
@@ -42,6 +45,8 @@ export class AbstractState {
   /** Terms known to hold no text with a NUL: an operation that refuses such text took them. */
   readonly portableKeys: Set<string>
   readonly pendingOrs: Array<readonly [Node.Node, Node.Node]>
+  /** Each count of a list's passing elements, with the count of the whole list. */
+  readonly counted: Array<readonly [count: Node.Node, bounds: CountBounds]>
   zone: Zone
 
   constructor(
@@ -62,6 +67,7 @@ export class AbstractState {
       this.unrefused = new Set(from.unrefused)
       this.portableKeys = new Set(from.portableKeys)
       this.pendingOrs = [...from.pendingOrs]
+      this.counted = from.counted
       this.zone = from.zone.clone()
       return
     }
@@ -76,6 +82,7 @@ export class AbstractState {
     this.unrefused = new Set()
     this.portableKeys = new Set()
     this.pendingOrs = []
+    this.counted = []
 
     for (const [key, info] of fields) {
       if (!info.nullable) this.nullFacts.set(key, false)
@@ -101,6 +108,17 @@ export class AbstractState {
           Value: () => {},
         })
       }
+    }
+    // A count is a list's length, which no JavaScript array takes past
+    // 2^32 - 1, and lies where `countBounds` puts it against another; that of
+    // the elements that pass reads `count` monotone.
+    for (const [part, { base, below, above, kind }] of this.counted) {
+      const [id, at] = [this.varOf(part), this.varOf(base)]
+      if (Option.isNone(id) || Option.isNone(at)) continue
+      for (const each of [id.value, at.value]) this.bound(each, Interval.between(0, 2 ** 32 - 1))
+      if (kind === 'passing' && foldProperties.count.monotone !== 'up') continue
+      this.zone.constrainDiff(id.value, at.value, above)
+      if (Number.isFinite(below)) this.zone.constrainDiff(at.value, id.value, -below)
     }
   }
 
@@ -152,6 +170,7 @@ export class AbstractState {
         cases.every(([, arm]) => this.isIntNode(arm)) &&
         Option.match(otherwise, { onNone: () => true, onSome: arm => this.isIntNode(arm) }),
       Opaque: () => false,
+      Rows: ({ fold }) => fold === 'count',
     })
   }
 
@@ -170,6 +189,7 @@ export class AbstractState {
             if (relation !== 'none' && isInt && args.length === 2) {
               this.relations.push({ id, relation, left: args[0]!, right: args[1]! })
             }
+            this.collectCount(node)
           },
           Predicate: ({ measures }) => {
             for (const measure of measures(args)) this.collectTerms(measure)
@@ -188,7 +208,17 @@ export class AbstractState {
         if (Option.isSome(otherwise)) this.collectTerms(otherwise.value)
       },
       Opaque: () => {},
+      Rows: () => this.collectCount(node),
     })
+  }
+
+  /** A count the list's own count bounds (`countBounds`) is a term, related to that count. */
+  private collectCount(node: Node.Node): void {
+    const bounds = countBounds(node)
+    if (Option.isNone(bounds)) return
+    this.termNodes.set(this.register(Node.key(node), true), node)
+    this.collectTerms(bounds.value.base)
+    this.counted.push([node, bounds.value])
   }
 
   varOf(node: Node.Node): Option.Option<number> {
@@ -202,7 +232,7 @@ export class AbstractState {
   }
 
   /** Whether an arithmetic term's result is known to stay in the safe range, so it is not refused. */
-  private inRange(node: Node.Call): boolean {
+  inRange(node: Node.Call): boolean {
     return Match.valueTags(abstractOf(node.op), {
       Predicate: () => true,
       Value: () => true,
@@ -213,82 +243,14 @@ export class AbstractState {
     })
   }
 
-  /**
-   * Whether `node` is known to evaluate to a value: not null (so no nullable
-   * or absent operand reaches it), not refused, and not NaN.
-   */
+  /** Whether `node` is known to evaluate to a value: not null, not refused, and not NaN. */
   hasValue(node: Node.Node): boolean {
-    if (this.valued.has(Node.key(node))) return true
-    return Node.$match(node, {
-      Lit: ({ value }) =>
-        value !== null &&
-        value !== undefined &&
-        !Node.isRefusal(value) &&
-        (typeof value !== 'number' || Number.isFinite(value)),
-      Path: path =>
-        this.nullFacts.get(Node.key(path)) === false &&
-        Option.match(this.fieldOf(path), {
-          onNone: () => true,
-          onSome: info => info.kind !== 'number' || info.finite,
-        }),
-      Call: call => {
-        const settled = (arg: Node.Node): boolean => isRead(arg) || this.hasValue(arg)
-        const row = abstractOf(call.op)
-        if (row.unportable && !call.args.every(arg => this.portable(arg))) return false
-        if (row._tag !== 'Term' && row.valued !== undefined) return row.valued(call.args, this)
-        if (call.op.nulls === 'strict') {
-          return call.args.every(arg => this.hasValue(arg)) && this.inRange(call)
-        }
-        return Match.valueTags(row, {
-          Term: () => false,
-          Value: () => false,
-          Predicate: ({ neverNull }) =>
-            call.args.every(arg => (neverNull ? settled(arg) : this.hasValue(arg))),
-        })
-      },
-      If: ({ cond, then, otherwise }) =>
-        this.hasValue(cond) && this.hasValue(then) && this.hasValue(otherwise),
-      Match: match =>
-        Option.match(this.scrutinized(match.on), {
-          onNone: () => false,
-          onSome: values =>
-            values.every(value =>
-              Option.match(resolveMatchArm(match, value), {
-                onNone: () => false,
-                onSome: arm => this.hasValue(arm),
-              }),
-            ),
-        }),
-      Opaque: () => false,
-    })
+    return hasValue.call(this, node)
   }
 
-  /**
-   * Whether `node` holds no text with a NUL character, which a text or
-   * equality operation refuses: a number, a boolean, a literal of none, a
-   * value an operation gave (one that takes text refuses a NUL), or a term
-   * such an operation took without refusing.
-   */
+  /** Whether `node` holds no text with a NUL character, which a text or equality operation refuses. */
   portable(node: Node.Node): boolean {
-    if (this.portableKeys.has(Node.key(node))) return true
-    return Node.$match(node, {
-      Lit: ({ value }) => !Node.holdsNul([value]),
-      Path: path =>
-        Option.match(this.fieldOf(path), {
-          onNone: () => false,
-          onSome: info =>
-            info.kind === 'number' ||
-            info.kind === 'boolean' ||
-            info.kind === 'struct' ||
-            (info.kind === 'literal' && !Node.holdsNul(Option.getOrElse(info.literals, () => []))),
-        }),
-      Call: ({ op, args }) => op.returns !== 'operand' || args.every(arg => this.portable(arg)),
-      If: ({ then, otherwise }) => this.portable(then) && this.portable(otherwise),
-      Match: ({ cases, otherwise }) =>
-        cases.every(([, arm]) => this.portable(arm)) &&
-        Option.match(otherwise, { onNone: () => true, onSome: arm => this.portable(arm) }),
-      Opaque: () => false,
-    })
+    return portable.call(this, node)
   }
 
   /** Record what a strict call that was not null says of its operands: values, or at least not null. */
@@ -308,7 +270,7 @@ export class AbstractState {
   }
 
   /** The values a match's scrutinee may hold, where they are known to be few. */
-  private scrutinized(on: Node.Node): Option.Option<ReadonlyArray<unknown>> {
+  scrutinized(on: Node.Node): Option.Option<ReadonlyArray<unknown>> {
     if (Node.$is('Lit')(on)) return Option.some([on.value ?? null])
     if (!Node.$is('Path')(on)) return Option.none()
     const pk = Node.key(on)
@@ -339,6 +301,7 @@ export class AbstractState {
       If: ({ cond }) => this.markValued(cond),
       Match: () => {},
       Opaque: () => {},
+      Rows: () => {},
     })
   }
 
@@ -361,6 +324,7 @@ export class AbstractState {
       If: () => {},
       Match: () => {},
       Opaque: () => {},
+      Rows: () => {},
     })
   }
 
@@ -416,6 +380,8 @@ export class AbstractState {
       onSome: id => this.zone.intervalOf(id),
     })
     if (!Node.$is('Call')(node)) return fromZone
+    // An insert's count is where `countBounds` put it; its `If` is not split again.
+    if (Option.isSome(countBounds(node))) return fromZone
     return Match.valueTags(abstractOf(node.op), {
       Predicate: () => fromZone,
       Value: () => fromZone,
@@ -457,6 +423,7 @@ export class AbstractState {
       If: () => {},
       Match: () => {},
       Opaque: () => {},
+      Rows: () => {},
     })
   }
 
@@ -476,6 +443,7 @@ export class AbstractState {
       If: () => {},
       Match: () => {},
       Opaque: () => {},
+      Rows: () => {},
     })
   }
 

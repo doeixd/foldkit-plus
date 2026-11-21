@@ -8,7 +8,9 @@ describe('examples/metakit', () => {
 
     // 1. Runtime machine & incremental aggregate
     expect(out.afterWithdraw.balance).toBe(35_000)
-    expect(Option.isSome(out.emitted)).toBe(true)
+    expect(out.emitted).toEqual([
+      { _tag: 'WithdrawalRecorded', accountId: 'acct_1', amount: 15_000 },
+    ])
     expect(out.openAffordances.available).toEqual(['Freeze'])
     expect(out.openAffordances.pending).toEqual(['Withdraw'])
     expect(out.frozenAffordances.disabled).toEqual(['Withdraw', 'Freeze'])

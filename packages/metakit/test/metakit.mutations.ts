@@ -56,7 +56,7 @@ export default [
   ),
   unordered(
     'the Zone proves an invariant over a number that may be NaN',
-    abstractState,
+    '../src/abstract/values.ts',
     "onSome: info => info.kind !== 'number' || info.finite,",
     'onSome: () => true,',
   ),

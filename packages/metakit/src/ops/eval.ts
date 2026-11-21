@@ -10,6 +10,7 @@
 import { Option } from 'effect'
 import * as Node from '../node.js'
 import { readable } from '../path.js'
+import { answersBy, Elements, elementsOf, foldAnswers } from './rows.js'
 
 /** The value at `segments`: null where a step is absent, and an `Option` read as its value or null. */
 const readSegments = (env: unknown, segments: ReadonlyArray<string>): unknown => {
@@ -139,5 +140,25 @@ export const evalNode = (
     Opaque: ({ run }) => {
       const value = run(env)
       return value === undefined ? null : value
+    },
+    Rows: rows => {
+      const held = elementsOf(rows, evalNode(Node.rowsSource(rows.over), env, foreign))
+      return Elements.$match(held, {
+        Value: ({ value }) => value,
+        // An absent key reads as null, and so do related rows a row does not hold.
+        Absent: () => null,
+        Held: ({ elements, whole }) =>
+          whole
+            ? foldAnswers(
+                rows,
+                elements,
+                answersBy(rows, elements, env, (node, each) => evalNode(node, each, foreign)),
+              )
+            : new Node.Refusal({
+                reason: 'unsupported',
+                at: `rows.${rows.fold}`,
+                detail: 'the environment holds some of the related rows, and evaluation needs all',
+              }),
+      })
     },
   })

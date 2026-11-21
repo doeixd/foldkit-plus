@@ -7,13 +7,19 @@ const tests = ['packages/agent/test/metakit.test.ts']
 export default [
   {
     name: 'a guard that is Unknown hides the tool',
-    edits: [{ file: tools, find: '!Verdict.isFalse(machine', replace: 'Verdict.isTrue(machine' }],
+    edits: [
+      { file: tools, find: '!Verdict.isFalse(canDispatch', replace: 'Verdict.isTrue(canDispatch' },
+    ],
     tests,
   },
   {
     name: 'a guard that is False leaves the tool available',
     edits: [
-      { file: tools, find: '!Verdict.isFalse(machine', replace: '!Verdict.isUnknown(machine' },
+      {
+        file: tools,
+        find: '!Verdict.isFalse(canDispatch',
+        replace: '!Verdict.isUnknown(canDispatch',
+      },
     ],
     tests,
   },

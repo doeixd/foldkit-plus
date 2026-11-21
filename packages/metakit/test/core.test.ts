@@ -45,11 +45,9 @@ const Withdraw = Transition.make({
   apply: ({ state, input }) => [
     Transition.set(state.balance, Num.sub(state.balance, input.amount)),
   ],
-  emits: ({ state, input }) => ({
-    _tag: 'AccountDebited' as const,
-    accountId: state.id,
-    amount: input.amount,
-  }),
+  emits: ({ state, input }) => [
+    Transition.emit('AccountDebited', { accountId: state.id, amount: input.amount }),
+  ],
 })
 
 describe('Path', () => {
@@ -271,9 +269,7 @@ describe('Transition', () => {
     expect(Result.isSuccess(res)).toBe(true)
     if (Result.isSuccess(res)) {
       expect(res.success.state).toEqual({ id: 'u1', balance: 50, reserved: 20, status: 'open' })
-      expect(res.success.emit).toEqual(
-        Option.some({ _tag: 'AccountDebited', accountId: 'u1', amount: 50 }),
-      )
+      expect(res.success.emitted).toEqual([{ _tag: 'AccountDebited', accountId: 'u1', amount: 50 }])
     }
 
     // Refused when guard fails

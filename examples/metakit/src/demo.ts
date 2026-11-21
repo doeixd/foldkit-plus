@@ -50,11 +50,9 @@ const Withdraw = Transition.make({
   apply: ({ state, input }) => [
     Transition.set(state.balance, Money.sub(state.balance, input.amount)),
   ],
-  emits: ({ state, input }) => ({
-    _tag: 'WithdrawalRecorded' as const,
-    accountId: state.id,
-    amount: input.amount,
-  }),
+  emits: ({ state, input }) => [
+    Transition.emit('WithdrawalRecorded', { accountId: state.id, amount: input.amount }),
+  ],
 })
 
 const Freeze = Transition.make({
@@ -108,9 +106,9 @@ export const runDemo = async () => {
     _tag: 'Withdraw',
     input: { amount: Money.minor('USD', 15_000) },
   })
-  const openAffordances = AccountMachine.affordances(afterWithdraw)
+  const openAffordances = Machine.affordances(AccountMachine, afterWithdraw)
   const [afterFreeze] = AccountMachine.update(afterWithdraw, { _tag: 'Freeze', input: {} })
-  const frozenAffordances = AccountMachine.affordances(afterFreeze)
+  const frozenAffordances = Machine.affordances(AccountMachine, afterFreeze)
 
   // O(1) incremental sum over a ledger
   const ledgerSum = Rows.sum(Schema.Struct({ delta: Schema.Int }), $ => $.delta)
@@ -199,7 +197,7 @@ if (isMain) {
   const result = await runDemo()
   console.log('=== 1. Runtime Machine & Affordances ===')
   console.log('After Withdraw(15_000): balance =', result.afterWithdraw.balance)
-  console.log('Emitted:', Option.getOrUndefined(result.emitted))
+  console.log('Emitted:', result.emitted)
   console.log('Open affordances:', result.openAffordances)
   console.log('Frozen affordances:', result.frozenAffordances)
   console.log('Incremental ledger sum:', result.totalBalance)

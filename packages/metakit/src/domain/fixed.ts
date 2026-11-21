@@ -19,7 +19,7 @@ import * as Eq from '../ops/eq.js'
 import { evalNode } from '../ops/eval.js'
 import * as Num from '../ops/num.js'
 import * as Ord from '../ops/ord.js'
-import { readsOfNode } from '../ops/residualize.js'
+import { readsOfNode } from '../ops/reads.js'
 import type { Expr } from '../path.js'
 import { domainOfAst } from './annotation.js'
 

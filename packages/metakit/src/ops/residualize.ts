@@ -19,6 +19,8 @@ import * as Verdict from '../verdict.js'
 import { opProperties } from '../properties.js'
 import { applyForeign, evalNode, ifArm, matchArm, type ForeignImplementations } from './eval.js'
 import { isPortableRead, kindOf, present } from './kind.js'
+import { readsOfNode } from './reads.js'
+import { residualizeRows } from './residualizeRows.js'
 
 const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> => {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
@@ -46,10 +48,16 @@ const isWhole = (value: unknown, ast: Option.Option<SchemaAST.AST>): boolean => 
   })
 }
 
+/**
+ * The value `partial` holds at `segments`, where it holds it whole; `raw`
+ * takes what is held as it is, for a value no Schema describes (the related
+ * rows under a row, `{ rows, whole }`, which says itself whether it is all).
+ */
 const lookupPartial = (
   partial: unknown,
   segments: ReadonlyArray<string>,
   ast: Option.Option<SchemaAST.AST>,
+  raw = false,
 ): Option.Option<unknown> => {
   let current: unknown = partial
   for (const segment of segments) {
@@ -64,7 +72,8 @@ const lookupPartial = (
     current = next
   }
   current = Path.readable(current)
-  return current === undefined || !isWhole(current, ast) ? Option.none() : Option.some(current)
+  if (current === undefined) return Option.none()
+  return raw || isWhole(current, ast) ? Option.some(current) : Option.none()
 }
 
 const isLitEqual = (node: Node.Node, expected: unknown): boolean =>
@@ -213,52 +222,14 @@ export const residualizeNode = (
       }
       return opaque
     },
+    Rows: rows =>
+      residualizeRows(
+        rows,
+        partialEnv,
+        (inner, env) => residualizeNode(inner, env, foreign),
+        segments => lookupPartial(partialEnv, segments, Option.none(), true),
+      ),
   })
-
-/** Collect the static read footprint of `node`: `Option.none()` means unbounded (opaque with no declared reads). */
-export const readsOfNode = (
-  node: Node.Node,
-): Option.Option<ReadonlyArray<ReadonlyArray<string>>> => {
-  const seen = new Map<string, ReadonlyArray<string>>()
-  let unbounded = false
-
-  const visit = (current: Node.Node): void => {
-    if (unbounded) return
-    Node.$match(current, {
-      Lit: () => {},
-      Path: ({ segments }) => {
-        const k = JSON.stringify(segments)
-        if (!seen.has(k)) seen.set(k, segments)
-      },
-      Call: ({ args }) => {
-        for (const arg of args) visit(arg)
-      },
-      If: ({ cond, then, otherwise }) => {
-        visit(cond)
-        visit(then)
-        visit(otherwise)
-      },
-      Match: ({ on, cases, otherwise }) => {
-        visit(on)
-        for (const [, branch] of cases) visit(branch)
-        if (Option.isSome(otherwise)) visit(otherwise.value)
-      },
-      Opaque: ({ reads }) => {
-        if (Option.isNone(reads)) {
-          unbounded = true
-          return
-        }
-        for (const segments of reads.value) {
-          const k = JSON.stringify(segments)
-          if (!seen.has(k)) seen.set(k, segments)
-        }
-      },
-    })
-  }
-
-  visit(node)
-  return unbounded ? Option.none() : Option.some(Array.from(seen.values()))
-}
 
 const hasOpaque = (node: Node.Node): boolean =>
   Node.$match(node, {
@@ -271,6 +242,7 @@ const hasOpaque = (node: Node.Node): boolean =>
       cases.some(([, branch]) => hasOpaque(branch)) ||
       Option.match(otherwise, { onNone: () => false, onSome: hasOpaque }),
     Opaque: () => true,
+    Rows: rows => [Node.rowsSource(rows.over), ...Node.rowsBody(rows)].some(hasOpaque),
   })
 
 /** The foreign operations `node` calls. */
@@ -285,6 +257,7 @@ const foreignCalls = (node: Node.Node): ReadonlyArray<Node.ForeignOp> =>
         foreignCalls,
       ),
     Opaque: () => [],
+    Rows: rows => [Node.rowsSource(rows.over), ...Node.rowsBody(rows)].flatMap(foreignCalls),
   })
 
 /**

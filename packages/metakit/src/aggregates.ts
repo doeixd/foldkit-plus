@@ -132,6 +132,10 @@ const isIntegerValued = (node: Node.Node): boolean =>
       cases.every(([, branch]) => isIntegerValued(branch)) &&
       Option.match(otherwise, { onNone: () => true, onSome: isIntegerValued }),
     Opaque: () => false,
+    Rows: ({ fold, value }) =>
+      fold === 'count' ||
+      ((fold === 'sum' || fold === 'min' || fold === 'max') &&
+        Option.exists(value, isIntegerValued)),
   })
 
 const isMissing = (value: unknown): value is null | undefined =>

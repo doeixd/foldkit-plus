@@ -10,7 +10,7 @@ import { Option, Predicate, Result } from 'effect'
 import type { Schema } from 'effect'
 import { type Expr, Verdict } from 'metakit'
 import * as Inspect from 'metakit/inspect'
-import type { Machine, MessageOf } from 'metakit/machine'
+import { canDispatch, type Machine, type MessageOf } from 'metakit/machine'
 import type { ExposedMessages, Variant } from './expose.js'
 import { type RefineInputJsonSchema, refineInputJsonSchema } from './jsonSchema.js'
 import { type SnakeCase, defaultName } from './naming.js'
@@ -143,7 +143,7 @@ const addDeclaredConstraints =
  * - its `input` is the transition's input Schema, and its JSON Schema adds the
  *   bounds and domain formats metakit reads from it (`Inspect.toJsonSchema`);
  * - it is `available` unless the transition's guard is `False` for the
- *   current state (`machine.canDispatch`). A guard that needs the input to
+ *   current state (`Machine.canDispatch`). A guard that needs the input to
  *   decide, or reads an opaque term, is `Unknown` and stays available;
  * - a call whose input the guard refuses in that state is refused before
  *   dispatch, as `CapabilityUnavailableError`, after `authorize`;
@@ -186,7 +186,7 @@ export const machineTools = <
 
     const available = (model: Model): boolean =>
       // A whole state is a partial one; the conditional type cannot see that of a generic `State`.
-      !Verdict.isFalse(machine.canDispatch(tag, { state: state(model) as Expr.PartialEnv<State> }))
+      !Verdict.isFalse(canDispatch(machine, tag, { state: state(model) as Expr.PartialEnv<State> }))
 
     // Evaluated, not judged: with the whole input there is nothing left
     // unknown, and this is the evaluation `machine.update` will run.

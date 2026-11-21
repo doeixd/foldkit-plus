@@ -1,8 +1,8 @@
 /**
  * Framework-independent declarative state machine (`metakit/machine`) built
  * over `Transition`s: one declaration drives runtime `dispatch` (TEA `update`
- * / Sync journal), UI & agent `canDispatch` / `affordances`, and per-message
- * read/write `footprints`.
+ * / Sync journal) and per-message read/write `footprints`; `canDispatch` and
+ * `affordances` ask what a partial state allows (UI and agents).
  *
  * Opaque transitions (for arbitrary JS) can coexist beside declarative
  * `Transition`s without breaking types.
@@ -12,7 +12,8 @@ import type { Schema } from 'effect'
 import type * as Expr from './expr.js'
 import * as Path from './path.js'
 import * as Transition from './transition.js'
-import * as Verdict from './verdict.js'
+
+export { affordances, canDispatch } from './can.js'
 
 type AnyTransition<State> = {
   readonly _tag: 'Transition'
@@ -20,11 +21,14 @@ type AnyTransition<State> = {
   readonly writes: ReadonlyArray<Transition.WriteEquation<State, never, unknown, never>>
 }
 
-type TransitionInput<T> = T extends {
+/** The input a transition takes. */
+export type InputOf<T> = T extends {
   readonly when: Expr.Expr<Transition.TransitionEnv<never, infer I, never>, boolean>
 }
   ? I
   : never
+
+type TransitionInput<T> = InputOf<T>
 type TransitionEmit<T> = T extends { readonly _emit?: () => infer E } ? E : never
 type TransitionSupplied<T> = T extends { readonly _supplied?: () => infer S } ? S : never
 
@@ -50,39 +54,25 @@ export interface Machine<State, Transitions extends Readonly<Record<string, unkn
   readonly stateSchema: Schema.Codec<State>
   readonly transitions: Transitions
   /**
-   * Dispatch a tagged message `{ _tag, input }` against `state`.
-   * Returns `Result.fail(Refused)` if the transition's `when` guard is `false`;
-   * preserves `state` reference identity on a no-op.
+   * Dispatch a tagged message `{ _tag, input }` against `state`: the next
+   * state and the records the step emits, or `Result.fail(Refused)` where
+   * the transition's guard is not true. A no-op keeps `state`'s identity.
    */
   readonly dispatch: (
     state: State,
     message: MessageOf<Transitions>,
   ) => Result.Result<
-    { readonly state: State; readonly emit: Option.Option<EmitOf<Transitions>> },
+    { readonly state: State; readonly emitted: ReadonlyArray<EmitOf<Transitions>> },
     Transition.Refused
   >
   /**
-   * TEA-style `update`: returns `[nextState, emit]` (keeping `state` unchanged
-   * if refused).
+   * TEA-style `update`: `[nextState, emitted]`, with `state` itself and
+   * nothing emitted where the step is refused.
    */
   readonly update: (
     state: State,
     message: MessageOf<Transitions>,
-  ) => readonly [State, Option.Option<EmitOf<Transitions>>]
-  /** Check whether a message tag can be dispatched from a partial state / input. */
-  readonly canDispatch: <K extends keyof Transitions & string>(
-    tag: K,
-    partial: {
-      readonly state?: Expr.PartialEnv<State>
-      readonly input?: Expr.PartialEnv<TransitionInput<Transitions[K]>>
-    },
-  ) => Verdict.Verdict<never>
-  /** Partition every message tag into `available`, `disabled`, and `pending` (needs input). */
-  readonly affordances: (state: Expr.PartialEnv<State>) => {
-    readonly available: ReadonlyArray<keyof Transitions & string>
-    readonly disabled: ReadonlyArray<keyof Transitions & string>
-    readonly pending: ReadonlyArray<keyof Transitions & string>
-  }
+  ) => readonly [State, ReadonlyArray<EmitOf<Transitions>>]
   /** Exact static read/write footprints for every declared transition. */
   readonly footprints: {
     readonly [K in keyof Transitions & string]: {
@@ -134,7 +124,7 @@ export const make = <
           message.input,
           'supplied' in message ? message.supplied : {},
         ) as Result.Result<
-          { readonly state: State; readonly emit: Option.Option<EmitOf<Transitions>> },
+          { readonly state: State; readonly emitted: ReadonlyArray<EmitOf<Transitions>> },
           Transition.Refused
         >,
     })
@@ -142,29 +132,8 @@ export const make = <
   const update: Machine<State, Transitions>['update'] = (state, message) => {
     const res = dispatch(state, message)
     return Result.isSuccess(res)
-      ? ([res.success.state, res.success.emit] as const)
-      : ([state, Option.none()] as const)
-  }
-
-  const canDispatch: Machine<State, Transitions>['canDispatch'] = (tag, partial) =>
-    Option.match(transitionOf(tag), {
-      onNone: () => Verdict.False(),
-      onSome: tr => Transition.can(tr, partial as never),
-    })
-
-  const affordances: Machine<State, Transitions>['affordances'] = state => {
-    const available: Array<keyof Transitions & string> = []
-    const disabled: Array<keyof Transitions & string> = []
-    const pending: Array<keyof Transitions & string> = []
-    for (const tag of Object.keys(config.transitions) as Array<keyof Transitions & string>) {
-      const v = canDispatch(tag, { state })
-      Verdict.match(v, {
-        True: () => available.push(tag),
-        False: () => disabled.push(tag),
-        Unknown: () => pending.push(tag),
-      })
-    }
-    return { available, disabled, pending }
+      ? ([res.success.state, res.success.emitted] as const)
+      : ([state, []] as const)
   }
 
   return {
@@ -172,8 +141,6 @@ export const make = <
     transitions: config.transitions,
     dispatch,
     update,
-    canDispatch,
-    affordances,
     footprints: footprints as Machine<State, Transitions>['footprints'],
   }
 }

@@ -6,7 +6,6 @@
  * over what it writes, and SQL refuses it.
  */
 import { Option, Schema } from 'effect'
-import * as Expr from './expr.js'
 import * as Node from './node.js'
 import { toNode, wrap, type ExprInput } from './ops/core.js'
 import * as Path from './path.js'
@@ -14,6 +13,7 @@ import type { Path as PathType } from './path.js'
 import {
   pathsOf,
   targetOf,
+  Way,
   type NoSupplied,
   type SuppliedShape,
   type Transition,
@@ -110,7 +110,9 @@ export const opaque = <
     suppliedSchema: Option.some(
       Schema.Struct(config.supplied ?? {}) as unknown as Schema.Codec<Path.EnvOf<Sup>>,
     ),
-    when: config.when === undefined ? Expr.lit(true) : wrap<Env, boolean>(toNode(config.when(env))),
+    when: wrap<Env, boolean>(
+      config.when === undefined ? Node.Lit({ value: true }) : toNode(config.when(env)),
+    ),
     writes: targets.map(target => ({
       _tag: 'WriteEquation' as const,
       target,
@@ -122,7 +124,8 @@ export const opaque = <
             Option.getOrNull(Path.get(Path.make<S['Type'], unknown>(target), next(step as Env))),
         }),
       ),
+      way: Way.set(),
     })),
-    emits: Option.none(),
+    emits: [],
   }
 }

@@ -30,11 +30,21 @@ describe('opProperties', () => {
     ['monotone up in both arguments of num.sub', Num.subOp, { monotone: ['up', 'up'] }],
     ['monotone up in num.neg', Num.negOp, { monotone: ['up'] }],
     // Two groupings of floats round differently: 0.5 + 1e200 - 1e200.
-    ['associative unless refused on num.add', Num.addOp, { associative: 'unless-refused' }],
+    [
+      'associative unless refused on num.add over floats',
+      Num.addOp,
+      { associative: { over: 'all', unlessRefused: true } },
+    ],
+    // MAX + 1 is refused where MAX + (1 - 1) is not.
+    [
+      'associative on num.add over integers, refusals included',
+      Num.addOp,
+      { associative: { over: 'integers', unlessRefused: false } },
+    ],
     [
       'invertible num.add by num.sub over floats',
       Num.addOp,
-      { invertible: { inverse: 'num.sub' } },
+      { invertible: { inverse: 'num.sub', over: 'all' } },
     ],
     [
       'absorbing false of bool.or',
@@ -55,7 +65,13 @@ describe('opProperties', () => {
 
   it('a true declaration the table leaves out is confirmed: commutative bool.and', () => {
     expect(Conformance.checkProperties(Bool.andOp, { commutative: true }, binary).ok).toBe(true)
-    expect(Conformance.checkProperties(Bool.andOp, { associative: 'always' }, binary).ok).toBe(true)
+    expect(
+      Conformance.checkProperties(
+        Bool.andOp,
+        { associative: { over: 'all', unlessRefused: false } },
+        binary,
+      ).ok,
+    ).toBe(true)
   })
 })
 

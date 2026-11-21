@@ -50,6 +50,8 @@ const unorderedRead = (
     Node.$match(node, {
       Lit: () => {},
       Opaque: () => {},
+      // A fold is never decided, so what its body compares proves nothing.
+      Rows: rows => visit(Node.rowsSource(rows.over), false),
       Path: ({ segments }) => {
         const read = slices.some(
           ([under, schema]) =>

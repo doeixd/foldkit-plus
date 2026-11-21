@@ -48,7 +48,7 @@ const transition = <Shared, Message>(
     input: Schema.Codec<Message>,
     laws: ReadonlyArray<Pick<Law<Shared, string>, 'holds'>>,
   ): Option.Option<string> => {
-    if (Option.isSome(declared.emits))
+    if (declared.emits.length > 0)
       return Option.some('emits a Command; durable transitions are state-only')
     const known = laws.flatMap(law => {
       const expression = expressions.get(law.holds as Law<unknown, string>['holds'])

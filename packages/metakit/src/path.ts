@@ -117,14 +117,28 @@ export const set = <Env, A>(path: Path<Env, A>, env: Env, value: A): Env => {
   return updateAt(env, 0) as Env
 }
 
-/** True when `prefix` is a segment prefix of `target` (useful for cache/surface invalidation). */
+/** The segment of a footprint that stands for every element of a list: `todos.*.title`. */
+export const EVERY = '*'
+
+/** Whether two segments can name one place: equal, or either stands for every element. */
+export const sameSegment = (a: string, b: string): boolean => a === b || a === EVERY || b === EVERY
+
+/**
+ * True when `prefix` is a segment prefix of `target` (useful for cache and
+ * surface invalidation). A `*` segment on either side matches any one
+ * segment, so `todos.*` is a prefix of `todos.3.title` and of `todos.*.title`.
+ */
 export const isPrefix = (prefix: ReadonlyArray<string>, target: ReadonlyArray<string>): boolean => {
   if (prefix.length > target.length) return false
   for (let i = 0; i < prefix.length; i++) {
-    if (prefix[i] !== target[i]) return false
+    if (!sameSegment(prefix[i]!, target[i]!)) return false
   }
   return true
 }
+
+/** Whether two paths meet: one is a prefix of the other, `*` matching any one segment. */
+export const meets = (a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean =>
+  isPrefix(a, b) || isPrefix(b, a)
 
 /** Dot-joined display form of a path (e.g. `"row.balance"`, or `"$"` for root). */
 export const format = (segments: ReadonlyArray<string>): string =>

@@ -90,4 +90,11 @@ export const kindOf = (node: Node.Node): Option.Option<Node.ValueKind> =>
     Match: ({ cases, otherwise }) =>
       sameKind([...cases.map(([, arm]) => arm), ...Option.toArray(otherwise)]),
     Opaque: () => Option.none(),
+    Rows: ({ fold }) => {
+      if (fold === 'any' || fold === 'every') return Option.some('boolean' as const)
+      // `min` and `max` of no element are null, which a kind does not rule out.
+      return fold === 'count' || fold === 'sum' || fold === 'min' || fold === 'max'
+        ? Option.some('number' as const)
+        : Option.none()
+    },
   })

@@ -64,6 +64,7 @@ export const textReading = (kit: TextKit) => {
       Match: ({ cases, otherwise }) =>
         z3.Or(never, ...[...cases.map(([, arm]) => arm), ...Option.toArray(otherwise)].map(nulOf)),
       Opaque: opaqueNode => flagVar(`nul:${Node.key(opaqueNode)}`),
+      Rows: rows => flagVar(`nul:${Node.key(rows)}`),
     })
 
   /** A text predicate the solver cannot read: free, but for the lengths it implies. */

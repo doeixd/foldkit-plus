@@ -193,6 +193,11 @@ export function decide(this: AbstractState, goal: Node.Node): Verdict.Verdict<ne
     },
     Opaque: ({ name }) =>
       Verdict.Unknown(`opaque term "${name}"`, Option.some({ kind: 'opaque', detail: name })),
+    Rows: ({ fold }) =>
+      Verdict.Unknown(
+        `rows.${fold} undecided in Tier 3`,
+        Option.some({ kind: 'unsupported', detail: `rows.${fold}` }),
+      ),
     If: branch => {
       const cond = this.decide(branch.cond)
       if (Verdict.isTrue(cond)) return this.decide(branch.then)

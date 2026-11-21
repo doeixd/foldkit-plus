@@ -19,6 +19,11 @@ export function fits(
       Schema.is(Schema.make(info.ast))(literal ?? null) ? proved('concrete') : refuted(),
     Opaque: ({ name }) =>
       Verdict.Unknown(`opaque term "${name}"`, Option.some({ kind: 'opaque', detail: name })),
+    Rows: ({ fold }) =>
+      Verdict.Unknown(
+        `the value of rows.${fold} is not bounded in Tier 3`,
+        Option.some({ kind: 'unsupported', detail: `rows.${fold}` }),
+      ),
     If: branch => {
       if (!acceptsNull && !this.hasValue(branch.cond)) return this.unvalued(branch.cond)
       const taken = this.clone()

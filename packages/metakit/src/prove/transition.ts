@@ -36,6 +36,9 @@ const project = (written: Node.Node, rest: ReadonlyArray<string>): Node.Node =>
     Opaque: () => {
       throw new Unsupported('a rule reads a field of a value an opaque term computes')
     },
+    Rows: ({ fold }) => {
+      throw new Unsupported(`a rule reads a field of a value rows.${fold} computes`)
+    },
   })
 
 /**
@@ -107,6 +110,7 @@ const mayBeNull = (node: Node.Node, shape: Shape): boolean =>
     If: ({ cond, then, otherwise }) => [cond, then, otherwise].some(part => mayBeNull(part, shape)),
     Match: () => true,
     Opaque: () => true,
+    Rows: () => true,
   })
 
 export const proveTransition = <State, Input, Emit, Supplied>(

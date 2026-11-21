@@ -29,7 +29,7 @@ const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[
 /** `text` as SQLite's and Postgres's drivers hold it: each lone surrogate as U+FFFD. */
 const REPLACEMENT = String.fromCharCode(0xfffd)
 
-const wellFormed = (text: string): string => text.replace(LONE_SURROGATE, REPLACEMENT)
+export const wellFormed = (text: string): string => text.replace(LONE_SURROGATE, REPLACEMENT)
 
 /**
  * A text operation over its operands, each a string without a NUL. Over
@@ -86,7 +86,7 @@ export const trimOp: Node.Op<'str.trim'> = {
 }
 
 /** -1, 0 or 1 as `a` is before, at or after `b` by code point, which UTF-16 order is not. */
-const byCodePoint = (a: string, b: string): number => {
+export const byCodePoint = (a: string, b: string): number => {
   const [left, right] = [Array.from(a), Array.from(b)]
   for (let index = 0; index < Math.min(left.length, right.length); index++) {
     const [x, y] = [left[index]!.codePointAt(0)!, right[index]!.codePointAt(0)!]

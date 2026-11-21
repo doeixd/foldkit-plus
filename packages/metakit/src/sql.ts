@@ -6,35 +6,47 @@
  * The lowering itself is `sqlLowering.ts`, which `metakit/drizzle` renders
  * too; this module renders its pieces as text.
  */
-import { Result } from 'effect'
+import { Option, Result } from 'effect'
 import type { Schema } from 'effect'
 import type * as Expr from './expr.js'
+import { SqlPiece, SqlUnsupportedError, type Sql, type SqlDialect } from './sqlLowering.js'
+import { lowerCheck, lowerUpdate, lowerWhere } from './sqlStatements.js'
 import {
   bound,
   columnNames,
   foreignSql,
   inlineLiteral,
-  lowerCheck,
-  lowerUpdate,
-  lowerWhere,
-  SqlPiece,
+  relatedSubquery,
+  relationSql,
   type ForeignSql,
-  type Sql,
-  type SqlDialect,
-  type SqlUnsupportedError,
-} from './sqlLowering.js'
+} from './sqlRender.js'
 import type { Refused, Transition } from './transition.js'
 
 export {
   sqlOps,
   SqlPiece,
   SqlUnsupportedError,
-  type ForeignSql,
+  type RelatedFold,
   type Sql,
   type SqlContext,
   type SqlDialect,
   type SqlLowerer,
 } from './sqlLowering.js'
+export type { ForeignSql } from './sqlRender.js'
+
+/**
+ * Where the rows related to a row through a relation are: their table, the
+ * column of it that holds the id of the row they point at, and the column of
+ * the row's own table that id is (default `id`).
+ */
+export interface RelationTable {
+  readonly table: string
+  readonly foreignKey: string
+  readonly key?: string
+}
+
+/** The table of each relation a `Rows` node over related rows names, by relation. */
+export type RelationTables = Readonly<Record<string, RelationTable>>
 
 /**
  * The SQL of each foreign operation, by id: pieces from the lowered
@@ -62,6 +74,9 @@ export interface SqlOptions {
   readonly column?: ColumnName
   readonly env?: Readonly<Record<string, unknown>>
   readonly foreign?: ForeignSqlTable
+  /** The table of the row the predicate is asked of, which a subquery over its related rows names. */
+  readonly table?: string
+  readonly relations?: RelationTables
 }
 
 const quoteIdent = (name: string): string => `"${name.replaceAll('"', '""')}"`
@@ -74,10 +89,15 @@ const renderer = (options: {
   readonly column: ColumnName
   readonly inline: boolean
   readonly foreign: ForeignSqlTable
+  readonly table?: string | undefined
+  readonly relations?: RelationTables | undefined
 }) => {
   const params: Array<unknown> = []
   const column = columnNames(options.column)
-  const render = (sql: Sql): Result.Result<string, SqlUnsupportedError> => {
+  const render = (
+    sql: Sql,
+    related?: RelationTable,
+  ): Result.Result<string, SqlUnsupportedError> => {
     let text = ''
     for (const piece of sql) {
       const part = SqlPiece.$match(piece, {
@@ -91,13 +111,69 @@ const renderer = (options: {
         // Pieces, not text: a parameter keeps its place however the entry orders the arguments.
         Foreign: ({ op, args }) =>
           Result.flatMap(foreignSql(options.foreign, op), entry =>
-            render(entry.sql(args, options.dialect)),
+            render(entry.sql(args, options.dialect), related),
           ),
+        Each: ({ segments }) =>
+          related === undefined
+            ? Result.fail(
+                new SqlUnsupportedError({ reason: 'a related row is read outside its rows' }),
+              )
+            : Result.succeed(`${quoteIdent(related.table)}.${options.column(segments)}`),
+        Rows: piece => renderRows(piece, render),
       })
       if (Result.isFailure(part)) return part
       text += part.success
     }
     return Result.succeed(text)
+  }
+  const renderRows = (
+    piece: Extract<SqlPiece, { readonly _tag: 'Rows' }>,
+    render: (sql: Sql, related?: RelationTable) => Result.Result<string, SqlUnsupportedError>,
+  ): Result.Result<string, SqlUnsupportedError> => {
+    const outer = options.table
+    if (piece.of.length > 0) {
+      return Result.fail(
+        new SqlUnsupportedError({
+          reason: `rows related to a row reached through "${piece.of.join('.')}"`,
+        }),
+      )
+    }
+    if (outer === undefined) {
+      return Result.fail(
+        new SqlUnsupportedError({
+          reason: `rows related through ${piece.relation} need the table they point at`,
+        }),
+      )
+    }
+    return Result.flatMap(relationSql(options.relations ?? {}, piece.relation), related => {
+      if (related.table === outer) {
+        return Result.fail(
+          new SqlUnsupportedError({
+            reason: `rows of a table related to itself (${piece.relation})`,
+          }),
+        )
+      }
+      const body = (part: Option.Option<Sql>) =>
+        Option.match(part, {
+          onNone: () => Result.succeed(Option.none<string>()),
+          onSome: each => Result.map(render(each, related), Option.some),
+        })
+      return Result.flatMap(body(piece.where), where =>
+        Result.flatMap(body(piece.value), value =>
+          relatedSubquery(
+            piece.fold,
+            {
+              from: quoteIdent(related.table),
+              matches: `${quoteIdent(related.table)}.${quoteIdent(related.foreignKey)} = ${quoteIdent(outer)}.${quoteIdent(related.key ?? 'id')}`,
+              where,
+              value,
+            },
+            text => text,
+            chunks => chunks.join(''),
+          ),
+        ),
+      )
+    })
   }
   return { params, column, render }
 }
@@ -118,7 +194,10 @@ export const toCheck = <S extends Schema.Top>(
     inline: true,
     foreign: {},
   })
-  return Result.map(Result.flatMap(lowerCheck(schema, dialect), render), text => `CHECK (${text})`)
+  return Result.map(
+    Result.flatMap(lowerCheck(schema, dialect), sql => render(sql)),
+    text => `CHECK (${text})`,
+  )
 }
 
 /** A boolean `Expr` as a parameterized SQL `WHERE` predicate, which keeps a row only where it is true. */
@@ -132,13 +211,18 @@ export const toWhere = <Env>(
     column: options?.column ?? defaultColumn,
     inline: false,
     foreign: options?.foreign ?? {},
+    table: options?.table,
+    relations: options?.relations,
   })
   const lowered = lowerWhere(expr, {
     dialect,
     rowPrefix: options?.rowPrefix ?? ['row'],
     env: options?.env,
   })
-  return Result.map(Result.flatMap(lowered, render), text => ({ text, params }))
+  return Result.map(
+    Result.flatMap(lowered, sql => render(sql)),
+    text => ({ text, params }),
+  )
 }
 
 /**

@@ -87,6 +87,8 @@ export const findSplittableMatchPath = (
     Lit: () => Option.none(),
     Path: () => Option.none(),
     Opaque: () => Option.none(),
+    // A body reads its element, which no split of the state names.
+    Rows: () => Option.none(),
     Call: ({ args }) => first(args),
     If: ({ cond, then, otherwise }) => first([cond, then, otherwise]),
     Match: ({ on, cases, otherwise }) => {

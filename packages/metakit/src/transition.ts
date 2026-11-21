@@ -1,29 +1,51 @@
 /**
  * Guarded, single-step state transitions (`Transition<State, Input, Emit, Supplied>`).
  *
- * Pure data: a `when` guard over `{ state, input, supplied }`, typed path
- * updates (`Transition.set`, `Transition.add`), and optional declarative
- * `emits` (pure data describing external effects, never executing them).
- * `Transition.opaque` declares the footprint of a step written as code.
+ * Pure data: a `when` guard over `{ state, input, supplied }`, a list of
+ * writes, each "this path becomes this value" with the way of writing it
+ * names (`set`, `add`, and the list writes `append`, `insert`, `remove`,
+ * `removeWhere`, `patch`, `patchWhere`, `include`, `exclude`), and a list of
+ * records it emits (`Transition.emit`), each a tag, fields and a condition:
+ * data describing a Command, never running one. `Transition.opaque` declares
+ * the footprint of a step written as code.
  *
- * The same `Transition` drives runtime execution (`Transition.run`), UI/agent
- * affordances (`Transition.can`), child lifting (`Transition.lift`), SQL
- * guarded `UPDATE`, Tier 3 Zone checks, and Tier 4 Z3 proofs.
+ * The same `Transition` drives `Transition.step`, child lifting
+ * (`Transition.lift`), SQL's guarded `UPDATE`, the checker, the solver, and
+ * whether two transitions swap order (`Transition.commutes`).
  */
-import { Data, Match, Option, Result, Schema } from 'effect'
-import * as Expr from './expr.js'
+import { Data, Option, Result, Schema } from 'effect'
 import * as Node from './node.js'
-import { andOp, notOp } from './ops/bool.js'
-import { isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
-import { isNullOp } from './ops/null.js'
-import { addOp } from './ops/num.js'
+import {
+  toNode,
+  wrap,
+  type ExprInput,
+  type UnionToIntersection,
+  type ValueOfInput,
+} from './ops/core.js'
 import { evalNode } from './ops/eval.js'
-import { judgeNode, readsOfNode } from './ops/residualize.js'
+import { addOp } from './ops/num.js'
+import { readsOfNode } from './ops/reads.js'
 import * as Path from './path.js'
 import type { Expr as ExprType, Path as PathType, PathAccessor } from './path.js'
-import type { Verdict } from './verdict.js'
+import type { WayOfWriting } from './properties.js'
 
+export { can } from './can.js'
+export { commutes } from './transitionCommutes.js'
+export { lift } from './transitionLift.js'
+export {
+  append,
+  exclude,
+  include,
+  insert,
+  patch,
+  patchWhere,
+  remove,
+  removeWhere,
+  type ElementInput,
+  type Patch,
+} from './transitionLists.js'
 export { opaque } from './transitionOpaque.js'
+export type { WayOfWriting } from './properties.js'
 
 /** A transition that takes no supplied input. */
 export type NoSupplied = { readonly [K in never]: never }
@@ -45,25 +67,72 @@ export class Refused extends Data.TaggedError('Refused')<{
   readonly reason: string
 }> {}
 
-/** A single typed write equation `target := value`. */
-export interface WriteEquation<State, Input, V = unknown, Supplied = NoSupplied> {
+/**
+ * How a write changes its path, with the parts of its value that are its own
+ * (an amount, an element, a key, a test, the fields a `patch` sets): what
+ * `Transition.commutes` decides from, through `writeProperties`.
+ */
+export type Way = Data.TaggedEnum<{
+  set: {}
+  add: { readonly amount: Node.Node }
+  append: { readonly element: ReadonlyArray<Node.Node> }
+  insert: { readonly element: ReadonlyArray<Node.Node>; readonly key: string }
+  remove: { readonly key: string; readonly value: Node.Node }
+  removeWhere: { readonly test: Node.Node }
+  patch: {
+    readonly key: string
+    readonly value: Node.Node
+    readonly set: ReadonlyArray<readonly [string, Node.Node]>
+  }
+  patchWhere: {
+    readonly test: Node.Node
+    readonly set: ReadonlyArray<readonly [string, Node.Node]>
+  }
+  include: { readonly value: Node.Node }
+  exclude: { readonly value: Node.Node }
+}>
+
+export const Way = Data.taggedEnum<Way>()
+
+/** A single typed write `target := value`, written the way `way` names. */
+export interface WriteEquation<
+  State,
+  Input,
+  V = unknown,
+  Supplied = NoSupplied,
+  W extends WayOfWriting = WayOfWriting,
+> {
   readonly _tag: 'WriteEquation'
   /** Target path relative to `State` (without the leading `'state'` segment). */
   readonly target: ReadonlyArray<string>
   /** Next-value expression over `{ state, input, supplied }`. */
   readonly value: ExprType<TransitionEnv<State, Input, Supplied>, V>
+  readonly way: WaysByTag[W]
 }
 
-/** A declarative command payload: either an `Expr` or a plain record of `ExprInput`s. */
-export type EmitTemplate<Env, Emit> =
-  | ExprInput<Env, Emit>
-  | (Emit extends Readonly<Record<string, unknown>>
-      ? { readonly [K in keyof Emit]: ExprInput<Env, Emit[K]> }
-      : never)
+/** Each way of writing, by its tag. */
+export type WaysByTag = { readonly [W in WayOfWriting]: Extract<Way, { readonly _tag: W }> }
 
-type EmitSpec =
-  | { readonly _tag: 'Single'; readonly node: Node.Node }
-  | { readonly _tag: 'Fields'; readonly entries: ReadonlyArray<readonly [string, Node.Node]> }
+/** One record a step emits: a tag, a field per name, and a condition (none: always). */
+export interface EmitSpec {
+  readonly tag: string
+  readonly fields: ReadonlyArray<readonly [string, Node.Node]>
+  readonly when: Option.Option<Node.Node>
+}
+
+/** A record a transition emits, built by `Transition.emit`: `E` is what a step gives for it. */
+export interface Emitted<in Env, out E> extends EmitSpec {
+  readonly _tag: 'Emitted'
+  readonly _types?: { readonly env: (env: Env) => void; readonly out: () => E }
+}
+
+/** What a list of `Transition.emit` entries gives: the union of their records. */
+export type EmitOfEntries<Entries> =
+  Entries extends ReadonlyArray<infer Entry>
+    ? Entry extends Emitted<never, infer E>
+      ? E
+      : never
+    : never
 
 /** A guarded, single-step transition over `State`, `Input` and the `Supplied` values. */
 export interface Transition<State, Input, Emit = never, Supplied = NoSupplied> {
@@ -73,7 +142,7 @@ export interface Transition<State, Input, Emit = never, Supplied = NoSupplied> {
   readonly suppliedSchema: Option.Option<Schema.Codec<Supplied>>
   readonly when: ExprType<TransitionEnv<State, Input, Supplied>, boolean>
   readonly writes: ReadonlyArray<WriteEquation<State, Input, unknown, Supplied>>
-  readonly emits: Option.Option<EmitSpec>
+  readonly emits: ReadonlyArray<EmitSpec>
   readonly _emit?: () => Emit
   readonly _supplied?: () => Supplied
 }
@@ -120,10 +189,11 @@ export const targetOf = (target: PathType<never, unknown>, name: string): Readon
 export const set = <State, Input, V, Supplied = NoSupplied>(
   target: PathType<TransitionEnv<State, Input, Supplied>, V>,
   value: ExprInput<TransitionEnv<State, Input, Supplied>, NoInfer<V>>,
-): WriteEquation<State, Input, V, Supplied> => ({
+): WriteEquation<State, Input, V, Supplied, 'set'> => ({
   _tag: 'WriteEquation',
   target: targetOf(target, 'set'),
   value: wrap<TransitionEnv<State, Input, Supplied>, V>(toNode(value)),
+  way: Way.set(),
 })
 
 /**
@@ -134,40 +204,46 @@ export const set = <State, Input, V, Supplied = NoSupplied>(
 export const add = <State, Input, V extends number | null, Supplied = NoSupplied>(
   target: PathType<TransitionEnv<State, Input, Supplied>, V>,
   amount: ExprInput<TransitionEnv<State, Input, Supplied>, number | null>,
-): WriteEquation<State, Input, V, Supplied> => ({
-  _tag: 'WriteEquation',
-  target: targetOf(target, 'add'),
-  value: wrap(Node.Call({ op: addOp, args: [target.node, toNode(amount)] })),
-})
+): WriteEquation<State, Input, V, Supplied, 'add'> => {
+  const by = toNode(amount)
+  return {
+    _tag: 'WriteEquation',
+    target: targetOf(target, 'add'),
+    value: wrap(Node.Call({ op: addOp, args: [target.node, by] })),
+    way: Way.add({ amount: by }),
+  }
+}
 
 /**
- * Construct a `Transition` from `state` and `input` Schemas, and the Schemas
- * of the values it is `supplied` when it runs.
+ * A record a step emits: `tag`, and each field's value over the state before
+ * the step, as the written values are. With `when`, only where it is true.
+ * A field that needs the state after reads the written value's expression.
  */
-export const make = <
-  S extends Schema.Top,
-  I extends Schema.Top,
-  Emit = never,
-  Sup extends SuppliedShape = NoSupplied,
->(config: {
-  readonly state: S
-  readonly input: I
-  readonly supplied?: Sup
-  readonly when?: (
-    env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>,
-  ) => ExprInput<TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>, boolean | null>
-  readonly apply: (
-    env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>,
-  ) => ReadonlyArray<WriteEquation<S['Type'], I['Type'], unknown, Path.EnvOf<Sup>>>
-  readonly emits?: (
-    env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>,
-  ) => EmitTemplate<TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>, Emit>
-}): Transition<S['Type'], I['Type'], Emit, Path.EnvOf<Sup>> => {
-  type Env = TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>
-  const env = pathsOf(config.state, config.input, config.supplied ?? ({} as Sup))
-  const whenExpr: ExprType<Env, boolean> =
-    config.when === undefined ? Expr.lit(true) : wrap(toNode(config.when(env)))
-  const writes = Object.freeze([...config.apply(env)])
+export const emit = <
+  const Tag extends string,
+  const F extends Readonly<Record<string, unknown>>,
+  W extends ExprInput<never, boolean | null> = true,
+>(
+  tag: Tag,
+  fields: F,
+  options?: { readonly when?: W },
+): Emitted<
+  UnionToIntersection<
+    { [K in keyof F]: F[K] extends ExprType<infer E, unknown> ? E : unknown }[keyof F]
+  > &
+    (W extends ExprType<infer E, unknown> ? E : unknown),
+  { readonly _tag: Tag } & { readonly [K in keyof F]: ValueOfInput<F[K]> }
+> => ({
+  _tag: 'Emitted',
+  tag,
+  fields: Object.entries(fields).map(([name, value]) => [name, toNode(value)] as const),
+  when: Option.map(Option.fromUndefinedOr(options?.when), toNode),
+})
+
+/** The writes of one transition, checked: no target twice, and none under another. */
+const checkedWrites = <W extends { readonly target: ReadonlyArray<string> }>(
+  writes: ReadonlyArray<W>,
+): ReadonlyArray<W> => {
   const seenTargets = new Set<string>()
   for (const eq of writes) {
     const targetKey = JSON.stringify(eq.target)
@@ -187,19 +263,37 @@ export const make = <
       )
     }
   }
-  const emits: Option.Option<EmitSpec> =
-    config.emits === undefined
-      ? Option.none()
-      : (() => {
-          const raw = config.emits(env)
-          if (isExpr(raw) || raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-            return Option.some({ _tag: 'Single' as const, node: toNode(raw) })
-          }
-          const entries = Object.entries(raw as Record<string, unknown>).map(
-            ([k, v]) => [k, toNode(v)] as const,
-          )
-          return Option.some({ _tag: 'Fields' as const, entries })
-        })()
+  return Object.freeze([...writes])
+}
+
+/**
+ * Construct a `Transition` from `state` and `input` Schemas, and the Schemas
+ * of the values it is `supplied` when it runs.
+ */
+export const make = <
+  S extends Schema.Top,
+  I extends Schema.Top,
+  const Entries extends ReadonlyArray<
+    Emitted<TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>, unknown>
+  > = readonly [],
+  Sup extends SuppliedShape = NoSupplied,
+>(config: {
+  readonly state: S
+  readonly input: I
+  readonly supplied?: Sup
+  readonly when?: (
+    env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>,
+  ) => ExprInput<TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>, boolean | null>
+  readonly apply: (
+    env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>,
+  ) => ReadonlyArray<WriteEquation<S['Type'], I['Type'], unknown, Path.EnvOf<Sup>>>
+  readonly emits?: (env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>) => Entries
+}): Transition<S['Type'], I['Type'], EmitOfEntries<Entries>, Path.EnvOf<Sup>> => {
+  type Env = TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>
+  const env = pathsOf(config.state, config.input, config.supplied ?? ({} as Sup))
+  const whenExpr: ExprType<Env, boolean> = wrap(
+    config.when === undefined ? Node.Lit({ value: true }) : toNode(config.when(env)),
+  )
   return {
     _tag: 'Transition',
     stateSchema: Option.some(config.state as unknown as Schema.Codec<S['Type']>),
@@ -208,8 +302,8 @@ export const make = <
       Schema.Struct(config.supplied ?? {}) as unknown as Schema.Codec<Path.EnvOf<Sup>>,
     ),
     when: whenExpr,
-    writes,
-    emits,
+    writes: checkedWrites(config.apply(env)),
+    emits: (config.emits?.(env) ?? []).map(({ tag, fields, when }) => ({ tag, fields, when })),
   }
 }
 
@@ -232,10 +326,11 @@ const accepts = (schema: Schema.Top): ((value: unknown) => boolean) => {
 
 /**
  * Execute `transition` on `(state, input)` with the values it is `supplied`,
- * returning the next state and any emitted pure command data, or
+ * returning the next state and the records it emits, or
  * `Result.fail(Refused)`: where `input` or `supplied` is not a value of its
  * Schema (the proofs of a transition assume each is), where `when` is not
- * true, or where a written or emitted value is refused.
+ * true, or where a written or emitted value, or an emit's condition, is
+ * refused.
  *
  * All right-hand sides evaluate against the pre-state (simultaneous update).
  * A no-op returns the exact `state` reference it was given.
@@ -245,7 +340,7 @@ export const step = <State, Input, Emit, Supplied>(
   state: State,
   input: Input,
   ...[supplied]: SuppliedArgs<Supplied>
-): Result.Result<{ readonly state: State; readonly emit: Option.Option<Emit> }, Refused> => {
+): Result.Result<{ readonly state: State; readonly emitted: ReadonlyArray<Emit> }, Refused> => {
   const given = supplied ?? ({} as Supplied)
   const env: TransitionEnv<State, Input, Supplied> = { state, input, supplied: given }
   if (Option.isSome(transition.inputSchema) && !accepts(transition.inputSchema.value)(input)) {
@@ -271,14 +366,15 @@ export const step = <State, Input, Emit, Supplied>(
     target: eq.target,
     value: valueOf(eq.value.node),
   }))
-  const emit: Option.Option<Emit> = Option.map(
-    transition.emits,
-    spec =>
-      Match.valueTags(spec, {
-        Single: ({ node }) => valueOf(node),
-        Fields: ({ entries }) => Object.fromEntries(entries.map(([k, n]) => [k, valueOf(n)])),
-      }) as Emit,
-  )
+  const emitted: Array<Emit> = []
+  for (const entry of transition.emits) {
+    const fires = Option.match(entry.when, { onNone: () => true, onSome: valueOf })
+    if (fires !== true) continue
+    emitted.push({
+      _tag: entry.tag,
+      ...Object.fromEntries(entry.fields.map(([name, node]) => [name, valueOf(node)])),
+    } as Emit)
+  }
   if (refusals.length > 0) {
     return Result.fail(new Refused({ reason: `evaluation refused: ${refusals[0]!.message}` }))
   }
@@ -288,7 +384,7 @@ export const step = <State, Input, Emit, Supplied>(
     if (Result.isFailure(written)) return Result.fail(written.failure)
     nextState = written.success
   }
-  return Result.succeed({ state: nextState, emit })
+  return Result.succeed({ state: nextState, emitted })
 }
 
 /**
@@ -337,115 +433,37 @@ export const run = <State, Input, Emit, Supplied>(
   Result.map(step(transition, state, input, ...supplied), s => s.state)
 
 /**
- * Partially evaluate `transition.when` against a partial `{ state, input,
- * supplied }` environment (e.g. `{ state: currentAccount }` to disable a
- * button or hide an agent tool before any input is entered).
+ * The paths a write changes, from the state: its target, or, for a `patch`
+ * or `patchWhere`, each field it sets of every element (`todos.*.title`).
  */
-export const can = <State, Input, Emit, Supplied>(
-  transition: Transition<State, Input, Emit, Supplied>,
-  partial: Expr.PartialEnv<TransitionEnv<State, Input, Supplied>>,
-): Verdict<never> => judgeNode(transition.when.node, partial)
-
-const rewriteStatePrefix = (node: Node.Node, outerSegments: ReadonlyArray<string>): Node.Node => {
-  if (outerSegments.length === 0) return node
-  return Node.$match(node, {
-    Lit: lit => lit,
-    Path: ({ segments, ast }) =>
-      segments[0] === 'state'
-        ? Node.Path({ segments: ['state', ...outerSegments, ...segments.slice(1)], ast })
-        : Node.Path({ segments, ast }),
-    Call: ({ op, args }) =>
-      Node.Call({ op, args: args.map(arg => rewriteStatePrefix(arg, outerSegments)) }),
-    If: ({ cond, then, otherwise }) =>
-      Node.If({
-        cond: rewriteStatePrefix(cond, outerSegments),
-        then: rewriteStatePrefix(then, outerSegments),
-        otherwise: rewriteStatePrefix(otherwise, outerSegments),
-      }),
-    Match: ({ on, cases, otherwise }) =>
-      Node.Match({
-        on: rewriteStatePrefix(on, outerSegments),
-        cases: cases.map(([v, b]) => [v, rewriteStatePrefix(b, outerSegments)] as const),
-        otherwise: Option.map(otherwise, b => rewriteStatePrefix(b, outerSegments)),
-      }),
-    Opaque: ({ name, reads, run: fn }) =>
-      Node.Opaque({
-        name,
-        reads: Option.map(reads, list =>
-          list.map(segs =>
-            segs[0] === 'state' ? ['state', ...outerSegments, ...segs.slice(1)] : segs,
-          ),
-        ),
-        run: env => {
-          const outer = env as TransitionEnv<unknown, unknown, unknown>
-          const innerState = Path.get(Path.make<unknown, unknown>(outerSegments), outer.state)
-          // No child to run over: null, as a read of it is.
-          return Option.match(innerState, {
-            onNone: () => null,
-            onSome: state =>
-              state === null || state === undefined ? null : fn({ ...outer, state }),
-          })
-        },
-      }),
+export const writtenPaths = (write: {
+  readonly target: ReadonlyArray<string>
+  readonly way: Way
+}): ReadonlyArray<ReadonlyArray<string>> =>
+  Way.$match(write.way, {
+    patch: ({ set: fields }) => fields.map(([field]) => [...write.target, Path.EVERY, field]),
+    patchWhere: ({ set: fields }) => fields.map(([field]) => [...write.target, Path.EVERY, field]),
+    set: () => [write.target],
+    add: () => [write.target],
+    append: () => [write.target],
+    insert: () => [write.target],
+    remove: () => [write.target],
+    removeWhere: () => [write.target],
+    include: () => [write.target],
+    exclude: () => [write.target],
   })
-}
 
-/**
- * Lift a child `Transition<Inner, Input, Emit>` along `Path<Outer, Inner>` so
- * it operates inside a larger `Outer` model, propagating exact read/write
- * footprints automatically. The lifted transition is refused where the model
- * holds no child at `path`: its guard asks that there is one, so a write
- * never invents the struct it writes into.
- */
-export const lift = <Outer, Inner, Input, Emit, Supplied = NoSupplied>(
-  path: PathType<Outer, Inner>,
-  transition: Transition<Inner, Input, Emit, Supplied>,
-): Transition<Outer, Input, Emit, Supplied> => ({
-  _tag: 'Transition',
-  stateSchema: Option.none(),
-  inputSchema: transition.inputSchema,
-  suppliedSchema: transition.suppliedSchema,
-  when: wrap(
-    path.segments.length === 0
-      ? transition.when.node
-      : Node.Call({
-          op: andOp,
-          args: [
-            Node.Call({
-              op: notOp,
-              args: [
-                Node.Call({
-                  op: isNullOp,
-                  args: [Node.Path({ segments: ['state', ...path.segments], ast: path.ast })],
-                }),
-              ],
-            }),
-            rewriteStatePrefix(transition.when.node, path.segments),
-          ],
-        }),
-  ),
-  writes: Object.freeze(
-    transition.writes.map(eq => ({
-      _tag: 'WriteEquation' as const,
-      target: Object.freeze([...path.segments, ...eq.target]),
-      value: wrap<TransitionEnv<Outer, Input, Supplied>, unknown>(
-        rewriteStatePrefix(eq.value.node, path.segments),
-      ),
-    })),
-  ),
-  emits: Option.map(transition.emits, spec =>
-    Match.valueTags(spec, {
-      Single: ({ node }): EmitSpec => ({
-        _tag: 'Single',
-        node: rewriteStatePrefix(node, path.segments),
-      }),
-      Fields: ({ entries }): EmitSpec => ({
-        _tag: 'Fields',
-        entries: entries.map(([k, n]) => [k, rewriteStatePrefix(n, path.segments)] as const),
-      }),
-    }),
-  ),
-})
+/** The nodes of a transition that read: its guard, each written value, and each emitted record. */
+export const readingNodes = <State, Input, Emit, Supplied>(
+  transition: Transition<State, Input, Emit, Supplied>,
+): ReadonlyArray<Node.Node> => [
+  transition.when.node,
+  ...transition.writes.map(eq => eq.value.node),
+  ...transition.emits.flatMap(entry => [
+    ...Option.toArray(entry.when),
+    ...entry.fields.map(([, node]) => node),
+  ]),
+]
 
 /** Static read and write footprints of `transition`. */
 export const footprint = <State, Input, Emit, Supplied>(
@@ -455,26 +473,12 @@ export const footprint = <State, Input, Emit, Supplied>(
   readonly reads: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
   /** The reads of the state, from the state as `writes` are: the two compare directly. */
   readonly stateReads: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
-  /** Every write, from the state. */
+  /** Every write, from the state; a `*` segment stands for every element of a list. */
   readonly writes: ReadonlyArray<ReadonlyArray<string>>
 } => {
-  const nodes: Array<Node.Node> = [
-    transition.when.node,
-    ...transition.writes.map(eq => eq.value.node),
-  ]
-  if (Option.isSome(transition.emits)) {
-    Match.valueTags(transition.emits.value, {
-      Single: ({ node }) => {
-        nodes.push(node)
-      },
-      Fields: ({ entries }) => {
-        for (const [, n] of entries) nodes.push(n)
-      },
-    })
-  }
   const seen = new Map<string, ReadonlyArray<string>>()
   let unbounded = false
-  for (const node of nodes) {
+  for (const node of readingNodes(transition)) {
     const r = readsOfNode(node)
     if (Option.isNone(r)) {
       unbounded = true
@@ -491,6 +495,6 @@ export const footprint = <State, Input, Emit, Supplied>(
     stateReads: Option.map(reads, all =>
       all.filter(segments => segments[0] === 'state').map(segments => segments.slice(1)),
     ),
-    writes: transition.writes.map(eq => eq.target),
+    writes: transition.writes.flatMap(writtenPaths),
   }
 }

@@ -225,14 +225,14 @@ const transitions = [
   mutation(
     edges,
     'a lifted transition writes into a child that is not there',
-    transition,
+    '../src/transitionLift.ts',
     "args: [Node.Path({ segments: ['state', ...path.segments], ast: path.ast })],",
     'args: [Node.Lit({ value: 1 })],',
   ),
   mutation(
     edges,
     'a lifted opaque term runs over a child that is not there',
-    transition,
+    '../src/transitionLift.ts',
     'state === null || state === undefined ? null : fn({ ...outer, state }),',
     'fn({ ...outer, state }),',
   ),
@@ -364,8 +364,8 @@ export default [
     nullStrict,
     'a part of a struct is read as the whole',
     residualize,
-    'return current === undefined || !isWhole(current, ast) ? Option.none() : Option.some(current)',
-    'return current === undefined ? Option.none() : Option.some(current)',
+    'return raw || isWhole(current, ast) ? Option.some(current) : Option.none()',
+    'return Option.some(current)',
   ),
   mutation(
     nullStrict,

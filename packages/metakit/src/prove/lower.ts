@@ -33,6 +33,11 @@ export type Lowerer = (args: ReadonlyArray<Term>, nodes: ReadonlyArray<Node.Node
 /** Thrown where the lowering cannot say what evaluation would; the proof is then undecided. */
 export class Unsupported extends Error {}
 
+/** The solver reads no list a write makes: what it says of one is `unsupported`, by name. */
+const listWrite = (id: Node.CoreOpId): never => {
+  throw new Unsupported(id)
+}
+
 const sortKind: Readonly<Record<Sort, Kind>> = {
   int: 'num',
   real: 'num',
@@ -360,6 +365,9 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
           ? z3.Bool.val(node.value.length === 0)
           : measure('arrCount', node!).eq(0),
       ),
+    'arr.append': () => listWrite('arr.append'),
+    'arr.include': () => listWrite('arr.include'),
+    'arr.exclude': () => listWrite('arr.exclude'),
   }
 
   const lower = (node: Node.Node): Term =>
@@ -452,6 +460,9 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
           opaque.set(key, free)
         }
         return { ...present(free, 'other'), isNull: flagVar(`absent:${key}`) }
+      },
+      Rows: ({ fold }): Term => {
+        throw new Unsupported(`the fold rows.${fold}`)
       },
     })
 

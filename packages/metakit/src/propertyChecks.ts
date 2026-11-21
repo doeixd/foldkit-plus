@@ -7,7 +7,7 @@
  */
 import { Equal } from 'effect'
 import * as Node from './node.js'
-import type { OpProperties, Side } from './properties.js'
+import type { Domain, OpProperties, Side } from './properties.js'
 
 const MAX = Number.MAX_SAFE_INTEGER
 
@@ -45,6 +45,12 @@ const ofKind = (op: Node.Op): ReadonlyArray<unknown> => {
   }
   return [...values[op.returns], null, refused]
 }
+
+/** The values of `values` in `domain`: over the integers, the safe integers, null and a refusal. */
+const within = (domain: Domain, values: ReadonlyArray<unknown>): ReadonlyArray<unknown> =>
+  domain === 'all'
+    ? values
+    : values.filter(value => typeof value !== 'number' || Number.isSafeInteger(value))
 
 const holdsNul = (value: unknown): boolean => typeof value === 'string' && value.includes('\u0000')
 
@@ -151,14 +157,13 @@ export const checkProperties = (
   }
   if (associative !== undefined) {
     // An ill-typed operand's refusal names whichever operand was met first.
-    const values = ofKind(op)
+    const values = within(associative.over, ofKind(op))
     for (const [x, y] of pairs(values)) {
       for (const z of values) {
         const leftFirst = run([run([x, y]), z])
         const rightFirst = run([x, run([y, z])])
         const skip =
-          associative === 'unless-refused' &&
-          (Node.isRefusal(leftFirst) || Node.isRefusal(rightFirst))
+          associative.unlessRefused && (Node.isRefusal(leftFirst) || Node.isRefusal(rightFirst))
         if (!skip) {
           expect('associative', [x, y, z], sameAnswer(leftFirst, rightFirst), 'in either grouping')
         }
@@ -167,7 +172,7 @@ export const checkProperties = (
   }
   if (invertible !== undefined) {
     const inverse = resolve(invertible.inverse)
-    for (const [x, y] of pairs(ofKind(op))) {
+    for (const [x, y] of pairs(within(invertible.over, ofKind(op)))) {
       const result = run([x, y])
       if (result === null || Node.isRefusal(result)) continue
       expect('invertible', [x, y], sameAnswer(Node.apply(inverse, [result, y]), x), 'is undone')

@@ -11,4 +11,5 @@
  */
 export { call, isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
 export { evalNode, type ForeignImplementation, type ForeignImplementations } from './ops/eval.js'
-export { judgeNode, readsOfNode, residualizeNode } from './ops/residualize.js'
+export { readsOfNode } from './ops/reads.js'
+export { judgeNode, residualizeNode } from './ops/residualize.js'

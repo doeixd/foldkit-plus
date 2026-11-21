@@ -38,8 +38,8 @@ const table = [
     propertyTests,
     'addition declares no direction, so the checker bounds it by nothing',
     properties,
-    "'num.add': { identity: { value: 0, side: 'both' }, monotone: ['up', 'up'] },",
-    "'num.add': { identity: { value: 0, side: 'both' } },",
+    "monotone: ['up', 'up'],",
+    '',
   ),
   mutation(
     propertyTests,
@@ -76,7 +76,7 @@ const checks = [
     propertyTests,
     'the associative check skips every grouping',
     propertyChecks,
-    "associative === 'unless-refused' &&",
+    'associative.unlessRefused &&',
     'true ||',
   ),
   mutation(
@@ -154,9 +154,9 @@ const text = [
   mutation(
     unportableTests,
     'the checker takes a text field as holding no NUL',
-    '../src/abstract/state.ts',
-    "info.kind === 'number' ||\n            info.kind === 'boolean' ||",
-    "info.kind === 'text' ||\n            info.kind === 'number' ||\n            info.kind === 'boolean' ||",
+    '../src/abstract/values.ts',
+    "info.kind === 'number' ||\n          info.kind === 'boolean' ||",
+    "info.kind === 'text' ||\n          info.kind === 'number' ||\n          info.kind === 'boolean' ||",
   ),
   mutation(
     unportableTests,
@@ -320,7 +320,7 @@ const foreign = [
   mutation(
     foreignTests,
     'SQL writes an entry of another version',
-    '../src/sqlLowering.ts',
+    '../src/sqlRender.ts',
     'return entry !== undefined && entry.version === op.version',
     'return entry !== undefined',
   ),
@@ -361,8 +361,8 @@ const transitions = [
     suppliedTests,
     'Transition.add sets the amount',
     '../src/transition.ts',
-    'value: wrap(Node.Call({ op: addOp, args: [target.node, toNode(amount)] })),',
-    'value: wrap(toNode(amount)),',
+    'value: wrap(Node.Call({ op: addOp, args: [target.node, by] })),',
+    'value: wrap(by),',
   ),
   mutation(
     suppliedTests,

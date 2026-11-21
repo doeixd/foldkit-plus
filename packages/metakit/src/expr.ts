@@ -25,7 +25,8 @@ import {
 import { evalNode, type ForeignImplementations } from './ops/eval.js'
 import { present } from './ops/kind.js'
 import { gtOp, gteOp, ltOp, lteOp } from './ops/ord.js'
-import { judgeNode, readsOfNode, residualizeNode } from './ops/residualize.js'
+import { readsOfNode } from './ops/reads.js'
+import { judgeNode, residualizeNode } from './ops/residualize.js'
 import * as Path from './path.js'
 import type { Expr as ExprType, Path as PathType, PathAccessor } from './path.js'
 import type { Verdict } from './verdict.js'
@@ -503,6 +504,23 @@ const showNode = (node: Node.Node): string =>
       return `match ${showNode(on)} { ${arms.join(', ')} }`
     },
     Opaque: ({ name }) => `<opaque:${name}>`,
+    Rows: rows => {
+      const source = Node.RowsOver.$match(rows.over, {
+        List: ({ list }) => showNode(list),
+        Related: ({ of, relation }) => `${showNode(of)}.${Node.relatedSegment(relation)}`,
+      })
+      const parts = [
+        source,
+        ...Option.toArray(Option.map(rows.where, where => `where ${showNode(where)}`)),
+        ...Option.toArray(Option.map(rows.value, value => `of ${showNode(value)}`)),
+        ...(rows.set.length === 0
+          ? []
+          : [
+              `set { ${rows.set.map(([field, value]) => `${field}: ${showNode(value)}`).join(', ')} }`,
+            ]),
+      ]
+      return `${rows.fold}(${parts.join(' ')})`
+    },
   })
 
 /** Format an `Expr` into a readable string for debugging, logs, and diagnostics. */

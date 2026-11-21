@@ -116,6 +116,11 @@
       "foldkit-plus:source": "./src/build.ts",
       "types": "./dist/build.d.ts",
       "import": "./dist/build.js"
+    },
+    "./relation": {
+      "foldkit-plus:source": "./src/relation.ts",
+      "types": "./dist/relation.d.ts",
+      "import": "./dist/relation.js"
     }
   },
   "files": [

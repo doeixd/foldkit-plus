@@ -52,11 +52,7 @@ const Withdraw = Transition.make({
   apply: ({ state, input }) => [
     Transition.set(state.balance, Num.sub(state.balance, input.amount)),
   ],
-  emits: ({ state, input }) => ({
-    _tag: 'Debited' as const,
-    id: state.id,
-    amount: input.amount,
-  }),
+  emits: ({ state, input }) => [Transition.emit('Debited', { id: state.id, amount: input.amount })],
 })
 
 const Freeze = Transition.make({
@@ -146,27 +142,30 @@ describe('Phase 3: metakit/machine (TEA / Sync host)', () => {
     const open: Account = { id: 'u1', balance: 100, reserved: 20, status: 'open' }
     const frozen: Account = { id: 'u1', balance: 100, reserved: 20, status: 'frozen' }
 
-    expect(AccountMachine.affordances(open)).toEqual({
+    expect(Machine.affordances(AccountMachine, open)).toEqual({
       available: ['Freeze'],
       disabled: ['Unfreeze'],
       pending: ['Withdraw'],
     })
-    expect(AccountMachine.affordances(frozen)).toEqual({
+    expect(Machine.affordances(AccountMachine, frozen)).toEqual({
       available: ['Unfreeze'],
       disabled: ['Withdraw', 'Freeze'],
       pending: [],
     })
     expect(
       Verdict.isTrue(
-        AccountMachine.canDispatch('Withdraw', { state: open, input: { amount: 50 } }),
+        Machine.canDispatch(AccountMachine, 'Withdraw', { state: open, input: { amount: 50 } }),
       ),
     ).toBe(true)
 
     expect(AccountMachine.footprints.Freeze.writes).toEqual([['status']])
 
-    const [next, emit] = AccountMachine.update(open, { _tag: 'Withdraw', input: { amount: 25 } })
+    const [next, emitted] = AccountMachine.update(open, {
+      _tag: 'Withdraw',
+      input: { amount: 25 },
+    })
     expect(next.balance).toBe(75)
-    expect(emit).toEqual(Option.some({ _tag: 'Debited', id: 'u1', amount: 25 }))
+    expect(emitted).toEqual([{ _tag: 'Debited', id: 'u1', amount: 25 }])
 
     // Refused update returns the exact same state reference
     const [same, noEmit] = AccountMachine.update(frozen, {
@@ -174,7 +173,7 @@ describe('Phase 3: metakit/machine (TEA / Sync host)', () => {
       input: { amount: 10 },
     })
     expect(same).toBe(frozen)
-    expect(Option.isNone(noEmit)).toBe(true)
+    expect(noEmit).toEqual([])
   })
 
   // An agent's tool call names the tag: a member of `Object.prototype` is not a transition.
@@ -189,9 +188,9 @@ describe('Phase 3: metakit/machine (TEA / Sync host)', () => {
       const refused = AccountMachine.dispatch(open, stray)
       expect(Result.isFailure(refused) && refused.failure.reason).toBe(`unknown message "${tag}"`)
       expect(AccountMachine.update(open, stray)[0]).toBe(open)
-      expect(Verdict.isFalse(AccountMachine.canDispatch(tag as 'Withdraw', { state: open }))).toBe(
-        true,
-      )
+      expect(
+        Verdict.isFalse(Machine.canDispatch(AccountMachine, tag as 'Withdraw', { state: open })),
+      ).toBe(true)
     },
   )
 })

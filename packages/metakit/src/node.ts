@@ -1,6 +1,6 @@
 /**
- * The six kinds of node every MetaKit expression is made of, and the closed
- * set of 29 primitive operators (`CoreOpId`).
+ * The seven kinds of node every MetaKit expression is made of, and the closed
+ * set of 32 primitive operators (`CoreOpId`).
  *
  * Every reader's table (`sqlOps`, `abstractOps`, `smtOps`, `opProperties`) is
  * typed by `CoreOpId`, and `Conformance.coreOps` holds the operator
@@ -12,7 +12,7 @@
 import { Data, Option, type SchemaAST } from 'effect'
 import type { OpProperties } from './properties.js'
 
-/** The closed set of 29 primitive operators. */
+/** The closed set of 32 primitive operators. */
 export type CoreOpId =
   | 'bool.and'
   | 'bool.or'
@@ -43,6 +43,9 @@ export type CoreOpId =
   | 'str.contains'
   | 'arr.count'
   | 'arr.isEmpty'
+  | 'arr.append'
+  | 'arr.include'
+  | 'arr.exclude'
 
 export type OpId = CoreOpId
 
@@ -247,9 +250,80 @@ export interface Opaque {
   readonly run: (env: unknown) => unknown
 }
 
-export type Node = Lit | PathNode | Call | If | Match | Opaque
+/** The question a `Rows` node asks of each element. */
+export type RowsFold = 'any' | 'every' | 'count' | 'sum' | 'min' | 'max' | 'find' | 'keep' | 'patch'
 
-export const { Lit, Path, Call, If, Match, Opaque, $match, $is } = Data.taggedEnum<Node>()
+/**
+ * What a `Rows` node asks its question of: the elements of a list the
+ * environment holds (`List`), or the rows of another kind pointing at the row
+ * `of` reads through `relation` (`Related`), held under that row at the
+ * segment `<relation>` as `{ rows, whole }`, where `whole` says whether these
+ * are all of them.
+ */
+export type RowsOver = Data.TaggedEnum<{
+  List: { readonly list: Node }
+  Related: { readonly of: Node; readonly relation: string }
+}>
+
+export const RowsOver = Data.taggedEnum<RowsOver>()
+
+/** The segment under a row at which the rows pointing at it through `relation` are held. */
+export const relatedSegment = (relation: string): string => `<${relation}`
+
+/** The slice a `Rows` body reads its element under. */
+export const EACH = 'each'
+
+/**
+ * One question asked of each element of a list, or each related row: whether
+ * any or every one passes `where`, how many do, the sum, least or greatest of
+ * `value` over those that do, the first that does (`find`), the ones that do
+ * (`keep`), or each that does changed by `set` (`patch`). `where`, `value`
+ * and `set` read the element under the slice `each`; an element passes only
+ * where `where` is true.
+ */
+export interface Rows {
+  readonly _tag: 'Rows'
+  readonly fold: RowsFold
+  readonly over: RowsOver
+  readonly where: Option.Option<Node>
+  readonly value: Option.Option<Node>
+  readonly set: ReadonlyArray<readonly [field: string, value: Node]>
+}
+
+export type Node = Lit | PathNode | Call | If | Match | Opaque | Rows
+
+export const { Lit, Path, Call, If, Match, Opaque, Rows, $match, $is } = Data.taggedEnum<Node>()
+
+/** The node a `Rows` node asks its question of: the list, or the row the related rows point at. */
+export const rowsSource = (over: RowsOver): Node =>
+  RowsOver.$match(over, { List: ({ list }) => list, Related: ({ of }) => of })
+
+/** `rows` with its source passed through `source` and each node of its body through `body`. */
+export const mapRows = (
+  rows: Rows,
+  source: (node: Node) => Node,
+  body: (node: Node) => Node,
+): Rows =>
+  Rows({
+    fold: rows.fold,
+    over: RowsOver.$match(rows.over, {
+      List: ({ list }) => RowsOver.List({ list: source(list) }),
+      Related: ({ of, relation }) => RowsOver.Related({ of: source(of), relation }),
+    }),
+    where: Option.map(rows.where, body),
+    value: Option.map(rows.value, body),
+    set: rows.set.map(([field, value]) => [field, body(value)] as const),
+  })
+
+/** The nodes of a `Rows` body: its test, its value and what `set` writes. */
+export const rowsBody = (rows: Rows): ReadonlyArray<Node> => [
+  ...Option.toArray(rows.where),
+  ...Option.toArray(rows.value),
+  ...rows.set.map(([, value]) => value),
+]
+
+/** Whether `segments` reads the element of a `Rows` body. */
+export const readsEach = (segments: ReadonlyArray<string>): boolean => segments[0] === EACH
 
 const identities = new WeakMap<object, number>()
 const symbols = new Map<symbol, number>()
@@ -317,13 +391,39 @@ export const key = (node: Node): string =>
         { onNone: () => '', onSome: rest => `,_:${key(rest)}` },
       )})`,
     Opaque: ({ name, run }) => `opaque#${identityOf(run)}:${name}`,
+    Rows: rows =>
+      `rows.${rows.fold}(${RowsOver.$match(rows.over, {
+        List: ({ list }) => key(list),
+        Related: ({ of, relation }) => `${key(of)}${JSON.stringify(relatedSegment(relation))}`,
+      })};${Option.match(rows.where, { onNone: () => '', onSome: key })};${Option.match(
+        rows.value,
+        { onNone: () => '', onSome: key },
+      )};${rows.set.map(([field, value]) => `${JSON.stringify(field)}:${key(value)}`).join(',')})`,
   })
+
+/**
+ * A body with every path that does not read its element prefixed: the body
+ * holds no opaque term (the constructors refuse one), so its paths are all it
+ * reads.
+ */
+const prefixBody = (body: Node, segments: ReadonlyArray<string>): Node =>
+  mapPaths(body, path =>
+    readsEach(path.segments)
+      ? path
+      : Path({ segments: [...segments, ...path.segments], ast: path.ast }),
+  )
 
 /** Prefix every `Path` (and `Opaque` read/env) inside `node` with `segments`. */
 export const prefix = (node: Node, segments: ReadonlyArray<string>): Node => {
   if (segments.length === 0) return node
   return $match(node, {
     Lit: lit => lit,
+    Rows: rows =>
+      mapRows(
+        rows,
+        source => prefix(source, segments),
+        body => prefixBody(body, segments),
+      ),
     Path: ({ segments: inner, ast }) => Path({ segments: [...segments, ...inner], ast }),
     Call: ({ op, args }) => Call({ op, args: args.map(a => prefix(a, segments)) }),
     If: ({ cond, then, otherwise }) =>
@@ -361,26 +461,38 @@ export const prefix = (node: Node, segments: ReadonlyArray<string>): Node => {
   })
 }
 
+/**
+ * Every `Path` node in `node` passed through `path`. Inside a `Rows` body a
+ * path that reads the body's element is bound there and is left as it is.
+ */
+export const mapPaths = (node: Node, path: (node: PathNode) => Node): Node =>
+  $match(node, {
+    Lit: lit => lit,
+    Path: path,
+    Call: ({ op, args }) => Call({ op, args: args.map(a => mapPaths(a, path)) }),
+    If: ({ cond, then, otherwise }) =>
+      If({
+        cond: mapPaths(cond, path),
+        then: mapPaths(then, path),
+        otherwise: mapPaths(otherwise, path),
+      }),
+    Match: ({ on, cases, otherwise }) =>
+      Match({
+        on: mapPaths(on, path),
+        cases: cases.map(([v, b]) => [v, mapPaths(b, path)] as const),
+        otherwise: Option.map(otherwise, b => mapPaths(b, path)),
+      }),
+    Opaque: o => o,
+    Rows: rows =>
+      mapRows(
+        rows,
+        source => mapPaths(source, path),
+        body => mapPaths(body, inner => (readsEach(inner.segments) ? inner : path(inner))),
+      ),
+  })
+
 /** Substitute matching `Path` nodes using `replace`. */
 export const substitutePaths = (
   node: Node,
   replace: (segments: ReadonlyArray<string>) => Option.Option<Node>,
-): Node =>
-  $match(node, {
-    Lit: lit => lit,
-    Path: path => Option.getOrElse(replace(path.segments), () => path),
-    Call: ({ op, args }) => Call({ op, args: args.map(a => substitutePaths(a, replace)) }),
-    If: ({ cond, then, otherwise }) =>
-      If({
-        cond: substitutePaths(cond, replace),
-        then: substitutePaths(then, replace),
-        otherwise: substitutePaths(otherwise, replace),
-      }),
-    Match: ({ on, cases, otherwise }) =>
-      Match({
-        on: substitutePaths(on, replace),
-        cases: cases.map(([v, b]) => [v, substitutePaths(b, replace)] as const),
-        otherwise: Option.map(otherwise, b => substitutePaths(b, replace)),
-      }),
-    Opaque: o => o,
-  })
+): Node => mapPaths(node, path => Option.getOrElse(replace(path.segments), () => path))

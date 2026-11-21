@@ -7,13 +7,10 @@
  * placeholder can never part from its parameter. A reader renders the pieces
  * with its own column and bind strategy.
  */
-import { Data, Option, Result, Schema, SchemaAST } from 'effect'
-import * as Expr from './expr.js'
+import { Data, Option, Result, SchemaAST } from 'effect'
 import { isIntCheck } from './intCheck.js'
 import * as Node from './node.js'
-import { residualizeNode } from './ops/residualize.js'
 import * as Path from './path.js'
-import { Refused, type Transition } from './transition.js'
 
 export type SqlDialect = 'postgres' | 'sqlite'
 
@@ -30,7 +27,35 @@ export type SqlPiece = Data.TaggedEnum<{
   Column: { readonly segments: ReadonlyArray<string> }
   /** A call of a foreign operation over its lowered arguments, which the renderer's own table writes. */
   Foreign: { readonly op: Node.ForeignOp; readonly args: ReadonlyArray<ReadonlyArray<SqlPiece>> }
+  /** A column of the related row a `Rows` body reads, by its path under the row. */
+  Each: { readonly segments: ReadonlyArray<string> }
+  /**
+   * A question asked of the rows pointing through `relation` at the row (at
+   * `of` under it: none is the row itself), which the renderer writes as a
+   * correlated subquery from its own table of relations.
+   */
+  Rows: {
+    readonly fold: RelatedFold
+    readonly relation: string
+    readonly of: ReadonlyArray<string>
+    readonly where: Option.Option<ReadonlyArray<SqlPiece>>
+    readonly value: Option.Option<ReadonlyArray<SqlPiece>>
+  }
 }>
+
+/** The folds SQL asks of related rows: the others answer in an order, or with a list. */
+export type RelatedFold = Extract<Node.RowsFold, 'any' | 'every' | 'count' | 'sum' | 'min' | 'max'>
+
+const relatedFolds: ReadonlySet<string> = new Set<RelatedFold>([
+  'any',
+  'every',
+  'count',
+  'sum',
+  'min',
+  'max',
+])
+
+const isRelatedFold = (fold: Node.RowsFold): fold is RelatedFold => relatedFolds.has(fold)
 
 export const SqlPiece = Data.taggedEnum<SqlPiece>()
 
@@ -103,6 +128,10 @@ const isIntegerTerm = (node: Node.Node): boolean =>
       cases.every(([, branch]) => isIntegerTerm(branch)) &&
       Option.match(otherwise, { onNone: () => true, onSome: isIntegerTerm }),
     Opaque: () => false,
+    Rows: ({ fold, value }) =>
+      fold === 'count' ||
+      ((fold === 'sum' || fold === 'min' || fold === 'max') &&
+        Option.exists(value, each => isIntegerTerm(each) || isIntegerLiteral(each))),
   })
 
 const isIntegerLiteral = (node: Node.Node): boolean =>
@@ -181,6 +210,10 @@ const textOrder =
         ? q`(${left} ${operator} ${right} COLLATE "C")`
         : q`(${left} ${operator} ${right})`,
     )
+
+/** A list a transition writes is held in the state, never in a column this phase writes. */
+const listWrite = (id: Node.CoreOpId): Lowered =>
+  unsupported(`${id}: a list held in a column is not written by SQL`)
 
 /** An array is a Postgres array or SQLite JSON text; both give null for a null one. */
 const arrayLength = byDialect('cardinality', 'json_array_length')
@@ -280,6 +313,9 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
     ),
   'arr.count': (args, ctx) => one(args, ctx, a => q`${arrayLength(ctx.dialect)}(${a})`),
   'arr.isEmpty': (args, ctx) => one(args, ctx, a => q`(${arrayLength(ctx.dialect)}(${a}) = 0)`),
+  'arr.append': () => listWrite('arr.append'),
+  'arr.include': () => listWrite('arr.include'),
+  'arr.exclude': () => listWrite('arr.exclude'),
 }
 
 /**
@@ -289,6 +325,7 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
 export const lowerNode = (
   node: Node.Node,
   options: { readonly dialect: SqlDialect; readonly rowPrefix: ReadonlyArray<string> },
+  inBody = false,
 ): Lowered => {
   const ctx: SqlContext = {
     dialect: options.dialect,
@@ -296,6 +333,16 @@ export const lowerNode = (
       Node.$match(current, {
         Lit: ({ value }) => literal(value),
         Path: ({ segments }) => {
+          if (inBody && Node.readsEach(segments)) {
+            return segments.length === 1
+              ? unsupported('cannot lower a whole related row to a single SQL column')
+              : Result.succeed([SqlPiece.Each({ segments: segments.slice(1) })])
+          }
+          if (inBody && Path.isPrefix(options.rowPrefix, segments)) {
+            return unsupported(
+              `a body over related rows reads the row it is asked of ("${Path.format(segments)}")`,
+            )
+          }
           if (!Path.isPrefix(options.rowPrefix, segments)) {
             return unsupported(
               `unbound path "${Path.format(segments)}" outside row prefix "${Path.format(options.rowPrefix)}"`,
@@ -343,117 +390,51 @@ export const lowerNode = (
             return Result.map(rest, e => q`(CASE ${target} ${joined(arms, ' ')}${e} END)`)
           }),
         Opaque: ({ name }) => unsupported(`cannot lower opaque term "${name}" to SQL`),
+        Rows: rows => lowerRows(rows, options),
       }),
   }
   return ctx.lower(node)
 }
 
 /**
- * Every rule of `schema` as one condition that holds only when each rule is
- * true: a rule that is unknown of a null fails the check, as the Schema
- * refuses the value.
+ * A `Rows` node over related rows as a piece the renderer writes as a
+ * subquery, its body lowered with the related row's columns as `Each`. A
+ * list held in a column, and a fold whose answer is ordered or a list, are
+ * refused by name.
  */
-export const lowerCheck = (schema: Schema.Top, dialect: SqlDialect): Lowered => {
-  const rules: Array<Sql> = []
-  for (const rule of Expr.refinementsOf(schema)) {
-    const lowered = lowerNode(rule.node, { dialect, rowPrefix: [] })
-    if (Result.isFailure(lowered)) return lowered
-    rules.push(lowered.success)
-  }
-  return Result.succeed(rules.length === 0 ? q`TRUE` : q`(${joined(rules, ' AND ')}) IS TRUE`)
-}
-
-export const lowerWhere = <Env>(
-  expr: Expr.Expr<Env, unknown>,
-  options: {
-    readonly dialect: SqlDialect
-    readonly rowPrefix: ReadonlyArray<string>
-    readonly env?: Readonly<Record<string, unknown>> | undefined
-  },
+const lowerRows = (
+  rows: Node.Rows,
+  options: { readonly dialect: SqlDialect; readonly rowPrefix: ReadonlyArray<string> },
 ): Lowered =>
-  lowerNode(
-    options.env === undefined ? expr.node : residualizeNode(expr.node, options.env),
-    options,
-  )
-
-/** A transition for one input: what each written column becomes, and the guard. */
-export interface LoweredUpdate {
-  readonly sets: ReadonlyArray<readonly [target: ReadonlyArray<string>, value: Sql]>
-  readonly when: Sql
-}
-
-/**
- * Lower `transition` for `input`. The input is checked against the
- * transition's input Schema first: the guard and the proofs take its rules as
- * given, so an update built from an input that breaks them is refused.
- */
-export const lowerUpdate = <State, Input, Emit>(
-  transition: Transition<State, Input, Emit>,
-  input: Input,
-  dialect: SqlDialect,
-): Result.Result<LoweredUpdate, SqlUnsupportedError | Refused> => {
-  if (transition.writes.length === 0) {
-    return unsupported('cannot lower a transition with no writes to a SQL UPDATE')
-  }
-  if (Option.isSome(transition.inputSchema) && !Schema.is(transition.inputSchema.value)(input)) {
-    return Result.fail(new Refused({ reason: 'the input does not satisfy the input Schema' }))
-  }
-  const lower = (node: Node.Node) =>
-    lowerNode(residualizeNode(node, { input }), { dialect, rowPrefix: ['state'] })
-  const sets: Array<readonly [ReadonlyArray<string>, Sql]> = []
-  for (const write of transition.writes) {
-    const value = lower(write.value.node)
-    if (Result.isFailure(value)) return Result.fail(value.failure)
-    sets.push([write.target, value.success])
-  }
-  return Result.map(lower(transition.when.node), when => ({ sets, when }))
-}
-
-/** The SQL of a foreign operation for a dialect, from its lowered arguments, in some form of SQL. */
-export interface ForeignSql<S> {
-  readonly version: number
-  readonly sql: (args: ReadonlyArray<S>, dialect: SqlDialect) => S
-}
-
-/** The entry of `table` for a foreign call, refused by name where it has none of the call's version. */
-export const foreignSql = <S>(
-  table: Readonly<Record<string, ForeignSql<S>>>,
-  op: Node.ForeignOp,
-): Result.Result<ForeignSql<S>, SqlUnsupportedError> => {
-  const entry = Object.hasOwn(table, op.id) ? table[op.id] : undefined
-  return entry !== undefined && entry.version === op.version
-    ? Result.succeed(entry)
-    : unsupported(`no SQL is given for the foreign operation ${op.id}@${op.version}`)
-}
-
-/** A literal written into SQL text, for DDL, which takes no parameters. */
-export const inlineLiteral = (value: unknown): Result.Result<string, SqlUnsupportedError> => {
-  if (typeof value === 'boolean') return Result.succeed(value ? 'TRUE' : 'FALSE')
-  if (typeof value === 'number') return Result.succeed(String(value))
-  if (typeof value === 'string') return Result.succeed(`'${value.replaceAll("'", "''")}'`)
-  return unsupported(`cannot inline a literal of type ${typeof value}`)
-}
-
-/** The value a driver binds: SQLite has no boolean, and its drivers refuse one. */
-export const bound = (value: unknown, dialect: SqlDialect): unknown =>
-  dialect === 'sqlite' && typeof value === 'boolean' ? (value ? 1 : 0) : value
-
-/**
- * Names each path's column once. Two paths that come to one name (`a_b` and
- * `a.b` under the default naming) would read one column for two fields.
- */
-export const columnNames = (
-  name: (segments: ReadonlyArray<string>) => string,
-): ((segments: ReadonlyArray<string>) => Result.Result<string, SqlUnsupportedError>) => {
-  const paths = new Map<string, string>()
-  return segments => {
-    const column = name(segments)
-    const path = Path.format(segments)
-    const prior = paths.get(column)
-    if (prior !== undefined && prior !== path) {
-      return unsupported(`paths "${prior}" and "${path}" both name the column ${column}`)
-    }
-    paths.set(column, path)
-    return Result.succeed(column)
-  }
-}
+  Node.RowsOver.$match(rows.over, {
+    List: () =>
+      unsupported(`rows.${rows.fold} over a list: a list held in a column is not lowered to SQL`),
+    Related: ({ of, relation }) => {
+      const fold = rows.fold
+      if (!isRelatedFold(fold)) {
+        return unsupported(
+          `rows.${fold} over related rows: SQL has no order or list for its answer`,
+        )
+      }
+      if (!Node.$is('Path')(of) || !Path.isPrefix(options.rowPrefix, of.segments)) {
+        return unsupported(`rows.${fold} over related rows of a row that is not the one asked of`)
+      }
+      const body = (part: Option.Option<Node.Node>) =>
+        Option.match(part, {
+          onNone: (): Result.Result<Option.Option<Sql>, SqlUnsupportedError> =>
+            Result.succeed(Option.none()),
+          onSome: each => Result.map(lowerNode(each, options, true), Option.some),
+        })
+      return Result.flatMap(body(rows.where), where =>
+        Result.map(body(rows.value), value => [
+          SqlPiece.Rows({
+            fold,
+            relation,
+            of: of.segments.slice(options.rowPrefix.length),
+            where,
+            value,
+          }),
+        ]),
+      )
+    },
+  })

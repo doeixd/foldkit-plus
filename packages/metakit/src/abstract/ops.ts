@@ -512,4 +512,8 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
       if (Option.isSome(count)) state.zone.constrainLower(count.value, 1)
     },
   },
+  // A list a write makes: its count is read through `normalizeLists` (`lists.ts`).
+  'arr.append': { _tag: 'Value', unportable: false },
+  'arr.include': text,
+  'arr.exclude': text,
 }
