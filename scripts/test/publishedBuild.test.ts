@@ -350,7 +350,7 @@ test('a page reading only Expr.eval and Num.lte from metakit keeps no sql, prove
   expect(built.some(id => /\/dist\/ops\/ord\.js$/.test(id))).toBe(true)
   expect(source.some(id => /\/src\/ops\/ord\.ts$/.test(id))).toBe(true)
   const forbidden =
-    /\/(sql|sqlLowering|drizzle|prove|conformance|domain|aggregates|aggregatesSql|machine|inspect|graph|policy|abstract\/(zone|interval|check)|ops\/(num|null|eq|str|arr))\.(js|ts)$|z3-solver|drizzle-orm/
+    /\/(sql|sqlLowering|drizzle|prove|conformance|domain|aggregates|aggregatesSql|machine|inspect|graph|policy|temporal|abstract\/(zone|interval|check)|ops\/(num|null|eq|str|arr))\.(js|ts)$|z3-solver|drizzle-orm/
   expect([...built, ...source].filter(id => forbidden.test(id))).toEqual([])
 }, 120_000)
 

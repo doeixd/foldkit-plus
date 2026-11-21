@@ -23,7 +23,8 @@
       "metakit/machine": ["../metakit/src/machine.ts"],
       "metakit/policy": ["../metakit/src/policy.ts"],
       "metakit/prove": ["../metakit/src/prove.ts"],
-      "metakit/sql": ["../metakit/src/sql.ts"]
+      "metakit/sql": ["../metakit/src/sql.ts"],
+      "metakit/temporal": ["../metakit/src/temporal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],

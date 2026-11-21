@@ -11,12 +11,14 @@ const prove = '../src/prove.ts'
 const graph = '../src/graph.ts'
 const check = '../src/abstract/check.ts'
 const str = '../src/ops/str.ts'
+const temporal = '../src/temporal.ts'
 const coreTests = ['packages/metakit/test/core.test.ts']
 const sqlTests = ['packages/metakit/test/sql.test.ts']
 const proveTests = ['packages/metakit/test/prove.test.ts']
 const graphTests = ['packages/metakit/test/graph.test.ts']
 const domainTests = ['packages/metakit/test/domain.test.ts']
 const strArrTests = ['packages/metakit/test/str-arr.test.ts']
+const temporalTests = ['packages/metakit/test/temporal.test.ts']
 const policyTests = ['packages/metakit/test/policy.test.ts']
 
 const policy = (name: string, file: string, find: string, replace: string) => ({
@@ -267,5 +269,28 @@ export default [
       },
     ],
     tests: strArrTests,
+  },
+  {
+    name: 'Temporal.checkStoreCapabilities skips parent-row-lock requirement',
+    edits: [
+      {
+        file: temporal,
+        find: "if (needsLock && !store.supportsParentRowLock && store.isolation !== 'serializable')",
+        replace: 'if (false)',
+      },
+    ],
+    tests: temporalTests,
+  },
+  {
+    name: 'Temporal.runWalk settles out-of-order schedule in-order instead',
+    edits: [
+      {
+        file: temporal,
+        find: "        { kind: 'respond', seq: 1, response: r1 },\n        { kind: 'respond', seq: 0, response: r0 },",
+        replace:
+          "        { kind: 'respond', seq: 0, response: r0 },\n        { kind: 'respond', seq: 1, response: r1 },",
+      },
+    ],
+    tests: temporalTests,
   },
 ]

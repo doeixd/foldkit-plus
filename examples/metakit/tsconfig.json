@@ -18,7 +18,8 @@
       "metakit/machine": ["../../packages/metakit/src/machine.ts"],
       "metakit/policy": ["../../packages/metakit/src/policy.ts"],
       "metakit/prove": ["../../packages/metakit/src/prove.ts"],
-      "metakit/sql": ["../../packages/metakit/src/sql.ts"]
+      "metakit/sql": ["../../packages/metakit/src/sql.ts"],
+      "metakit/temporal": ["../../packages/metakit/src/temporal.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],

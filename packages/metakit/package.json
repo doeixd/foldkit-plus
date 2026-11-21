@@ -72,6 +72,11 @@
       "types": "./dist/policy.d.ts",
       "import": "./dist/policy.js"
     },
+    "./temporal": {
+      "foldkit-plus:source": "./src/temporal.ts",
+      "types": "./dist/temporal.d.ts",
+      "import": "./dist/temporal.js"
+    },
     "./sql": {
       "foldkit-plus:source": "./src/sql.ts",
       "types": "./dist/sql.d.ts",
