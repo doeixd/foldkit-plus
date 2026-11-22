@@ -1232,7 +1232,9 @@ reads neither the row after the write nor another Entity, so assignments never
 depend on each other, and is refused where it is declared for a field another
 key writes or a value of a kind the field does not store. A defined operator in
 it is expanded there, so `Write.bind` carries it as data (`assignments`, each a
-`Computation`: fields by key, values encoded, operators by name), which a writer
+`Computation`: fields by key, values encoded, operators by name; text a
+collation compares arrives folded, as a call of `text.lowerAscii`, and a call
+carries no collation), which a writer
 compiles into the statement and a client predicts by its own table. A
 computation does not repeat without effect, so a retry of one is held to it as
 an increment's is; without a revision it lands only under a ledger, and there
@@ -1245,11 +1247,38 @@ value for each implementation the writer runs (`Conformance.laws` in memory,
 
 `Write.apply(row, bound, { operators })` is the row a bound write leaves over
 the row before it: values set, amounts added (a null stays null, as in SQL),
-assignments computed. It is the one computation of that row: a guard judges
-it, a writer explains a miss by it, a client predicts it. `unknown` names each
-field it could not work out (one the row lacks, an amount added to a value
-that is no number, or an operator the table lacks), which keeps what the row
-holds.
+assignments computed, all by metakit's evaluator. It is the one computation of
+that row: a guard judges it, a writer explains a miss by it, a client predicts
+it. `unknown` names each field it could not work out (one the row lacks, an
+amount added to a value that is no number, or an operator the table lacks),
+which keeps what the row holds. A value the evaluator refuses (a sum past the
+safe integer range, text holding a NUL character) is a failure, never a write:
+`Write.apply` throws a `QueryEvaluateError` carrying the refusal, which a
+prediction treats as unknown and a writer answers as its own error.
+
+### A write as a metakit transition: `foldkit-entity/transition`
+
+`transitionOf(write)` (from `foldkit-entity/transition`) gives a declared write
+as a metakit `Transition`, so metakit's checker, prover, `Transition.commutes`
+and graph read it as they read any transition. Its state is the row's place in
+its table, `{ present, row }` (`present` says whether the row is there; `row` is
+the Entity's row as the store holds it), its input is the write's input with
+each key in its stored form, and what no caller passes arrives as `supplied`
+(`suppliedOf(write, context, read)` reads it once: the viewer's id as `viewer`,
+the time as `now`).
+
+| Part of the write | Its way of writing |
+| --- | --- |
+| a key set, a link, a context value | `set` of `row.<field>` |
+| `increment`, `decrement` (the amount negated) | `add` |
+| `compute` | `set` of the expression, read under `row` |
+| an insert | `set` of `present` to true |
+| a delete | `set` of `present` to false |
+
+It applies where the row is `present` (an insert: is not), the `when` and
+`from` hold, and the revision it `expect`s is the row's; the revision then
+moves on by one. A page that only declares and binds writes does not carry it:
+the main entry never imports it.
 
 ### What a client foresees of a supplied member
 

@@ -90,8 +90,8 @@ export default [
   edit(
     'the guard judges the row as it was, not with the sum',
     '../../entity/src/write.ts',
-    "else if (typeof held === 'number') after[field] = held + amount",
-    "else if (typeof held === 'number') after[field] = held",
+    'args: [rowField(field), Node.Lit({ value: amount })]',
+    'args: [rowField(field), Node.Lit({ value: 0 })]',
   ),
   edit(
     'a guarded writer hides its writer’s increments',

@@ -44,8 +44,8 @@ export default [
   edit(
     'a primitive operator comparing text is given it unfolded',
     operator,
-    "storedKind(operator.input[position]!) === 'text' ? fold(arg) : arg,",
-    'arg,',
+    '(foldsArgument(operator, position) ? fold(arg) : arg)',
+    'arg',
   ),
   // ---- null handling ---------------------------------------------------------------
   edit(

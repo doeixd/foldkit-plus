@@ -349,7 +349,14 @@ const Restock = Write.update(
   `revision`) or by `op(field, amount)` whose commutativity and associativity are tested over every value
   for each implementation (`Conformance.laws`/`lawsBy`, `withEvidence`).
   `Write.apply(row, bound, { operators })` is the row a write leaves (a null under an amount stays null),
-  which guards judge, writers explain misses by, and clients predict.
+  which guards judge, writers explain misses by, and clients predict; it computes with metakit and throws
+  a `QueryEvaluateError` for a value metakit refuses (a sum past the safe integer range), never writing it.
+  `Computation.Call` carries no collation: text a collation compares arrives as a call of `text.lowerAscii`.
+- **`transitionOf(write)` (`foldkit-entity/transition`)** is a declared write as a metakit `Transition` over
+  `{ present, row }`: a set, link or context value is `set`, an increment `add` (a decrement adds the amount
+  negated), an insert sets `present` to true and a delete to false, so the checker, `Transition.commutes` and
+  the graph read it; `suppliedOf(write, by, read)` gives the `viewer` and `now` it is run with. Not in the
+  main entry, so a page that binds writes does not carry it.
 - **An invariant's lifecycle is what it reads.** `after` only: a state invariant, judged on every create
   and update, and a `CHECK` constraint (`checkConstraints`, `entityChecks`). `before` too: a transition invariant, judged
   on updates only. `Entity.readsBefore` of one of `Entity.invariants(entity)` tells which. One reading nothing of `after` is refused

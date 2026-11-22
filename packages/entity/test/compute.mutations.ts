@@ -56,13 +56,13 @@ export default [
   // ---- the row it leaves
   edit(
     'a null under an amount is not known',
-    'if (held === null) after[field] = null',
-    'if (false) after[field] = null',
+    "if (held === null || typeof held === 'number') {",
+    "if (typeof held === 'number') {",
   ),
   edit(
     'an amount is not added',
-    "else if (typeof held === 'number') after[field] = held + amount",
-    "else if (typeof held === 'number') after[field] = held",
+    'args: [rowField(field), Node.Lit({ value: amount })]',
+    'args: [rowField(field), Node.Lit({ value: 0 })]',
   ),
   edit(
     'a computation it cannot work out is not named',
@@ -71,13 +71,13 @@ export default [
   ),
   edit(
     'a field the row lacks is read as absent',
-    'Field: ({ key }) => (Object.hasOwn(row, key) ? Option.some(row[key]) : Option.none()),',
-    'Field: ({ key }) => Option.some(row[key]),',
+    'Field: ({ key }) => (Object.hasOwn(row, key) ? Option.some(rowField(key)) : Option.none()),',
+    'Field: ({ key }) => Option.some(rowField(key)),',
   ),
   edit(
     'an operator the table lacks is run anyway',
-    'Option.flatMap(operators.named(operator), descriptor =>',
-    'Option.flatMap(Option.some(operators.implementations[0]!.operator), descriptor =>',
+    'return Option.map(operators.named(operator), descriptor => {',
+    'return Option.map(Option.some(operators.implementations[0]!.operator), descriptor => {',
   ),
   edit(
     'a computation reads nothing',

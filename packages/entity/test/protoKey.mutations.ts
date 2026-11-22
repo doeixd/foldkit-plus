@@ -55,8 +55,8 @@ export default [
   edit(
     'a computed field is assigned to the row after',
     write,
-    'onSome: value => put(after, field, value),',
-    'onSome: value => void (after[field] = value),',
+    'onSome: node => put(after, field, valueOf(node)),',
+    'onSome: node => void (after[field] = valueOf(node)),',
   ),
   edit(
     'a context value is assigned',

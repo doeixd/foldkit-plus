@@ -40,8 +40,8 @@ export default [
   ),
   edit(
     'amounts and computations read the row after the values set',
-    'Write.apply(\n          before,',
-    'Write.apply(\n          { ...before, ...values },',
+    'Write.apply(\n                before,',
+    'Write.apply(\n                { ...before, ...values },',
   ),
   edit(
     'a retry is never recognised',
