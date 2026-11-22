@@ -125,7 +125,7 @@ state invariants, assumed to hold before the write. `Laws.show(report)` prints i
 | --- | --- |
 | `kept` | none (an `Enumerated` record; `Bounded` for one the checker proved, `by` its tier) |
 | `refused` (pair) | read the witness: bound the input (`Schema.isGreaterThanOrEqualTo(0)`), narrow the `when`/`from`; or, where the writer refusing it is the law at work, add a `runtimeOnly` line. A `hint` means it starts in a state no write reaches: an invariant ruling that out settles it |
-| `undecided` | a plain `Schema.Number` (may be NaN: use `Schema.Finite` or `Schema.Int`, and bound a sum), a strict comparison of a non-integer, text, a link, another row, an operator the checker knows nothing of: walk it through the writer, a scenario, or a `runtimeOnly` line; `verdict.obligation` holds what a solver would prove |
+| `undecided` | a plain `Schema.Number` (may be NaN: use `Schema.Finite` or `Schema.Int`, and bound a sum), a strict comparison of two members that are not integers (`x < y`; against a constant it is decided), text, a link, another row, an operator the checker knows nothing of: walk it through the writer, a scenario, or a `runtimeOnly` line; `verdict.obligation` holds what a solver would prove |
 | `unmeetable` | no row the invariants allow meets the write's `from`/`when`: fix the condition |
 | `holds`, `enforced` | none |
 | `undeclared` | declare `from` and `becomes`, or narrow the write |
