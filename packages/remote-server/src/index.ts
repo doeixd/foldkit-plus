@@ -538,6 +538,22 @@ export interface EntityWriter<P, R = never> {
    */
   readonly store: StoreCapabilities
   /**
+   * Whether every rule `update`, `insert` and `delete` are handed (`when`,
+   * `requires`, invariants, a postcondition, cascading and clearing
+   * requirements) is judged inside the statement, or the one batch, that
+   * writes, never from a read made before it. A rule over other rows then
+   * holds on a store whose isolation reaches one statement (D1, `isolates:
+   * 'statement'`); `RemoteServer.write` refuses one there through a writer
+   * without it.
+   */
+  readonly judgesInStatement?: true
+  /**
+   * What this writer's own rules need of `store` for `write`, beyond the
+   * write's: a guard's rules over other rows. `RemoteServer.write` holds the
+   * store to them with the write's own, and refuses the write where it cannot.
+   */
+  readonly needs?: (write: AnyWrite) => ReadonlyArray<StoreRequirement>
+  /**
    * The answer recorded for `operation`, when this writer has a ledger and
    * holds one: what a wrapping writer (a guard) answers a retry with, without
    * deciding again over a row that has moved since. One recorded for another
@@ -2660,8 +2676,16 @@ export const RemoteServer = {
       rule: `${mutation.name} ${rule}` as const,
       needs: 'parent-serialized',
       because: 'it reads other rows',
+      judged: writer.judgesInStatement === true ? 'in-statement' : 'read-first',
     }))
-    if (reaching.length > 0) mount(writer.store, reaching)
+    const needed = [
+      ...reaching,
+      ...(writer.needs?.(write) ?? []).map(need => ({
+        ...need,
+        rule: `${mutation.name} ${need.rule}`,
+      })),
+    ]
+    if (needed.length > 0) mount(writer.store, needed)
     // An insert's row is its values and its links (a `one` relation an invariant reads as the
     // id it points at): a member it leaves to a default the writer cannot judge.
     if (kind.inserts) {
@@ -3754,6 +3778,8 @@ export * from './evaluate.js'
 export type { MemoryWriterOptions } from './memoryWriter.js'
 /** What an `EntityWriter`'s `store` declares; `metakit/store` says what each level gives. */
 export type { StoreCapabilities }
+/** What a writer's own rules need of its store (`EntityWriter.needs`); `metakit/store`'s `Requirement`. */
+export type { StoreRequirement }
 export { bodyLimit } from './body.js'
 export type {
   AnswerUnread,

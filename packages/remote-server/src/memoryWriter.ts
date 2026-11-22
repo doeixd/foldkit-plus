@@ -220,7 +220,12 @@ export const memoryWriter = <P>(
     // One synchronous step reads and writes the row: no other write lands between.
     pins: true,
     // The same step, and one thread: every write runs alone.
-    store: { name: 'memory', isolation: 'serializable', parentRowLock: false },
+    store: {
+      name: 'memory',
+      isolation: 'serializable',
+      isolates: 'transaction',
+      parentRowLock: false,
+    },
     operators,
     refuses: write => [
       ...Option.match(write.when, {

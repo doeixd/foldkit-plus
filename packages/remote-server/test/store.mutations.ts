@@ -14,8 +14,28 @@ const edit = (name: string, find: string, replace: string, file = server) => ({
 export default [
   edit(
     'a store that cannot serialize a parent is let through',
-    '    if (reaching.length > 0) mount(writer.store, reaching)\n',
+    '    if (needed.length > 0) mount(writer.store, needed)\n',
     '',
+  ),
+  edit(
+    'a data rule is taken as judged in the statement whatever its writer says',
+    "judged: writer.judgesInStatement === true ? 'in-statement' : 'read-first',",
+    "judged: 'in-statement',",
+  ),
+  edit(
+    'a data rule is taken as read first through a writer that judges it in its statement',
+    "judged: writer.judgesInStatement === true ? 'in-statement' : 'read-first',",
+    "judged: 'read-first',",
+  ),
+  edit(
+    "a writer's own rules are not held to its store",
+    '      ...(writer.needs?.(write) ?? []).map(need => ({',
+    '      ...([] as ReadonlyArray<StoreRequirement>).map(need => ({',
+  ),
+  edit(
+    "a writer's own rule loses the write's name",
+    '        rule: `${mutation.name} ${need.rule}`,',
+    '        rule: need.rule,',
   ),
   edit(
     'a writer naming no store is let through',
@@ -39,8 +59,14 @@ export default [
   ),
   edit(
     'the memory writer names a store that merges writes later',
-    "store: { name: 'memory', isolation: 'serializable', parentRowLock: false },",
-    "store: { name: 'memory', isolation: 'eventual', parentRowLock: false },",
+    "      name: 'memory',\n      isolation: 'serializable',",
+    "      name: 'memory',\n      isolation: 'eventual',",
+    memory,
+  ),
+  edit(
+    'the memory writer says its isolation reaches one statement',
+    "      name: 'memory',\n      isolation: 'serializable',\n      isolates: 'transaction',",
+    "      name: 'memory',\n      isolation: 'serializable',\n      isolates: 'statement',",
     memory,
   ),
 ]

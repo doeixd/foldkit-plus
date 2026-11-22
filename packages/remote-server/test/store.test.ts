@@ -72,8 +72,12 @@ const domain = Remote.define({
   mutations: [Retitle, RetitleWhileOpen, CloseWhenEmpty],
 })
 
-/** Registers the write over its Entity's memory writer, naming `store`. */
-const register = (name: keyof typeof writes, store: StoreCapabilities) =>
+/** Registers the write over its Entity's memory writer, naming `store`, with `more` said of it. */
+const register = (
+  name: keyof typeof writes,
+  store: StoreCapabilities,
+  more: Partial<Writer> = {},
+) =>
   RemoteServer.memory({
     domain,
     rows: { Project: [], Task: [] },
@@ -83,7 +87,7 @@ const register = (name: keyof typeof writes, store: StoreCapabilities) =>
         rows,
         writes[name].entity,
       )
-      return [writes[name].source({ ...writer, store })]
+      return [writes[name].source({ ...writer, ...more, store })]
     },
   })
 
@@ -104,10 +108,27 @@ const registerUnnamed = (name: keyof typeof writes) =>
   })
 
 const stores = {
-  serializable: { name: 'one-writer', isolation: 'serializable', parentRowLock: false },
-  locking: { name: 'locking', isolation: 'read-committed', parentRowLock: true },
-  readCommitted: { name: 'Postgres', isolation: 'read-committed', parentRowLock: false },
+  serializable: {
+    name: 'one-writer',
+    isolation: 'serializable',
+    isolates: 'transaction',
+    parentRowLock: false,
+  },
+  locking: {
+    name: 'locking',
+    isolation: 'read-committed',
+    isolates: 'transaction',
+    parentRowLock: true,
+  },
+  readCommitted: {
+    name: 'Postgres',
+    isolation: 'read-committed',
+    isolates: 'transaction',
+    parentRowLock: false,
+  },
   eventual: { name: 'replicas', isolation: 'eventual', parentRowLock: true },
+  /** Serializable for one statement or batch, no further: D1. */
+  statement: { name: 'D1', isolation: 'serializable', isolates: 'statement', parentRowLock: false },
 } as const satisfies Readonly<Record<string, StoreCapabilities>>
 
 describe('a write whose rule reads other rows', () => {
@@ -124,6 +145,27 @@ describe('a write whose rule reads other rows', () => {
   it.each(reaching)('%s registers on a store that can', name => {
     expect(() => register(name, stores.serializable)).not.toThrow()
     expect(() => register(name, stores.locking)).not.toThrow()
+  })
+
+  describe('on a store whose isolation reaches one statement', () => {
+    it.each(reaching)(
+      '%s is refused through a writer that may judge it from a read first',
+      name => {
+        expect(() => register(name, stores.statement)).toThrow(
+          `store "D1" (serializable per statement, does not lock the parent row) cannot hold:\n  - "${name} precondition" needs parent-serialized (writers of the rows under one parent run one at a time), judged from a read before the write: it reads other rows`,
+        )
+      },
+    )
+
+    it.each(reaching)('%s registers through a writer that judges it in its statement', name => {
+      expect(() => register(name, stores.statement, { judgesInStatement: true })).not.toThrow()
+    })
+
+    it('judging in the statement does not let a read-committed store hold it', () => {
+      expect(() =>
+        register('RetitleWhileOpen', stores.readCommitted, { judgesInStatement: true }),
+      ).toThrow('judged in the statement that writes: it reads other rows')
+    })
   })
 
   it('names an invariant that reads other rows', () => {
@@ -166,6 +208,35 @@ describe('a write whose rule reads other rows', () => {
   })
 })
 
+describe("a writer's own rules over other rows", () => {
+  const needs = () => [
+    {
+      rule: 'guard "projectOpen"',
+      needs: 'parent-serialized' as const,
+      because: 'it reads another row',
+      judged: 'in-statement' as const,
+    },
+  ]
+
+  it('are held to the store with the write, named under the write', () => {
+    expect(() => register('Retitle', stores.readCommitted, { needs })).toThrow(
+      '"Retitle guard "projectOpen"" needs parent-serialized (writers of the rows under one parent run one at a time), judged in the statement that writes: it reads another row',
+    )
+    expect(() => register('Retitle', stores.statement, { needs })).not.toThrow()
+  })
+
+  it('are asked of the write being registered', () => {
+    const asked: Array<string> = []
+    register('Retitle', stores.serializable, {
+      needs: write => {
+        asked.push(write._tag)
+        return []
+      },
+    })
+    expect(asked).toEqual(['Update'])
+  })
+})
+
 describe('the memory writer', () => {
   it('names a store that runs every write alone', () => {
     const named: Array<StoreCapabilities | undefined> = []
@@ -177,7 +248,9 @@ describe('the memory writer', () => {
         return []
       },
     })
-    expect(named).toEqual([{ name: 'memory', isolation: 'serializable', parentRowLock: false }])
+    expect(named).toEqual([
+      { name: 'memory', isolation: 'serializable', isolates: 'transaction', parentRowLock: false },
+    ])
   })
 })
 
