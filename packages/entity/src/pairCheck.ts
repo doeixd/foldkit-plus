@@ -76,15 +76,19 @@ const underStates = (node: Node.Node, after: 'next' | 'state', before: boolean):
 const stateSchemaOf = (write: AnyWrite): Schema.Codec<WriteState> => {
   const row: Record<string, Schema.Top> = {}
   const { entity } = write.input
-  const written =
-    write._tag === 'Insert'
-      ? new Set([
+  const written = Match.value(write).pipe(
+    Match.tagsExhaustive({
+      Insert: () =>
+        new Set([
           'id',
           ...write.sets.map(set => set.field.key),
           ...write.links.map(link => link.relation.key),
           ...write.context.map(({ member }) => member.key),
-        ])
-      : undefined
+        ]),
+      Update: () => undefined,
+      Delete: () => undefined,
+    }),
+  )
   for (const [key, field] of Object.entries(entity.fields)) {
     const encoded = Schema.toEncoded(field.schema as unknown as Schema.Top)
     row[key] = written !== undefined && !written.has(key) ? Schema.NullOr(encoded) : encoded
