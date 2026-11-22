@@ -776,7 +776,15 @@ Expr.path(Feed.Post.relations.author,
 viewer of another Entity), and `Expr.now` the time in milliseconds. Each side
 provides them once: a server from `RemoteServer.make({ viewer })` and its clock,
 a client from `Remote.make({ viewer })`. A run given no context refuses a body
-that reads one (`ContextMissingError`) rather than reading a visitor.
+that reads one (`ContextMissingError`) rather than reading a visitor. Each is
+an expression that says which it is (`term`: `'viewer'`, `'viewerPath'` for a
+path from the viewer, `'now'`); a reader of a write's context values branches
+with `matchContext(value, { viewer, viewerPath, now })`. A reader outside the
+package that runs expressions itself (a SQL compiler) reads them through
+`foldkit-entity/lowering`: `readingOf(exprs, terms)` gathers what they read past
+their own nodes (the order keys, the related rows an exists asks, the viewer's
+Entity, the foreign operations), `envOf` builds the environment from held rows,
+and `foreignOf` gives a memory table's implementations.
 
 <!-- docs-check
 const Note = Entity.define(
