@@ -50,7 +50,7 @@ jobs:
                   *) code=true ;;
                 esac
                 case "$file" in
-                  packages/entity/* | packages/remote-drizzle/* | packages/remote/* | packages/guard/* | pnpm-lock.yaml | package.json | vitest* | .github/*)
+                  packages/entity/* | packages/remote-drizzle/* | packages/remote/* | packages/remote-server/* | packages/metakit/* | packages/guard/* | pnpm-lock.yaml | package.json | vitest* | .github/*)
                     postgres=true
                     ;;
                 esac
@@ -318,6 +318,8 @@ jobs:
           packages/remote-drizzle/test/law.test.ts
           packages/remote-drizzle/test/orderCall.test.ts
           packages/remote-drizzle/test/ledgerRace.test.ts
+          packages/remote-drizzle/test/storeRace.test.ts
+          packages/remote-drizzle/test/restrictRace.test.ts
         env:
           FOLDKIT_LOCALE_PG: postgres://postgres:ci@localhost:5432/postgres
 
