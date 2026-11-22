@@ -36,6 +36,11 @@
       "types": "./dist/lowering.d.ts",
       "import": "./dist/lowering.js"
     },
+    "./transition": {
+      "foldkit-plus:source": "./src/writeTransition.ts",
+      "types": "./dist/writeTransition.d.ts",
+      "import": "./dist/writeTransition.js"
+    },
     "./conformance": {
       "foldkit-plus:source": "./src/conformance/index.ts",
       "types": "./dist/conformance/index.d.ts",
