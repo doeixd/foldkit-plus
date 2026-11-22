@@ -2,6 +2,7 @@ import { Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Expr, Node, Path } from '../src/index.js'
 import * as Operation from '../src/operation.js'
+import * as OperationSql from '../src/operationSql.js'
 
 const Flags = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 2147483647 }))
 
@@ -191,5 +192,79 @@ describe('Operation.define (Phase 4 bout 4.4)', () => {
     const descXor = Operation.describe(flagsXor)
     expect(descXor.claims.invertible).toEqual({ inverse: 'self' })
     expect(Node.foreignName(flagsXor.descriptor)).toBe('flags.xor@1')
+  })
+
+  it('implements operations in a named table and refuses duplicates (bout 4.5)', () => {
+    const page = Operation.implementations(
+      'page',
+      Operation.implement(flagsOr, (a, b) => a | b),
+      Operation.implement(flagsXor, (a, b) => a ^ b),
+    )
+    expect(Operation.implementationsMeta(page).name).toBe('page')
+    expect(Expr.evaluate(flagsOr(1, 4), {}, { foreign: page })).toBe(5)
+    expect(Expr.evaluate(flagsXor(5, 3), {}, { foreign: page })).toBe(6)
+
+    // Throwing in an implementation becomes a `failed` refusal.
+    const failing = Operation.implementations(
+      'failing',
+      Operation.implement(flagsOr, () => {
+        throw new Error('boom')
+      }),
+    )
+    const res = Expr.evalResult(flagsOr(1, 2), {}, { foreign: failing })
+    expect(Result.isFailure(res)).toBe(true)
+    if (Result.isFailure(res)) {
+      expect(res.failure.reason).toBe('failed')
+      expect(res.failure.detail).toContain('boom')
+    }
+
+    expect(() =>
+      Operation.implementations(
+        'page',
+        Operation.implement(flagsOr, (a, b) => a | b),
+        Operation.implement(flagsOr, (a, b) => a | b),
+      ),
+    ).toThrow(
+      '[metakit] Operation.implementations: "flags.or@1" is implemented twice in "page"; pass one implementation per operation and version.',
+    )
+  })
+
+  it('lowers operations to SQL pieces per dialect and refuses missing or duplicate lowerings (bout 4.5)', () => {
+    const orSql = OperationSql.lowering(flagsOr, {
+      sqlite: (a, b) => OperationSql.piece`(${a} | ${b})`,
+      postgres: (a, b) => OperationSql.piece`(${a} | ${b})`,
+      aggregate: { postgres: x => OperationSql.piece`bit_or(${x})` },
+    })
+    const xorSql = OperationSql.lowering(flagsXor, {
+      sqlite: (a, b) => OperationSql.piece`((${a} | ${b}) - (${a} & ${b}))`,
+      postgres: (a, b) => OperationSql.piece`(${a} # ${b})`,
+    })
+    const server = OperationSql.lowerings(orSql, xorSql)
+
+    const sqliteTable = server.toForeignSql<string>('sqlite', parts => parts.join(''))
+    const pgTable = server.toForeignSql<string>('postgres', parts => parts.join(''))
+    expect(sqliteTable['flags.or@1']!.sql(['"a"', '"b"'], 'sqlite')).toBe('("a" | "b")')
+    expect(sqliteTable['flags.xor@1']!.sql(['"a"', '"b"'], 'sqlite')).toBe(
+      '(("a" | "b") - ("a" & "b"))',
+    )
+    expect(pgTable['flags.xor@1']!.sql(['"a"', '"b"'], 'postgres')).toBe('("a" # "b")')
+
+    const missingDialect = server.forDialect('postgres', flagsClamp.descriptor)
+    expect(Result.isFailure(missingDialect)).toBe(true)
+    if (Result.isFailure(missingDialect)) {
+      expect(missingDialect.failure.reason).toContain('no postgres lowering of "flags.clamp@1"')
+    }
+
+    const missingAgg = server.aggregateForDialect('sqlite', flagsOr.descriptor)
+    expect(Result.isFailure(missingAgg)).toBe(true)
+    if (Result.isFailure(missingAgg)) {
+      expect(missingAgg.failure.reason).toContain(
+        'Arr.reduce over "flags.or@1" has no sqlite aggregate',
+      )
+    }
+
+    expect(() => OperationSql.lowerings(orSql, orSql)).toThrow(
+      '[metakit/sql] lowerings: "flags.or@1" is lowered twice; pass one lowering per operation and version.',
+    )
   })
 })

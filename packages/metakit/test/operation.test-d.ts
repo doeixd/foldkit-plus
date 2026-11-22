@@ -2,6 +2,7 @@ import { Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
 import { Path, type Expr } from '../src/index.js'
 import * as Operation from '../src/operation.js'
+import * as OperationSql from '../src/operationSql.js'
 
 const Flags = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 2147483647 }))
 
@@ -119,5 +120,23 @@ Operation.define({
 // 6. Call with wrong argument type (error lands on the argument)
 // @ts-expect-error string is not assignable to number | null
 flagsOr($.granted, 'nope')
+
+// 7. implement with wrong argument type
+// @ts-expect-error parameter a is number, not string
+Operation.implement(flagsOr, (a: string, b: number) => a.length + b)
+
+// 8. implement with wrong arity (3 args for 2-arg op)
+// @ts-expect-error too many parameters for binary flagsOr
+Operation.implement(flagsOr, (a: number, b: number, c: number) => a + b + c)
+
+// 9. lowering with wrong arity
+OperationSql.lowering(flagsOr, {
+  // @ts-expect-error binary op lowering takes 2 pieces, not 3
+  sqlite: (a, b, c) => OperationSql.piece`(${a} | ${b} | ${c})`,
+})
+
+// 10. piece rejects raw string interpolation
+// @ts-expect-error raw string cannot be interpolated into piece
+OperationSql.piece`(${'raw'})`
 
 void flagsXor

@@ -1,4 +1,5 @@
 const operation = '../src/operation.ts'
+const operationSql = '../src/operationSql.ts'
 const evalFile = '../src/ops/eval.ts'
 const tests = ['packages/metakit/test/operation.test.ts']
 
@@ -44,5 +45,17 @@ export default [
     evalFile,
     'if (op.checkResult !== undefined && !op.checkResult.is(result)) {',
     'if (false && op.checkResult !== undefined && !op.checkResult.is(result)) {',
+  ),
+  edit(
+    'implementations allows duplicate operation registrations',
+    operation,
+    'if (entries.has(item.key)) {',
+    'if (false && entries.has(item.key)) {',
+  ),
+  edit(
+    'lowerings allows duplicate operation registrations',
+    operationSql,
+    'if (entries.has(item.key)) {',
+    'if (false && entries.has(item.key)) {',
   ),
 ]

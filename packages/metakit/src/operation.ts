@@ -10,6 +10,7 @@
 import { Equal, Option, Schema, SchemaAST } from 'effect'
 import * as Node from './node.js'
 import { toNode, wrap, type ExprInput } from './ops/core.js'
+import type { ForeignImplementation, ForeignImplementations } from './ops/eval.js'
 import type { Expr } from './path.js'
 
 type CorePrefix = (typeof Node.RESERVED_PREFIXES)[number]
@@ -427,3 +428,85 @@ export const compare = (
   }
   return Option.none()
 }
+
+/** Argument tuple for `implement`, adding `null` only when `N` is `'own'`. */
+export type RunArgs<Args extends ReadonlyArray<Schema.Top>, N extends 'strict' | 'own'> = {
+  readonly [K in keyof Args]: Args[K] extends Schema.Top
+    ? N extends 'own'
+      ? Schema.Schema.Type<Args[K]> | null
+      : Schema.Schema.Type<Args[K]>
+    : never
+}
+
+/** One typed implementation binding an `Operation` to its JavaScript function. */
+export interface Implementation<O extends AnyOperation = AnyOperation> {
+  readonly op: O
+  readonly key: string
+  readonly entry: ForeignImplementation
+}
+
+/**
+ * Bind a JavaScript implementation to `op`. Strict operations receive non-null
+ * arguments; `nulls: 'own'` operations receive `T | null`. Throw to refuse.
+ */
+export const implement = <
+  Id extends string,
+  V extends number,
+  Args extends ReadonlyArray<Schema.Top>,
+  R extends Schema.Top,
+  N extends 'strict' | 'own',
+  C extends object,
+>(
+  op: Operation<Id, V, Args, R, N, C>,
+  run: (...args: RunArgs<Args, N>) => Schema.Schema.Type<R> | null,
+): Implementation<Operation<Id, V, Args, R, N, C>> => ({
+  op,
+  key: Node.foreignName(op.descriptor),
+  entry: {
+    run: values => run(...(values as unknown as RunArgs<Args, N>)),
+  },
+})
+
+/** Metadata symbol carried on a table built by `implementations`. */
+export const IMPLEMENTATIONS_META = Symbol.for('metakit/operation/implementations')
+
+export interface ImplementationsMeta {
+  readonly name: string
+  readonly entries: ReadonlyMap<string, Implementation>
+}
+
+/** A named table of custom operation implementations, accepted by every reader. */
+export type OperationImplementations = ForeignImplementations & {
+  readonly [IMPLEMENTATIONS_META]: ImplementationsMeta
+}
+
+/**
+ * Collect implementations under a `name` (used in reports and obligation names).
+ * Refuses two implementations for the same `id@version`.
+ */
+export const implementations = (
+  name: string,
+  ...list: ReadonlyArray<Implementation>
+): OperationImplementations => {
+  const table: Record<string, ForeignImplementation> = {}
+  const entries = new Map<string, Implementation>()
+  for (const item of list) {
+    if (entries.has(item.key)) {
+      throw new Error(
+        `[metakit] Operation.implementations: "${item.key}" is implemented twice in "${name}"; pass one implementation per operation and version.`,
+      )
+    }
+    entries.set(item.key, item)
+    table[item.key] = item.entry
+  }
+  Object.defineProperty(table, IMPLEMENTATIONS_META, {
+    value: { name, entries } satisfies ImplementationsMeta,
+    enumerable: false,
+    writable: false,
+  })
+  return table as OperationImplementations
+}
+
+/** Read the name and entries from an `OperationImplementations` table. */
+export const implementationsMeta = (table: OperationImplementations): ImplementationsMeta =>
+  table[IMPLEMENTATIONS_META]
