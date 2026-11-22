@@ -681,6 +681,7 @@ export {
   type BoundWrite,
   type ConditionedWrite,
   Computation,
+  lowerAsciiName,
   type WriteAssignment,
   type WriteComputations,
   type WriteCondition,

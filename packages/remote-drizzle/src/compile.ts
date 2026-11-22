@@ -23,6 +23,7 @@ import {
   Expr,
   Query,
   dependenciesOf,
+  lowerAsciiName,
   type AnyEntity,
   type Collation,
   type EntityIdentity,
@@ -40,7 +41,7 @@ import type {
   Predicate,
   Ordering,
 } from 'foldkit-entity'
-import { Node } from 'metakit'
+import { Node, Str } from 'metakit'
 import type { OrderTerm } from './cursor.js'
 import { isKernelOperator } from './kernel.js'
 import { isPostgresColumn } from './dialect.js'
@@ -89,8 +90,8 @@ const predicate = (
 
 /**
  * A computed assignment, as data, as a node: a field its column, a value
- * itself, a call by the operator the binding's tables name under the collation
- * it carries.
+ * itself, a call by the operator the binding's tables name (text a collation
+ * compares arrives folded, as a call of `lowerAsciiName`).
  */
 const computedNode = (
   computation: Computation,
@@ -101,7 +102,13 @@ const computedNode = (
   Computation.$match(computation, {
     Field: ({ key }) => Node.Path({ segments: ['row', key], ast: Option.none() }),
     Value: ({ value }) => Node.Lit({ value }),
-    Call: ({ operator, args, collation }) => {
+    Call: ({ operator, args }) => {
+      if (operator === lowerAsciiName) {
+        return Node.Call({
+          op: Str.lowerAsciiOp,
+          args: args.map(arg => computedNode(arg, target, query, foreign)),
+        })
+      }
       const tables = operatorsOf(target)
       const descriptor = Option.getOrThrowWith(
         Option.orElse(tables.sql.named(operator), () => tables.memory.named(operator)),
@@ -113,7 +120,7 @@ const computedNode = (
       return callOperator(
         descriptor,
         args.map(arg => computedNode(arg, target, query, foreign)),
-        Option.fromNullOr(collation),
+        Option.none(),
         foreign,
       )
     },
@@ -121,8 +128,8 @@ const computedNode = (
 
 /**
  * A computed assignment, as data, as the SQL that writes it: a field its
- * column, a value a parameter, a call by the binding's SQL operators under the
- * collation it carries. What `writer` sets, in the statement that writes.
+ * column, a value a parameter, a call by the binding's SQL operators. What
+ * `writer` sets, in the statement that writes.
  */
 export const computationSql = (
   computation: Computation,

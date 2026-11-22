@@ -14,6 +14,8 @@
  * Entity having a field does not mean anyone may set it.
  */
 import { Data, Effect, Match, Option, Schema, SchemaAST } from 'effect'
+import { Node, Num, Str } from 'metakit'
+import { evalNode } from 'metakit/build'
 import type {
   AnyEntity,
   EntityMember,
@@ -23,8 +25,6 @@ import type {
   EntityRelation,
   InputMember,
 } from './index.js'
-import type { Collation } from './collation.js'
-import { applyOperator } from './evaluate.js'
 import {
   Expr,
   Query,
@@ -35,9 +35,12 @@ import {
   type InputExpr,
   type Operandish,
   type Operation,
+  type OperatorDescriptor,
   type Predicate,
   type Reads,
 } from './expr.js'
+import { callOperator, foldsArgument, foreignOf } from './lowerOperator.js'
+import { OperatorMissingError, refusedBy } from './queryErrors.js'
 import type { BeforeRow, Invariant } from './invariant.js'
 import { contextValue, viewerIdOf, type ExprContext, type ViewerPathExpr } from './context.js'
 import { Held, idOfRef } from './held.js'
@@ -90,8 +93,9 @@ export interface WriteAssignment {
  * A computed assignment as data, bound to one input: what travels to a server
  * and sits in a client's pending patch, which holds no descriptor and no
  * function. A field of the row before the write, a stored value, or a call of
- * a primitive operator by name (`id`, or `id@version`), with the collation it
- * compares text under (`null` for none: this is JSON).
+ * a primitive operator by name (`id`, or `id@version`). A collation is not
+ * carried: text compared under one reaches the call folded, as a call of
+ * `lowerAsciiName`.
  */
 export type Computation = Data.TaggedEnum<{
   Field: { readonly key: string }
@@ -99,10 +103,12 @@ export type Computation = Data.TaggedEnum<{
   Call: {
     readonly operator: string
     readonly args: ReadonlyArray<Computation>
-    readonly collation: Collation | null
   }
 }>
 export const Computation = Data.taggedEnum<Computation>()
+
+/** The wire name of the fold metakit's `str.lowerAscii` is: what an ASCII-folding collation writes. */
+export const lowerAsciiName = 'text.lowerAscii'
 
 /** One input key the write points at another row with: a `one` relation, by the target's id. */
 export interface WriteLink {
@@ -769,15 +775,34 @@ const computationOf = (
           write.input.schema.fields[expr.key] as unknown as Schema.Codec<unknown, unknown>,
         )(input[expr.key]),
       })
-    case 'Call':
+    case 'Call': {
+      const args = expr.args.map(arg => computationOf(write, arg as AnyExpr, input))
       return Computation.Call({
         operator:
           expr.operator.version === 1
             ? expr.operator.id
             : `${expr.operator.id}@${expr.operator.version}`,
-        args: expr.args.map(arg => computationOf(write, arg as AnyExpr, input)),
-        collation: Option.getOrNull(expr.collation),
+        // The text a collation compares is folded here, as `callOperator` folds it.
+        args: Option.match(expr.collation, {
+          onNone: () => args,
+          onSome: collation =>
+            Match.valueTags(collation, {
+              Binary: () => args,
+              AsciiFold: () =>
+                args.map((arg, position) =>
+                  foldsArgument(expr.operator, position)
+                    ? Computation.Call({ operator: lowerAsciiName, args: [arg] })
+                    : arg,
+                ),
+              Locale: ({ locale }): never => {
+                throw new Error(
+                  `[foldkit-entity] an assignment of ${write.input.entity.name} compares text by the backend's "${locale}" collation, which only that backend has`,
+                )
+              },
+            }),
+        }),
       })
+    }
     // Refused where an assignment is declared, so none reaches here.
     case 'Viewer':
     case 'Now':
@@ -792,27 +817,36 @@ const computationOf = (
   }
 }
 
+/** A field of the row before the write, as a node reads it. */
+const rowField = (key: string): Node.Node =>
+  Node.Path({ segments: ['row', key], ast: Option.none() })
+
 /**
- * What a computation comes to over `row`, the row before the write: none when
- * the row lacks a field it reads, or `operators` lacks an operator it calls.
+ * A computation as a metakit node over `row`, the row before the write: none
+ * when the row lacks a field it reads, or `operators` lacks an operator it
+ * names; one it names but does not implement is refused.
  */
-const computed = (
+const nodeOf = (
   computation: Computation,
   row: Readonly<Record<string, unknown>>,
   operators: MemoryOperators,
-): Option.Option<unknown> =>
+  foreign: Map<string, OperatorDescriptor>,
+): Option.Option<Node.Node> =>
   Computation.$match(computation, {
-    Field: ({ key }) => (Object.hasOwn(row, key) ? Option.some(row[key]) : Option.none()),
-    Value: ({ value }) => Option.some(value),
-    Call: ({ operator, args, collation }) =>
-      Option.flatMap(operators.named(operator), descriptor =>
-        Option.map(Option.all(args.map(arg => computed(arg, row, operators))), values =>
-          applyOperator(descriptor, values, {
-            collation: Option.fromNullOr(collation),
-            operators,
-          }),
-        ),
-      ),
+    Field: ({ key }) => (Object.hasOwn(row, key) ? Option.some(rowField(key)) : Option.none()),
+    Value: ({ value }) => Option.some(Node.Lit({ value: value === undefined ? null : value })),
+    Call: ({ operator, args }) =>
+      Option.flatMap(Option.all(args.map(arg => nodeOf(arg, row, operators, foreign))), nodes => {
+        if (operator === lowerAsciiName) {
+          return Option.some(Node.Call({ op: Str.lowerAsciiOp, args: nodes }))
+        }
+        return Option.map(operators.named(operator), descriptor => {
+          if (Option.isSome(descriptor.definedAs) || !operators.has(descriptor)) {
+            throw new OperatorMissingError(descriptor, operators)
+          }
+          return callOperator(descriptor, nodes, Option.none(), foreign)
+        })
+      }),
   })
 
 /** Whether a value's stored form is a plain number. */
@@ -1230,11 +1264,16 @@ export const Write = {
   /**
    * The row a bound write leaves over `row`, the row before it: its values
    * set, each amount added (a null stays null, as in SQL), and each
-   * assignment computed by `operators` over the row before. `unknown` names
-   * each field it could not work out: one `row` lacks, or holds as no number
-   * for an amount, or an assignment calling an operator the table lacks. That
-   * field keeps what `row` holds. The one computation of this row: a guard
-   * judges it, a writer explains a miss with it, a client predicts it.
+   * assignment computed by `operators` over the row before, all by metakit's
+   * evaluator. `unknown` names each field it could not work out: one `row`
+   * lacks, or holds as no number for an amount, or an assignment calling an
+   * operator the table lacks. That field keeps what `row` holds. The one
+   * computation of this row: a guard judges it, a writer explains a miss with
+   * it, a client predicts it.
+   *
+   * A value the evaluator refuses (a sum past the safe integer range, text
+   * holding a NUL) is a failure, never a write: it throws a
+   * `QueryEvaluateError` carrying the `Refusal`, as `evaluate` does.
    */
   apply: (
     row: Readonly<Record<string, unknown>>,
@@ -1246,16 +1285,35 @@ export const Write = {
   } => {
     const after: Record<string, unknown> = { ...row, ...bound.values }
     const unknown: Array<string> = []
+    const foreign = new Map<string, OperatorDescriptor>()
+    const valueOf = (node: Node.Node): unknown => {
+      const value = evalNode(
+        node,
+        { row },
+        foreignOf(
+          { nodes: [], keys: [], related: new Map(), viewers: new Map(), foreign },
+          options.operators,
+        ),
+      )
+      if (Node.isRefusal(value)) throw refusedBy(value)
+      return value
+    }
     for (const [field, amount] of Object.entries(bound.increments)) {
       const held = Object.hasOwn(row, field) ? row[field] : undefined
-      if (held === null) after[field] = null
-      else if (typeof held === 'number') after[field] = held + amount
-      else unknown.push(field)
+      if (held === null || typeof held === 'number') {
+        put(
+          after,
+          field,
+          valueOf(
+            Node.Call({ op: Num.addOp, args: [rowField(field), Node.Lit({ value: amount })] }),
+          ),
+        )
+      } else unknown.push(field)
     }
     for (const [field, computation] of Object.entries(bound.assignments)) {
-      Option.match(computed(computation, row, options.operators), {
+      Option.match(nodeOf(computation, row, options.operators, foreign), {
         onNone: () => unknown.push(field),
-        onSome: value => put(after, field, value),
+        onSome: node => put(after, field, valueOf(node)),
       })
     }
     return { row: after, unknown }

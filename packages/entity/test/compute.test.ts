@@ -60,7 +60,6 @@ describe('A computed assignment', () => {
       label: Computation.Call({
         operator: 'acme.concat',
         args: [Computation.Field({ key: 'title' }), Computation.Value({ value: ' (draft)' })],
-        collation: null,
       }),
     })
   })
@@ -74,7 +73,6 @@ describe('A computed assignment', () => {
       Computation.Call({
         operator: 'acme.concat',
         args: [Computation.Field({ key: 'title' }), Computation.Value({ value: '!' })],
-        collation: null,
       }),
     )
   })

@@ -10,6 +10,7 @@ import {
   Expr,
   Operators,
   Query,
+  QueryEvaluateError,
   Write,
   evaluate,
   supported,
@@ -293,11 +294,26 @@ export const memoryWriter = <P>(
         }
         const before = judged(row)
         // Amounts and computations read the row before the write, as a statement's do.
-        const applied = Write.apply(
-          before,
-          { values: { ...values, ...linkIds(links) }, increments, assignments },
-          { operators },
-        )
+        // A value the evaluator refuses (a sum past the safe range) is the writer's error,
+        // as an operator's own is; its message is not sent, since an operator may say anything.
+        const applied = yield* Effect.suspend(() => {
+          try {
+            return Effect.succeed(
+              Write.apply(
+                before,
+                { values: { ...values, ...linkIds(links) }, increments, assignments },
+                { operators },
+              ),
+            )
+          } catch (error) {
+            if (!(error instanceof QueryEvaluateError)) throw error
+            return Effect.fail(
+              new RemoteServerError({
+                message: `${entity.name} ${id}: the write was refused while working out its row`,
+              }),
+            )
+          }
+        })
         if (applied.unknown.length > 0) {
           return yield* new RemoteServerError({
             message: `${entity.name} ${id}: the write could not work out ${applied.unknown.join(', ')}`,

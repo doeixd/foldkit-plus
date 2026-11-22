@@ -153,7 +153,6 @@ describe('A computed assignment over arithmetic', () => {
       cents: Computation.Call({
         operator: 'number.subtract',
         args: [Computation.Field({ key: 'cents' }), Computation.Value({ value: 3 })],
-        collation: null,
       }),
     })
     expect(

@@ -264,6 +264,17 @@ describe('RemoteServer.memoryWriter', () => {
     expect([stock('s1'), stock('s2')]).toEqual(before)
   })
 
+  it('answers a sum past the safe integer range as a server error, and writes nothing', async () => {
+    const { send, stock } = fresh()
+    const before = stock('s1')
+    const answer = await send('Reserve', { id: 's1', revision: 1, quantity: 2 ** 53 })
+    // Not one of the mutation's own refusals, and nothing of the evaluator's message.
+    expect(answer).toMatchObject({ failure: { _tag: 'RemoteMutationError' } })
+    expect(answer).not.toHaveProperty('failure.refusal')
+    expect(JSON.stringify(answer)).not.toContain('safe')
+    expect(stock('s1')).toEqual(before)
+  })
+
   it('lands a write its postcondition holds of, and names the postcondition it refuses by', async () => {
     const { send, stock } = fresh()
     expect(await send('Take', { id: 's1', revision: 1, quantity: -4 })).toMatchObject({

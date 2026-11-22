@@ -115,6 +115,10 @@ const kernel: ReadonlyMap<
   ],
 ])
 
+/** Whether a call of `operator` is given its argument at `position` folded under the call's collation. */
+export const foldsArgument = (operator: OperatorDescriptor, position: number): boolean =>
+  operator.collation === 'required' && storedKind(operator.input[position]!) === 'text'
+
 /**
  * A call of a primitive operator over translated arguments. A collation
  * reaches no operation: an operator that compares text itself
@@ -140,12 +144,7 @@ export const callOperator = (
   foreign.set(nameOf(operator), operator)
   return Node.Call({
     op: foreignOpOf(operator),
-    args:
-      operator.collation === 'required'
-        ? args.map((arg, position) =>
-            storedKind(operator.input[position]!) === 'text' ? fold(arg) : arg,
-          )
-        : args,
+    args: args.map((arg, position) => (foldsArgument(operator, position) ? fold(arg) : arg)),
   })
 }
 

@@ -41,12 +41,6 @@ const QueuedStateSchema = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal('WaitingForSignIn'), error: remoteErrorSchema }),
 ])
 
-const CollationSchema = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('Binary') }),
-  Schema.Struct({ _tag: Schema.Literal('AsciiFold') }),
-  Schema.Struct({ _tag: Schema.Literal('Locale'), locale: Schema.String }),
-])
-
 const ComputationSchema: Schema.Codec<Computation> = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal('Field'), key: Schema.String }),
   Schema.Struct({ _tag: Schema.Literal('Value'), value: Schema.Unknown }),
@@ -54,7 +48,9 @@ const ComputationSchema: Schema.Codec<Computation> = Schema.Union([
     _tag: Schema.Literal('Call'),
     operator: Schema.String,
     args: Schema.Array(Schema.suspend((): Schema.Codec<Computation> => ComputationSchema)),
-    collation: Schema.NullOr(CollationSchema),
+    // A call carries no collation (its text arrives folded): an entry stored with
+    // `null` still reads, one stored with a collation is refused, never ignored.
+    collation: Schema.optionalKey(Schema.Null),
   }),
 ])
 

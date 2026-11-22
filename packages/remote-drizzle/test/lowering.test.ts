@@ -197,7 +197,6 @@ describe('a computed assignment', () => {
   const add = Computation.Call({
     operator: 'number.add',
     args: [Computation.Field({ key: 'count' }), Computation.Value({ value: 1 })],
-    collation: null,
   })
 
   it('types a number by its own value on Postgres, as no column types it', () => {
@@ -215,7 +214,6 @@ describe('a computed assignment', () => {
     const wide = Computation.Call({
       operator: 'number.add',
       args: [Computation.Field({ key: 'count' }), Computation.Value({ value: 3_000_000_000 })],
-      collation: null,
     })
     expect(pg(computationSql(wide, pgLanes, 'Lane.count')).sql).toBe(
       '"lanes"."count" + cast($1 as bigint)',
@@ -223,7 +221,6 @@ describe('a computed assignment', () => {
     const fraction = Computation.Call({
       operator: 'number.add',
       args: [Computation.Field({ key: 'weight' }), Computation.Value({ value: 0.5 })],
-      collation: null,
     })
     expect(pg(computationSql(fraction, pgLanes, 'Lane.weight')).sql).toBe(
       '"lanes"."weight" + cast($1 as double precision)',
@@ -233,7 +230,7 @@ describe('a computed assignment', () => {
   it('refuses an operator no table of the binding names', () => {
     expect(() =>
       computationSql(
-        Computation.Call({ operator: 'acme.nothing', args: [], collation: null }),
+        Computation.Call({ operator: 'acme.nothing', args: [] }),
         sqliteLanes,
         'Lane.count',
       ),

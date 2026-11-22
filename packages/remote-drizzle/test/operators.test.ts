@@ -215,7 +215,6 @@ describe('A primitive operator in SQL', () => {
         Computation.Call({
           operator: 'acme.sum',
           args: [Computation.Field({ key: 'rank' }), Computation.Value({ value: Number.NaN })],
-          collation: null,
         }),
         binding,
         `Item's "rank"`,
