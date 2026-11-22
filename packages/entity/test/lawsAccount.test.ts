@@ -107,14 +107,14 @@ describe('Numbers, decided from their bounds', () => {
     })
   })
 
-  it('leaves a withdrawal within the balance undecided: it rests on a relation, a solver’s to prove', () => {
-    const pair = pairOf(
-      check({ nonNegative: true, when: 'withinBalance' }),
-      'WithdrawMoney',
-      'neverOverdrawn',
-    )
-    expect(pair.verdict._tag).toBe('Undecided')
-    expect(pair.evidence).toEqual(Option.none())
+  it('keeps a withdrawal within the balance: a difference of doubles keeps the sign of the exact one', () => {
+    expect(
+      verdict(
+        check({ nonNegative: true, when: 'withinBalance' }),
+        'WithdrawMoney',
+        'neverOverdrawn',
+      ),
+    ).toMatchObject({ _tag: 'Kept', by: 'zone' })
   })
 
   it('turns red when the withdrawal’s when is weakened to allow an overdraft (#600)', () => {
@@ -196,19 +196,24 @@ describe('Numbers, decided from their bounds', () => {
         after: { balance: -1 },
       },
     })
+    // A decrement adds the amount negated, which the checker reads as the difference.
     expect(
       verdict(
         check({ nonNegative: true, withdraw: 'decrement', when: 'withinBalance' }),
         'WithdrawMoney',
         'neverOverdrawn',
       ),
-    ).toMatchObject({ _tag: 'Undecided' })
+    ).toMatchObject({ _tag: 'Kept', by: 'zone' })
   })
 })
 
 describe('What an undecided pair leaves a solver', () => {
   it('carries the write, the rule, the invariants assumed before, and the cases left', () => {
-    const list = writes({ nonNegative: true, when: 'withinBalanceAndLimit' })
+    const list = writes({
+      nonNegative: true,
+      when: 'withinBalanceAndLimit',
+      withdraw: 'opaqueMinus',
+    })
     const pair = pairOf(Laws.check({ writes: list, operators }), 'WithdrawMoney', 'neverOverdrawn')
     if (pair.verdict._tag !== 'Undecided') throw new Error('expected an undecided pair')
     const obligation = Option.getOrThrow(pair.verdict.obligation)
@@ -317,14 +322,14 @@ describe('Laws.show on the account', () => {
         'DepositMoney    x neverOverdrawn              kept: proved from the bounds and differences of balance, for every row and input within them',
         'DepositMoney    x withinDailyLimit            kept: writes no member it reads',
         'DepositMoney    x aClosedAccountStaysClosed   kept: 1 row enumerated',
-        'WithdrawMoney   x neverOverdrawn              undecided: intervals overlap',
+        'WithdrawMoney   x neverOverdrawn              kept: proved from the bounds and differences of balance, for every row and input within them',
         'WithdrawMoney   x withinDailyLimit            refused: An open account withdraws no more than the daily limit',
         '    before   status: "open", withdrawnToday: 1000, balance: 1',
         '    input    amount: 1',
         '    after    status: "open", withdrawnToday: 1001, balance: 0',
         'WithdrawMoney   x aClosedAccountStaysClosed   kept: 2 rows enumerated',
         '',
-        '1 entity, 2 states, 4 writes, 3 rules: 12 pairs, 10 kept, 1 refused, 1 undecided',
+        '1 entity, 2 states, 4 writes, 3 rules: 12 pairs, 11 kept, 1 refused, 0 undecided',
       ].join('\n'),
     )
   })

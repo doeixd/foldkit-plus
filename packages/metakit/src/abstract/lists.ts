@@ -3,7 +3,7 @@
  * same or one more after `insert` (an `If` on whether the key is there, whose
  * count `countBounds` relates to the list's), no more after `keep` (the count
  * of the elements that pass, which the whole list's count bounds, `count`
- * being monotone up), and the same after `patch`. `normalizeLists` writes
+ * being monotone up), and the same after `patch`. `countOfWritten` writes
  * each count in those terms; nothing else of a list is decided.
  */
 import { Option, SchemaAST } from 'effect'
@@ -55,7 +55,7 @@ export const countBounds = (node: Node.Node): Option.Option<CountBounds> => {
 }
 
 /** The count of a list a transition's written value makes, in terms the checker relates. */
-const countOfWritten = (list: Node.Node): Node.Node => {
+export const countOfWritten = (list: Node.Node): Node.Node => {
   if (Node.$is('Call')(list) && list.op.id === 'arr.append') {
     return Node.Call({ op: addOp, args: [countOf(list.args[0]!), Node.Lit({ value: 1 })] })
   }
@@ -75,33 +75,6 @@ const countOfWritten = (list: Node.Node): Node.Node => {
   }
   return countOf(list)
 }
-
-/** `node` with each count of a list written by `countOfWritten`. */
-export const normalizeLists = (node: Node.Node): Node.Node =>
-  Node.$match(node, {
-    Lit: lit => lit,
-    Path: path => path,
-    Opaque: opaque => opaque,
-    Call: ({ op, args }) => {
-      const inner = args.map(normalizeLists)
-      return !Node.isForeign(op) && op.id === 'arr.count' && inner.length === 1
-        ? countOfWritten(inner[0]!)
-        : Node.Call({ op, args: inner })
-    },
-    If: ({ cond, then, otherwise }) =>
-      Node.If({
-        cond: normalizeLists(cond),
-        then: normalizeLists(then),
-        otherwise: normalizeLists(otherwise),
-      }),
-    Match: ({ on, cases, otherwise }) =>
-      Node.Match({
-        on: normalizeLists(on),
-        cases: cases.map(([value, arm]) => [value, normalizeLists(arm)] as const),
-        otherwise: Option.map(otherwise, normalizeLists),
-      }),
-    Rows: rows => Node.mapRows(rows, normalizeLists, normalizeLists),
-  })
 
 const scalar = (node: Node.Node): boolean => {
   if (Node.$is('Lit')(node))

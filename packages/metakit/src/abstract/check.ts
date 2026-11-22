@@ -19,7 +19,7 @@ import * as Path from '../path.js'
 import type { Transition, TransitionEnv } from '../transition.js'
 import * as Verdict from '../verdict.js'
 import { collectFields, pathKey, type FieldInfo } from './fields.js'
-import { normalizeLists } from './lists.js'
+import { normalize } from './normalize.js'
 import { AbstractState } from './state.js'
 import { proved } from './support.js'
 
@@ -94,8 +94,8 @@ export const checkInvariant = <S extends Schema.Top>(
 ): Verdict.Verdict<never> => {
   const fields = new Map<string, FieldInfo>()
   collectFields(schema.ast, [], fields)
-  const invariants = rulesUnder(schema, [], fields).map(normalizeLists)
-  const target = normalizeLists(goal.node)
+  const invariants = rulesUnder(schema, [], fields).map(normalize)
+  const target = normalize(goal.node)
   const state = new AbstractState([...invariants, target], fields)
   for (const inv of invariants) state.assume(inv)
   return state.entails(target)
@@ -134,11 +134,11 @@ const stepState = <S extends Schema.Top, I, Emit, Sup>(
 
   const writes: ReadonlyArray<Write> = transition.writes.map(eq => ({
     target: eq.target,
-    value: eq.value.node,
+    value: normalize(eq.value.node),
   }))
-  const postGoals = goals(writes, preInvariants).map(normalizeLists)
+  const postGoals = goals(writes, preInvariants).map(normalize)
   const hypotheses = [...preInvariants, ...otherInvariants, transition.when.node, ...extra].map(
-    normalizeLists,
+    normalize,
   )
   const state = new AbstractState(
     [...hypotheses, ...postGoals, ...writes.map(write => write.value)],

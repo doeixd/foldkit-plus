@@ -31,6 +31,8 @@ export class AbstractState {
   readonly relations: Array<{
     readonly id: number
     readonly relation: 'add' | 'sub'
+    /** Over integers, where the result is the exact sum or difference. */
+    readonly exact: boolean
     readonly left: Node.Node
     readonly right: Node.Node
   }>
@@ -185,9 +187,10 @@ export class AbstractState {
             const isInt = this.isIntNode(node)
             const id = this.register(Node.key(node), isInt)
             this.termNodes.set(id, node)
-            // Sums and differences of doubles round, so only integers relate exactly.
-            if (relation !== 'none' && isInt && args.length === 2) {
-              this.relations.push({ id, relation, left: args[0]!, right: args[1]! })
+            // Sums and differences of doubles round, so only integers relate
+            // exactly; `propagate` reads of a double what rounding keeps.
+            if (relation !== 'none' && args.length === 2) {
+              this.relations.push({ id, relation, exact: isInt, left: args[0]!, right: args[1]! })
             }
             this.collectCount(node)
           },

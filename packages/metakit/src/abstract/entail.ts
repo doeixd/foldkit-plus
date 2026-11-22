@@ -34,10 +34,19 @@ export function assumeLeq(
   const lConst = numberOf(left)
   const rConst = numberOf(right)
 
+  // A term is a double, so against a constant `x < m` is `x <= nextDown(m)`
+  // exactly; between two terms the difference rounds, so `<` keeps `<=`.
+  const strictReal = strict && !bothInt
   if (Option.isSome(lv) && Option.isSome(rConst)) {
-    this.zone.constrainUpper(lv.value, rConst.value + delta)
+    this.zone.constrainUpper(
+      lv.value,
+      strictReal ? Interval.nextDown(rConst.value) : rConst.value + delta,
+    )
   } else if (Option.isSome(lConst) && Option.isSome(rv)) {
-    this.zone.constrainLower(rv.value, lConst.value - delta)
+    this.zone.constrainLower(
+      rv.value,
+      strictReal ? Interval.nextUp(lConst.value) : lConst.value - delta,
+    )
   } else if (Option.isSome(lv) && Option.isSome(rv)) {
     this.zone.constrainDiff(lv.value, rv.value, delta)
   }
@@ -91,9 +100,19 @@ export function propagate(this: AbstractState): boolean {
       }
     }
 
-    for (const { id, relation, left, right } of this.relations) {
+    for (const { id, relation, exact, left, right } of this.relations) {
       const lv = this.varOf(left)
       const rv = this.varOf(right)
+      // Of a double's difference only one thing survives rounding, which is
+      // monotone: where `x - y <= c` for a double `c`, the rounded `x - y` is
+      // too, so the difference's bounds bound the term (and not the reverse).
+      if (!exact) {
+        if (relation === 'sub' && Option.isSome(lv) && Option.isSome(rv)) {
+          tighten(id, ZERO, this.zone.rawBound(lv.value, rv.value))
+          tighten(ZERO, id, this.zone.rawBound(rv.value, lv.value))
+        }
+        continue
+      }
       const liv = this.evalInterval(left)
       const riv = this.evalInterval(right)
       if (relation === 'sub') {

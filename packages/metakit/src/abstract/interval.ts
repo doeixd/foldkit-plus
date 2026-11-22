@@ -17,6 +17,26 @@ export interface Interval {
 
 const norm = (n: number): number => (Object.is(n, -0) ? 0 : n)
 
+const bits = new DataView(new ArrayBuffer(8))
+
+/**
+ * The least double above `n`: `x > n` is `x >= nextUp(n)` over doubles. Both
+ * zeros step to the least subnormal, the largest finite double to +∞, and NaN
+ * and +∞ stay as they are.
+ */
+export const nextUp = (n: number): number => {
+  if (Number.isNaN(n) || n === Infinity) return n
+  if (n === 0) return Number.MIN_VALUE
+  bits.setFloat64(0, n)
+  const at = bits.getBigUint64(0)
+  // A double's bits, read as an integer, order positive doubles upward and negative ones downward.
+  bits.setBigUint64(0, n > 0 ? at + 1n : at - 1n)
+  return norm(bits.getFloat64(0))
+}
+
+/** The greatest double below `n`: `x < n` is `x <= nextDown(n)` over doubles. */
+export const nextDown = (n: number): number => norm(-nextUp(-n))
+
 /** Unbounded interval `[-∞, +∞]`. */
 export const top: Interval = Object.freeze({ lo: -Infinity, hi: Infinity })
 

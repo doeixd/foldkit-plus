@@ -63,9 +63,8 @@ describe('A write over a rule the row before already breaks', () => {
     expect(room(Schema.Int)).toMatchObject({ _tag: 'Kept' })
   })
 
-  // The checker's intervals are closed: below zero reads as at most 0, which a row at 0 meets.
-  it('is undecided over a finite number, which has no next number below zero', () => {
-    expect(room(Schema.Finite)).toMatchObject({ _tag: 'Undecided', reason: 'intervals overlap' })
+  it('is kept over doubles: below zero is at most the greatest double below it', () => {
+    expect(room(Schema.Finite)).toMatchObject({ _tag: 'Kept' })
   })
 })
 

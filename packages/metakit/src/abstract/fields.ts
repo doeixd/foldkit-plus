@@ -46,9 +46,9 @@ const boundOf = (
       return typeof value === 'number' ? Option.some(value) : Option.none()
     }
     const above = (m: number): Interval.Interval =>
-      Interval.between(isInt ? Math.floor(m) + 1 : m, Infinity)
+      Interval.between(isInt ? Math.floor(m) + 1 : Interval.nextUp(m), Infinity)
     const below = (m: number): Interval.Interval =>
-      Interval.between(-Infinity, isInt ? Math.ceil(m) - 1 : m)
+      Interval.between(-Infinity, isInt ? Math.ceil(m) - 1 : Interval.nextDown(m))
     const bounds: Readonly<Record<string, () => Option.Option<Interval.Interval>>> = {
       'effect/schema/isGreaterThanOrEqualTo': () =>
         Option.map(number('minimum'), m => Interval.between(m, Infinity)),
