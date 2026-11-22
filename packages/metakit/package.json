@@ -92,6 +92,11 @@
       "types": "./dist/store.d.ts",
       "import": "./dist/store.js"
     },
+    "./pairs": {
+      "foldkit-plus:source": "./src/pairs.ts",
+      "types": "./dist/pairs.d.ts",
+      "import": "./dist/pairs.js"
+    },
     "./temporal": {
       "foldkit-plus:source": "./src/temporal.ts",
       "types": "./dist/temporal.d.ts",

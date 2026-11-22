@@ -89,8 +89,8 @@ export default [
   ),
   mutation(
     'a broken walk discharges its obligation',
-    ".filter(({ result }) => WalkResult.$is('Held')(result))",
-    '.filter(() => true)',
+    'discharges.filter(closes)',
+    'discharges.filter(() => true)',
   ),
   mutation(
     'a scenario with no step of the obligation discharges it',

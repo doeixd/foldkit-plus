@@ -216,7 +216,7 @@ export interface WalkOptions {
 }
 
 /** A small seeded generator (mulberry32): the same seed gives the same orders everywhere. */
-const generator = (seed: number): (() => number) => {
+export const generator = (seed: number): (() => number) => {
   let a = seed >>> 0
   return () => {
     a = (a + 0x6d2b79f5) | 0
@@ -326,11 +326,20 @@ export const walk = <State, Name extends string, Of extends string = never>(
   return WalkResult.Held({ seed: first, runs })
 }
 
-/** A walk run for one obligation, and what it found. */
+/**
+ * A walk run for one obligation, and what it found. `answer` is set only by a
+ * walk that was asked what the order does rather than to show it never
+ * matters (`metakit/pairs`): its `Broken` result is the answer, an order that
+ * gives another state, and the obligation is discharged by it.
+ */
 export interface Discharge<Name extends string = string> {
   readonly obligation: Name
   readonly result: WalkResult
+  readonly answer?: 'order-matters'
 }
+
+const closes = ({ result, answer }: Discharge): boolean =>
+  WalkResult.$is('Held')(result) || answer !== undefined
 
 /**
  * Walk `scenario` for `obligation`. Throws when the scenario has no step for
@@ -363,10 +372,225 @@ export const undischarged = <Name extends string, Over extends string>(
   owed: ReadonlyArray<WalkObligation<Name, Over>>,
   discharges: ReadonlyArray<Discharge<NoInfer<Name>>>,
 ): ReadonlyArray<WalkObligation<Name, Over>> => {
-  const held = new Set(
-    discharges
-      .filter(({ result }) => WalkResult.$is('Held')(result))
-      .map(({ obligation: name }) => name),
-  )
+  const held = new Set(discharges.filter(closes).map(({ obligation: name }) => name))
   return owed.filter(({ name }) => !held.has(name))
 }
+
+/** Where an obligation belongs: `owner` names the machine or protocol, `where` the place that declared it. */
+export interface Scope {
+  readonly owner: string
+  /** `file:line` of the declaring code; read from the call stack when left out. */
+  readonly where?: string
+}
+
+/** An obligation no walk that held covers, and why it is open. */
+export interface OpenObligation {
+  readonly owner: string
+  readonly where: string
+  readonly obligation: WalkObligation
+  readonly why: string
+}
+
+/** An obligation a walk covers, and what the walk found. */
+export interface DischargedObligation {
+  readonly owner: string
+  readonly where: string
+  readonly obligation: WalkObligation
+  readonly discharge: Discharge
+}
+
+/** A pair decided without a test, why, and the walk that checked the decision, if one ran. */
+export interface DecidedPair {
+  readonly owner: string
+  readonly where: string
+  readonly name: string
+  readonly reason: string
+  readonly checked: Option.Option<WalkResult>
+}
+
+/** What a registry holds: open and discharged obligations, and the pairs decided without one. */
+export interface ObligationReport {
+  readonly open: ReadonlyArray<OpenObligation>
+  readonly discharged: ReadonlyArray<DischargedObligation>
+  readonly decided: ReadonlyArray<DecidedPair>
+  /** The decided pairs a walk showed to give another state in one order: each is a wrong decision. */
+  readonly refuted: ReadonlyArray<DecidedPair>
+  /** No obligation is open and no decision is refuted. */
+  readonly ok: boolean
+  /** The report as text: open first, then discharged, then decided with the reason. */
+  readonly format: () => string
+}
+
+/**
+ * Everything declared and shown for obligations. A package adds its own:
+ * `declare` what it owes, `record` a walk that covers it, `decide` a pair that
+ * needs no test. `report` reads them all, whichever package added them.
+ */
+export interface Registry {
+  /** Obligations `scope` owes. Declaring a name again from the same place replaces it; from another place throws. */
+  readonly declare: (scope: Scope, owed: ReadonlyArray<WalkObligation>) => void
+  /** A walk's result for an obligation `scope` declared: throws for a name it did not. */
+  readonly record: (scope: Scope, discharge: Discharge) => void
+  /** A pair of `scope` that needs no test, with the rule that decided it and the walk that checked it. */
+  readonly decide: (
+    scope: Scope,
+    decided: { readonly name: string; readonly reason: string; readonly checked?: WalkResult },
+  ) => void
+  readonly report: () => ObligationReport
+}
+
+/** The first frame of the call stack outside metakit itself, as `file:line`. */
+const callerOf = (): string => {
+  const frame = (new Error().stack ?? '')
+    .split('\n')
+    .slice(1)
+    .find(
+      line => !/[\\/]metakit[\\/](?:src|dist)[\\/]/.test(line) && !line.includes('node:internal'),
+    )
+  return /([^\s()]+:\d+):\d+\)?\s*$/.exec(frame ?? '')?.[1]?.replace(/^file:\/+/, '') ?? 'unknown'
+}
+
+const describeResult = (result: WalkResult): string =>
+  WalkResult.$match(result, {
+    Held: ({ seed, runs }) => `held over ${runs} runs from seed ${seed}`,
+    Broken: ({ seed, minimal, reason }) =>
+      `broke at seed ${seed} in the order ${minimal.join(', ')}: ${reason}`,
+  })
+
+/** The case a walk found where the order matters: its seed, and what differed. */
+const describeAnswer = (result: WalkResult): string =>
+  WalkResult.$match(result, {
+    Held: () => 'the walk held',
+    Broken: ({ seed, reason }) => `seed ${seed}: ${reason}`,
+  })
+
+/** An empty registry. Most code wants `registry`, the one every package shares. */
+export const makeRegistry = (): Registry => {
+  const owed = new Map<string, { scope: Required<Scope>; obligation: WalkObligation }>()
+  const shown = new Map<string, Array<Discharge>>()
+  const decided = new Map<string, DecidedPair>()
+  const keyOf = (owner: string, name: string) => `${owner}\u0000${name}`
+  const placed = (scope: Scope): Required<Scope> => ({
+    owner: scope.owner,
+    where: scope.where ?? callerOf(),
+  })
+
+  const report = (): ObligationReport => {
+    const open: Array<OpenObligation> = []
+    const discharged: Array<DischargedObligation> = []
+    for (const [key, { scope, obligation }] of owed) {
+      const walks = shown.get(key) ?? []
+      const closing = walks.find(closes)
+      if (closing !== undefined) {
+        discharged.push({ ...scope, obligation, discharge: closing })
+        continue
+      }
+      const last = walks.at(-1)
+      open.push({
+        ...scope,
+        obligation,
+        why: last === undefined ? 'no walk has covered it' : describeResult(last.result),
+      })
+    }
+    const all = [...decided.values()]
+    const refuted = all.filter(
+      ({ checked }) => Option.isSome(checked) && WalkResult.$is('Broken')(checked.value),
+    )
+    const lines = (title: string, rows: ReadonlyArray<string>) =>
+      [`${title} (${rows.length})`, ...rows.map(row => `  ${row}`)].join('\n')
+    return {
+      open,
+      discharged,
+      decided: all,
+      refuted,
+      ok: open.length === 0 && refuted.length === 0,
+      format: () =>
+        [
+          lines(
+            'open',
+            open.map(
+              ({ owner, obligation, where, why }) =>
+                `${owner} ${obligation.name} (declared at ${where}): ${why}`,
+            ),
+          ),
+          lines(
+            'discharged',
+            discharged.map(({ owner, obligation, discharge }) =>
+              discharge.answer === undefined
+                ? `${owner} ${obligation.name}: ${describeResult(discharge.result)}`
+                : `${owner} ${obligation.name}: the order matters (${describeAnswer(discharge.result)})`,
+            ),
+          ),
+          lines(
+            'decided without a test',
+            all.map(({ owner, name, reason, checked }) =>
+              Option.match(checked, {
+                onNone: () => `${owner} ${name}: ${reason}`,
+                onSome: result =>
+                  `${owner} ${name}: ${reason}; checked by a walk that ${describeResult(result)}`,
+              }),
+            ),
+          ),
+          ...(refuted.length === 0
+            ? []
+            : [
+                lines(
+                  'decided wrongly (a walk gave another state in one order)',
+                  refuted.map(({ owner, name, reason }) => `${owner} ${name}: ${reason}`),
+                ),
+              ]),
+        ].join('\n'),
+    }
+  }
+
+  return {
+    declare: (scope, obligations) => {
+      const at = placed(scope)
+      for (const obligation of obligations) {
+        const key = keyOf(at.owner, obligation.name)
+        const before = owed.get(key)
+        if (before !== undefined && before.scope.where !== at.where) {
+          throw new Error(
+            `[metakit] Temporal.declare: ${at.owner} declares "${obligation.name}" at ${before.scope.where} and again at ${at.where}`,
+          )
+        }
+        owed.set(key, { scope: at, obligation })
+        shown.delete(key)
+      }
+    },
+    record: (scope, discharge) => {
+      const key = keyOf(scope.owner, discharge.obligation)
+      if (!owed.has(key)) {
+        throw new Error(
+          `[metakit] Temporal.record: ${scope.owner} declared no obligation "${discharge.obligation}"`,
+        )
+      }
+      shown.set(key, [...(shown.get(key) ?? []), discharge])
+    },
+    decide: (scope, { name, reason, checked }) => {
+      const at = placed(scope)
+      decided.set(keyOf(at.owner, name), {
+        ...at,
+        name,
+        reason,
+        checked: Option.fromUndefinedOr(checked),
+      })
+    },
+    report,
+  }
+}
+
+const sharedKey = Symbol.for('metakit/temporal/registry')
+
+/**
+ * The registry every package shares: one per process, kept on `globalThis` so
+ * a second copy of this module (a workspace and a published build side by
+ * side) reads and adds to the same one.
+ */
+export const registry: Registry = (() => {
+  const held: Registry | undefined = Reflect.get(globalThis, sharedKey)
+  if (held !== undefined) return held
+  const made = makeRegistry()
+  Reflect.set(globalThis, sharedKey, made)
+  return made
+})()
