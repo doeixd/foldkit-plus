@@ -333,6 +333,43 @@ test('a page reaching the main entry of foldkit-entity keeps no writeTransition 
 }, 240_000)
 
 /**
+ * `Expr` is a namespace and the reading of a `Rows` node arrives with its
+ * constructor: a page that judges an `eq` keeps no related-rows constructor
+ * (`expr/relation`) and none of metakit's folds (`ops/rows`, `ops/partialRows`);
+ * a page that builds an `Expr.exists` keeps all three.
+ */
+test.each([
+  ['judges an eq', 'Expr.eq(Item.fields.name, "a")', false],
+  ['builds an exists', 'Expr.exists(Item.relations.parent)', true],
+] as const)(
+  'a page that %s keeps the reading of related rows only with its constructor, built or source',
+  async (_, built_, keeps) => {
+    const root = scratchIn('entity', 'published-')
+    made.push(root)
+    const page = [
+      `import { Schema } from 'effect'`,
+      `import { Entity, Expr, Relation, truthOver } from 'pkg'`,
+      `const Plain = Entity.define('Item', Schema.Struct({ id: Schema.String, name: Schema.String }))`,
+      `const { Item } = Entity.relate({ Item: Plain }, { Item: { parent: Relation.one(Plain) } })`,
+      `export const used = () => truthOver(${built_}, {})`,
+    ].join('\n')
+    const kept = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const ids = [
+      ...(await kept(await buildPublished('entity', root))),
+      ...(await kept(join(packages, 'entity', 'src', 'index.ts'))),
+    ]
+    const reading = ids.filter(id =>
+      /\/(entity\/(src|dist)\/expr\/relation|metakit\/(src|dist)\/ops\/(rows|partialRows))\.(m?js|ts)$/.test(
+        id,
+      ),
+    )
+    expect(reading.length > 0).toBe(keeps)
+  },
+  240_000,
+)
+
+/**
  * `Laws.check` runs metakit's checker, so it is `foldkit-entity/laws`: a
  * page reaching the main entry keeps neither the check nor its witness
  * search, built or source.
