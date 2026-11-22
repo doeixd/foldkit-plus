@@ -48,6 +48,8 @@ const G = Guards.declare(
     titled: guard.row(Related.Item, () => Expr.eq(title, 'open')),
     stocked: guard.row(Related.Item, () => Expr.gt(stock, 0)),
     summed: guard.row(Related.Item, () => Expr.gt(Expr.add(stock, revision), 0)),
+    inTeam: guard.row(Related.Item, () => Expr.eq(Related.Item.relations.team, 't1')),
+    anonymous: guard.row(Related.Item, p => Expr.isNull(p.id)),
     inOpenTeam: guard.row(Related.Item, () =>
       Expr.eq(Expr.path(Related.Item.relations.team, Related.Team.fields.open), true),
     ),
@@ -100,6 +102,39 @@ describe('a refusal inside a guard', () => {
     expect(
       Effect.runSync(Policy.decide(guard, { principal: ada, interaction: 'Update', row: values })),
     ).toBe(false)
+  })
+
+  it('is like a rule one row cannot judge: neither holds, beside a guard that allows', () => {
+    const holds = (update: ReadonlyArray<ItemRule>) =>
+      Condition.holds(
+        conditionOf({ Update: update }),
+        row,
+        Policy.inputOf(ada),
+        () => false,
+        Policy.operators,
+      )
+    expect(holds([G.isOwner])).toBe(true)
+    expect(holds([G.inOpenTeam])).toBe(false)
+    expect(holds([G.isOwner, G.inOpenTeam])).toBe(false)
+  })
+
+  it('of a link that is no ref key is a no, not a crash', () => {
+    const holds = (team: string) =>
+      Condition.holds(
+        conditionOf({ Update: [G.inTeam] }),
+        { ...row, team },
+        Policy.inputOf(ada),
+        () => false,
+        Policy.operators,
+      )
+    expect(holds('Team:t1')).toBe(true)
+    expect(holds('t1')).toBe(false)
+  })
+
+  it('leaves a visitor out of a rule over the principal, even one a visitor’s nothing meets', () => {
+    const ask = (principal: Option.Option<User>) =>
+      Effect.runSync(Policy.decide(G.anonymous, { principal, interaction: 'Update', row }))
+    expect(ask(Option.none())).toBe(false)
   })
 
   it('in a principal’s own fields refuses what it reads, and a guard beside it', () => {

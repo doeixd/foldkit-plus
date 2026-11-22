@@ -88,8 +88,8 @@ export default [
   edit(
     'one row decides a rule that reads another, as false',
     condition,
-    '          reachesOther(row.guard)',
-    '          false',
+    '          if (reachesOther(row.guard)) return each',
+    '          if (false) return each',
   ),
   edit(
     'may answers what one row cannot decide, as false',

@@ -9,10 +9,10 @@ const check = (name: string, find: string, replace: string) => ({
 export default [
   check(
     'a comparison over an absent key is proved as one over a number',
-    '!SchemaAST.isOptional(schema.ast) &&',
+    '!SchemaAST.isOptional(stored.ast) &&',
     '',
   ),
-  check('a comparison over NaN is proved as one over a number', '!Schema.is(schema)(NaN)', 'true'),
+  check('a comparison over NaN is proved as one over a number', '!Schema.is(stored)(NaN)', 'true'),
   check(
     'a surface without rules is open in a closed set',
     "attachment.unguarded === 'allow'",
@@ -30,14 +30,9 @@ export default [
   ),
   check('an all asks any rule', 'Expr.all(...rules.map(term))', 'Expr.any(...rules.map(term))'),
   check(
-    'an or asks both sides',
-    '(terms): Term => Expr.any(...terms)',
-    '(terms): Term => Expr.all(...terms)',
-  ),
-  check(
-    'an and asks either side',
-    '(terms): Term => Expr.all(...terms)',
-    '(terms): Term => Expr.any(...terms)',
+    'an invariant over the row a write leaves is not assumed of the stored row',
+    "path.segments[0] === 'next'",
+    'false',
   ),
   check(
     'a relation is read as a member without a rule',

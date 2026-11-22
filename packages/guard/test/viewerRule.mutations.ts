@@ -13,8 +13,8 @@ export default [
   edit(
     'a rule judged in memory is given no context',
     '../src/condition.ts',
-    '            operators,\n            context,\n          }).matched.length === 1,',
-    '            operators,\n          }).matched.length === 1,',
+    '      context,\n      rows: over.rows,',
+    '      context: undefined,\n      rows: over.rows,',
   ),
   edit(
     'the viewer is not the principal’s key',

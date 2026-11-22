@@ -283,6 +283,19 @@ Not removed: `ops/rows` (2,773) and the `Rows` reading. Registering them from th
 
 The Worker bundles, raw bytes, after (neither ceiling raised; the coordinator decides those): `examples/foldkit/domains-plus` 3,328,366 against 3,277,700 (it read about 3,333,078 after step 5); `examples/cloudflare` 4,636,820 against 4,577,000 (it read 4,636,226 before this change in another tree, with about 19 kB of step 8's `remote-drizzle` lowering in it; not measured before and after in one tree here, so the +594 is not attributed). A Worker carries both readers.
 
+### Guard on the translation (Phase 1, step 9, `d78fa53c1`)
+
+`foldkit-guard`'s condition evaluator, its page-side judge and `may`'s prediction now read each row guard through `foldkit-entity/lowering` and metakit's `settleNode` and `judgeNode`, instead of calling entity's `evaluateEach` and `Judge.predicate` per guard and joining the answers with its own `every` and `some`. Each page read with its budget test (`PERF_REPORT`), one at a time, in one tree: before with `packages/guard/src` as at `0bf652dcc`, after as at `d78fa53c1`. Another session was building in the tree, and two of the first after-runs failed to build; each reading below is from a run that passed.
+
+| Budget | Before | After | Change | Ceiling |
+| --- | ---: | ---: | ---: | ---: |
+| cloudflare | 232,195 | 232,085 | −110 | 232,159 |
+| reference | 259,541 | 259,853 | +312 | 259,876 |
+| registry | 269,417 | 269,504 | +87 | 269,671 |
+| auth | 235,209 | 235,565 | +356 | 235,668 |
+
+Deleting guard's own joining did not shrink the pages that predict `may` (reference, auth): what replaced it (building one metakit expression of the guards, a stored row as a holder, the refusal of a malformed link) is larger than the `Match` over the condition it replaced, and the translation and judge it calls were on those pages already through entity's judge. Every budget still passes; reference has 23 bytes of headroom. Step 10 owes these with the rest: `Condition.holds` and `Condition.residual` are server-side and sit on the page only because `Condition` is one exported object.
+
 **Forecast for step 10 on top**, from minified sizes at a 0.275 brotli ratio, not a build: deleting `lower`, `lowerEnv` and `lowerOperator` (6,927 minified in registry) returns 0.6 to 1.9 kB; the `Rows` reading off pages that do not call `exists`, once `expr.ts` is split, about 1.15 kB more. That leaves about 3.8 to 5.6 kB of each page's debt, unless the split of `expr.js` (27.7 kB minified) itself returns it.
 
 ## Laws on metakit's checker (Phase 1, step 7, `c02c2dcf1`)
