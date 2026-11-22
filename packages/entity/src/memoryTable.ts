@@ -9,12 +9,7 @@
 import { Option } from 'effect'
 import { add, sub } from './expr/arithmetic.js'
 import type { OperatorDescriptor } from './expr/operator.js'
-import type {
-  Evidence,
-  MemoryImplementation,
-  MemoryOperators,
-  OperatorContext,
-} from './operators.js'
+import type { MemoryImplementation, MemoryOperators, OperatorContext } from './operators.js'
 import { Text } from './text.js'
 
 /** An operator by its id, and its version when that is not the first. */
@@ -35,7 +30,6 @@ const kernel: ReadonlyMap<string, OperatorDescriptor> = new Map(
 export const table = (
   implementations: ReadonlyArray<MemoryImplementation>,
   checked: boolean,
-  evidence: ReadonlyArray<Evidence>,
 ): MemoryOperators => {
   const byOperator = new Map<OperatorDescriptor, MemoryImplementation['run']>()
   const byName = new Map<string, OperatorDescriptor>(kernel)
@@ -66,7 +60,6 @@ export const table = (
     named: (name: string) => Option.fromUndefinedOr(byName.get(name)),
     checked,
     implementations: Object.freeze([...implementations]),
-    evidence: Object.freeze([...evidence]),
   })
 }
 
@@ -97,4 +90,4 @@ export const implementation = (
 }
 
 /** A table implementing nothing: it runs the kernel's operators, as every table does. */
-export const kernelOperators = table([], false, [])
+export const kernelOperators = table([], false)

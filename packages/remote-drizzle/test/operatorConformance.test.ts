@@ -13,7 +13,7 @@ import { PgDialect, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { SQLiteDialect, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Schema } from 'effect'
 import { Conformance, type Runner } from 'foldkit-entity/conformance'
-import { Expr, Law, Operators, Text } from 'foldkit-entity'
+import { Expr, Operators, Text } from 'foldkit-entity'
 import { Node } from 'metakit'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { DrizzleOperators, compileCall, entity, type CompileTarget } from '../src/index.js'
@@ -25,7 +25,7 @@ const concat = Expr.operator('acme.concat', {
   input: [Schema.String, Schema.String],
   output: Schema.String,
   collation: 'operands',
-  laws: [Law.associative, Law.identity('')],
+  claims: { associative: true, identity: { value: '', side: 'both' } },
 })
 const operators = {
   memory: Operators.merge(
@@ -112,14 +112,6 @@ describe.each(Object.entries(databases))('Operators run by %s', (_, database) =>
     // Null, nine numbers, both sides: 10 × 10.
     expect(report.cases).toBe(100)
     expect(report.disagreements).toEqual([])
-  })
-
-  it.each([
-    ['Expr.add', Expr.add],
-    ['Expr.sub', Expr.sub],
-  ] as const)('%s keeps the laws it declares, run by the database', async (name, op) => {
-    const verdict = await Conformance.lawsBy(op, database, { implementation: name })
-    expect(verdict._tag).toBe('Holds')
   })
 
   it('an application’s concat answers every generated call as memory does', async () => {

@@ -99,17 +99,7 @@ describe('Expr.add and Expr.sub', () => {
           'Subtraction over numbers, of two arguments: the first minus the second (left - right); null when either is null.',
       },
     ])
-    expect(described.map(({ laws }) => laws.map(law => law.kind))).toEqual([
-      ['commutative', 'monotonic', 'monotonic'],
-      ['monotonic', 'monotonic'],
-    ])
-  })
-
-  it.each([
-    ['Expr.add', Expr.add],
-    ['Expr.sub', Expr.sub],
-  ] as const)('%s keeps the laws it declares in memory', (_, op) => {
-    expect(Conformance.laws(op, Operators.kernel)._tag).toBe('Holds')
+    expect(described.map(({ claims }) => claims)).toEqual([{}, {}])
   })
 
   const rows = [

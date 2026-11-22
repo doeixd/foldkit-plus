@@ -51,7 +51,7 @@ const joinedLive = Operators.implement(joined, (left, right) => `${left}${right}
 const blank = Expr.operator('acme.blank', {
   input: [Schema.NullOr(Schema.String)],
   output: Schema.Boolean,
-  nulls: 'handled',
+  nulls: 'own',
 })
 const blankLive = Operators.implementHandlingNulls(blank, value =>
   value === null ? true : value.trim() === '',
@@ -149,14 +149,14 @@ describe('A primitive operator', () => {
     )
   })
 
-  it('has its answer held to its output schema by a checked table', () => {
+  it('holds its answer to its output schema on every call', () => {
     const short = Expr.operator('acme.short', {
       input: [Schema.String],
       output: Schema.String.check(Schema.isMaxLength(1)),
     })
     const long = Operators.memory(Operators.implement(short, () => 'ab'))
     const body = where(Expr.eq(short(fields.code), 'x'))
-    expect(() => ids(body, long)).not.toThrow()
+    expect(() => ids(body, long)).toThrow('outside its result Schema')
     expect(() => ids(body, Operators.checked(long))).toThrow(
       'expected a value its output schema admits',
     )
@@ -261,7 +261,7 @@ describe('An operator declaration', () => {
         input: [Schema.String],
         output: Schema.Boolean,
         definedAs: (name: ExprOf<string>) => Expr.isNull(name),
-        nulls: 'handled',
+        nulls: 'own',
       }),
     ).toThrow("a defined operator means its body, so `nulls` and `collation` are its body's")
   })

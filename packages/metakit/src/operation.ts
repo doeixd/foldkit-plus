@@ -202,8 +202,10 @@ const scalarKindOf = (ast: SchemaAST.AST): Node.ValueKind | undefined => {
     if (typeof ast.literal === 'string') return 'text'
   }
   if (SchemaAST.isUnion(ast) && ast.types.length > 0) {
-    const first = scalarKindOf(ast.types[0]!)
-    if (first !== undefined && ast.types.every(member => scalarKindOf(member) === first)) {
+    const nonNull = ast.types.filter(member => !SchemaAST.isNull(member))
+    if (nonNull.length === 0) return undefined
+    const first = scalarKindOf(nonNull[0]!)
+    if (first !== undefined && nonNull.every(member => scalarKindOf(member) === first)) {
       return first
     }
   }

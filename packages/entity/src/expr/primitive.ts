@@ -8,10 +8,9 @@
  * arguments where the call is built.
  */
 import { Option, Schema } from 'effect'
-import { Node, type OpProperties } from 'metakit'
+import { Node } from 'metakit'
+import * as Operation from 'metakit/operation'
 import type { Collation } from '../collation.js'
-import type { Law } from '../law.js'
-import { Laws } from '../lawCore.js'
 import { kindOfAst } from './kind.js'
 import { folded } from './operand.js'
 import type { OperatorDescriptor } from './operator.js'
@@ -38,37 +37,6 @@ const returnsOf = (operator: OperatorDescriptor): Node.ValueKind | 'other' => {
   return kind === 'null' ? 'other' : kind
 }
 
-/**
- * The properties a law declares, where metakit's set says the same thing:
- * only a law over the operator's whole input, since a property holds for
- * every value. No reader acts on a foreign operation's properties yet.
- */
-const propertiesOf = (laws: ReadonlyArray<Law>): OpProperties =>
-  laws
-    .filter(law => Option.isNone(law.domain))
-    .reduce<OpProperties>(
-      (properties, law) =>
-        Laws.$match(law, {
-          Commutative: (): OpProperties => ({ ...properties, commutative: true }),
-          Idempotent: (): OpProperties => ({ ...properties, idempotent: true }),
-          Identity: ({ value, side }): OpProperties => ({
-            ...properties,
-            identity: { value, side },
-          }),
-          Absorbing: ({ value, side }): OpProperties => ({
-            ...properties,
-            absorbing: { value, result: value, side },
-          }),
-          // Each of these says less, or other, than metakit's property of the name.
-          Associative: () => properties,
-          Inverse: () => properties,
-          Distributes: () => properties,
-          Monotonic: () => properties,
-          PreservesCollation: () => properties,
-        }),
-      {},
-    )
-
 const foreignOps = new WeakMap<OperatorDescriptor, Node.ForeignOp>()
 const declarations = new WeakMap<Node.ForeignOp, OperatorDescriptor>()
 
@@ -76,19 +44,23 @@ const declarations = new WeakMap<Node.ForeignOp, OperatorDescriptor>()
 const unheldKind = (operator: OperatorDescriptor): string =>
   `${Node.foreignName(operator)} gives neither a number, a boolean nor text, which a foreign operation declares`
 
-/** A primitive operator as a foreign operation, made once per declaration. */
+/** A primitive operator as a foreign operation, made once per declaration through `Operation.define`. */
 export const foreignOpOf = (operator: OperatorDescriptor): Node.ForeignOp => {
   const known = foreignOps.get(operator)
   if (known !== undefined) return known
   const returns = returnsOf(operator)
   if (returns === 'other') throw new Error(`[foldkit-entity] ${unheldKind(operator)}`)
-  const made = Node.foreign({
+  const defined = Operation.define({
     id: operator.id,
     version: operator.version,
-    returns,
-    nulls: operator.nulls === 'strict' ? 'strict' : 'own',
-    properties: propertiesOf(operator.laws),
-  })
+    args: operator.input.map(Schema.toEncoded) as ReadonlyArray<Schema.Top>,
+    returns: Schema.toEncoded(operator.output),
+    nulls: operator.nulls,
+    ...(Object.keys(operator.claims).length > 0
+      ? { claims: operator.claims as Record<string, unknown> }
+      : {}),
+  } as Parameters<typeof Operation.define>[0])
+  const made = defined.descriptor
   foreignOps.set(operator, made)
   declarations.set(made, operator)
   return made

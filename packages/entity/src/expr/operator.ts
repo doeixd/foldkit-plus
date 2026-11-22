@@ -7,7 +7,6 @@
 import { Option, Schema, SchemaAST } from 'effect'
 import { Node } from 'metakit'
 import type { Collation } from '../collation.js'
-import type { Law } from '../law.js'
 import { readKeys } from './dependencies.js'
 import {
   collationOf,
@@ -22,7 +21,6 @@ import {
   type ReadsOf,
 } from './operand.js'
 import { kindOf } from './kind.js'
-import { lawProblem } from './operatorLaws.js'
 import { callOperator, kernel, storedKindOf, type KernelBuild } from './primitive.js'
 import { show } from './show.js'
 import type { EntityField } from '../index.js'
@@ -49,10 +47,10 @@ export interface OperatorDescriptor {
   readonly definedAs: Option.Option<(...args: ReadonlyArray<AnyExpr>) => unknown>
   /**
    * A primitive operator's null rule. `strict`: a null argument gives null, or
-   * unknown for a predicate, and the implementation never sees one. `handled`:
+   * unknown for a predicate, and the implementation never sees one. `own`:
    * the implementation is given nulls and answers for them.
    */
-  readonly nulls: 'strict' | 'handled'
+  readonly nulls: 'strict' | 'own'
   /**
    * How a call compares text. `operands`: it carries the collation its collated
    * text arguments share, so its text result compares under it. `required`: the
@@ -60,8 +58,8 @@ export interface OperatorDescriptor {
    * `Text.startsWith` does). `none`: it carries none.
    */
   readonly collation: 'none' | 'operands' | 'required'
-  /** The equations every implementation keeps (`Law`), checked where declared, tested by `Conformance.laws`. */
-  readonly laws: ReadonlyArray<Law>
+  /** Algebraic claims every implementation keeps (`metakit/operation`), checked by `checkOperation`. */
+  readonly claims: Node.ForeignClaims
 }
 
 /** A schema's stored form, which is what an operator takes and gives. */
@@ -256,7 +254,8 @@ const fresh = (node: Node.Node): Node.Node =>
     If: ({ cond, then, otherwise }) => Node.If({ cond, then, otherwise }),
     Match: ({ on, cases, otherwise }) => Node.Match({ on, cases, otherwise }),
     Opaque: ({ name, reads, run }) => Node.Opaque({ name, reads, run }),
-    Rows: ({ fold, over, where, value, set }) => Node.Rows({ fold, over, where, value, set }),
+    Rows: ({ fold, over, where, value, set, op }) =>
+      Node.Rows({ fold, over, where, value, set, ...(op === undefined ? {} : { op }) }),
   })
 
 /** What `makeOperator` takes: `Expr.operator`'s options, and how the kernel builds its own. */
@@ -268,7 +267,7 @@ interface OperatorOptions {
   readonly definedAs?: ((...args: ReadonlyArray<AnyExpr>) => unknown) | undefined
   readonly nulls?: OperatorDescriptor['nulls'] | undefined
   readonly collation?: OperatorDescriptor['collation'] | undefined
-  readonly laws?: ReadonlyArray<Law> | undefined
+  readonly claims?: Node.ForeignClaims | undefined
 }
 
 /** Builds an operator: checks what it is given once, then each call. */
@@ -301,9 +300,12 @@ export const makeOperator = (
   ) {
     fail("a defined operator means its body, so `nulls` and `collation` are its body's")
   }
+  if (Option.isSome(definedAs) && options.claims !== undefined) {
+    fail("a defined operator is its body, and readers read the body's operations; remove claims.")
+  }
   const nulls = options.nulls ?? 'strict'
   const collation = options.collation ?? 'none'
-  if (nulls !== 'strict' && nulls !== 'handled') fail("`nulls` is 'strict' or 'handled'")
+  if (nulls !== 'strict' && nulls !== 'own') fail("`nulls` is 'strict' or 'own'")
   if (collation !== 'none' && collation !== 'operands' && collation !== 'required') {
     fail("`collation` is 'none', 'operands' or 'required'")
   }
@@ -312,13 +314,7 @@ export const makeOperator = (
   if (collation === 'operands' && storedKindOf(options.output) !== 'text') {
     fail("`collation: 'operands'` describes a text result, and this one is not text")
   }
-  const laws = Object.freeze([...(options.laws ?? [])])
-  for (const law of laws) {
-    Option.match(lawProblem(law, input, options.output, collation), {
-      onNone: () => undefined,
-      onSome: fail,
-    })
-  }
+  const claims: Node.ForeignClaims = Object.freeze({ ...(options.claims ?? {}) })
   const descriptor: OperatorDescriptor = Object.freeze({
     _tag: 'Operator',
     id,
@@ -329,7 +325,7 @@ export const makeOperator = (
     definedAs,
     nulls,
     collation,
-    laws,
+    claims,
   })
   if (build !== undefined) kernel(descriptor, build)
   /** A defined call's expansion, checked: of its output's kind, reading only its arguments. */
@@ -452,8 +448,6 @@ export const operator = <const In extends ReadonlyArray<Schema.Top>, Out extends
     readonly output: Out
     readonly version?: number | undefined
     readonly description?: string | undefined
-    /** Equations every implementation keeps (`Law.commutative`, `Law.identity('')`, …). */
-    readonly laws?: ReadonlyArray<Law> | undefined
   } & (
     | {
         readonly definedAs: (
@@ -461,11 +455,14 @@ export const operator = <const In extends ReadonlyArray<Schema.Top>, Out extends
         ) => [StoredOf<Out>] extends [boolean] ? Predicate : Expr<StoredOf<Out>>
         readonly nulls?: undefined
         readonly collation?: undefined
+        readonly claims?: undefined
       }
     | {
         readonly definedAs?: undefined
         readonly nulls?: OperatorDescriptor['nulls'] | undefined
         readonly collation?: OperatorDescriptor['collation'] | undefined
+        /** Algebraic claims every implementation keeps (`metakit/operation`), checked by `checkOperation`. */
+        readonly claims?: Node.ForeignClaims | undefined
       }
   ),
 ): Operator<In, Out> => makeOperator(id, options as OperatorOptions) as unknown as Operator<In, Out>

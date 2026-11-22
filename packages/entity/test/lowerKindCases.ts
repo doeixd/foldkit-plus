@@ -43,7 +43,7 @@ const double = Expr.operator('lower.double', {
 const orZero = Expr.operator('lower.orZero', {
   input: [Schema.NullOr(Schema.Number)],
   output: Schema.Number,
-  nulls: 'handled',
+  nulls: 'own',
 })
 const same = Expr.operator('lower.same', {
   input: [Schema.NullOr(Schema.String), Schema.NullOr(Schema.String)],

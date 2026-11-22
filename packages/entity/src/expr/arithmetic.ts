@@ -1,14 +1,10 @@
 /** The kernel's arithmetic, `Expr.add` and `Expr.sub`: metakit's `num.add` and `num.sub`. */
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import { Node, Num } from 'metakit'
-import { Laws } from '../lawCore.js'
 import { makeOperator, type Operator } from './operator.js'
 
 /** A number, or a null, which a strict operator answers with null. */
 const NullableNumber = Schema.NullOr(Schema.Number)
-
-/** Each law of addition and subtraction holds over finite numbers; an infinity minus itself is NaN. */
-const finiteDomain: Option.Option<Schema.Top> = Option.some(Schema.Finite)
 
 type Arithmetic = Operator<
   readonly [typeof NullableNumber, typeof NullableNumber],
@@ -37,11 +33,6 @@ export const add = makeOperator(
     output: Schema.Number,
     description:
       'Addition over numbers, of two arguments: the first plus the second (left + right); null when either is null.',
-    laws: [
-      Laws.Commutative({ domain: finiteDomain }),
-      Laws.Monotonic({ domain: finiteDomain, direction: 'increasing', position: 0 }),
-      Laws.Monotonic({ domain: finiteDomain, direction: 'increasing', position: 1 }),
-    ],
   },
   args => Node.Call({ op: Num.addOp, args }),
 ) as unknown as Arithmetic
@@ -54,10 +45,6 @@ export const sub = makeOperator(
     output: Schema.Number,
     description:
       'Subtraction over numbers, of two arguments: the first minus the second (left - right); null when either is null.',
-    laws: [
-      Laws.Monotonic({ domain: finiteDomain, direction: 'increasing', position: 0 }),
-      Laws.Monotonic({ domain: finiteDomain, direction: 'decreasing', position: 1 }),
-    ],
   },
   args => Node.Call({ op: Num.subOp, args }),
 ) as unknown as Arithmetic

@@ -46,7 +46,6 @@ import {
   type EntityIdentity,
   type EntityRef,
   type Change,
-  type Evidence,
   type Invariant,
   type WriteAssignment,
 } from 'foldkit-entity'
@@ -1529,19 +1528,11 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
       each => !amountReads.operators.includes(each),
     )
     if (operator === undefined || others.length > 0) return false
-    const name = operator.version === 1 ? operator.id : `${operator.id}@${operator.version}`
-    const tested = (evidence: ReadonlyArray<Evidence>, kind: string) =>
-      evidence.some(
-        record =>
-          record._tag === 'Tested' &&
-          record.operator === name &&
-          record.law.kind === kind &&
-          record.law.domain === null,
-      )
-    return ['commutative', 'associative'].every(
-      kind =>
-        tested(binding.operators.memory.evidence, kind) &&
-        tested(binding.operators.sql.evidence, kind),
+    return (
+      binding.operators.memory.has(operator) &&
+      binding.operators.sql.has(operator) &&
+      operator.claims.commutative === true &&
+      operator.claims.associative === true
     )
   }
 

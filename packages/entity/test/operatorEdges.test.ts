@@ -115,7 +115,7 @@ describe('An operator that handles null', () => {
     const given = Expr.operator('acme.given', {
       input: [Schema.NullOr(Schema.String)],
       output: Schema.Boolean,
-      nulls: 'handled',
+      nulls: 'own',
     })
     const seen: Array<unknown> = []
     const operators = Operators.memory(
