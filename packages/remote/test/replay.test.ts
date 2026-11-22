@@ -179,3 +179,73 @@ describe('a set pending under a newer value', () => {
     })
   })
 })
+
+describe('concurrent pending writes, slow answers, and multi-patch layers', () => {
+  it('C2: settling one pending request preserves kept entries for other pending requests on the same field', () => {
+    const reqA = Posts.mutate(
+      known,
+      Edit,
+      { id: 'p1' },
+      { requestId: 'reqA', optimistic: [Post.patch('p1', { title: 'C' })] },
+    ).model
+    const both = Posts.mutate(
+      reqA,
+      Edit,
+      { id: 'p1' },
+      { requestId: 'reqB', optimistic: [Post.patch('p1', { title: 'B' })] },
+    ).model
+    // Live patch 'C' lands while both reqA and reqB are pending.
+    const afterPatch = Posts.reduce(both, patched({ title: 'C' }, 1, 2))
+    // reqA settles matching 'C' (no reread), while reqB is still in flight.
+    const afterA = Posts.reduce(afterPatch, {
+      _tag: 'MutationSucceeded',
+      requestId: 'reqA',
+      entities: [{ entity: 'Post', id: 'p1', values: { title: 'C' }, revision: 2 }],
+      now: 20,
+    })
+    // Late stale answer for reqB ('B') MUST still see that title moved while reqB was pending and schedule a reread.
+    const afterB = settle(afterA, [
+      {
+        _tag: 'MutationSucceeded',
+        requestId: 'reqB',
+        entities: [{ entity: 'Post', id: 'p1', values: { title: 'B' }, revision: 1 }],
+        now: 30,
+      },
+    ])
+    expect(afterB).toMatchObject({ tag: 'Refreshing', rereads: true })
+  })
+
+  it('H7: a second read while pending updates the optimistic base of a relative add', () => {
+    const afterRead1 = Posts.reduce(liked, read({ likes: 11 }, 10, 2))
+    expect(post.read(afterRead1)).toMatchObject({ _tag: 'Ready', value: { likes: 12 } })
+    const afterRead2 = Posts.reduce(afterRead1, read({ likes: 15 }, 20, 3))
+    expect(post.read(afterRead2)).toMatchObject({ _tag: 'Ready', value: { likes: 16 } })
+  })
+
+  it('M3: revisions at or above Number.MAX_SAFE_INTEGER are not treated as rightAfter', () => {
+    const maxRev = Number.MAX_SAFE_INTEGER
+    const settled = settle(liked, [
+      patched({ likes: 11 }, 1, maxRev),
+      answered({ likes: 12 }, maxRev + 1),
+    ])
+    expect(settled).toMatchObject({ rereads: true })
+  })
+
+  it('M4: a layer with a set followed by an add on the same field does not falsely replay as a pure add', () => {
+    const mixed = Posts.mutate(
+      known,
+      Edit,
+      { id: 'p1' },
+      {
+        requestId: 'a',
+        optimistic: [
+          { entity: 'Post', id: 'p1', values: { likes: 50 } },
+          { entity: 'Post', id: 'p1', values: {}, adds: { likes: 1 } },
+        ],
+      },
+    ).model
+    // Newer value is 11 at rev 2; answer is 12 at rev 3 (matches 11 + 1, but layer also had a set!).
+    const settled = settle(mixed, [patched({ likes: 11 }, 1, 2), answered({ likes: 12 }, 3)])
+    expect(settled).toMatchObject({ rereads: true })
+  })
+})

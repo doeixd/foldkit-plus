@@ -34,7 +34,7 @@ export default [
   edit(
     'the replay leaves the newer value as it was',
     replay,
-    'Option.some(newer + amount)',
+    'Option.some(newer + delta)',
     'Option.some(newer)',
   ),
   edit(
@@ -49,7 +49,7 @@ export default [
     'revision === held.revision + 1',
     'revision !== undefined && revision > held.revision',
   ),
-  edit('a revision steps by less than one', replay, 'Number.isInteger(held.revision) &&', ''),
+  edit('a revision steps by less than one', replay, 'Number.isSafeInteger(held.revision) &&', ''),
   edit(
     'the row revision vouches for a field it did not carry',
     replay,

@@ -94,13 +94,16 @@ export const replayOver = (
     let changed = false
     for (const field of fields) {
       const was = row.get(field)
-      const fresh = [...pending].filter(id => was === undefined || !was.by.has(id))
-      if (fresh.length === 0) continue
+      const ids =
+        from === 'read'
+          ? [...pending]
+          : [...pending].filter(id => was === undefined || !was.by.has(id))
+      if (ids.length === 0) continue
       changed = true
       const over = from === 'patch' ? held(field) : Option.some(values[field])
       row.set(field, {
         since: was?.since ?? now,
-        by: new Map([...(was?.by ?? []), ...fresh.map(id => [id, over] as const)]),
+        by: new Map([...(was?.by ?? []), ...ids.map(id => [id, over] as const)]),
       })
     }
     if (changed) next = new Map(next).set(key, row)
@@ -134,23 +137,27 @@ const replayed = (
   field: string,
   newer: unknown,
 ): Option.Option<unknown> => {
-  const patch = [...(layer?.patches ?? [])]
-    .reverse()
-    .find(
-      patch =>
-        entityKey(patch.entity, patch.id) === key &&
-        [patch.values, patch.adds ?? {}, patch.computes ?? {}].some(written =>
-          Object.hasOwn(written, field),
-        ),
-    )
-  if (patch === undefined) return Option.none()
-  const amount = own(patch.adds, field)
-  if (amount !== undefined)
-    return replays(addWrites, 'add') && typeof newer === 'number'
-      ? Option.some(newer + amount)
-      : Option.none()
-  return replays(setWrites, 'set') && Object.hasOwn(patch.values, field)
-    ? Option.some(own(patch.values, field))
+  let touched = false
+  let delta = 0
+  for (const patch of layer?.patches ?? []) {
+    if (entityKey(patch.entity, patch.id) !== key) continue
+    const sets = Object.hasOwn(patch.values, field)
+    const computes = patch.computes !== undefined && Object.hasOwn(patch.computes, field)
+    const amount = own(patch.adds, field)
+    if (!sets && !computes && amount === undefined) continue
+    touched = true
+    if (sets || computes) {
+      if (sets && !computes && amount === undefined && replays(setWrites, 'set')) {
+        return Option.some(own(patch.values, field))
+      }
+      return Option.none()
+    }
+    if (typeof amount !== 'number') return Option.none()
+    delta += amount
+  }
+  if (!touched) return Option.none()
+  return replays(addWrites, 'add') && typeof newer === 'number'
+    ? Option.some(newer + delta)
     : Option.none()
 }
 
@@ -168,7 +175,8 @@ const rightAfter = (
   field: string,
 ): boolean =>
   held?.revision !== undefined &&
-  Number.isInteger(held.revision) &&
+  Number.isSafeInteger(held.revision) &&
+  held.revision < Number.MAX_SAFE_INTEGER &&
   revision === held.revision + 1 &&
   held.revisionFields?.has(field) === true
 
@@ -177,10 +185,11 @@ const rightAfter = (
  * reads again. `layer` is the request's, and `pending` the requests still in
  * flight after it; with none, nothing is kept.
  *
- * The answer takes from `kept` the fields it writes. One a newer value moved
- * while the request was pending, to other than the answer's value, is read
- * again, unless the write's way replays, the answer is the write replayed over
- * that value, and it landed right after it (`rightAfter`).
+ * The answer removes `requestId` from the kept fields it settles while
+ * preserving entries for other requests still in `pending`. One a newer value
+ * moved while the request was pending, to other than the answer's value, is
+ * read again, unless the write's way replays, the answer is the write replayed
+ * over that value, and it landed right after it (`rightAfter`).
  */
 export const settleReplayed = (
   kept: Kept,
@@ -218,7 +227,22 @@ export const settleReplayed = (
     const key = entityKey(entity, id)
     const row = next.get(key)
     if (row === undefined) continue
-    const rest = new Map([...row].filter(([field]) => !Object.hasOwn(values, field)))
+    const rest = new Map<string, KeptField>()
+    for (const [field, entry] of row) {
+      if (!Object.hasOwn(values, field)) {
+        rest.set(field, entry)
+        continue
+      }
+      // Rebase any other pending requests on this field over the settled answer's value
+      // while keeping them tracked so a stale later answer still triggers a reread.
+      const rebased = Option.some(values[field])
+      const by = new Map(
+        [...entry.by]
+          .filter(([pendingId]) => pendingId !== requestId && pending.has(pendingId))
+          .map(([pendingId]) => [pendingId, rebased] as const),
+      )
+      if (by.size > 0) rest.set(field, { since: entry.since, by })
+    }
     if (rest.size === 0) next.delete(key)
     else next.set(key, rest)
   }
