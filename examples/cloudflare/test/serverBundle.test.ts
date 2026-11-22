@@ -34,7 +34,14 @@ import { record } from '../../../scripts/perf-report.mjs'
 // read 4,643,452 (+3,992 over the step-10 reading, from the gate fixes in metakit and guard). The other
 // 10.4 kB is CI's build of this Worker only; the other bundles differ between the two by under 0.4 kB.
 // Not traced. Ceiling: CI's reading plus 300.
-const CEILING = 4_654_152
+// +6,365 on 2026-11-22: 4,660,217 measured locally at ab41873a8 after the Phase 5 review's store
+// findings, about 6,231 raw of it estimated per module: a delete through an onDelete relation and a
+// link through one held to the store (`foldkit-remote-server`), the Drizzle writer's link check
+// (INSERT … SELECT where the row it points at is there) and foreign-key reading, a Sync host
+// holding a document's laws to its journal's store. Code every server with writes runs. CI on Linux
+// read 4,666,028 before this change, over the old ceiling already, not traced. Ceiling: the local
+// reading plus 300.
+const CEILING = 4_660_517
 
 // The replica side of `foldkit-sync`. A server reaches `Sync` through the namespace
 // object, or a shared module does, and the bundler then keeps all of these.
