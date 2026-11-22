@@ -164,6 +164,12 @@ attached rules on every request.
   changing what such a rule reads of its own row is refused, and `may` leaves
   the interaction out. `Guards.attach` refuses such a rule on `Create`, `Write`,
   a member, relation, named interaction or `always`, judged over one row.
+- Such an Update or Delete rule (and one of a row a delete takes or unlinks)
+  decides from a row a concurrent write can change, so it needs a store that
+  runs the writers under one parent one at a time. `RemoteServer.write` refuses
+  the write where it is registered, naming the guard, the capability and the
+  store, through a writer over Postgres at read committed; SQLite, D1 and
+  `writer(binding, { isolation: 'serializable' })` over Postgres hold it.
 
 ## On the server
 

@@ -1478,11 +1478,18 @@ written, the row read back says why, in this order: gone, `Forbidden` (a `requir
 Every writer says how its database runs concurrent writes (`EntityWriter.store`, required, a
 `StoreCapabilities` from `metakit/store`): `writer(binding)` says serializable over SQLite and
 read-committed over Postgres, `writer(binding, { isolation: 'serializable' })` says a Postgres set
-to run so, and `RemoteServer.memoryWriter` says serializable. A writer you write by hand names its
-own, and a wrapping writer passes its inner writer's on. `RemoteServer.write` throws, where the
-write is registered, for a writer that names no store, and for a precondition or invariant that
-reads other rows through a store that cannot run those rows' writers one at a time. Both shipped
-writers refuse such a rule before that, since neither runs a path or an exists in a write.
+to run so, and `RemoteServer.memoryWriter` says serializable. `isolates` says how far that reaches:
+`'statement'` over SQLite, since a SQLite table may be D1's, which shares no transaction between a
+read and a later write; `'transaction'` over Postgres and in memory. The Drizzle writer also says
+`judgesInStatement: true`: every rule it is handed is a clause of the statement that writes. A
+writer you write by hand names its own store, and a wrapping writer passes its inner writer's on,
+with its own rules' needs (`EntityWriter.needs`, which a guard fills). `RemoteServer.write`
+throws, where the write is registered, for a writer that names no store, and for a precondition,
+invariant or writer's own rule that reads other rows through a store that cannot run those rows'
+writers one at a time: Postgres at read committed with no parent lock, or a store isolating one
+statement (D1) through a writer that reads first and writes in a second round trip. Both shipped
+writers refuse a precondition or invariant over other rows before that, since neither runs a path
+or an exists in one; a guard's rule over other rows they do run.
 A row already holding what the write sets answers as written (taken for the retry of one that
 landed), unless it increments or a ledger was consulted for it: a ledger answers a retry itself, so
 under one a new write is judged by its `when` and transition invariants. An insert's values are judged before it is written, by its state invariants
