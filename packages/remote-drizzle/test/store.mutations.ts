@@ -32,10 +32,21 @@ export default [
     "isolation: serializable ? 'serializable' : 'read-committed',\n        parentRowLock: false,",
     "isolation: serializable ? 'serializable' : 'read-committed',\n        parentRowLock: true,",
   ),
+  {
+    name: 'the statement that writes a row ignores the revision it was sent from',
+    edits: [
+      {
+        file: drizzle,
+        find: 'where: and(eq(idColumn(binding), id), eq(column, revision), ...holding),',
+        replace: 'where: and(eq(idColumn(binding), id), ...holding),',
+      },
+    ],
+    tests: ['packages/remote-drizzle/test/storeRace.test.ts'],
+  },
   edit(
-    'a guarded writer drops what its writer says of its store',
-    '      ...(writer.store === undefined ? {} : { store: writer.store }),\n',
-    '',
+    'a guarded writer says a weaker store than its writer does',
+    '      store: writer.store,\n',
+    "      store: { name: 'guard', isolation: 'eventual', parentRowLock: false },\n",
     guard,
   ),
 ]
