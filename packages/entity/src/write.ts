@@ -384,6 +384,14 @@ const given = (value: unknown): Option.Option<unknown> => {
   return Option.isOption(value) ? value : Option.some(value)
 }
 
+/**
+ * What a set writes to `field` from its key's value (decoded): the value as
+ * the store holds it, or none where the key writes nothing (`given`). The one
+ * decision `Write.bind` and `transitionOf` make.
+ */
+export const setValue = (field: AnyField, value: unknown): Option.Option<unknown> =>
+  Option.map(given(value), held => encoded(field, held))
+
 const fieldAt = (input: EntityInput<AnyEntity, any, any>, key: string, role: string): AnyField => {
   const member = own(membersOf(input), key)
   if (member === undefined) return fail(input, `${role} "${key}" is not a key of the input`)
@@ -1259,7 +1267,7 @@ export const Write = {
     for (const { key, field } of write.sets) {
       if (!asked(key)) continue
       // A key the input leaves out, or an `Option` holding nothing, writes nothing.
-      Option.map(given(own(input, key)), held => put(values, field.key, encoded(field, held)))
+      Option.map(setValue(field, own(input, key)), value => put(values, field.key, value))
     }
     const links: Record<string, Option.Option<EntityRef>> = {}
     for (const { key, relation } of write.links) {

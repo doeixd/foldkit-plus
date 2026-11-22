@@ -21,7 +21,14 @@ import { Bool, Eq, Node, Null, Num, Path, Transition } from 'metakit'
 import type { ExprContext } from './context.js'
 import { matchContext, viewerIdOf } from './context.js'
 import type { OneRelation } from './expr/operand.js'
-import { Write, type AnyWrite, type ContextRead, type ContextSet } from './write.js'
+import {
+  setValue,
+  Write,
+  type AnyWrite,
+  type ContextRead,
+  type ContextSet,
+  type WriteSet,
+} from './write.js'
 
 /** A row's place in its table: whether it is there, and what it holds, as the store holds it. */
 export interface WriteState {
@@ -184,7 +191,8 @@ const build = (write: AnyWrite): WriteTransition => {
     value: wrap(value),
     way: Transition.Way.set(),
   })
-  const optional = (key: string, field: { readonly key: string; readonly schema: unknown }) => {
+  const optional = ({ key, field }: WriteSet) => {
+    const decodeKey = Schema.decodeUnknownSync(inputFields[key] as Schema.Codec<unknown>)
     const given = inputOf(key)
     const before = rowOf(field)
     if (!holdsNull(field.schema as Schema.Top)) {
@@ -200,16 +208,20 @@ const build = (write: AnyWrite): WriteTransition => {
         ['input', key],
         ['state', 'row', field.key],
       ]),
+      // A key left out, or one whose value decodes to an empty `Option`, keeps the field, as `Write.bind` decides.
       run: env => {
         const { input, state } = env as { input: WriteInput; state: WriteState }
-        return Object.hasOwn(input, key) && input[key] !== undefined
-          ? input[key]
-          : state.row[field.key]
+        const value =
+          Object.hasOwn(input, key) && input[key] !== undefined ? decodeKey(input[key]) : undefined
+        return Option.getOrElse(setValue(field, value), () => state.row[field.key])
       },
     })
   }
-  const setOf = (key: string, field: { readonly key: string; readonly schema: unknown }) =>
-    set(['row', field.key], mayBeLeftOut(inputFields[key]!) ? optional(key, field) : inputOf(key))
+  const setOf = (each: WriteSet) =>
+    set(
+      ['row', each.field.key],
+      mayBeLeftOut(inputFields[each.key]!) ? optional(each) : inputOf(each.key),
+    )
 
   const supplied: Record<string, Schema.Top> = {}
   const state: Record<string, Schema.Top> = {}
@@ -225,7 +237,7 @@ const build = (write: AnyWrite): WriteTransition => {
     writes.push(set(['present'], Node.Lit({ value: write._tag === 'Insert' })))
   }
   if (write._tag !== 'Delete') {
-    writes.push(...write.sets.map(({ key, field }) => setOf(key, field)))
+    writes.push(...write.sets.map(setOf))
     // A link left out points nowhere, as `Write.bind` binds it.
     writes.push(...write.links.map(({ key, relation }) => set(['row', relation.key], inputOf(key))))
     writes.push(

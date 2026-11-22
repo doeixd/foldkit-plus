@@ -68,7 +68,7 @@ const propertyTests = ['packages/metakit/test/properties.test.ts']
 
 const unsafeOperands = [
   mutation(
-    gateTests,
+    [...gateTests, 'packages/entity/test/phase1Gate.test.ts'],
     'arithmetic takes an operand past the safe range',
     '../src/ops/num.ts',
     'if (unsafe !== undefined) {',
@@ -159,4 +159,26 @@ const principals = [
   ),
 ]
 
-export default [...commuting, ...unsafeOperands, ...principals]
+const entityTests = [
+  'packages/entity/test/phase1Gate.test.ts',
+  'packages/entity/test/writeTransition.differential.test.ts',
+]
+
+const writes = [
+  mutation(
+    entityTests,
+    'the transition writes an optional key as it is stored, not as Write.bind decides',
+    '../../entity/src/writeTransition.ts',
+    '? decodeKey(input[key]) : undefined',
+    '? input[key] : undefined',
+  ),
+  mutation(
+    entityTests,
+    'Write.bind writes an Option holding nothing',
+    '../../entity/src/write.ts',
+    'Option.map(given(value), held => encoded(field, held))',
+    'Option.some(encoded(field, Option.isOption(value) ? Option.getOrNull(value) : value))',
+  ),
+]
+
+export default [...commuting, ...unsafeOperands, ...principals, ...writes]

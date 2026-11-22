@@ -2,12 +2,11 @@
 /**
  * Every write declared in entity's tests and in the examples that declare
  * writes (`examples/writes`, `writes-domain`, `chirp`, `entity`, `reference`,
- * `cloudflare`; `examples/cms` declares none: its mutations are handlers), run
- * over seeded random rows twice: through `Write.apply` as it was before step 6
- * (`writeBefore.ts`, after the guard a writer judged first), and through
- * `transitionOf(write)`. Each must land or refuse alike and leave the same
- * row. The one difference is intended and counted: a sum past the safe integer
- * range was written before and is refused now.
+ * `cloudflare`; `examples/cms` declares none: its mutations are handlers), and
+ * writes over a field that holds null from an optional key of each encoding,
+ * run over seeded random rows twice: through `Write.bind` and `Write.apply`
+ * (after the guard a writer judges first), and through `transitionOf(write)`.
+ * Each must land or refuse alike and leave the same row.
  *
  * `Write.update`, `insert` and `delete` are wrapped for this file only, to
  * record each write the imported files declare. The examples are imported by
@@ -78,7 +77,7 @@ for (const example of EXAMPLES) {
 const { Held, Operators, Write, evaluate, QueryEvaluateError } = await import('../src/index.js')
 const { foreignOf, readingOf } = await import('../src/reading.js')
 const { suppliedOf, transitionOf } = await import('../src/writeTransition.js')
-const { applyBefore } = await import('./writeBefore.js')
+await import('./optionalKeysFixture.js')
 
 type Row = Readonly<Record<string, unknown>>
 type State = { readonly present: boolean; readonly row: Row }
@@ -174,24 +173,14 @@ const operatorsFor = (write: AnyWrite) =>
     })),
   )
 
-const MAX = Number.MAX_SAFE_INTEGER
 const outcomes = {
   landed: 0,
   refused: 0,
   skipped: 0,
   unknownFields: 0,
-  /** Intended: a sum past the safe integer range is refused by the transition, and was written before. */
-  pastSafeRange: 0,
   unsupported: [] as Array<string>,
   neverLanded: [] as Array<string>,
 }
-
-/** Whether a row after holds a number past the safe range in a field the write moves. */
-const pastRange = (write: AnyWrite, row: Row): boolean =>
-  write.increments.some(({ field }) => {
-    const held = row[field.key]
-    return typeof held === 'number' && Math.abs(held) > MAX
-  })
 
 /** The transition run by `Transition.step`, with the implementations of the foreign operators it calls: where it lands, the state after. */
 const stepOf = (
@@ -302,7 +291,7 @@ const compareWrite = (write: AnyWrite, seed: number): void => {
   }
   const { supplied } = Effect.runSync(suppliedOf(write, by, read))
 
-  // Before: the writer's guard, then `Write.apply` as it was.
+  // Before: the writer's guard, then `Write.apply`.
   const expected = Write.expected(write, typed.success)
   const before = ((): Option.Option<{
     readonly row: Row
@@ -321,7 +310,7 @@ const compareWrite = (write: AnyWrite, seed: number): void => {
       ) {
         return Option.none()
       }
-      const applied = applyBefore(
+      const applied = Write.apply(
         row,
         {
           values: {
@@ -357,14 +346,7 @@ const compareWrite = (write: AnyWrite, seed: number): void => {
     outcomes.refused++
     return
   }
-  if (Option.isNone(run)) {
-    // Intended: a sum past the safe range was written before and is refused now.
-    expect(Option.isSome(before) && pastRange(write, before.value.row), `refused: ${label}`).toBe(
-      true,
-    )
-    outcomes.pastSafeRange++
-    return
-  }
+  if (Option.isNone(run)) throw new Error(`refused only by the transition: ${label}`)
   if (Option.isNone(before)) throw new Error(`landed only through the transition: ${label}`)
   expect(run.value.present, label).toBe(write._tag !== 'Delete')
   outcomes.unknownFields += before.value.unknown.length
@@ -401,6 +383,7 @@ describe('a declared write, run before and as a transition', () => {
     expect(outcomes.neverLanded).toEqual([])
     expect(outcomes.unsupported).toEqual([])
     expect(outcomes.landed).toBeGreaterThan(3000)
-    expect(outcomes.pastSafeRange).toBeGreaterThan(0)
+    // Some refused alike, a sum past the safe range among them.
+    expect(outcomes.refused).toBeGreaterThan(0)
   })
 })
