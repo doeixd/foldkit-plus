@@ -7,10 +7,12 @@
  * replayed after one it did not know of. From `Transition.commutes`, a rebase
  * of two durable Messages that commute changes nothing a replica showed;
  * where they may not, it possibly does, and a two-replica walk in both orders
- * is owed. From `Transition.idempotent`, a durable Message delivered twice
- * needs no removal of the copy when its writes are idempotent; otherwise its
- * id removes it (the replica drops an operation it holds committed, and the
- * journal commits an id once), and a walk checks both.
+ * is owed. From `Transition.idempotent`, an immediate back-to-back copy of a
+ * durable Message changes nothing when its writes are idempotent (`harmless`);
+ * otherwise (`removed by id`) even an immediate copy would count twice. In both
+ * cases, a copy delivered later after another write relies on id deduplication
+ * (the replica drops an operation it holds committed, and the journal commits
+ * an id once) unless the Message also commutes with every durable Message.
  *
  * `settleConvergence` declares what is owed in the registry of `metakit/temporal` and
  * runs the walks the caller supplies: the walks need the application's
@@ -34,10 +36,10 @@ export interface RebasePair<Tag extends string = string> {
   readonly why: string
 }
 
-/** What a durable Message delivered twice to one replica needs. */
+/** What a durable Message delivered twice in a row to one replica does. */
 export interface Redelivery<Tag extends string = string> {
   readonly tag: Tag
-  /** `harmless`: the copy changes nothing; `removed by id`: the copy would count twice, so its id removes it. */
+  /** `harmless`: an immediate back-to-back copy changes nothing (interleaved copies still rely on id deduplication); `removed by id`: even an immediate copy would count twice. */
   readonly copy: 'harmless' | 'removed by id'
   readonly why: string
 }
@@ -60,7 +62,13 @@ export const convergence = <
   machine: Machine<State, Transitions>,
   tags: ReadonlyArray<Tag>,
 ): Convergence<Tag> => {
-  const durable = new Set<string>(tags)
+  const unique = [...new Set(tags)]
+  for (const tag of unique) {
+    if (!Object.hasOwn(machine.transitions, tag)) {
+      throw new Error(`[foldkit-sync] convergence: the machine declares no transition "${tag}"`)
+    }
+  }
+  const durable = new Set<string>(unique)
   return {
     pairs: Pairs.pairs(machine)
       .filter(({ over }) => over.every(tag => durable.has(tag)))
@@ -70,7 +78,7 @@ export const convergence = <
         rebase: Verdict.isTrue(verdict) ? 'never' : 'possible',
         why,
       })),
-    redelivery: tags.map((tag): Redelivery<Tag> => {
+    redelivery: unique.map((tag): Redelivery<Tag> => {
       const transition = machine.transitions[tag] as AnyTransition
       const verdict = Transition.idempotent(transition)
       return Verdict.match<never, Redelivery<Tag>>(verdict, {

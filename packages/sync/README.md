@@ -822,14 +822,16 @@ Tagged: removed by id
 Cleared: harmless
 ```
 
-A pair is listed when both Messages write one path; a pair left out writes
+A pair is listed when one Message writes a path the other reads or writes; a pair left out touches
 different state and never changes the other. `never` is
 `Transition.commutes` answering true (two clears of the done items), and
 `possible` is it not deciding (two titles: the later one stays, so the order
-shows). A copy of a Message delivered twice is `harmless` when every way it
+shows). An immediate back-to-back copy of a Message is `harmless` when every way it
 writes is idempotent (`Transition.idempotent`: a `set` from the input, an
 `insert`, a `remove`), and `removed by id` otherwise (an `append` would list
-twice, so the operation's id removes the copy). The answers say what the
+twice, so the operation's id removes the copy); a copy arriving later after another
+write still relies on id deduplication unless the Message also commutes with every
+durable Message. The answers say what the
 declaration lets a rebase do; they run nothing. `settleConvergence(machine,
 tags, { owner, walkPair, walkRedelivery })` files each `possible` pair and each
 copy as an obligation of `metakit/temporal`, and discharges them with the

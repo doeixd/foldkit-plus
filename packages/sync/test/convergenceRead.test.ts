@@ -92,6 +92,14 @@ describe('convergence', () => {
     expect(why.Titled).toContain('set')
     expect(why.Tagged).toContain('append')
   })
+
+  it('deduplicates repeated tags and throws on unknown tags', () => {
+    const deduped = convergence(machine, ['Titled', 'Titled'])
+    expect(deduped.redelivery.map(({ tag }) => tag)).toEqual(['Titled'])
+    expect(() => convergence(machine, ['Missing' as 'Titled'])).toThrow(
+      /the machine declares no transition "Missing"/,
+    )
+  })
 })
 
 describe('settleConvergence', () => {
