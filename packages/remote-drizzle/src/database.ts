@@ -47,6 +47,13 @@ export interface DrizzleWrite extends PromiseLike<unknown> {
   returning(columns: Record<string, AnyColumn>): PromiseLike<ReadonlyArray<Record<string, unknown>>>
 }
 
+/** The select an insert hands its callback: values by the table's keys, from a table, while a condition holds. */
+export interface InsertSelect {
+  select(fields: Record<string, SQL>): {
+    from(table: Table): { where(condition: SQL | undefined): unknown }
+  }
+}
+
 /** The writes any Drizzle database for SQLite or Postgres offers, typed by each table's columns. */
 export interface DrizzleWrites {
   insert<T extends Table>(
@@ -56,8 +63,8 @@ export interface DrizzleWrites {
       /** Inserts nothing where the row's key is already taken. */
       onConflictDoNothing(): DrizzleWrite
     }
-    /** Inserts what `query` selects, a value for every column the table inserts, in its order. */
-    select(query: SQL): DrizzleWrite & {
+    /** Inserts what `query` selects into the columns it names. */
+    select(query: (builder: InsertSelect) => unknown): DrizzleWrite & {
       /** Inserts nothing where the row's key is already taken. */
       onConflictDoNothing(): DrizzleWrite
     }

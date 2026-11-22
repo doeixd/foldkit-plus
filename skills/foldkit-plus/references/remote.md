@@ -1497,7 +1497,8 @@ committed holds them only where the table's own foreign key holds the link
 (`EntityWriter.foreignKey`, judged as `'constraint'`): there `writer(binding)` is refused for them
 unless the table declares the foreign key or you say `isolation: 'serializable'`. The Drizzle writer
 writes such a link only while its row is there, in the statement that writes
-(`checksTargets: true`), and otherwise answers `Invalid` with the relation's key as the path; a
+(`checksTargets: true`), and otherwise answers `Invalid` with the relation's key as the path (a
+taken id is still answered `Taken`); `RemoteServer.memoryWriter` checks the same in its one step. A
 writer without `checksTargets` is refused for such a link unless a foreign key holds it.
 A row already holding what the write sets answers as written (taken for the retry of one that
 landed), unless it increments or a ledger was consulted for it: a ledger answers a retry itself, so

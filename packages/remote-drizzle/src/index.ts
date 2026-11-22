@@ -107,6 +107,7 @@ import {
   drizzleWrites,
   type DrizzleDatabaseService,
   type DrizzleWrites,
+  type InsertSelect,
 } from './database.js'
 import { toQueryPage } from './page.js'
 import { cascadePlan, type CascadePlan, type CascadeStep } from './cascade.js'
@@ -1592,39 +1593,43 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
     })
 
   /**
-   * The row `set` makes as a select that yields it only while `targets` hold:
-   * an insert that lands with its links pointing at rows, or lands nothing, in
-   * one statement. A column `set` leaves out takes what Drizzle's own insert
-   * gives it.
+   * The row `set` makes, selected from the row its first link points at and
+   * only while every link's row is there: an insert that lands with its links
+   * pointing at rows, or lands nothing, in one statement. A column `set` leaves
+   * out gets what Drizzle's own insert computes for it (`$defaultFn`,
+   * `$onUpdate`, and on SQLite a declared `default`); any other is left out of
+   * the insert, so the database gives it its own default (a serial, an
+   * identity, a default only the table declares), as Drizzle's `default` does
+   * on Postgres.
    */
-  const insertedWhile = (set: Readonly<Record<string, unknown>>, targets: ReadonlyArray<SQL>) => {
-    const columns: Readonly<Record<string, Column>> = getTableColumns(binding.table as Table)
-    const cells = Object.entries(columns)
-      // What Drizzle's `shouldDisableInsert` says, which its types keep internal.
-      .filter(
-        ([, column]) =>
-          !(column.generated !== undefined && column.generated.type !== 'byDefault') &&
-          !(
-            column.generatedIdentity !== undefined && column.generatedIdentity.type !== 'byDefault'
-          ),
-      )
-      .map(([key, column]): SQL => {
+  const insertedWhile =
+    (
+      set: Readonly<Record<string, unknown>>,
+      [first, ...rest]: Arr.NonEmptyReadonlyArray<ReturnType<typeof targetsOf>[number]>,
+    ) =>
+    (query: InsertSelect) => {
+      const columns: Readonly<Record<string, Column>> = getTableColumns(binding.table as Table)
+      const sqlite = is(binding.table, SQLiteTable)
+      const fields: Record<string, SQL> = {}
+      for (const [key, column] of Object.entries(columns)) {
         const value =
           set[key] !== undefined
             ? set[key]
             : column.defaultFn !== undefined
               ? column.defaultFn()
-              : column.default !== null && column.default !== undefined
+              : sqlite && column.default !== null && column.default !== undefined
                 ? column.default
-                : column.onUpdateFn !== undefined
+                : column.onUpdateFn !== undefined && (sqlite || !column.default)
                   ? column.onUpdateFn()
-                  : !is(binding.table, SQLiteTable) && column.hasDefault
-                    ? sql`nextval(pg_get_serial_sequence(${getTableName(binding.table as Table)}, ${column.name}))`
-                    : sql`null`
-        return is(value, SQL) ? value : sql`${sql.param(value, column)}`
-      })
-    return sql`select ${sql.join(cells, sql`, `)} where ${and(...targets)}`
-  }
+                  : undefined
+        if (value !== undefined)
+          fields[key] = is(value, SQL) ? value : sql`${sql.param(value, column)}`
+      }
+      return query
+        .select(fields)
+        .from(first.target.table)
+        .where(and(first.at, ...rest.map(({ exists }) => exists)))
+    }
 
   /**
    * Read after a write of row `id` missed: refuses the first link of `targets`
@@ -1640,14 +1645,17 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
           { id: idColumn(target) },
           { where: at, limit: 1 },
         )
-        if (found.length === 0)
-          return yield* RemoteServer.invalid(
-            `${binding.name} ${id} links "${key}" to a row that is not there`,
-            Option.none(),
-            [key],
-          )
+        if (found.length === 0) return yield* goneRefusal(id, key)
       }
     })
+
+  /** Row `id`'s link `key` points at a row that is not there: named by the relation alone. */
+  const goneRefusal = (id: string, key: string) =>
+    RemoteServer.invalid(
+      `${binding.name} ${id} links "${key}" to a row that is not there`,
+      Option.none(),
+      [key],
+    )
 
   /**
    * Whether a foreign key holds the links of `relation` (`EntityWriter.foreignKey`):
@@ -2716,14 +2724,9 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
         const statement = (database: unknown) => {
           const into = (database as DrizzleWrites).insert(binding.table)
           return (
-            targets.length === 0
-              ? into.values(set)
-              : into.select(
-                  insertedWhile(
-                    set,
-                    targets.map(({ exists }) => exists),
-                  ),
-                )
+            Arr.isReadonlyArrayNonEmpty(targets)
+              ? into.select(insertedWhile(set, targets))
+              : into.values(set)
           )
             .onConflictDoNothing()
             .returning(answered.columns)
@@ -2748,9 +2751,21 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
           const writes = yield* drizzleWrites
           inserted = yield* runStatement(() => statement(writes), 'Database write failed')
         }
-        // Nothing inserted: a row it links to is gone, named by the relation alone, or else
-        // the id is taken, and every such create is answered alike.
-        if (inserted.length === 0) yield* refuseGone(id, targets)
+        // Nothing inserted: the id is taken, and every such create is answered alike; or
+        // else a row it links to was gone when the statement ran, named by the relation alone.
+        if (inserted.length === 0 && Arr.isReadonlyArrayNonEmpty(targets)) {
+          const taken = yield* selectRows(
+            yield* DrizzleDatabase,
+            binding.table,
+            { id: idColumn(binding) },
+            { where: eq(idColumn(binding), id), limit: 1 },
+          )
+          if (taken.length === 0) {
+            yield* refuseGone(id, targets)
+            // Back since the statement ran: it still found the row gone.
+            return yield* goneRefusal(id, targets[0].key)
+          }
+        }
         return yield* Option.match(answeredOf(inserted, answered), {
           onNone: () => Effect.fail(RemoteServer.taken(`${binding.name} ${id} is already taken`)),
           onSome: Effect.succeed,

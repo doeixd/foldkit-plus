@@ -103,7 +103,9 @@ const linkIds = (
  * row, and removes, restricts or clears nothing a delete would take with it,
  * so `RemoteServer.write` and `GuardServer.writer` refuse, by name, a write or
  * a rule that needs one of those. A write's postcondition (`ensures`) is
- * judged beside the invariants, and refused the same way.
+ * judged beside the invariants, and refused the same way. A link through a
+ * relation declared `onDelete` is written only while the row it points at is
+ * in the store, and refused as `Invalid` otherwise.
  *
  * ```ts
  * RemoteServer.memory({
@@ -157,6 +159,37 @@ export const memoryWriter = <P, E extends AnyEntity = AnyEntity>(
 
   const stored = (id: string): Option.Option<Readonly<Record<string, unknown>>> =>
     Option.fromUndefinedOr(store.rows(entity.name).find(row => String(row['id']) === id))
+
+  // Each relation declared onDelete, by key, with the Entity it points at: its link is
+  // written only while that row is there (`EntityWriter.checksTargets`).
+  const guarded = Object.entries(relations).flatMap(([key, member]) =>
+    member._tag === 'Relation' && Option.isSome(member.onDelete)
+      ? [{ key, target: member.target().name }]
+      : [],
+  )
+  /** Refuses the first link of `links` to a row that is not there, named by the relation alone. */
+  const refuseGone = (
+    id: string,
+    links: Readonly<Record<string, Option.Option<EntityRef>>>,
+  ): Effect.Effect<void, RemoteInvalid> => {
+    const gone = guarded.find(({ key, target }) => {
+      const link = Object.hasOwn(links, key) ? links[key] : undefined
+      return (
+        link !== undefined &&
+        Option.isSome(link) &&
+        !store.rows(target).some(row => String(row['id']) === link.value.id)
+      )
+    })
+    return gone === undefined
+      ? Effect.void
+      : Effect.fail(
+          new RemoteInvalid({
+            message: `${entity.name} ${id} links "${gone.key}" to a row that is not there`,
+            rule: Option.none(),
+            path: [gone.key],
+          }),
+        )
+  }
 
   /**
    * The first invariant the change breaks, the write's postcondition after the
@@ -231,6 +264,8 @@ export const memoryWriter = <P, E extends AnyEntity = AnyEntity>(
     postconditions: true,
     // One synchronous step reads and writes the row: no other write lands between.
     pins: true,
+    // The same step reads the row a link through an onDelete relation points at.
+    checksTargets: true,
     revision: revisionField,
     // The same step, and one thread: every write runs alone.
     store: {
@@ -274,6 +309,7 @@ export const memoryWriter = <P, E extends AnyEntity = AnyEntity>(
       Effect.gen(function* () {
         const found = stored(id)
         if (Option.isNone(found)) return Option.none()
+        yield* refuseGone(id, links)
         const row = found.value
         const written = { ...values, ...linkRefs(links) }
         const answer = (from: Readonly<Record<string, unknown>>) =>
@@ -369,6 +405,7 @@ export const memoryWriter = <P, E extends AnyEntity = AnyEntity>(
         if (Option.isSome(stored(id))) {
           return yield* new RemoteTaken({ message: `${entity.name} ${id} is already taken` })
         }
+        yield* refuseGone(id, links)
         const row = { ...values, ...linkRefs(links) }
         store.write(entity.name, id, row)
         return row

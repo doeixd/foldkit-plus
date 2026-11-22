@@ -1314,7 +1314,8 @@ everything. On Postgres at read committed a link committed while the delete
 runs is not seen, and would outlive its target, so `RemoteServer.write`
 refuses such a delete, and such a link, through `writer(binding)` there,
 naming the relation, what it needs and the store. It registers where the
-table's foreign key holds the relation (`on delete cascade`, `restrict` or
+table's foreign key holds the relation, one on the link's column that
+references the target's id (`on delete cascade`, `restrict` or
 `no action`, or `set null`, as the relation declares, which `bind` checks
 against it), or with `isolation: 'serializable'`, where the link's write
 reads the row the delete removes, so one of the two is refused.

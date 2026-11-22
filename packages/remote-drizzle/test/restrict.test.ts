@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import { drizzle } from 'drizzle-orm/node-sqlite'
-import { foreignKey, pgTable, text as pgText } from 'drizzle-orm/pg-core'
+import { foreignKey, pgTable, serial, text as pgText } from 'drizzle-orm/pg-core'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Layer, Option, Schema } from 'effect'
@@ -264,10 +264,11 @@ describe.each(backends)('A declared restriction, on %s', (_, open) => {
     expect(await sent(backend, 'MoveNote', { id: 'n1', topic: 't3' })).toMatchObject({
       _tag: 'Success',
     })
-    // A taken id is still answered as taken, whichever topic it names.
-    expect(refusalOf(await sent(backend, 'AddNote', { id: 'n2', topic: 't3' }))).toMatchObject({
-      _tag: 'Taken',
-    })
+    // A taken id is still answered as taken, whichever topic it names, there or not.
+    for (const topic of ['t3', 'gone'])
+      expect(refusalOf(await sent(backend, 'AddNote', { id: 'n2', topic }))).toMatchObject({
+        _tag: 'Taken',
+      })
     expect(await backend.ids('notes')).toEqual(['n1', 'n2', 'n3'])
     expect(await backend.ids(ORPHANS)).toEqual([])
   })
@@ -318,6 +319,82 @@ describe.each(backends.filter(([name]) => name !== 'Postgres'))(
     }, 120_000)
   },
 )
+
+describe("An insert that checks its link keeps the table's own defaults", () => {
+  const send = (Db: { readonly Note: Backend['Db']['Note'] }, layer: Backend['layer']) =>
+    Effect.runPromise(
+      RemoteServer.handlers(
+        RemoteServer.make<string, DrizzleDatabase>({
+          entities: [],
+          mutations: [RemoteServer.write(AddNote, writer(Db.Note, { isolation: 'serializable' }))],
+        }),
+        'ada',
+      )
+        .FoldkitRemoteMutate({
+          requestId: 'd1',
+          mutation: 'AddNote',
+          input: { id: 'n1', topic: 't1' },
+        })
+        .pipe(Effect.result, Effect.provide(layer)),
+    )
+
+  it('on Postgres: a serial, and a default only the table declares', async () => {
+    const topics = pgTable('topics', {
+      id: pgText('id').primaryKey(),
+      name: pgText('name').notNull(),
+    })
+    const notes = pgTable('notes', {
+      id: pgText('id').primaryKey(),
+      topicId: pgText('topic_id').notNull(),
+      seq: serial('seq'),
+      status: pgText('status'),
+    })
+    await pglite.exec('drop table if exists topics, notes')
+    await pglite.exec(
+      "create table topics (id text primary key, name text not null); create table notes (id text primary key, topic_id text not null, seq serial, status text default 'open'); insert into topics values ('t1', 'draft')",
+    )
+    const Db = bind(
+      { Topic, Note },
+      {
+        Topic: { table: topics },
+        Note: { table: notes, relations: { topic: { field: notes.topicId } } },
+      },
+    )
+    expect(await send(Db, databaseLayer(drizzlePg({ client: pglite })))).toMatchObject({
+      _tag: 'Success',
+    })
+    expect((await pglite.query('select seq, status from notes')).rows).toEqual([
+      { seq: 1, status: 'open' },
+    ])
+  })
+
+  it('on SQLite: a default only the table declares', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(
+      "create table topics (id text primary key, name text not null); create table notes (id text primary key, topic_id text not null, status text default 'open'); insert into topics values ('t1', 'draft')",
+    )
+    const topics = sqliteTable('topics', {
+      id: text('id').primaryKey(),
+      name: text('name').notNull(),
+    })
+    const notes = sqliteTable('notes', {
+      id: text('id').primaryKey(),
+      topicId: text('topic_id').notNull(),
+      status: text('status'),
+    })
+    const Db = bind(
+      { Topic, Note },
+      {
+        Topic: { table: topics },
+        Note: { table: notes, relations: { topic: { field: notes.topicId } } },
+      },
+    )
+    expect(await send(Db, databaseLayer(drizzle({ client: sqlite })))).toMatchObject({
+      _tag: 'Success',
+    })
+    expect(sqlite.prepare('select status from notes').all()).toEqual([{ status: 'open' }])
+  })
+})
 
 describe('What a restriction needs of its store', () => {
   const Pg = bindOn(pgTables)

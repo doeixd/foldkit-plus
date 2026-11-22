@@ -16,6 +16,21 @@ const edit = (name: string, find: string, replace: string) => ({
 
 export default [
   edit(
+    'a link through an onDelete relation is written whatever row it points at',
+    "member._tag === 'Relation' && Option.isSome(member.onDelete)",
+    'false',
+  ),
+  edit(
+    'an update writes a link whatever row it points at',
+    '        yield* refuseGone(id, links)\n        const row = found.value',
+    '        const row = found.value',
+  ),
+  edit(
+    'an insert refuses a gone link before a taken id',
+    '        if (Option.isSome(breaks)) return yield* breaks.value\n        if (Option.isSome(stored(id))) {',
+    '        if (Option.isSome(breaks)) return yield* breaks.value\n        yield* refuseGone(id, links)\n        if (Option.isSome(stored(id))) {',
+  ),
+  edit(
     'an update ignores the revision it expects',
     'if (Option.isSome(expect) && !sameStored(row[expect.value.field], expect.value.revision)) {',
     'if (false) {',

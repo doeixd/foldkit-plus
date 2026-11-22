@@ -456,3 +456,44 @@ describe('a declared write over a memory backend, through Law.check', () => {
     expect(report.agreed).toEqual(expect.arrayContaining(['Stock:s1.reserved']))
   })
 })
+
+describe('a memory writer over a relation declared onDelete', () => {
+  const ShelfFields = Entity.define('Shelf', Schema.Struct({ id: Schema.String }))
+  const BookFields = Entity.define('Book', Schema.Struct({ id: Schema.String }))
+  const { Shelf, Book } = Entity.relate(
+    { Shelf: ShelfFields, Book: BookFields },
+    { Book: { shelf: Relation.one(ShelfFields, { onDelete: 'restrict' }) } },
+  )
+  const Shelved = Entity.input(Book, Schema.Struct({ id: Schema.String, shelf: Schema.String }), {
+    shelf: Relation.input(Book.relations.shelf),
+  })
+  const Shelve = Mutation.write('Shelve', Write.insert(Shelved, { id: 'id' }))
+  const Move = Mutation.write('Move', Write.update(Shelved, { id: 'id' }))
+  const sent = () => {
+    const backend = RemoteServer.memory({
+      domain: Remote.define({ entities: [Shelf, Book], mutations: [Shelve, Move] }),
+      rows: { Shelf: [{ id: 'f1' }], Book: [{ id: 'b1', shelf: 'Shelf:f1' }] },
+      mutations: (store: MemoryStore) =>
+        [Shelve, Move].map(mutation =>
+          RemoteServer.write(mutation, RemoteServer.memoryWriter(store, Book)),
+        ),
+    })
+    const handlers = RemoteServer.handlers(backend.server, undefined)
+    return (mutation: string, input: unknown) =>
+      Effect.runPromise(
+        handlers.FoldkitRemoteMutate({ requestId: 'r1', mutation, input }).pipe(Effect.result),
+      )
+  }
+
+  it('writes a link only to a row that is there', async () => {
+    const send = sent()
+    expect(await send('Shelve', { id: 'b2', shelf: 'f1' })).toMatchObject({ _tag: 'Success' })
+    const gone = refused({ _tag: 'Invalid', path: ['shelf'] })
+    expect(await send('Shelve', { id: 'b3', shelf: 'f9' })).toMatchObject(gone)
+    expect(await send('Move', { id: 'b1', shelf: 'f9' })).toMatchObject(gone)
+    // A taken id is answered as taken, whatever its link points at.
+    expect(await send('Shelve', { id: 'b1', shelf: 'f9' })).toMatchObject(
+      refused({ _tag: 'Taken' }),
+    )
+  })
+})

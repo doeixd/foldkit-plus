@@ -38,8 +38,8 @@ export default [
   edit(
     'a table-level foreign key is unseen',
     bind,
-    'columns[0]?.name === column.name',
-    'columns[0] === column',
+    'ref.columns[0]?.name !== column.name',
+    'ref.columns[0] !== column',
   ),
   edit(
     'a foreign key that clears a restricted link is let through',
@@ -104,8 +104,14 @@ export default [
   edit(
     'an insert lands whether its topic is there or not',
     index,
-    'targets.length === 0\n              ? into.values(set)',
-    'true\n              ? into.values(set)',
+    'Arr.isReadonlyArrayNonEmpty(targets)\n              ? into.select(insertedWhile(set, targets))',
+    'false\n              ? into.select(insertedWhile(set, targets))',
+  ),
+  edit(
+    'an insert that checks its link writes null over the table defaults',
+    index,
+    '                  : undefined\n        if (value !== undefined)\n          fields[key] = is(value, SQL) ? value : sql`${sql.param(value, column)}`',
+    '                  : sql`null`\n        if (value !== undefined)\n          fields[key] = is(value, SQL) ? value : sql`${sql.param(value, column)}`',
   ),
   edit(
     'an update relinks whether its topic is there or not',
@@ -116,14 +122,20 @@ export default [
   edit(
     'a missed link reads as taken',
     index,
-    'if (inserted.length === 0) yield* refuseGone(id, targets)',
-    '',
+    '          if (taken.length === 0) {\n            yield* refuseGone(id, targets)',
+    '          if (false) {\n            yield* refuseGone(id, targets)',
+  ),
+  edit(
+    'a taken id whose link is gone reads as gone',
+    index,
+    '          if (taken.length === 0) {\n            yield* refuseGone(id, targets)',
+    '          if (true) {\n            yield* refuseGone(id, targets)',
   ),
   edit('bind guards no link', bind, '      guards,\n', '      guards: [],\n'),
   edit(
     'the writer reads no foreign key',
     bind,
-    'if (Option.isSome(onDeleteOf(config.table, link.field))) keyed.push(field)',
+    'if (Option.isSome(onDeleteOf(config.table, link.field, targetCheck))) keyed.push(field)',
     '',
   ),
   edit(
