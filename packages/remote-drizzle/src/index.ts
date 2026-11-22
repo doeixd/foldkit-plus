@@ -1618,7 +1618,9 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
                 ? column.default
                 : column.onUpdateFn !== undefined
                   ? column.onUpdateFn()
-                  : sql`null`
+                  : !is(binding.table, SQLiteTable) && column.hasDefault
+                    ? sql`nextval(pg_get_serial_sequence(${getTableName(binding.table as Table)}, ${column.name}))`
+                    : sql`null`
         return is(value, SQL) ? value : sql`${sql.param(value, column)}`
       })
     return sql`select ${sql.join(cells, sql`, `)} where ${and(...targets)}`
@@ -1781,32 +1783,55 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
           .returning({ id: idColumn(binding) }),
       ]
       const failed = 'Database write failed'
-      const results: ReadonlyArray<ReadonlyArray<Record<string, unknown>>> = isD1(database)
+      const rootIndex = seen.length + 2 * clearing.length + steps.length
+      const rolledBack = Symbol('withCascade.rollback')
+      const results: ReadonlyArray<ReadonlyArray<Record<string, unknown>>> | undefined = isD1(
+        database,
+      )
         ? yield* runStatement(() => database.batch(statements(database)), failed)
         : database.resultKind === 'sync'
           ? // A synchronous driver's transaction commits as its body returns: no await in it.
+            // Throw `rolledBack` if the root delete missed so any prior child statements roll back.
             yield* runStatement(
               () =>
-                Promise.resolve(database.transaction(tx => statements(tx).map(each => each.all()))),
+                Promise.resolve().then(() => {
+                  try {
+                    return database.transaction(tx => {
+                      const done = statements(tx).map(each => each.all())
+                      if ((done[rootIndex] ?? []).length === 0) throw rolledBack
+                      return done
+                    })
+                  } catch (error) {
+                    if (error === rolledBack) return undefined
+                    throw error
+                  }
+                }),
               failed,
             )
           : yield* runStatement(
               () =>
-                database.transaction(async tx => {
-                  // Postgres: hold the row named until this transaction ends, so
-                  // what the leaf gate read is what the root delete sees.
-                  if (!is(binding.table, SQLiteTable)) {
-                    await tx.execute(
-                      sql`select 1 from ${binding.table} where ${rootWhere ?? sql`1 = 1`} for update`,
-                    )
-                  }
-                  const done: Array<ReadonlyArray<Record<string, unknown>>> = []
-                  for (const each of statements(tx)) done.push(await each)
-                  return done
-                }),
+                database
+                  .transaction(async tx => {
+                    // Postgres: hold the row named until this transaction ends, so
+                    // what the leaf gate read is what the root delete sees.
+                    if (!is(binding.table, SQLiteTable)) {
+                      await tx.execute(
+                        sql`select 1 from ${binding.table} where ${rootWhere ?? sql`1 = 1`} for update`,
+                      )
+                    }
+                    const done: Array<ReadonlyArray<Record<string, unknown>>> = []
+                    for (const each of statements(tx)) done.push(await each)
+                    // Roll back prior child clears/deletes if the root delete missed under READ COMMITTED.
+                    if ((done[rootIndex] ?? []).length === 0) throw rolledBack
+                    return done
+                  })
+                  .catch(error => {
+                    if (error === rolledBack) return undefined
+                    throw error
+                  }),
               failed,
             )
-      const deleted = (results[seen.length + 2 * clearing.length + steps.length] ?? []).length > 0
+      const deleted = results !== undefined && (results[rootIndex] ?? []).length > 0
       if (!deleted) return { deleted, cascaded: [], cleared: [] }
       const cascaded = seen.flatMap(({ step }, at) =>
         (results[at] ?? [])
