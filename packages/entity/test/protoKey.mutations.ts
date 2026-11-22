@@ -49,8 +49,8 @@ export default [
   edit(
     'a bound assignment is assigned',
     write,
-    'put(assignments, field.key, computationOf(write, expr, input))',
-    'assignments[field.key] = computationOf(write, expr, input)',
+    'put(assignments, field.key, computationOf(write, expr.node, input))',
+    'assignments[field.key] = computationOf(write, expr.node, input)',
   ),
   edit(
     'a computed field is assigned to the row after',
@@ -91,13 +91,13 @@ export default [
   // ---- the sweep
   edit(
     'an input is read with what it inherits',
-    '../src/lowerEnv.ts',
+    '../src/environment.ts',
     'put(given, key, own(input, key) ?? null)',
     'put(given, key, input[key] ?? null)',
   ),
   edit(
     'a sort input is read with what it inherits',
-    '../src/expr.ts',
+    '../src/expr/query.ts',
     'const sort = own(input, chosen.sort.key)',
     'const sort = input[chosen.sort.key]',
   ),

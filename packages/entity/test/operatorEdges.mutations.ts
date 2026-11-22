@@ -2,7 +2,8 @@
  * The kernel's operator edges, broken in turn:
  * `pnpm mutate packages/entity/test/operatorEdges.mutations.ts`.
  */
-const expr = '../src/expr.ts'
+const query = '../src/expr/query.ts'
+const operator = '../src/expr/operator.ts'
 const evaluate = '../src/evaluate.ts'
 const edges = ['packages/entity/test/operatorEdges.test.ts']
 const edit = (name: string, file: string, find: string, replace: string, tests = edges) => ({
@@ -12,28 +13,16 @@ const edit = (name: string, file: string, find: string, replace: string, tests =
 })
 
 export default [
-  edit(
-    'a field expression passed on is built again from its field',
-    expr,
-    "if (tag === 'Field' && !Object.hasOwn(value as object, 'metadata')) {",
-    'if (false) {',
-    ['packages/entity/test/collation.test.ts'],
-  ),
-  edit('an order term is not counted', expr, "checkSize('orderBy', self.where, orderBy)", '', [
+  edit('an order term is not counted', query, "checkSize('orderBy', self.where, all)", '', [
     'packages/entity/test/operator.test.ts',
   ]),
   edit(
     'a boolean argument is not checked',
-    expr,
-    "if (wanted !== 'other' && given !== 'other' && given !== wanted) {",
-    "if (wanted !== 'other' && given !== 'other' && given !== wanted && given !== 'boolean' && wanted !== 'boolean') {",
+    operator,
+    "if (wanted !== 'other' && given !== 'other' && given !== 'null' && given !== wanted) {",
+    "if (wanted !== 'other' && given !== 'other' && given !== 'null' && given !== wanted && given !== 'boolean' && wanted !== 'boolean') {",
   ),
-  edit(
-    'a constant holding a NUL is laid to each row',
-    evaluate,
-    'Expr.givesUnportable(...read) ||',
-    '',
-  ),
+  edit('a constant holding a NUL is laid to each row', evaluate, 'givesUnportable(...read) ||', ''),
   edit(
     'one row is in order whatever its keys',
     '../src/rowOrder.ts',

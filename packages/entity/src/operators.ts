@@ -6,7 +6,8 @@
  */
 import type { Collation } from './collation.js'
 import { Data, Equivalence, Option, Schema } from 'effect'
-import type { Operator, OperatorDescriptor, OperatorTable } from './expr.js'
+import type { Operator, OperatorDescriptor } from './expr/operator.js'
+import type { OperatorTable } from './expr/table.js'
 import { Law, LawDescription } from './law.js'
 import { jsonSchemaOf } from './jsonSchema.js'
 import { tableTested, testedByRunner } from './tested.js'

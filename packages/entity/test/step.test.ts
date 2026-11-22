@@ -4,6 +4,7 @@
  * runs still runs through a step.
  */
 import { Schema, flow, pipe } from 'effect'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Collation,
@@ -88,7 +89,7 @@ const predicates = [
 
 describe('A step', () => {
   it.each(predicates)('%s builds the node the data-first call builds', (_, step, call) => {
-    expect(step()).toEqual(call)
+    expect(Node.key(step().node)).toBe(Node.key(call.node))
     expect(dependenciesOf(step())).toEqual(dependenciesOf(call))
     expect(Expr.show(step())).toBe(Expr.show(call))
   })
@@ -117,7 +118,7 @@ describe('A step', () => {
       concat(fields.title, Expr.field(fields.title)),
     ],
   ] as const)('an operator made with Expr.operator: %s equals the nested call', (_, step, call) => {
-    expect(step()).toEqual(call)
+    expect(Node.key(step().node)).toBe(Node.key(call.node))
     expect(dependenciesOf(step())).toEqual(dependenciesOf(call))
   })
 
@@ -166,8 +167,8 @@ describe('A step', () => {
   it('does not build the node until the subject is given', () => {
     const later = Expr.eq.step('open')
     expect(typeof later).toBe('function')
-    expect(later(fields.status)).toEqual(Expr.eq(fields.status, 'open'))
+    expect(Node.key(later(fields.status).node)).toBe(Node.key(Expr.eq(fields.status, 'open').node))
     // Applying it again is a second, equal node.
-    expect(later(fields.status)).toEqual(later(fields.status))
+    expect(Node.key(later(fields.status).node)).toBe(Node.key(later(fields.status).node))
   })
 })

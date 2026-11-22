@@ -17,6 +17,11 @@ import type { EntitySet } from './sets.js'
 // those it calls (#378). Exported under the interface's name; `export * as`
 // would make each `Entity` type here a reference the declaration emitter refuses.
 import * as EntityMembers from './entity.js'
+import * as ExprMembers from './expr/exprMembers.js'
+import type { Expr as ExprOf } from './expr/operand.js'
+import * as OrderMembers from './expr/orderMembers.js'
+import * as QueryMembers from './expr/queryMembers.js'
+import type { Query as QueryOf } from './expr/query.js'
 import type { AnyVariantUnion } from './variants.js'
 
 export { EntityTypeId, SelectionPageTypeId, SelectionTypeId } from './ids.js'
@@ -608,9 +613,63 @@ export const Derived = {
   }),
 }
 
-export * from './expr.js'
+/** A typed expression over an Entity's environment, giving a `T`: a metakit `Expr` (`Expr.eq`, `Expr.field`, …). */
+export interface Expr<T> extends ExprOf<T> {}
+
+/** Which rows a query is about, as a value (`Query.from`, `Query.where`, `Query.orderBy`). */
+export interface Query<E extends AnyEntity> extends QueryOf<E> {}
+
+// `Expr`, `Query` and `Order` are namespaces, beside the interfaces of the
+// first two, so a page keeps only the members it calls.
+export { ExprMembers as Expr }
+export { QueryMembers as Query }
+export { OrderMembers as Order }
+export type {
+  AnyExpr,
+  CompareOperator,
+  EntityEnv,
+  FieldOrigin,
+  InputExpr,
+  Invalid,
+  LiteralExpr,
+  OneRelation,
+  OrderedOperand,
+  Predicate,
+  Reads,
+  ReadsOf,
+  TextOperand,
+  ValueOf,
+} from './expr/operand.js'
+export { maxQueryNodes } from './expr/operand.js'
+export type { EqStep, InStep } from './expr/logic.js'
+export type { CompareStep } from './expr/compare.js'
+export type { ContainsStep } from './expr/text.js'
+export type {
+  ArgumentOf,
+  CallOptions,
+  Operator,
+  OperatorDescriptor,
+  OperatorStep,
+  ParameterOf,
+} from './expr/operator.js'
+export { missingName, noOperators, type OperatorTable } from './expr/table.js'
+export { maxPathLength, type CaseFields, type CasePaths, type PathEnd } from './expr/relation.js'
+export {
+  dependenciesOf,
+  type Dependencies,
+  type ExistsReach,
+  type FieldDependency,
+  type Operation,
+  type PathReach,
+  type QueryDependencies,
+  type Reach,
+  type ViewerPathReach,
+} from './expr/dependencies.js'
+export type { ChosenOrder, ChosenSort, OrderTerm, Ordering, TermOptions } from './expr/order.js'
+export type { AnyQuery, Placement } from './expr/query.js'
 export {
   contextValue,
+  matchContext,
   viewerIdOf,
   type ExprContext,
   type NowExpr,

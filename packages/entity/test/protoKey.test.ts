@@ -17,6 +17,7 @@ import {
   evaluate,
   type Expr as ExprOf,
 } from '../src/index.js'
+import { shapesOf } from './termShape.js'
 
 const PROTO = '__proto__'
 // Built from entries: a `__proto__` key in an object literal sets the prototype instead.
@@ -117,7 +118,7 @@ describe('a name Object.prototype holds, elsewhere', () => {
       Schema.NullOr(Schema.Struct({ by: Schema.Literal('id'), direction: Schema.Literal('asc') })),
     )
     const sorted = Query.from(Doc).pipe(Query.orderBy(Order.chosen(sort, { id: Doc.fields.id })))
-    expect(Query.orderFor(sorted, {})).toEqual([Order.asc(Doc.fields.id)])
+    expect(shapesOf(Query.orderFor(sorted, {}))).toEqual(shapesOf([Order.asc(Doc.fields.id)]))
   })
 
   it('relates an Entity keyed __proto__, and refuses relations for one not related', () => {

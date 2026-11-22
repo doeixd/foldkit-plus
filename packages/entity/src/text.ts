@@ -3,7 +3,10 @@
  * and each states what it means here, where data-query §6.0.1 holds the rest.
  */
 import { Schema } from 'effect'
-import { Expr } from './expr.js'
+import { Node, Str } from 'metakit'
+import { makeOperator, type Operator } from './expr/operator.js'
+
+const NullableText = Schema.NullOr(Schema.String)
 
 export const Text = {
   /**
@@ -28,10 +31,18 @@ export const Text = {
    * Query.where(Text.startsWith(Product.fields.upc, input.search))
    * ```
    */
-  startsWith: Expr.operator('text.startsWith', {
-    input: [Schema.NullOr(Schema.String), Schema.NullOr(Schema.String)],
-    output: Schema.Boolean,
-    collation: 'required',
-    description: "Whether the first text begins with the second, under the first's collation.",
-  }),
+  startsWith: makeOperator(
+    'text.startsWith',
+    {
+      input: [NullableText, NullableText],
+      output: Schema.Boolean,
+      collation: 'required',
+      description: "Whether the first text begins with the second, under the first's collation.",
+    },
+    // metakit's own `str.startsWith`, its text folded as the call's collation folds it.
+    (args, fold) => Node.Call({ op: Str.startsWithOp, args: args.map(fold) }),
+  ) as unknown as Operator<
+    readonly [typeof NullableText, typeof NullableText],
+    typeof Schema.Boolean
+  >,
 }

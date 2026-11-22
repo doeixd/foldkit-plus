@@ -6,7 +6,7 @@
  */
 import type { Data } from 'effect'
 import { Option, Schema } from 'effect'
-import type { Operator } from './expr.js'
+import type { Operator } from './expr/operator.js'
 import { jsonSchemaOf } from './jsonSchema.js'
 import { Laws, lawKind } from './lawCore.js'
 

@@ -22,18 +22,14 @@ import type { EntityIdentity } from './index.js'
 import { Node, Verdict } from 'metakit'
 import { evalNode } from 'metakit/build'
 import type { ExprContext } from './context.js'
-import { Expr, Query, dependenciesOf } from './expr.js'
-import type {
-  AnyExpr,
-  AnyQuery,
-  Operandish,
-  Operation,
-  OperatorDescriptor,
-  Predicate,
-} from './expr.js'
+import { dependenciesOf, givesUnportable, type Operation } from './expr/dependencies.js'
+import { exprOf, type AnyExpr, type Predicate } from './expr/operand.js'
+import type { OperatorDescriptor } from './expr/operator.js'
+import { callOperator } from './expr/primitive.js'
+import { dependencies, orderFor, unsupported, type AnyQuery } from './expr/query.js'
 import { Held, type HeldRow, type HeldRows } from './held.js'
-import { flatRow, loweringOf, noRow, run, type Over, type Row } from './judgeRun.js'
-import { callOperator, foreignOf } from './lowerOperator.js'
+import { flatRow, preparedOf, noRow, run, type Over, type Row } from './judgeRun.js'
+import { foreignOf, readingOf } from './reading.js'
 import { kernelOperators } from './memoryTable.js'
 import type { MemoryOperators } from './operators.js'
 import { pinsOf, type Pins } from './pins.js'
@@ -81,8 +77,8 @@ const settled = (held: Held<unknown>): unknown =>
   })
 
 /** One operand over a plain row, two-valued: its value, refused where it needs another row. */
-const valueOver = (key: object, node: Operandish, over: Omit<Over, 'judging'>): unknown =>
-  settled(run(loweringOf(key, [node]), { ...over, judging: false })[0]!)
+const valueOver = (key: object, node: AnyExpr, over: Omit<Over, 'judging'>): unknown =>
+  settled(run(preparedOf(key, [node]), { ...over, judging: false })[0]!)
 
 /**
  * What an operand comes to over no row: a call of literals and inputs, run by
@@ -92,7 +88,7 @@ const valueOver = (key: object, node: Operandish, over: Omit<Over, 'judging'>): 
  * text holding NUL).
  */
 export const valueOfOperand = (
-  node: Operandish,
+  node: AnyExpr,
   options: {
     readonly input?: Row | undefined
     readonly operators?: MemoryOperators | undefined
@@ -123,21 +119,12 @@ export const applyOperator = (
   if (Option.isSome(operator.definedAs) || !options.operators.has(operator)) {
     throw new OperatorMissingError(operator, options.operators)
   }
-  const foreign = new Map<string, OperatorDescriptor>()
   const node = callOperator(
     operator,
     values.map(value => Node.Lit({ value: value === undefined ? null : value })),
     options.collation,
-    foreign,
   )
-  const value = evalNode(
-    node,
-    {},
-    foreignOf(
-      { nodes: [], keys: [], related: new Map(), viewers: new Map(), foreign },
-      options.operators,
-    ),
-  )
+  const value = evalNode(node, {}, foreignOf(readingOf([exprOf(node)]), options.operators))
   if (Node.isRefusal(value)) throw refusedBy(value)
   // A predicate operator's unknown is null, as SQL's.
   return value === null && SchemaAST.isBoolean(Schema.toEncoded(operator.output).ast) ? null : value
@@ -232,7 +219,7 @@ export const Judge = {
     options: JudgeOptions & { readonly next?: HeldRow | undefined } = {},
   ): PredicateVerdict =>
     verdictOf(
-      run(loweringOf(predicate, [predicate]), {
+      run(preparedOf(predicate, [predicate]), {
         row,
         owner: ownerOf(predicate),
         next: options.next ?? noRow,
@@ -258,13 +245,13 @@ export const Judge = {
     row: HeldRow,
     options: Omit<JudgeOptions, 'input'> & { readonly serverOnly?: string | undefined } = {},
   ): Verdict.Verdict<never> => {
-    if (givenUnportable(body.where, Query.dependencies(body).inputs, input)) {
+    if (givenUnportable(body.where, dependencies(body).inputs, input)) {
       throw new QueryEvaluateError(
         `query "${body.entity.name}" was given text holding a NUL character, or NaN, which no two backends agree on`,
       )
     }
     // Every predicate is asked, as `evaluate` asks them: one may refuse its value.
-    const verdicts = run(loweringOf(body, body.where), {
+    const verdicts = run(preparedOf(body, body.where), {
       row,
       owner: body.entity.identity,
       next: noRow,
@@ -292,7 +279,12 @@ export const Judge = {
   pins: (
     predicates: ReadonlyArray<Predicate>,
     options: { readonly input?: Row | undefined; readonly context?: ExprContext | undefined } = {},
-  ): Pins => pinsOf(predicates, options.input ?? {}, options.context),
+  ): Pins =>
+    pinsOf(
+      predicates.map(predicate => predicate.node),
+      options.input ?? {},
+      options.context,
+    ),
 }
 
 const owners = new WeakMap<Predicate, Option.Option<EntityIdentity<string>>>()
@@ -304,8 +296,9 @@ const ownerOf = (predicate: Predicate): EntityIdentity<string> | undefined => {
     const read = dependenciesOf(predicate)
     const reached = read.reaches.map(each =>
       Match.valueTags(each, {
-        Path: ({ via }) => Option.fromUndefinedOr(via[0]?.owner),
-        Exists: ({ via, relation }) => Option.some(via[0]?.owner ?? relation.target().identity),
+        Path: ({ via }) => Option.some<EntityIdentity<string>>(via[0].owner),
+        Exists: ({ via, relation }) =>
+          Option.some<EntityIdentity<string>>(via[0]?.owner ?? relation.target().identity),
         ViewerPath: () => Option.none<EntityIdentity<string>>(),
       }),
     )
@@ -324,7 +317,7 @@ const matches = (
 ) =>
   // Every predicate is asked, as `and` asks every operand: SQL fixes no order, so
   // one that refuses its value refuses whichever comes first in the list.
-  run(loweringOf(body, body.where), {
+  run(preparedOf(body, body.where), {
     ...scope,
     row: flatRow(row),
     owner: body.entity.identity,
@@ -364,7 +357,7 @@ export const assertSupported = (
   body: AnyQuery,
   operators: MemoryOperators = kernelOperators,
 ): void => {
-  const missing = Query.unsupported(body, supported, operators)
+  const missing = unsupported(body, supported, operators)
   if (missing.length > 0) {
     throw new QueryEvaluateError(
       `this interpreter does not run ${missing.join(', ')}, which query "${body.entity.name}" needs`,
@@ -399,7 +392,7 @@ export const evaluate = (
   assertSupported(body, operators)
   return ordered(
     rows.filter(row => matches(body, row, input, { operators, context })),
-    Query.orderFor(body, input),
+    orderFor(body, input),
     body.entity.name,
     { input, operators, context },
   )
@@ -437,7 +430,7 @@ export const evaluateEach = (
   const operators = options.operators ?? kernelOperators
   const { context } = options
   assertSupported(body, operators)
-  const terms = Query.orderFor(body, input)
+  const terms = orderFor(body, input)
   checkTerms(terms, body.entity.name)
   const read = [...body.where, ...terms.map(term => term.expr)]
   const scope = { input, operators, context }
@@ -483,7 +476,7 @@ const givenUnportable = (
   inputs: ReadonlyArray<string>,
   input: Row,
 ): boolean =>
-  Expr.givesUnportable(...read) ||
+  givesUnportable(...read) ||
   inputs.some(key => {
     const value = input[key]
     const unportable = (each: unknown) =>

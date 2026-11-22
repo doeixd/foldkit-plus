@@ -1,4 +1,5 @@
 import { Option, Schema } from 'effect'
+import { Bool, Node, Str } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Collation,
@@ -11,6 +12,7 @@ import {
   type Predicate,
 } from '../src/index.js'
 import { Blog } from './blogFixture.js'
+import { shapeOf, shapesOf } from './termShape.js'
 
 const { Post } = Blog
 
@@ -18,25 +20,26 @@ describe('Expr builds a comparison as data', () => {
   it('coerces a field and a literal, and performs no work doing it', () => {
     const predicate = Expr.eq(Post.fields.title, 'hello')
 
-    expect(predicate).toEqual({
-      _tag: 'Eq',
-      left: {
-        _tag: 'Field',
-        owner: Post.identity,
-        key: 'title',
-        schema: Post.fields.title.schema,
-        collation: Option.none(),
-      },
-      right: { _tag: 'Literal', value: 'hello' },
-    })
+    expect(Node.$is('Call')(predicate.node)).toBe(true)
+    if (!Node.$is('Call')(predicate.node)) return
+    expect(predicate.node.op.id).toBe('eq.equals')
+    expect(predicate.node.args.map(Node.key)).toEqual([
+      Node.key(Expr.field(Post.fields.title).node),
+      Node.key(Expr.literal('hello').node),
+    ])
+    expect(Expr.show(predicate)).toBe('Post.title = "hello"')
   })
 
   it('keeps an input a placeholder, not the value it will be given', () => {
     const slug = Expr.input('slug', Schema.String)
     const predicate = Expr.eq(Post.fields.title, slug)
 
-    expect(predicate.right).toBe(slug)
-    expect(predicate.right).toEqual({ _tag: 'Input', key: 'slug', schema: Schema.String })
+    expect(Node.$is('Call')(predicate.node) && predicate.node.args.map(Node.key)[1]).toBe(
+      Node.key(slug.node),
+    )
+    expect(slug.term).toBe('input')
+    expect(slug.key).toBe('slug')
+    expect(Expr.show(predicate)).toBe('Post.title = $slug')
   })
 
   it('carries the Entity identity, so two Entities of one name are two fields', () => {
@@ -44,31 +47,33 @@ describe('Expr builds a comparison as data', () => {
     const here = Expr.eq(Post.fields.id, 'p1')
     const there = Expr.eq(Other.fields.id, 'p1')
 
-    expect(here.left).not.toEqual(there.left)
-    expect((here.left as { readonly owner: unknown }).owner).toBe(Post.identity)
+    expect(Node.key(here.node)).toBe(Node.key(Expr.eq(Post.fields.id, 'p1').node))
+    expect(dependenciesOf(here).fields.map(field => field.owner)).toEqual([Post.identity])
+    expect(dependenciesOf(there).fields.map(field => field.owner)).toEqual([Other.identity])
   })
 
-  it('converts a field once: a FieldExpr given again is the same value', () => {
+  it('converts a field once: an expression of a field given again is the same value', () => {
     const once = Expr.field(Post.fields.title)
     const twice = Expr.eq(once, 'hello')
 
-    expect(twice.left).toEqual(once)
+    expect(Node.key(twice.node)).toBe(Node.key(Expr.eq(Post.fields.title, 'hello').node))
+    expect(Node.$is('Call')(twice.node) && Node.key(twice.node.args[0]!)).toBe(Node.key(once.node))
   })
 
   it('compares two fields', () => {
     const predicate = Expr.eq(Post.fields.title, Expr.field(Post.fields.id))
 
-    expect(predicate.left._tag).toBe('Field')
-    expect(predicate.right._tag).toBe('Field')
+    expect(Node.$is('Call')(predicate.node) && predicate.node.op.id).toBe('eq.equals')
+    expect(dependenciesOf(predicate).fields.map(field => field.key)).toEqual(['title', 'id'])
   })
 })
 
 describe('Order is a term over a scalar', () => {
   it('takes a field or an expression, in either direction', () => {
-    expect(Order.asc(Post.fields.id)).toEqual({
+    expect(shapeOf(Order.asc(Post.fields.id))).toEqual({
       _tag: 'Term',
       direction: 'asc',
-      expr: Expr.field(Post.fields.id),
+      expr: Node.key(Expr.field(Post.fields.id).node),
       nulls: 'last',
       // An id orders by code point unless its field says otherwise.
       collation: Option.some(Collation.binary),
@@ -95,17 +100,18 @@ describe('Order.chosen orders by the field the input names', () => {
   )
 
   it('resolves, per input, to the one term it names, or to none, then the id', () => {
-    expect(Query.orderFor(body, { sort: { by: 'title', direction: 'desc' } })).toEqual([
-      Order.desc(Post.fields.title),
-      Order.asc(Post.fields.id),
-    ])
-    expect(Query.orderFor(body, { sort: null })).toEqual([Order.asc(Post.fields.id)])
+    expect(shapesOf(Query.orderFor(body, { sort: { by: 'title', direction: 'desc' } }))).toEqual(
+      shapesOf([Order.desc(Post.fields.title), Order.asc(Post.fields.id)]),
+    )
+    expect(shapesOf(Query.orderFor(body, { sort: null }))).toEqual(
+      shapesOf([Order.asc(Post.fields.id)]),
+    )
   })
 
   it('ends on the id once: an order that reads it already is total', () => {
-    expect(Query.orderFor(body, { sort: { by: 'id', direction: 'desc' } })).toEqual([
-      Order.desc(Post.fields.id),
-    ])
+    expect(shapesOf(Query.orderFor(body, { sort: { by: 'id', direction: 'desc' } }))).toEqual(
+      shapesOf([Order.desc(Post.fields.id)]),
+    )
   })
 
   it('refuses an input naming no order it offers, or no direction it knows', () => {
@@ -255,7 +261,9 @@ describe('Query composes which rows, as data', () => {
       Query.orderBy(Order.asc(Post.fields.id)),
     )
 
-    expect(ordered.orderBy).toEqual([Order.desc(Post.fields.title), Order.asc(Post.fields.id)])
+    expect(shapesOf(ordered.orderBy)).toEqual(
+      shapesOf([Order.desc(Post.fields.title), Order.asc(Post.fields.id)]),
+    )
   })
 
   it('takes several predicates or terms at once, the same as several calls', () => {
@@ -331,12 +339,17 @@ describe('Query composes which rows, as data', () => {
 
 describe('The operations the CMS worklist needs', () => {
   it('asks whether a value is absent, either way round, as one node', () => {
-    expect(Expr.isNull(Post.fields.title)).toEqual({
-      _tag: 'Null',
-      operand: Expr.field(Post.fields.title),
-      present: false,
-    })
-    expect(Expr.isNotNull(Post.fields.title).present).toBe(true)
+    const absent = Expr.isNull(Post.fields.title)
+    const present = Expr.isNotNull(Post.fields.title)
+    const title = Expr.field(Post.fields.title).node
+    expect(Node.$is('Call')(absent.node) && absent.node.op.id).toBe('null.isNull')
+    expect(Node.$is('Call')(absent.node) && absent.node.args.map(Node.key)).toEqual([
+      Node.key(title),
+    ])
+    // Present is the absent question negated, as one built node.
+    expect(Node.key(present.node)).toBe(
+      Node.key(Node.Call({ op: Bool.notOp, args: [absent.node] })),
+    )
   })
 
   it('takes a predicate where a boolean is wanted, which is the branchless form', () => {
@@ -345,29 +358,40 @@ describe('The operations the CMS worklist needs', () => {
     const archived = Expr.input('archived', Schema.Boolean)
     const predicate = Expr.eq(Expr.isNotNull(Post.fields.title), archived)
 
-    expect(predicate.left).toEqual(Expr.isNotNull(Post.fields.title))
-    expect(predicate.right).toBe(archived)
+    expect(Node.$is('Call')(predicate.node)).toBe(true)
+    if (!Node.$is('Call')(predicate.node)) return
+    expect(predicate.node.op.id).toBe('eq.equals')
+    expect(Node.key(predicate.node.args[0]!)).toBe(Node.key(Expr.isNotNull(Post.fields.title).node))
+    expect(Node.key(predicate.node.args[1]!)).toBe(Node.key(archived.node))
   })
 
-  it('asks whether text contains text', () => {
-    expect(Expr.contains(Post.fields.title, Expr.input('q', Schema.String))).toEqual({
-      _tag: 'Contains',
-      value: Expr.field(Post.fields.title),
-      search: { _tag: 'Input', key: 'q', schema: Schema.String },
-    })
-  })
-
-  it('refuses to ask whether an answer is absent', () => {
-    expect(() => Expr.isNull(Expr.eq(Post.fields.title, 'x'))).toThrow(
-      'a predicate is already an answer',
+  it('asks whether text contains text, folded to one case on both sides', () => {
+    const q = Expr.input('q', Schema.String)
+    const predicate = Expr.contains(Post.fields.title, q)
+    expect(Node.$is('Call')(predicate.node) && predicate.node.op.id).toBe('str.contains')
+    const lower = (node: Node.Node) => Node.Call({ op: Str.lowerAsciiOp, args: [node] })
+    expect(Node.key(predicate.node)).toBe(
+      Node.key(
+        Node.Call({
+          op: Str.containsOp,
+          args: [lower(Expr.field(Post.fields.title).node), lower(q.node)],
+        }),
+      ),
     )
-    // `contains` refuses this twice over: a predicate holds a boolean, so it
-    // does not hold text either. The type check comes first, and the runtime
-    // one still has to hold for callers without one.
+  })
+
+  it('asks whether a predicate is absent, which is whether it is unknown', () => {
+    // A predicate is a boolean value like any other, so it has an absence.
+    const unknown = Expr.isNull(Expr.eq(Post.fields.title, 'x'))
+    expect(Node.$is('Call')(unknown.node) && unknown.node.op.id).toBe('null.isNull')
+    expect(Expr.show(unknown)).toBe('(Post.title = "x") is null')
+  })
+
+  it('refuses a predicate as the text to search', () => {
     expect(() =>
       // @ts-expect-error a predicate is an answer, and holds no text
       Expr.contains(Expr.eq(Post.fields.title, 'x'), 'y'),
-    ).toThrow('a predicate is already an answer')
+    ).toThrow()
   })
 
   it('refuses a search a row decides, which SQL would have to escape as a pattern', () => {
@@ -522,18 +546,33 @@ describe('and, or and not', () => {
   const draft = Expr.isNull(Post.fields.published)
 
   it('flattens a connective of the same kind into its parent, and nothing else', () => {
-    const nested = Expr.and(Expr.and(titled, live), draft)
-    expect(nested).toEqual({ _tag: 'And', operands: [titled, live, draft] })
-    expect(Expr.or(titled, Expr.or(live, draft))).toEqual({
-      _tag: 'Or',
-      operands: [titled, live, draft],
-    })
+    const key = (built: { readonly node: Node.Node } | Node.Node) =>
+      Node.key('node' in built ? built.node : built)
+    const flat = Expr.and(titled, live, draft)
+    expect(key(Expr.and(Expr.and(titled, live), draft))).toBe(key(flat))
+    expect(key(Expr.and(titled, Expr.and(live, draft)))).toBe(key(flat))
+    const either = Expr.or(titled, live, draft)
+    expect(key(Expr.or(titled, Expr.or(live, draft)))).toBe(key(either))
+    // The flat form is a left-to-right chain of the connective's operation.
+    expect(key(flat)).toBe(
+      key(
+        Node.Call({
+          op: Bool.andOp,
+          args: [Node.Call({ op: Bool.andOp, args: [titled.node, live.node] }), draft.node],
+        }),
+      ),
+    )
     // An or under an and is a grouping, so it stays.
     const grouped = Expr.and(Expr.or(titled, live), draft)
-    expect(grouped).toEqual({
-      _tag: 'And',
-      operands: [{ _tag: 'Or', operands: [titled, live] }, draft],
-    })
+    expect(key(grouped)).not.toBe(key(flat))
+    expect(key(grouped)).toBe(
+      key(
+        Node.Call({
+          op: Bool.andOp,
+          args: [Node.Call({ op: Bool.orOp, args: [titled.node, live.node] }), draft.node],
+        }),
+      ),
+    )
   })
 
   it('is one operand when given one, adding no node', () => {
@@ -547,10 +586,15 @@ describe('and, or and not', () => {
     expect(() => Expr.or(...none)).toThrow('Expr.or: no operands, which would match no row')
     // @ts-expect-error a list that may be empty
     expect(() => Expr.and(...none)).toThrow('Expr.and: no operands, which would match every row')
-    // @ts-expect-error a field is a value
-    expect(() => Expr.and(titled, Post.fields.published)).toThrow('every operand is a predicate')
-    // @ts-expect-error a field is a value
-    expect(() => Expr.not(Post.fields.published)).toThrow('the operand is a predicate')
+    // @ts-expect-error a text field is a value
+    expect(() => Expr.and(titled, Expr.field(Post.fields.title))).toThrow(
+      'every operand is a predicate',
+    )
+    // @ts-expect-error a text field is a value
+    expect(() => Expr.not(Expr.field(Post.fields.title))).toThrow('the operand is a predicate')
+    // A boolean field is a predicate itself.
+    expect(() => Expr.and(titled, Expr.field(Post.fields.published))).not.toThrow()
+    expect(() => Expr.not(Expr.field(Post.fields.published))).not.toThrow()
   })
 
   it('refuses a flattened list longer than a query may hold, before building it twice over', () => {
@@ -618,10 +662,25 @@ describe('comparisons', () => {
   ).pipe(Entity.annotateMembers({ name: Collation.of(Collation.binary) }))
 
   it('orders numbers with no collation, and text under the field’s', () => {
-    expect(Expr.lt(Ranked.fields.rank, 3).collation).toEqual(Option.none())
-    expect(Expr.gte(Ranked.fields.name, 'm').collation).toEqual(Option.some(Collation.binary))
-    expect(Expr.gte(Post.fields.title, 'm', { collation: Collation.asciiFold }).collation).toEqual(
-      Option.some(Collation.asciiFold),
+    const call = (predicate: Predicate) => {
+      if (!Node.$is('Call')(predicate.node)) throw new Error('not a call')
+      return predicate.node
+    }
+    const number = call(Expr.lt(Ranked.fields.rank, 3))
+    expect(number.op.id).toBe('ord.lt')
+    const binary = call(Expr.gte(Ranked.fields.name, 'm'))
+    expect(binary.op.id).toBe('str.gte')
+    // Binary text compares as it is stored; asciiFold folds both sides first.
+    expect(binary.args.map(Node.key)).toEqual([
+      Node.key(Expr.field(Ranked.fields.name).node),
+      Node.key(Expr.literal('m').node),
+    ])
+    const folded = call(Expr.gte(Post.fields.title, 'm', { collation: Collation.asciiFold }))
+    expect(folded.op.id).toBe('str.gte')
+    expect(folded.args.map(Node.key)).toEqual(
+      [Expr.field(Post.fields.title).node, Expr.literal('m').node].map(each =>
+        Node.key(Node.Call({ op: Str.lowerAsciiOp, args: [each] })),
+      ),
     )
   })
 

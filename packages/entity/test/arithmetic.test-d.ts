@@ -4,7 +4,7 @@
  */
 import { Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
-import { Entity, Expr, type CallExpr, type OrPredicate, type Reads } from '../src/index.js'
+import { Entity, Expr, type Expr as ExprOf, type Predicate, type Reads } from '../src/index.js'
 
 const Account = Entity.define(
   'Account',
@@ -20,11 +20,11 @@ const amount = Expr.input('amount', Schema.Number)
 const label = Expr.input('label', Schema.String)
 
 // A number field, a nullable one, an input and a literal, on either side.
-expectTypeOf(Expr.add(balance, amount)).toEqualTypeOf<CallExpr<number> & Reads<'Account'>>()
-expectTypeOf(Expr.add(amount, balance)).toEqualTypeOf<CallExpr<number> & Reads<'Account'>>()
-expectTypeOf(Expr.sub(1, overdraft)).toEqualTypeOf<CallExpr<number> & Reads<'Account'>>()
+expectTypeOf(Expr.add(balance, amount)).toEqualTypeOf<ExprOf<number> & Reads<'Account'>>()
+expectTypeOf(Expr.add(amount, balance)).toEqualTypeOf<ExprOf<number> & Reads<'Account'>>()
+expectTypeOf(Expr.sub(1, overdraft)).toEqualTypeOf<ExprOf<number> & Reads<'Account'>>()
 expectTypeOf(Expr.sub(Expr.add(balance, 1), amount)).toEqualTypeOf<
-  CallExpr<number> & Reads<'Account'>
+  ExprOf<number> & Reads<'Account'>
 >()
 
 // A sum compares as a number, on either side of the comparison.
@@ -44,7 +44,7 @@ Expr.eq(Expr.add(balance, 1), 'one')
 
 const open = Expr.eq(status, 'open')
 const covered = Expr.gte(balance, 0)
-expectTypeOf(Expr.implies(open, covered)).toEqualTypeOf<OrPredicate & Reads<'Account'>>()
+expectTypeOf(Expr.implies(open, covered)).toEqualTypeOf<Predicate & Reads<'Account'>>()
 // @ts-expect-error the condition is a predicate, not a value
 Expr.implies(balance, covered)
 // @ts-expect-error the consequence is a predicate, not a value

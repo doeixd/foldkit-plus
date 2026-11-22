@@ -10,7 +10,9 @@ const tests = [
   'packages/remote-drizzle/test/conformance.test.ts',
   'packages/remote/test/matching.test.ts',
 ]
-const expr = '../src/expr.ts'
+const operand = '../src/expr/operand.ts'
+const order = '../src/expr/order.ts'
+const query = '../src/expr/query.ts'
 const evaluate = '../src/rowOrder.ts'
 const cursor = '../../remote-drizzle/src/cursor.ts'
 const compile = '../../remote-drizzle/src/compile.ts'
@@ -20,7 +22,7 @@ export default [
     name: 'an id has no collation',
     edits: [
       {
-        file: expr,
+        file: operand,
         find: "field.key === 'id' ? Option.some(Collation.binary) : Option.none(),",
         replace: 'Option.none(),',
       },
@@ -31,9 +33,9 @@ export default [
     name: 'a term cannot override its field',
     edits: [
       {
-        file: expr,
-        find: ': Option.orElse(Option.fromUndefinedOr(options.collation), () =>',
-        replace: ': Option.orElse(Option.none<Collation>(), () =>',
+        file: order,
+        find: ': Option.orElse(Option.fromUndefinedOr(options.collation), () => carried)',
+        replace: ': Option.orElse(Option.none<Collation>(), () => carried)',
       },
     ],
     tests,
@@ -86,16 +88,17 @@ export default [
     name: 'a locale collation counts as placeable',
     edits: [
       {
-        file: expr,
-        find: 'Locale: ({ locale }) =>\n                Option.some(',
-        replace: 'Locale: ({ locale }) =>\n                Option.none<string>() ?? Option.some(',
+        file: query,
+        find: 'Locale: ({ locale }) =>\n                      Option.some(',
+        replace:
+          'Locale: ({ locale }) =>\n                      Option.none<string>() ?? Option.some(',
       },
     ],
     tests,
   },
   {
     name: 'a body with no order counts as placeable',
-    edits: [{ file: expr, find: 'if (self.orderBy.length === 0) {', replace: 'if (false) {' }],
+    edits: [{ file: query, find: 'if (self.orderBy.length === 0) {', replace: 'if (false) {' }],
     tests,
   },
   {

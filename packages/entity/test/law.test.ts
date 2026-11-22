@@ -2,8 +2,10 @@
  * Laws, their evidence, and the conformance helper that tests them:
  * expr-operations-DESIGN §10.
  */
-import { Match, Option, Schema } from 'effect'
+import { Option, Schema } from 'effect'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
+import { exprOf } from '../src/expr/operand.js'
 import { Conformance, Outcome } from '../src/conformance/index.js'
 import { Collation, Evidence, Expr, Law, Operators, Text, valueOfOperand } from '../src/index.js'
 
@@ -587,11 +589,11 @@ describe('Running an operator through several implementations', () => {
       definedAs: text => Expr.eq(text, ''),
     })
     // A database that compiled it as "blank once trimmed" disagrees with what it means.
+    // A defined call is its body: `eq.equals(text, '')`, whose first argument is the text.
     const spaced = (call: Parameters<typeof valueOfOperand>[0]) =>
-      Match.value(call).pipe(
-        Match.tag('Call', 'Test', ({ args }) => String(valueOfOperand(args[0]!)).trim() === ''),
-        Match.orElse(() => null),
-      )
+      Node.$is('Call')(call.node)
+        ? String(valueOfOperand(exprOf(call.node.args[0]!))).trim() === ''
+        : null
     const report = await Conformance.operator(blank, {
       implementations: { spaced },
       cases: [[''], [' '], ['a']],

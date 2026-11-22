@@ -3,7 +3,7 @@
  * `pnpm mutate packages/entity/test/describe.mutations.ts`.
  */
 const tests = ['packages/entity/test/describe.test.ts']
-const expr = '../src/expr.ts'
+const expr = '../src/expr/table.ts'
 const operators = '../src/operators.ts'
 const memoryTable = '../src/memoryTable.ts'
 const evaluate = '../src/evaluate.ts'

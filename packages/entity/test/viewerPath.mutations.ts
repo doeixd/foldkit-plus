@@ -3,10 +3,12 @@
  * `pnpm mutate packages/entity/test/viewerPath.mutations.ts`.
  */
 const tests = ['packages/entity/test/viewerPath.test.ts']
-const expr = '../src/expr.ts'
+const relation = '../src/expr/relation.ts'
+const dependencies = '../src/expr/dependencies.ts'
+const order = '../src/expr/order.ts'
 const write = '../src/write.ts'
 const sets = '../src/sets.ts'
-const lowerEnv = '../src/lowerEnv.ts'
+const environment = '../src/environment.ts'
 const held = '../src/held.ts'
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
@@ -17,25 +19,25 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 export default [
   edit(
     'an end on another Entity is taken',
-    expr,
-    'if (owner.token !== start.identity.token) {',
+    relation,
+    'if (owner.token !== from.identity.token) {',
     'if (false) {',
   ),
   edit(
     'a visitor starts a path from the viewer',
-    lowerEnv,
+    environment,
     '// A visitor, or a viewer of another Entity.\n          onNone: () => null,',
     '// A visitor, or a viewer of another Entity.\n          onNone: () => ({}),',
   ),
   edit(
     "a path from the viewer reads the viewer's own row",
-    '../src/lower.ts',
-    "[...hops(['viewer', entity.name], path.via), path.field.key],",
-    "['viewer', entity.name, path.field.key],",
+    relation,
+    'made(reached(start, via, field), {',
+    'made(reached(start, [], field), {',
   ),
   edit(
     'a row the holder knows absent is unknown',
-    lowerEnv,
+    environment,
     'for (const key of fields.keys()) put(hidden, key, null)',
     '',
   ),
@@ -47,21 +49,21 @@ export default [
   ),
   edit(
     'a path from the viewer reaches no other row',
-    expr,
-    "      found.operations.add('path')\n      found.reaches.push(expr)\n      return\n    case 'Exists'",
-    "      found.operations.add('path')\n      return\n    case 'Exists'",
+    dependencies,
+    "      ViewerHop: ({ viewer, via, field }) =>\n        Option.some<Reach>({ _tag: 'ViewerPath', viewer, via, field, expr: exprOf(node) }),",
+    '      ViewerHop: () => Option.none<Reach>(),',
   ),
   edit(
     'a list orders by a path from the viewer',
-    expr,
-    'ViewerPath: (path): Option.Option<Collation> => {\n',
-    'ViewerPath: (path): Option.Option<Collation> => {\n        if (path) return Option.none()\n',
+    order,
+    "ViewerHop: () => Option.some('a path from the viewer'),",
+    'ViewerHop: () => Option.none<string>(),',
   ),
   edit(
     'a path from the viewer follows none of its relations',
-    expr,
-    '        via: path.via,\n',
-    '        via: [],\n',
+    relation,
+    "{ _tag: 'ViewerHop', viewer: from, via, field }",
+    "{ _tag: 'ViewerHop', viewer: from, via: [], field }",
   ),
   edit(
     'a null link is followed',
@@ -84,19 +86,19 @@ export default [
   edit(
     'a viewer of any Entity starts the path',
     write,
-    'Option.match(viewerIdOf(path.viewer.entity, by), {',
+    'Option.match(viewerIdOf(path.viewer, by), {',
     'Option.match(Option.map(by.viewer, viewer => viewer.id), {',
   ),
   edit(
     'a path names no Entity it reads past the viewer',
     write,
-    '[viewer.entity.name, ...via.map(relation => relation.target().name)]',
-    '[viewer.entity.name]',
+    'return [viewer.name, ...via.map(relation => relation.target().name)]',
+    'return [viewer.name]',
   ),
   edit(
     "a path's end need not fit its field",
     sets,
-    "(stored !== 'other' && storedAs(field.schema as unknown as Schema.Top) === stored) ||",
-    'true ||',
+    "if (stored === 'other' || storedAs(field.schema) !== stored) {",
+    'if (false) {',
   ),
 ]

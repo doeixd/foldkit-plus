@@ -44,9 +44,9 @@ export default [
     name: 'stored text is read as text that may hold a NUL',
     edits: [
       {
-        file: '../src/lower.ts',
-        find: 'const ast = stored(Schema.toEncoded(schema).ast)',
-        replace: 'const ast = Schema.toEncoded(schema).ast',
+        file: '../src/expr/operand.ts',
+        find: 'const storedAst = memo(schema => stored(Schema.toEncoded(schema).ast))',
+        replace: 'const storedAst = memo(schema => Schema.toEncoded(schema).ast)',
       },
     ],
     tests: step5,

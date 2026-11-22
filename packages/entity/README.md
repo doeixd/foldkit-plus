@@ -1492,8 +1492,9 @@ Refusal.isInvalidBy(refusal, reservedWithinQuantity)
 
 Text compares only under a declared collation, here too: a date stored as text
 needs `{ collation: Collation.binary }` on its comparison. An interpreter that
-judges stored rows alone refuses `after`'s nodes as the operation `next`;
-`Expr.substituteNext` reads the ones a write sets as their values.
+judges stored rows alone refuses `after`'s reads as the operation `next`; a
+reader that knows the values a write sets puts them in place of those reads
+(`after.x` reads the segments `next.x`).
 
 ## States of a row, and what every write does to them
 
@@ -1819,8 +1820,8 @@ Query.show(PublicStories)
 
 - **Expands purely from its arguments:**
   `definedAs` builds an expression from a call's arguments, once per call, and
-  every interpreter runs that expression (`Expr.expanded` writes a predicate's
-  calls out); one that closes over a field or an input instead of taking it is
+  every interpreter runs that expression (a call is what its body builds); one
+  that closes over a field or an input instead of taking it is
   refused when called. `Query.show` prints the call, and
   `Query.dependencies(body).operators` lists each operator a body uses. The
   guide's [What the calls mean](../../docs/operators.md#what-the-calls-mean)
@@ -2104,7 +2105,7 @@ server on different deploys see which side is behind.
 | `Held.rows` / `Held.fromRefs` / `isLink` | Build `HeldRow` caches and normalize relation ref keys |
 | `Judge.pins` | Extract fixed field values from a conjunction for `pointing` |
 | `Expr.operator(id, options)` | Define a reusable macro (`definedAs`) or primitive operator |
-| `Expr.expanded` / `unsupported` / `dependenciesOf` | Expand operator macros and inspect expression dependencies |
+| `Expr.unsupported` / `dependenciesOf` | Inspect what an expression reads and needs |
 | `Operators.memory` / `implement` / `kernel` | Build and compose in-memory primitive operator tables |
 | `Operators.merge` / `override` / `checked` | Combine operator tables and validate outputs in tests |
 | `Law.*` (`associative`, `monotonic`, …) | Algebraic laws declared on primitive operators |

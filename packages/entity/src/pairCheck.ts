@@ -14,9 +14,9 @@ import { evalNode } from 'metakit/build'
 import { finiteValues } from './enumerate.js'
 import { judgeAgainst, readsBefore, type Invariant } from './invariant.js'
 import type { Row } from './evaluate.js'
-import { Query, dependenciesOf } from './expr.js'
-import { lower } from './lower.js'
-import { foreignOf } from './lowerOperator.js'
+import { dependenciesOf } from './expr/dependencies.js'
+import { dependencies } from './expr/query.js'
+import { foreignOf, readingOf } from './reading.js'
 import type { EntityField } from './index.js'
 import type { MemoryOperators } from './operators.js'
 import { own, put } from './record.js'
@@ -109,7 +109,7 @@ const build = (write: AnyWrite, assumed: ReadonlyArray<Invariant>): Built => {
   const assume: Array<ReturnType<typeof expr>> = []
   for (const held of assumed) {
     try {
-      assume.push(expr(underStates(lower([held.predicate]).nodes[0]!, 'state', false)))
+      assume.push(expr(underStates(held.predicate.node, 'state', false)))
     } catch (error) {
       // An assumption this pass cannot read is one fewer, which only loses power.
       if (!(error instanceof Unreadable)) throw error
@@ -173,7 +173,7 @@ export const decide = (
   const assumed = assumedOf(write, invariants)
   let verdict: Verdict.Verdict<never>
   try {
-    const goal = underStates(lower([held.predicate]).nodes[0]!, 'next', true)
+    const goal = underStates(held.predicate.node, 'next', true)
     verdict = checkOver(write, assumed, goal)
   } catch (error) {
     if (error instanceof Unreadable) return Decision.Undecided({ reason: error.message })
@@ -295,7 +295,7 @@ const inputKeysOf = (write: AnyWrite, rowKeys: ReadonlySet<string>): ReadonlySet
   for (const { field, expr: body } of write.assignments)
     if (rowKeys.has(field.key)) dependenciesOf(body).inputs.forEach(key => keys.add(key))
   if (write._tag !== 'Insert')
-    Option.map(write.when, body => Query.dependencies(body).inputs.forEach(key => keys.add(key)))
+    Option.map(write.when, body => dependencies(body).inputs.forEach(key => keys.add(key)))
   return keys
 }
 
@@ -315,12 +315,12 @@ const search = (
   if (write._tag === 'Delete' || write.context.length > 0) return Option.none()
   const insert = write._tag === 'Insert'
   const fields = write.input.entity.fields as Readonly<Record<string, AnyField>>
-  const mentioned = lower([
+  const mentioned = [
     held.predicate,
     ...assumed.map(other => other.predicate),
     ...Option.match(write.when, { onNone: () => [], onSome: query => query.where }),
     ...write.assignments.map(assignment => assignment.expr),
-  ]).nodes
+  ].map(expr => expr.node)
   const named = mentioned.flatMap(literalsOf)
   const ends = [
     ...Object.values(fields).flatMap(field => rangeOf(field.schema as unknown as Schema.Top).ends),
@@ -372,7 +372,7 @@ const search = (
 
   const transition = transitionOf(write)
   const foreign = foreignOf(
-    lower([
+    readingOf([
       ...Option.match(write.when, { onNone: () => [], onSome: query => query.where }),
       ...write.assignments.map(assignment => assignment.expr),
     ]),

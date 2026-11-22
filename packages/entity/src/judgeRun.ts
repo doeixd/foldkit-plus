@@ -1,22 +1,22 @@
 /**
- * How every judge in memory runs an expression: it is translated to metakit
- * nodes (`lower.ts`) once per declaration, an environment is built from the
- * rows the judge holds (`lowerEnv.ts`), and metakit's three-valued judgement
- * answers (`settleNode`). A value is SQL's (null among them); what rests on
- * something the holder lacks is unheld; a refusal is thrown as a
- * `QueryEvaluateError` carrying it.
+ * How every judge in memory runs an expression: what it reads past its own
+ * nodes is gathered once per declaration (`reading.ts`), an environment is
+ * built from the rows the judge holds (`environment.ts`), and metakit's
+ * three-valued judgement answers (`settleNode`). A value is SQL's (null among
+ * them); what rests on something the holder lacks is unheld; a refusal is
+ * thrown as a `QueryEvaluateError` carrying it.
  */
 import { Option } from 'effect'
 import { Node, Verdict } from 'metakit'
 import { Settled, settleNode, type ForeignImplementations } from 'metakit/build'
 import { now, viewer, type ExprContext } from './context.js'
-import { dependenciesOf, type OneRelation, type Operandish } from './expr.js'
+import { envOf } from './environment.js'
+import { dependenciesOf } from './expr/dependencies.js'
+import type { AnyExpr, OneRelation } from './expr/operand.js'
 import { Held, type HeldRow, type HeldRows } from './held.js'
 import type { EntityIdentity } from './index.js'
-import { lower, type Lowered } from './lower.js'
-import { envOf } from './lowerEnv.js'
-import { foreignOf } from './lowerOperator.js'
 import type { MemoryOperators } from './operators.js'
+import { foreignOf, readingOf, type Reading } from './reading.js'
 import {
   ContextMissingError,
   OperatorMissingError,
@@ -28,33 +28,33 @@ import { own } from './record.js'
 /** A row as a run reads one: values by field key, encoded. */
 export type Row = Readonly<Record<string, unknown>>
 
-/** Nodes translated, with whether they read the time: what a run needs of its context. */
-interface Lowering {
-  readonly lowered: Lowered
+/** Expressions as a reader reads them, with whether they read the time: what a run needs of its context. */
+interface Prepared {
+  readonly reading: Reading
   readonly readsNow: boolean
 }
 
-const lowerings = new WeakMap<object, Lowering>()
+const prepared = new WeakMap<object, Prepared>()
 
 /**
- * `nodes` translated, once per `key` (a declaration, frozen). What no reader
- * in memory can hold (a backend's locale collation, two relations of one
- * name) refuses the run.
+ * `exprs` as a run reads them, once per `key` (a declaration, frozen). What no
+ * reader in memory can hold (two relations of one name, two declarations of
+ * one foreign operation) refuses the run.
  */
-export const loweringOf = (key: object, nodes: ReadonlyArray<Operandish>): Lowering => {
-  const known = lowerings.get(key)
+export const preparedOf = (key: object, exprs: ReadonlyArray<AnyExpr>): Prepared => {
+  const known = prepared.get(key)
   if (known !== undefined) return known
-  let lowered: Lowered
+  let reading: Reading
   try {
-    lowered = lower(nodes)
+    reading = readingOf(exprs)
   } catch (error) {
     throw new QueryEvaluateError(error instanceof Error ? error.message : String(error))
   }
   const made = {
-    lowered,
-    readsNow: dependenciesOf(...nodes).operations.includes('now'),
+    reading,
+    readsNow: dependenciesOf(...exprs).operations.includes('now'),
   }
-  lowerings.set(key, made)
+  prepared.set(key, made)
   return made
 }
 
@@ -93,8 +93,8 @@ export const flatRow = (row: Row): HeldRow => ({
 export const noRow: HeldRow = flatRow({})
 
 /** Refuses a run that reads the viewer or the time where its context cannot say them. */
-const checkContext = ({ lowered, readsNow }: Lowering, context: ExprContext | undefined) => {
-  const [read] = lowered.viewers.values()
+const checkContext = ({ reading, readsNow }: Prepared, context: ExprContext | undefined) => {
+  const [read] = reading.viewers.values()
   const term = read === undefined ? (readsNow ? now : undefined) : viewer(read)
   if (term === undefined) return
   if (context === undefined) {
@@ -115,19 +115,19 @@ const reasonOf = (verdict: Verdict.Verdict<never>): string =>
 type Reads = Option.Option<ReadonlyArray<ReadonlyArray<string>>>
 
 /**
- * Each node of `lowering` over one row: its value, or why the holder cannot
- * say. A refusal is thrown, carried by a `QueryEvaluateError`.
+ * Each node of `ready` over one row: its value, or why the holder cannot say.
+ * A refusal is thrown, carried by a `QueryEvaluateError`.
  */
-export const run = (lowering: Lowering, over: Over): ReadonlyArray<Held<unknown>> => {
-  checkContext(lowering, over.context)
-  const { lowered } = lowering
+export const run = (ready: Prepared, over: Over): ReadonlyArray<Held<unknown>> => {
+  checkContext(ready, over.context)
+  const { reading } = ready
   if (!over.judging) {
-    for (const operator of lowered.foreign.values()) {
+    for (const operator of reading.foreign.values()) {
       if (!over.operators.has(operator)) throw new OperatorMissingError(operator, over.operators)
     }
   }
   const left: Array<readonly [ReadonlyArray<string>, string]> = []
-  const env = envOf(lowered, {
+  const env = envOf(reading, {
     row: over.row,
     owner: over.owner,
     next: over.next,
@@ -136,7 +136,7 @@ export const run = (lowering: Lowering, over: Over): ReadonlyArray<Held<unknown>
     rows: over.rows,
     unheld: (segments, reason) => left.push([segments, reason]),
   })
-  const foreign: ForeignImplementations = foreignOf(lowered, over.operators)
+  const foreign: ForeignImplementations = foreignOf(reading, over.operators)
   // The holder's own word for a value what is left still reads, else metakit's.
   const reasonFor = (reads: Reads, verdict: Verdict.Verdict<never>): string =>
     Option.getOrElse(
@@ -149,7 +149,7 @@ export const run = (lowering: Lowering, over: Over): ReadonlyArray<Held<unknown>
       ),
       () => reasonOf(verdict),
     )
-  return lowered.nodes.map(node =>
+  return reading.nodes.map(node =>
     Settled.$match(settleNode(node, env, foreign), {
       Known: ({ value }) => {
         if (Node.isRefusal(value)) throw refusedBy(value)

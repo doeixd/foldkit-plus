@@ -25,24 +25,37 @@ import type {
   EntityRelation,
   InputMember,
 } from './index.js'
+import { dependenciesOf, type Operation } from './expr/dependencies.js'
 import {
-  Expr,
-  Query,
-  dependenciesOf,
-  isPredicate,
+  exprOf,
+  kindOf,
+  originOf,
+  originTagged,
+  toNode,
   type AnyExpr,
-  type AnyQuery,
   type InputExpr,
-  type Operandish,
-  type Operation,
-  type OperatorDescriptor,
   type Predicate,
   type Reads,
-} from './expr.js'
-import { callOperator, foldsArgument, foreignOf } from './lowerOperator.js'
+} from './expr/operand.js'
+import { add, sub } from './expr/arithmetic.js'
+import { field as fieldExpr, input as inputExpr } from './expr/value.js'
+import { callOperator, foldsArgument } from './expr/primitive.js'
+import {
+  from as queryFrom,
+  where as queryWhere,
+  dependencies as queryDependencies,
+  type AnyQuery,
+} from './expr/query.js'
+import { foreignOf, readingOf } from './reading.js'
 import { OperatorMissingError, refusedBy } from './queryErrors.js'
 import type { BeforeRow, Invariant } from './invariant.js'
-import { contextValue, viewerIdOf, type ExprContext, type ViewerPathExpr } from './context.js'
+import {
+  contextValue,
+  matchContext,
+  viewerIdOf,
+  type ExprContext,
+  type ViewerPathExpr,
+} from './context.js'
 import { Held, idOfRef } from './held.js'
 import type { MemoryOperators } from './operators.js'
 import { own, put } from './record.js'
@@ -434,7 +447,7 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
   }
   const placeholders: Record<string, InputExpr<unknown>> = Object.create(null)
   for (const [key, schema] of Object.entries(input.schema.fields)) {
-    placeholders[key] = Expr.input(key, schema as unknown as Schema.Codec<unknown, unknown>)
+    placeholders[key] = inputExpr(key, schema as unknown as Schema.Codec<unknown, unknown>)
   }
   const from = Option.map(Option.fromUndefinedOr(options.from), state =>
     localTo(input.entity, state as AnyRefinement, 'from'),
@@ -444,7 +457,7 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
   )
   const fields = input.entity.fields as Readonly<Record<string, E['fields'][string]>>
   const row = Object.fromEntries(
-    Object.entries(fields).map(([key, field]) => [key, Expr.field(field)]),
+    Object.entries(fields).map(([key, field]) => [key, fieldExpr(field)]),
   ) as unknown as BeforeRow<E>
   // The `from` state's predicate joins the `when`, so another state is refused as unmet.
   const conditions = [
@@ -468,7 +481,7 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
   const when =
     conditions.length === 0
       ? Option.none<AnyQuery>()
-      : Option.some(Query.from(input.entity).pipe(Query.where(...conditions)) as AnyQuery)
+      : Option.some(queryFrom(input.entity).pipe(queryWhere(...conditions)) as AnyQuery)
   const increments: Array<WriteIncrement> = []
   for (const direction of ['increment', 'decrement'] as const) {
     for (const [fieldKey, key] of Object.entries(options[direction] ?? {})) {
@@ -567,15 +580,16 @@ export type ContextRead<E, R> = (row: EntityRef, key: string) => Effect.Effect<H
  * another Entity, or where a link is null; unheld where `read` lacks a row.
  */
 const walked = <E, R>(
-  path: ViewerPathExpr<unknown>,
+  value: ViewerPathExpr<unknown>,
   by: ExprContext,
   read: ContextRead<E, R>,
-): Effect.Effect<Held<unknown>, E, R> =>
-  Option.match(viewerIdOf(path.viewer.entity, by), {
+): Effect.Effect<Held<unknown>, E, R> => {
+  const path = viewerHopOf(value)
+  return Option.match(viewerIdOf(path.viewer, by), {
     onNone: () => Effect.succeed(Held.of(null)),
     onSome: id =>
       Effect.gen(function* () {
-        let at: EntityRef = { entity: path.viewer.entity.name, id }
+        let at: EntityRef = { entity: path.viewer.name, id }
         for (const relation of path.via) {
           const link = yield* read(at, relation.key)
           if (link._tag === 'Unheld') return link
@@ -592,6 +606,14 @@ const walked = <E, R>(
         })
       }),
   })
+}
+
+/** What a path from the viewer reads: the viewer's Entity, the relations from it, the field. */
+const viewerHopOf = (value: ViewerPathExpr<unknown>) =>
+  Option.getOrThrowWith(
+    originTagged(value.node, 'ViewerHop'),
+    () => new Error('[foldkit-entity] a path from the viewer was not built by Expr.path'),
+  )
 
 /** Whether a field stores a null. */
 const holdsNull = (field: AnyField): boolean =>
@@ -605,69 +627,108 @@ const storedKinds = (ast: SchemaAST.AST): ReadonlySet<string> =>
       : [storedKind(ast)],
   )
 
-/** The stored kinds a scalar may come to, by what it is. */
-const kindsOf = (expr: AnyExpr): ReadonlySet<string> => {
-  switch (expr._tag) {
-    case 'Field':
-      return storedKinds(Schema.toEncoded(expr.schema).ast)
-    case 'Next':
-      return storedKinds(Schema.toEncoded(expr.field.schema).ast)
-    case 'Input':
-      return storedKinds(Schema.toEncoded(expr.schema).ast)
-    case 'Literal':
-      return new Set([
-        expr.value === null ? 'null' : typeof expr.value === 'string' ? 'text' : typeof expr.value,
-      ])
-    case 'Call':
-      return storedKinds(Schema.toEncoded(expr.operator.output).ast)
-    // Refused in an assignment, below; a visitor's viewer is null.
-    case 'Viewer':
-    case 'Now':
-      return new Set([...storedKinds(Schema.toEncoded(expr.schema).ast), 'null'])
-    // Refused in an assignment, below; a path reaching no row reads null.
-    case 'Path':
-    case 'ViewerPath':
-      return new Set([...storedKinds(Schema.toEncoded(expr.field.schema).ast), 'null'])
-  }
+/** A defined operator's call is what its body builds; anything else is itself. */
+const expandedNode = (node: Node.Node): Node.Node =>
+  Option.match(originTagged(node, 'Call'), {
+    onNone: () => node,
+    onSome: ({ expansion }) =>
+      Option.match(expansion, { onNone: () => node, onSome: expandedNode }),
+  })
+
+/** A primitive operator's call, with the arguments it was written with. */
+const primitiveCall = (node: Node.Node) =>
+  Option.filter(originTagged(expandedNode(node), 'Call'), call => Option.isNone(call.expansion))
+
+/** The stored kinds a value may come to, by what it is. */
+const kindsOf = (written: Node.Node): ReadonlySet<string> => {
+  const node = expandedNode(written)
+  return Option.match(primitiveCall(node), {
+    onSome: ({ operator }) => storedKinds(Schema.toEncoded(operator.output).ast),
+    onNone: () =>
+      Option.match(originOf(node), {
+        onNone: () =>
+          Node.$match(node, {
+            Lit: ({ value }) =>
+              new Set([
+                value === null ? 'null' : typeof value === 'string' ? 'text' : typeof value,
+              ]),
+            // An input, the viewer or the time, a path reaching no row reading null.
+            Path: ({ ast }) =>
+              Option.match(ast, { onNone: () => new Set(['other']), onSome: storedKinds }),
+            Call: () => new Set([kindOf(node)]),
+            If: () => new Set(['other']),
+            Match: () => new Set(['other']),
+            Opaque: () => new Set(['other']),
+            Rows: () => new Set([kindOf(node)]),
+          }),
+        onSome: origin =>
+          Match.value(origin).pipe(
+            Match.tag('Field', ({ field }) => storedKinds(Schema.toEncoded(field.schema).ast)),
+            // Refused in an assignment, below; a path reaching no row reads null.
+            Match.tags({
+              Hop: ({ field }) =>
+                new Set([...storedKinds(Schema.toEncoded(field.schema).ast), 'null']),
+              ViewerHop: ({ field }) =>
+                new Set([...storedKinds(Schema.toEncoded(field.schema).ast), 'null']),
+            }),
+            Match.orElse(() => new Set([kindOf(node)])),
+          ),
+      }),
+  })
 }
 
 /**
- * Whether `expr` may come to null: a nullable field or input, a null literal,
+ * Whether `node` may come to null: a nullable field or input, a null literal,
  * an operator answering one, or a strict operator given an argument that may
  * be null, which it answers with null.
  */
-const mayBeNull = (expr: AnyExpr): boolean =>
-  kindsOf(expr).has('null') ||
-  (expr._tag === 'Call' &&
-    expr.operator.nulls === 'strict' &&
-    expr.args.some(arg => !isPredicate(arg) && mayBeNull(arg)))
+const mayBeNull = (node: Node.Node): boolean =>
+  kindsOf(node).has('null') ||
+  Option.exists(
+    primitiveCall(node),
+    ({ operator, args }) =>
+      operator.nulls === 'strict' && args.some(arg => !isPredicateNode(arg) && mayBeNull(arg)),
+  )
 
 /** Whether every value a schema stores, null aside, is checked to be an integer. */
-const storesIntegers = (schema: Schema.Top): boolean => {
-  const present = SchemaShape.present(Schema.toEncoded(schema).ast)
+const storesIntegers = (schema: Schema.Top): boolean => holdsIntegers(Schema.toEncoded(schema).ast)
+
+const holdsIntegers = (ast: SchemaAST.AST): boolean => {
+  const present = SchemaShape.present(ast)
   return present.length > 0 && present.every(SchemaShape.holdsIntegers)
 }
 
-/** Whether a scalar comes to an integer (or null) by what it is: its schema, or a literal's value. */
-const comesToInteger = (expr: AnyExpr): boolean =>
-  Match.value(expr).pipe(
-    Match.tags({
-      Field: ({ schema }) => storesIntegers(schema),
-      Input: ({ schema }) => storesIntegers(schema),
-      Literal: ({ value }) => value === null || Number.isInteger(value),
-      // A sum or difference of integers is one, whatever the operator's number output says.
-      Call: ({ operator, args }) =>
-        storesIntegers(operator.output) ||
-        ((operator === Expr.add.descriptor || operator === Expr.sub.descriptor) &&
-          args.every(arg => !isPredicate(arg) && comesToInteger(arg))),
-    }),
-    // What else an expression reads is refused in an assignment before this is asked.
-    Match.orElse(() => false),
-  )
+/** Whether a value comes to an integer (or null) by what it is: its schema, or a literal's value. */
+const comesToInteger = (written: Node.Node): boolean => {
+  const node = expandedNode(written)
+  return Option.match(primitiveCall(node), {
+    // A sum or difference of integers is one, whatever the operator's number output says.
+    onSome: ({ operator, args }) =>
+      storesIntegers(operator.output) ||
+      ((operator === add.descriptor || operator === sub.descriptor) &&
+        args.every(arg => !isPredicateNode(arg) && comesToInteger(arg))),
+    onNone: () =>
+      Option.match(originTagged(node, 'Field'), {
+        onSome: ({ field }) => storesIntegers(field.schema),
+        // An input by its schema; what else an expression reads is refused before this is asked.
+        onNone: () =>
+          Node.$is('Lit')(node)
+            ? node.value === null || Number.isInteger(node.value)
+            : Node.$is('Path')(node) &&
+              node.segments[0] === 'input' &&
+              Option.exists(node.ast, holdsIntegers),
+      }),
+  })
+}
 
-/** Whether a predicate is anywhere in `expr`, which data carries only as a value. */
-const holdsPredicate = (expr: Operandish): boolean =>
-  isPredicate(expr) || (expr._tag === 'Call' && expr.args.some(holdsPredicate))
+/** Whether a node is a predicate: a boolean an operation or an exists gives, not a stored one. */
+const isPredicateNode = (node: Node.Node): boolean =>
+  kindOf(node) === 'boolean' && (Node.$is('Call')(node) || Node.$is('Rows')(node))
+
+/** Whether a predicate is anywhere in `node`, which data carries only as a value. */
+const holdsPredicate = (node: Node.Node): boolean =>
+  isPredicateNode(expandedNode(node)) ||
+  Option.exists(primitiveCall(node), ({ args }) => args.some(holdsPredicate))
 
 /**
  * One computed field, checked: a field of the Entity written by nothing else,
@@ -698,9 +759,9 @@ const assignmentOf = (
   ) {
     return fail(input, `computes "${fieldKey}", which the write also sets`)
   }
-  const operand: Operandish = compute()
-  const expr = isPredicate(operand) ? operand : Expr.expanded(operand)
-  if (isPredicate(expr) || holdsPredicate(expr)) {
+  // A field on its own is the value it holds.
+  const expr: AnyExpr = exprOf(toNode(compute()))
+  if (holdsPredicate(expr.node)) {
     return fail(
       input,
       `computes "${fieldKey}" with a predicate, which an assignment carries only as a value`,
@@ -734,17 +795,17 @@ const assignmentOf = (
     )
   }
   const stored = storedKinds(Schema.toEncoded(field.schema as unknown as Schema.Top).ast)
-  const comes = [...kindsOf(expr)].filter(kind => kind !== 'null' && !stored.has(kind))
+  const comes = [...kindsOf(expr.node)].filter(kind => kind !== 'null' && !stored.has(kind))
   if (comes.length > 0) {
     return fail(input, `computes "${fieldKey}" as ${comes.join(' or ')}, which it does not store`)
   }
   // Memory would show the null, and the database refuse it as NOT NULL.
-  if (!stored.has('null') && mayBeNull(expr)) {
+  if (!stored.has('null') && mayBeNull(expr.node)) {
     return fail(input, `computes "${fieldKey}" as possibly null, which it does not store`)
   }
   // As with an increment's amount: Postgres rounds a fraction written to an integer
   // column, SQLite stores it, and memory keeps it. So it never reaches either.
-  const integer = comesToInteger(expr)
+  const integer = comesToInteger(expr.node)
   if (storesIntegers(field.schema as unknown as Schema.Top) && !integer) {
     return fail(
       input,
@@ -757,40 +818,30 @@ const assignmentOf = (
 /** An assignment's expression, bound to one input, as data. */
 const computationOf = (
   write: AnyWrite,
-  expr: AnyExpr,
+  written: Node.Node,
   input: Readonly<Record<string, unknown>>,
 ): Computation => {
-  switch (expr._tag) {
-    // `Next` is refused where an assignment is declared.
-    case 'Field':
-    case 'Next':
-      return Computation.Field({
-        key: Match.valueTags(expr, { Field: ({ key }) => key, Next: ({ field }) => field.key }),
-      })
-    case 'Literal':
-      return Computation.Value({ value: expr.value })
-    case 'Input':
-      return Computation.Value({
-        value: Schema.encodeUnknownSync(
-          write.input.schema.fields[expr.key] as unknown as Schema.Codec<unknown, unknown>,
-        )(input[expr.key]),
-      })
-    case 'Call': {
-      const args = expr.args.map(arg => computationOf(write, arg as AnyExpr, input))
+  const node = expandedNode(written)
+  // What else an assignment reads (the context, another row) is refused where it is declared.
+  const refused = (): never => {
+    throw new Error(
+      `[foldkit-entity] an assignment of ${write.input.entity.name} reads what is neither its row, its input nor a constant`,
+    )
+  }
+  return Option.match(primitiveCall(node), {
+    onSome: ({ operator, args: given, collation }) => {
+      const args = given.map(arg => computationOf(write, arg, input))
       return Computation.Call({
-        operator:
-          expr.operator.version === 1
-            ? expr.operator.id
-            : `${expr.operator.id}@${expr.operator.version}`,
+        operator: operator.version === 1 ? operator.id : `${operator.id}@${operator.version}`,
         // The text a collation compares is folded here, as `callOperator` folds it.
-        args: Option.match(expr.collation, {
+        args: Option.match(collation, {
           onNone: () => args,
-          onSome: collation =>
-            Match.valueTags(collation, {
+          onSome: each =>
+            Match.valueTags(each, {
               Binary: () => args,
               AsciiFold: () =>
                 args.map((arg, position) =>
-                  foldsArgument(expr.operator, position)
+                  foldsArgument(operator, position)
                     ? Computation.Call({ operator: lowerAsciiName, args: [arg] })
                     : arg,
                 ),
@@ -802,19 +853,24 @@ const computationOf = (
             }),
         }),
       })
-    }
-    // Refused where an assignment is declared, so none reaches here.
-    case 'Viewer':
-    case 'Now':
-      throw new Error(
-        `[foldkit-entity] an assignment of ${write.input.entity.name} reads the write's context`,
-      )
-    case 'Path':
-    case 'ViewerPath':
-      throw new Error(
-        `[foldkit-entity] an assignment of ${write.input.entity.name} reads another row`,
-      )
-  }
+    },
+    onNone: () =>
+      Option.match(originTagged(node, 'Field'), {
+        // `next` is refused where an assignment is declared.
+        onSome: ({ field }) => Computation.Field({ key: field.key }),
+        onNone: () => {
+          if (Node.$is('Lit')(node)) return Computation.Value({ value: node.value })
+          const key =
+            Node.$is('Path')(node) && node.segments[0] === 'input' ? node.segments[1] : undefined
+          if (key === undefined) return refused()
+          return Computation.Value({
+            value: Schema.encodeUnknownSync(
+              write.input.schema.fields[key] as unknown as Schema.Codec<unknown, unknown>,
+            )(input[key]),
+          })
+        },
+      }),
+  })
 }
 
 /** A field of the row before the write, as a node reads it. */
@@ -830,13 +886,12 @@ const nodeOf = (
   computation: Computation,
   row: Readonly<Record<string, unknown>>,
   operators: MemoryOperators,
-  foreign: Map<string, OperatorDescriptor>,
 ): Option.Option<Node.Node> =>
   Computation.$match(computation, {
     Field: ({ key }) => (Object.hasOwn(row, key) ? Option.some(rowField(key)) : Option.none()),
     Value: ({ value }) => Option.some(Node.Lit({ value: value === undefined ? null : value })),
     Call: ({ operator, args }) =>
-      Option.flatMap(Option.all(args.map(arg => nodeOf(arg, row, operators, foreign))), nodes => {
+      Option.flatMap(Option.all(args.map(arg => nodeOf(arg, row, operators))), nodes => {
         if (operator === lowerAsciiName) {
           return Option.some(Node.Call({ op: Str.lowerAsciiOp, args: nodes }))
         }
@@ -844,7 +899,7 @@ const nodeOf = (
           if (Option.isSome(descriptor.definedAs) || !operators.has(descriptor)) {
             throw new OperatorMissingError(descriptor, operators)
           }
-          return callOperator(descriptor, nodes, Option.none(), foreign)
+          return callOperator(descriptor, nodes, Option.none())
         })
       }),
   })
@@ -1107,17 +1162,17 @@ export const Write = {
       const links: Record<string, Option.Option<EntityRef>> = {}
       const unfilled: Array<string> = []
       for (const { member, value } of write.context) {
-        const comes: Option.Option<unknown> = yield* Match.value(value).pipe(
-          Match.tag('ViewerPath', path =>
+        const comes: Option.Option<unknown> = yield* matchContext(value, {
+          viewerPath: path =>
             Effect.map(walked(path, by, read), held =>
               Held.match(held, {
-                onHeld: some => Option.some(some),
-                onUnheld: () => Option.none(),
+                onHeld: some => Option.some<unknown>(some),
+                onUnheld: () => Option.none<unknown>(),
               }),
             ),
-          ),
-          Match.orElse(other => Effect.succeed(contextValue(other, by))),
-        )
+          viewer: other => Effect.succeed<Option.Option<unknown>>(contextValue(other, by)),
+          now: other => Effect.succeed<Option.Option<unknown>>(contextValue(other, by)),
+        })
         if (Option.isNone(comes)) {
           unfilled.push(member.key)
         } else {
@@ -1148,9 +1203,9 @@ export const Write = {
   contextReads: (write: AnyWrite): ReadonlyArray<string> => [
     ...new Set(
       write.context.flatMap(({ value }) => {
-        if (value._tag !== 'ViewerPath') return []
-        const { viewer, via } = value
-        return [viewer.entity.name, ...via.map(relation => relation.target().name)]
+        if (value.term !== 'viewerPath') return []
+        const { viewer, via } = viewerHopOf(value)
+        return [viewer.name, ...via.map(relation => relation.target().name)]
       }),
     ),
   ],
@@ -1176,7 +1231,7 @@ export const Write = {
     const fields = new Map<string, AnyField>()
     const add = (field: AnyField) => fields.set(field.key, field)
     Option.map(write.when, body =>
-      Query.dependencies(body).predicate.forEach(field => add(field as unknown as AnyField)),
+      queryDependencies(body).predicate.forEach(field => add(field as unknown as AnyField)),
     )
     write.increments.forEach(increment => add(increment.field))
     write.assignments.forEach(assignment =>
@@ -1233,7 +1288,7 @@ export const Write = {
     // Every assignment: it reads the row as well as the input, so no key alone asks for it.
     const assignments: Record<string, Computation> = {}
     for (const { field, expr } of write.assignments) {
-      put(assignments, field.key, computationOf(write, expr, input))
+      put(assignments, field.key, computationOf(write, expr.node, input))
     }
     return {
       entity: write.input.entity.name,
@@ -1285,16 +1340,8 @@ export const Write = {
   } => {
     const after: Record<string, unknown> = { ...row, ...bound.values }
     const unknown: Array<string> = []
-    const foreign = new Map<string, OperatorDescriptor>()
     const valueOf = (node: Node.Node): unknown => {
-      const value = evalNode(
-        node,
-        { row },
-        foreignOf(
-          { nodes: [], keys: [], related: new Map(), viewers: new Map(), foreign },
-          options.operators,
-        ),
-      )
+      const value = evalNode(node, { row }, foreignOf(readingOf([exprOf(node)]), options.operators))
       if (Node.isRefusal(value)) throw refusedBy(value)
       return value
     }
@@ -1311,7 +1358,7 @@ export const Write = {
       } else unknown.push(field)
     }
     for (const [field, computation] of Object.entries(bound.assignments)) {
-      Option.match(nodeOf(computation, row, options.operators, foreign), {
+      Option.match(nodeOf(computation, row, options.operators), {
         onNone: () => unknown.push(field),
         onSome: node => put(after, field, valueOf(node)),
       })

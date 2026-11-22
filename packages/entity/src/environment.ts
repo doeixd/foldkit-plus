@@ -1,9 +1,9 @@
 /**
- * The environment the nodes `lower` gives read, built from what a holder has
- * (the kernel convergence note, "What environment does an Entity expression
- * read, and how is it typed?"). Only what the nodes read is built. A value
- * the holder lacks or may not see is left out, which metakit's `Expr.judge`
- * reads as not known; a null link is `null`; the rows pointing at a row are
+ * The environment an expression reads, built from what a holder has (the
+ * kernel convergence note, "What environment does an Entity expression read,
+ * and how is it typed?"). Only what the nodes read is built. A value the
+ * holder lacks or may not see is left out, which metakit's `Expr.judge` reads
+ * as not known; a null link is `null`; the rows pointing at a row are
  * `{ rows, whole }` under `<Entity.relation`, `whole` when the holder has
  * every one.
  */
@@ -11,11 +11,11 @@ import { Option } from 'effect'
 import { Node } from 'metakit'
 import type { ExprContext } from './context.js'
 import { relationsOf } from './descriptor.js'
-import type { OneRelation } from './expr.js'
+import { ASKER, type OneRelation } from './expr/operand.js'
 import { Held, type HeldRow, type HeldRows, type Pinned } from './held.js'
 import type { EntityIdentity } from './index.js'
-import { ASKER, type Lowered, type RelatedSlot } from './lower.js'
 import { conjuncts, pinsOf as pinsOfFilter } from './pins.js'
+import type { Reading, RelatedSlot } from './reading.js'
 import { own, put } from './record.js'
 
 /** What the nodes read, as a tree of segments. */
@@ -48,16 +48,16 @@ const visit = (node: Node.Node, resolve: (segments: ReadonlyArray<string>) => Ne
       [on, ...cases.map(([, then]) => then), ...Option.toArray(otherwise)].forEach(each =>
         visit(each, resolve),
       ),
-    // `lower` builds none.
+    // An Entity expression holds none.
     Opaque: () => undefined,
     Rows: rows =>
       Node.RowsOver.$match(rows.over, {
         List: () => {
-          throw new Error('[foldkit-entity] lowerEnv: an Entity expression folds no list')
+          throw new Error('[foldkit-entity] envOf: an Entity expression folds no list')
         },
         Related: ({ of, relation }) => {
           if (!Node.$is('Path')(of)) {
-            throw new Error('[foldkit-entity] lowerEnv: related rows are asked of a path')
+            throw new Error('[foldkit-entity] envOf: related rows are asked of a path')
           }
           const element = grow(resolve(of.segments), [Node.relatedSegment(relation)])
           Node.rowsBody(rows).forEach(body =>
@@ -90,19 +90,19 @@ export interface EnvSource {
 const oneRelation = (owner: EntityIdentity<string>, key: string): OneRelation => {
   const member = own(relationsOf(owner), key)
   if (member?._tag !== 'Relation' || member.cardinality !== 'one') {
-    throw new Error(`[foldkit-entity] lowerEnv: ${owner.name}.${key} is no one relation`)
+    throw new Error(`[foldkit-entity] envOf: ${owner.name}.${key} is no one relation`)
   }
   return member as OneRelation
 }
 
 /**
- * The environment `lowered`'s nodes read over `source`. The values `pinned`
+ * The environment `reading`'s nodes read over `source`. The values `pinned`
  * gives a holder's `pointing` are the filter's, when every exists over a
  * relation asks the same one.
  */
-export const envOf = (lowered: Lowered, source: EnvSource): Readonly<Record<string, unknown>> => {
+export const envOf = (reading: Reading, source: EnvSource): Readonly<Record<string, unknown>> => {
   const need: Need = new Map()
-  for (const node of [...lowered.nodes, ...lowered.keys]) {
+  for (const node of [...reading.nodes, ...reading.keys]) {
     visit(node, segments => grow(need, segments))
   }
   const input = source.input ?? {}
@@ -142,9 +142,9 @@ export const envOf = (lowered: Lowered, source: EnvSource): Readonly<Record<stri
             ),
         })
       } else if (segment.startsWith('<')) {
-        const slot = lowered.related.get(segment)
+        const slot = reading.related.get(segment)
         if (slot === undefined) {
-          throw new Error(`[foldkit-entity] lowerEnv: no relation is held under ${segment}`)
+          throw new Error(`[foldkit-entity] envOf: no relation is held under ${segment}`)
         }
         const { rows, missing } = row.pointing(slot.relation, pinsOf(slot))
         Option.map(missing, left(here))
@@ -176,7 +176,7 @@ export const envOf = (lowered: Lowered, source: EnvSource): Readonly<Record<stri
   Option.map(context.now, now => put(env, 'now', now))
   const viewers: Record<string, unknown> = {}
   for (const [name, child] of wanted('viewer')) {
-    const entity = lowered.viewers.get(name)!
+    const entity = reading.viewers.get(name)!
     put(
       viewers,
       name,

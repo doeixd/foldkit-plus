@@ -8,7 +8,7 @@
 import { Match, Option, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { extend, make, mapValues, partsOf, remake, variantBases } from './descriptor.js'
-import type { OneRelation } from './expr.js'
+import type { OneRelation } from './expr/operand.js'
 import { EntityTypeId, SelectionPageTypeId, SelectionTypeId } from './ids.js'
 import {
   Derivation,

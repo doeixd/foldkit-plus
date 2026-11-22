@@ -6,7 +6,7 @@
  * operations-phase3-DESIGN.
  */
 import { Effect, Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Node, Verdict } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
@@ -125,7 +125,7 @@ describe('a path from the viewer', () => {
       'the viewer is a Member, but Team.orgId is read on a Team',
     )
     expect(() =>
-      // @ts-expect-error a path from the viewer ends at a value
+      // The type takes any expression at the end, since an exists is one; the run-time check refuses it.
       Expr.path(Expr.viewer(Team), Expr.exists(Member.relations.team)),
     ).toThrow('a path from the viewer ends at a field or a path')
   })
@@ -204,7 +204,10 @@ describe('a path from the viewer', () => {
       const read = Query.dependencies(InOrg)
       expect(read.operations).toEqual(expect.arrayContaining(['viewer', 'path']))
       expect(read.fields.map(field => field.key)).toEqual(['orgId'])
-      expect(read.reaches).toEqual([orgOfViewer])
+      expect(read.reaches.map(reach => reach._tag)).toEqual(['ViewerPath'])
+      expect(read.reaches.map(reach => Node.key(reach.expr.node))).toEqual([
+        Node.key(orgOfViewer.node),
+      ])
       expect(Expr.show(orgOfViewer)).toBe('viewer Member.team.orgId')
     })
 

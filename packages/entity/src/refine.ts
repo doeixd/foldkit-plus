@@ -8,16 +8,18 @@
 import { Match, Option, Schema } from 'effect'
 import { Verdict } from 'metakit'
 import { Judge, OperatorMissingError, type Row } from './evaluate.js'
+import { and, eq, isNull } from './expr/logic.js'
 import {
-  Expr,
-  Query,
-  nameNode,
-  type FieldExpr,
-  type NextExpr,
+  exprOf,
+  toNode,
+  type AnyExpr,
   type OneRelation,
   type Predicate,
   type Reads,
-} from './expr.js'
+} from './expr/operand.js'
+import { dependencies, from, where } from './expr/query.js'
+import { nameNode } from './expr/show.js'
+import { next } from './expr/value.js'
 import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
 import type { BeforeRow } from './invariant.js'
 import { kernelOperators } from './memoryTable.js'
@@ -81,7 +83,7 @@ const fail = (entity: AnyEntity, name: string, message: string): never => {
 /** The row `build` reads: each field, and each `one` relation as the id it points at, read by `read`. */
 const rowOf = (
   entity: AnyEntity,
-  read: (member: AnyField | OneRelation) => FieldExpr<unknown> | NextExpr<unknown>,
+  read: (member: AnyField | OneRelation) => AnyExpr,
 ): Readonly<Record<string, unknown>> => {
   const links = oneRelations(entity)
   return Object.fromEntries([
@@ -104,12 +106,10 @@ const literalPredicate = (
     const stored = Schema.toEncoded(fields[key]!.schema as unknown as Schema.Top)
     if (!Schema.is(stored as Schema.Codec<unknown>)(value))
       fail(entity, name, `${JSON.stringify(value)} is no value "${key}" stores`)
-    return value === null
-      ? Expr.isNull(row[key] as FieldExpr<unknown>)
-      : Expr.eq(row[key] as FieldExpr<unknown>, value as never)
+    return value === null ? isNull(row[key] as AnyExpr) : eq(row[key] as AnyExpr, value as never)
   })
   if (checks.length === 0) fail(entity, name, 'the literal form names no field')
-  return checks.length === 1 ? checks[0]! : Expr.and(checks[0]!, ...checks.slice(1))
+  return checks.length === 1 ? checks[0]! : and(checks[0]!, ...checks.slice(1))
 }
 
 /** Whether a stored row is in the state: none where it lacks a field the state reads. */
@@ -168,19 +168,19 @@ export function refine(
     typeof form === 'function'
       ? (form({ row: row as BeforeRow<AnyEntity> }) as Predicate)
       : literalPredicate(entity, name, form, row)
-  const predicate = build(rowOf(entity, member => Expr.field(member as never)))
+  const predicate = build(rowOf(entity, member => exprOf(toNode(member))))
   // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
-  const read = Query.dependencies(Query.from(entity).pipe(Query.where(predicate)))
+  const read = dependencies(from(entity).pipe(where(predicate)))
   if (read.inputs.length > 0)
     fail(entity, name, `reads the input ${read.inputs.join(', ')}; a state is of the row alone`)
   if (read.next.length > 0) fail(entity, name, 'reads the row after a write; build it over `row`')
   const local = read.reaches.length === 0
   // Built again over the row after, as an invariant's `after` is; a reach would still read the row before.
   const after = local
-    ? Option.some(build(rowOf(entity, member => Expr.next(member as never) as never)))
+    ? Option.some(build(rowOf(entity, member => next(member as AnyField))))
     : Option.none<Predicate>()
-  nameNode(predicate, `${entity.name}.${name}`)
-  Option.map(after, node => nameNode(node, `next ${entity.name}.${name}`))
+  nameNode(predicate.node, `${entity.name}.${name}`)
+  Option.map(after, node => nameNode(node.node, `next ${entity.name}.${name}`))
   const reads = Object.freeze(read.predicate.map(field => field.key))
   const refinement: AnyRefinement = Object.freeze({
     _tag: 'Refinement' as const,

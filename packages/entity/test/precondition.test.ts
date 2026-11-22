@@ -3,7 +3,8 @@
  * reads it, beside the input's placeholders, and the forms before it still
  * stand.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import { Entity, Expr, Query, Write, truthOver } from '../src/index.js'
 
@@ -68,7 +69,9 @@ describe('A precondition over the row and the input', () => {
       decrement: { balance: 'amount' },
       when: ({ row, input }) => Expr.lte(input.amount, row.balance),
     })
-    expect(byRow.when).toEqual(over.when)
+    const conditions = (write: typeof over) =>
+      Option.map(write.when, query => query.where.map(each => Node.key(each.node)))
+    expect(conditions(byRow)).toEqual(conditions(over))
   })
 
   it('still takes no argument at all', () => {

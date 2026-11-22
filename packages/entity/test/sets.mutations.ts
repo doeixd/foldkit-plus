@@ -25,7 +25,7 @@ export default [
   edit(
     'a value from the input is taken',
     sets,
-    "if (tag !== 'Viewer' && tag !== 'Now' && tag !== 'ViewerPath') {",
+    "if (term !== 'viewer' && term !== 'now' && term !== 'viewerPath') {",
     'if (false) {',
   ),
   edit(
@@ -37,11 +37,11 @@ export default [
   edit(
     'a relation takes the viewer of any Entity',
     sets,
-    "context._tag !== 'Viewer' || context.entity.token !== target.identity.token",
-    "context._tag !== 'Viewer'",
+    "context.term !== 'viewer' || context.entity.token !== target.identity.token",
+    "context.term !== 'viewer'",
   ),
-  edit('the time goes into text', sets, "stored === 'number' ||", 'true ||'),
-  edit('the viewer goes into a number', sets, "stored === 'text' ||", 'true ||'),
+  edit('the time goes into text', sets, "if (stored !== 'number') {", 'if (false) {'),
+  edit('the viewer goes into a number', sets, "if (stored !== 'text') {", 'if (false) {'),
   edit('a key that is no member is kept', sets, 'if (member === undefined) {', 'if (false) {'),
   edit(
     'the sets are not kept',

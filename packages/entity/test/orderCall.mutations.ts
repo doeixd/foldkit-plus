@@ -3,7 +3,9 @@
  * `pnpm mutate packages/entity/test/orderCall.mutations.ts`.
  */
 const tests = ['packages/entity/test/orderCall.test.ts']
-const expr = '../src/expr.ts'
+const expr = '../src/expr/order.ts'
+const query = '../src/expr/query.ts'
+const dependencies = '../src/expr/dependencies.ts'
 const evaluate = '../src/evaluate.ts'
 const rowOrder = '../src/rowOrder.ts'
 
@@ -13,8 +15,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: '      Call: call => call.collation,\n      // A client could not place',
-        replace: '      Call: () => Option.none<Collation>(),\n      // A client could not place',
+        find: '    : collationOf(expr.node)\n  // A number orders',
+        replace: '    : Option.none<Collation>()\n  // A number orders',
       },
     ],
     tests,
@@ -24,7 +26,7 @@ export default [
     edits: [
       {
         file: expr,
-        find: "  if (expr._tag === 'Call') orderableCall(expr, collation)\n",
+        find: '  if (isCall(expr.node)) orderableCall(expr.node, collation)\n',
         replace: '',
       },
     ],
@@ -45,7 +47,7 @@ export default [
     edits: [
       {
         file: expr,
-        find: "      if (expr._tag === 'Call') orderableCall(expr, expr.collation)\n",
+        find: '    if (!field) orderableCall(expr.node, collationOf(expr.node))\n',
         replace: '',
       },
     ],
@@ -56,8 +58,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: "if (expr._tag !== 'Field' && expr._tag !== 'Call') {",
-        replace: "if (expr._tag !== 'Field') {",
+        find: 'if (!field && !isCall(expr.node)) {',
+        replace: 'if (!field) {',
       },
     ],
     tests,
@@ -66,8 +68,8 @@ export default [
     name: 'a call is placeable whatever the client runs',
     edits: [
       {
-        file: expr,
-        find: 'const missing = missingFrom(dependenciesOf(call).operators, operators)',
+        file: query,
+        find: 'const missing = missingFrom(\n            dependenciesOf(orderTerm.expr).operators,\n            operators,\n            operator => missingName(operator, operators),\n          )',
         replace: 'const missing: ReadonlyArray<string> = []',
       },
     ],
@@ -77,35 +79,16 @@ export default [
     name: 'a defined operator in an order is said to need a table',
     edits: [
       {
-        file: expr,
+        file: dependencies,
         find: '.filter(operator => Option.isNone(operator.definedAs) && !operators.has(operator))',
         replace: '.filter(operator => !operators.has(operator))',
       },
     ],
     tests,
   },
-  {
-    name: 'a primitive call keeps a defined one among its arguments',
-    edits: [
-      {
-        file: expr,
-        find: 'onNone: () => node<AnyExpr>({ ...call, args: call.args.map(expandedSide) }),',
-        replace: 'onNone: () => call,',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a primitive predicate keeps a defined one among its arguments',
-    edits: [
-      {
-        file: expr,
-        find: 'onNone: () => node<Predicate>({ ...test, args: test.args.map(expandedSide) }),',
-        replace: 'onNone: () => test,',
-      },
-    ],
-    tests,
-  },
+  // 'a primitive call (predicate) keeps a defined one among its arguments' are gone: a defined
+  // call is already its body, so there is no expansion step to skip (the equivalent claim is
+  // 'A primitive call over a defined operator' in orderCall.test.ts).
   {
     name: "an order's call reads no input",
     edits: [{ file: rowOrder, find: 'input: scope.input,', replace: 'input: {},' }],
@@ -149,8 +132,8 @@ export default [
     edits: [
       {
         file: rowOrder,
-        find: "if (term.expr._tag !== 'Field' && term.expr._tag !== 'Call') {",
-        replace: "if (term.expr._tag !== 'Field') {",
+        find: "if (!field && Option.isNone(originTagged(term.expr.node, 'Call'))) {",
+        replace: 'if (!field) {',
       },
     ],
     tests,

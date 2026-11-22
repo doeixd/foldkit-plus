@@ -6,9 +6,11 @@
 import { Option } from 'effect'
 import { Collation } from './collation.js'
 import type { ExprContext } from './context.js'
-import { Expr, type OrderTerm } from './expr.js'
+import { fieldRead, originTagged } from './expr/operand.js'
+import type { OrderTerm } from './expr/order.js'
+import { show } from './expr/show.js'
 import { Held } from './held.js'
-import { flatRow, loweringOf, noRow, run, type Row } from './judgeRun.js'
+import { flatRow, preparedOf, noRow, run, type Row } from './judgeRun.js'
 import { kernelOperators } from './memoryTable.js'
 import type { MemoryOperators } from './operators.js'
 import { QueryEvaluateError, RowsMissingError } from './queryErrors.js'
@@ -71,7 +73,7 @@ export const keysOf = (
   scope: OrderScope,
 ): ReadonlyArray<unknown> =>
   run(
-    loweringOf(
+    preparedOf(
       terms,
       terms.map(term => term.expr),
     ),
@@ -92,7 +94,7 @@ export const keysOf = (
     })
     if (typeof key === 'number' && Number.isNaN(key)) {
       throw new QueryEvaluateError(
-        `an order by ${Expr.show(terms[index]!.expr)} was given NaN, which SQLite stores as null and Postgres orders after every number`,
+        `an order by ${show(terms[index]!.expr)} was given NaN, which SQLite stores as null and Postgres orders after every number`,
       )
     }
     return key
@@ -104,14 +106,15 @@ export const keysOf = (
  */
 export const checkTerms = (terms: ReadonlyArray<OrderTerm>, query: string) =>
   terms.forEach(term => {
-    if (term.expr._tag !== 'Field' && term.expr._tag !== 'Call') {
+    const field = Option.exists(fieldRead(term.expr.node), read => read.slice === 'row')
+    if (!field && Option.isNone(originTagged(term.expr.node, 'Call'))) {
       throw new QueryEvaluateError(
         `query "${query}" orders by something that is neither a field nor a call`,
       )
     }
     if (Option.exists(term.collation, declared => declared._tag === 'Locale')) {
       throw new QueryEvaluateError(
-        `query "${query}" orders ${Expr.show(term.expr)} by a backend's locale collation, which only that backend has`,
+        `query "${query}" orders ${show(term.expr)} by a backend's locale collation, which only that backend has`,
       )
     }
   })

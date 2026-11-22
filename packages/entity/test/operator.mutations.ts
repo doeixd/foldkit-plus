@@ -2,11 +2,15 @@
  * Operators defined by an expression, each step broken in turn:
  * `pnpm mutate packages/entity/test/operator.mutations.ts` checks that a test
  * fails for every one.
+ *
+ * A defined call is the node its body builds, so there is no expansion to skip
+ * in a compiler or an interpreter: only what the call checks and what readers
+ * report of it can break.
  */
-const expr = '../src/expr.ts'
-const evaluate = '../src/evaluate.ts'
+const operator = '../src/expr/operator.ts'
+const dependencies = '../src/expr/dependencies.ts'
+const table = '../src/expr/table.ts'
 const cms = '../../cms/src/index.ts'
-const tanstack = '../../../examples/tanstack/src/interpreter.ts'
 const tests = [
   'packages/entity/test/operator.test.ts',
   'packages/remote-drizzle/test/compile.test.ts',
@@ -21,111 +25,84 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 })
 
 export default [
-  edit('a body may read what no argument holds', expr, 'if (hidden.length > 0) {', 'if (false) {'),
+  edit(
+    'a body may read what no argument holds',
+    operator,
+    'if (hidden.length > 0) {',
+    'if (false) {',
+  ),
   edit(
     'a call takes any number of arguments',
-    expr,
+    operator,
     'if (given.length !== input.length) {',
     'if (false) {',
   ),
   edit(
     'a body of the wrong kind is kept',
-    expr,
-    'if (predicate !== isPredicate(expansion)) {',
+    operator,
+    "if (predicate !== (kindOf(expansion) === 'boolean')) {",
     'if (false) {',
   ),
   edit(
     'a predicate is taken where no boolean is',
-    expr,
-    'if (!stored(true) || !stored(false))',
-    'if (false)',
+    operator,
+    'if (!takes(true) || !takes(false)) {',
+    'if (false) {',
   ),
   edit(
     'a predicate needs a bare boolean input',
-    expr,
-    'if (!stored(true) || !stored(false))',
-    'if (!storedAsBoolean(schema))',
+    operator,
+    'if (!takes(true) || !takes(false)) {',
+    "if (Schema.toEncoded(schema).ast._tag !== 'Boolean') {",
   ),
   edit(
     'a predicate is taken where true alone is',
-    expr,
-    'if (!stored(true) || !stored(false))',
-    'if (!stored(true))',
+    operator,
+    'if (!takes(true) || !takes(false)) {',
+    'if (!takes(true)) {',
   ),
   edit(
     'a value the input does not admit is taken',
-    expr,
+    operator,
     'if (!Schema.is(Schema.toEncoded(schema))(arg.value)) {',
     'if (false) {',
   ),
   edit(
     'an argument stored as another kind is taken',
-    expr,
-    "if (wanted !== 'other' && given !== 'other' && given !== wanted) {",
+    operator,
+    "if (wanted !== 'other' && given !== 'other' && given !== 'null' && given !== wanted) {",
     'if (false) {',
   ),
-  edit('any id is taken', expr, 'if (!operatorId.test(id)) {', 'if (false) {'),
+  edit('any id is taken', operator, 'if (!operatorId.test(id)) {', 'if (false) {'),
   edit(
     'an id under foldkit. is taken',
-    expr,
+    operator,
     "if (id.startsWith('foldkit.')) fail(",
     'if (false) fail(',
   ),
   edit(
     'a fractional version is taken',
-    expr,
+    operator,
     'if (!Number.isSafeInteger(version) || version < 1)',
     'if (version < 1)',
   ),
-  edit('dependencies leave out the operator', expr, 'found.operators.add(expr.operator)', ''),
+  edit(
+    'dependencies leave out the operator',
+    dependencies,
+    'found.operators.add(origin.operator)',
+    '',
+  ),
   edit(
     'dependencies leave out what the expansion reads',
-    expr,
+    dependencies,
     'onSome: expansion => walk(expansion, found),',
     'onSome: () => {},',
   ),
   edit(
-    'ownership skips a call’s arguments',
-    expr,
-    'for (const arg of expr.args) yield* fieldsIn(arg, seen)',
-    '',
-  ),
-  edit(
-    'the budget counts a call as its arguments',
-    expr,
-    'onSome: expansion => [expansion],',
-    'onSome: () => expr.args,',
-  ),
-  edit(
     'a call prints its version always',
-    expr,
+    table,
     'operator.version === 1 ? operator.id :',
     'false ? operator.id :',
-  ),
-  edit(
-    'expanding keeps a predicate call',
-    expr,
-    'onSome: expandedPredicate,',
-    'onSome: () => test,',
-  ),
-  edit('expanding keeps a scalar call', expr, 'onSome: expandedScalar,', 'onSome: () => scalar,'),
-  edit(
-    'a field after a write under a call is not substituted',
-    expr,
-    'expansion: Option.map(predicate.expansion, expansion => substituted(expansion, rewrite)),',
-    'expansion: predicate.expansion,',
-  ),
-  edit(
-    'the compiler compiles a call as written',
-    '../src/lowerOperator.ts',
-    'onSome: lower,',
-    'onSome: () => callOperator(call.operator, call.args.map(lower), call.collation, foreign),',
-  ),
-  edit(
-    'the TanStack interpreter runs a call as written',
-    tanstack,
-    'const node = Expr.expanded(written)',
-    'const node = written',
   ),
   // None for LiveStore's expansion: its suite picks the cases it runs by compiling
   // them, so dropping it moves a case between lists rather than failing one, which

@@ -1,11 +1,21 @@
 /**
- * The translation (`src/lower.ts`) broken step by step: each mutation must be
- * killed by the differential tests, which compare it with today's judge
- * (`pnpm mutate packages/entity/test/lower.mutations.ts`).
+ * What readers do with an expression's own nodes (the builders in
+ * `src/expr/*.ts`, `src/reading.ts` and `src/environment.ts`) broken step by
+ * step: each mutation must be killed by the differential tests, which compare
+ * the judge with metakit's evaluation (`pnpm mutate
+ * packages/entity/test/lower.mutations.ts`).
  */
-const lower = '../src/lower.ts'
-const operator = '../src/lowerOperator.ts'
-const env = '../src/lowerEnv.ts'
+const compare = '../src/expr/compare.ts'
+const logic = '../src/expr/logic.ts'
+const text = '../src/expr/text.ts'
+const operand = '../src/expr/operand.ts'
+const relation = '../src/expr/relation.ts'
+const primitive = '../src/expr/primitive.ts'
+const arithmetic = '../src/expr/arithmetic.ts'
+const textOperators = '../src/text.ts'
+const env = '../src/environment.ts'
+const context = '../src/context.ts'
+const reading = '../src/reading.ts'
 const tests = ['packages/entity/test/lower.test.ts', 'packages/entity/test/lowerKinds.test.ts']
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
@@ -15,100 +25,95 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 
 export default [
   // ---- comparisons and collation -------------------------------------------------
-  edit('a number lt is translated as lte', lower, 'lt: Ord.ltOp,', 'lt: Ord.lteOp,'),
-  edit('a text lt is translated as lte', lower, 'lt: Str.ltOp,', 'lt: Str.lteOp,'),
+  edit('a number lt is built as lte', compare, 'lt: Ord.ltOp,', 'lt: Ord.lteOp,'),
+  edit('a text lt is built as lte', compare, 'lt: Str.ltOp,', 'lt: Str.lteOp,'),
   edit(
-    'a number comparison is translated as a text one',
-    lower,
-    'onNone: () => callOf(numberOrder[operator], [lower(left), lower(right)]),',
-    'onNone: () => callOf(textOrder[operator], [lower(left), lower(right)]),',
+    'a number comparison is built as a text one',
+    compare,
+    'onNone: () => Node.Call({ op: numberOrder[operator], args: [leftSide, rightSide] }),',
+    'onNone: () => Node.Call({ op: textOrder[operator], args: [leftSide, rightSide] }),',
   ),
   edit(
     'asciiFold is dropped',
-    operator,
-    'AsciiFold: () => Node.Call({ op: Str.lowerAsciiOp, args: [node] }),',
-    'AsciiFold: () => node,',
+    operand,
+    "    case 'AsciiFold':\n      return Node.Call({ op: Str.lowerAsciiOp, args: [node] })",
+    "    case 'AsciiFold':\n      return node",
   ),
   edit(
     'contains folds no case',
-    lower,
-    'callOf(Str.lowerAsciiOp, [lower(value)]),',
-    'lower(value),',
+    text,
+    'args: [lowered(text), lowered(sought)]',
+    'args: [text, sought]',
   ),
   edit(
     "startsWith drops its call's collation",
-    operator,
+    textOperators,
     'Node.Call({ op: Str.startsWithOp, args: args.map(fold) }),',
     'Node.Call({ op: Str.startsWithOp, args }),',
   ),
   edit(
     'a primitive operator comparing text is given it unfolded',
-    operator,
+    primitive,
     '(foldsArgument(operator, position) ? fold(arg) : arg)',
     'arg',
   ),
   // ---- null handling ---------------------------------------------------------------
   edit(
-    "eq is translated as the equality where null equals null, not SQL's",
-    lower,
-    'callOf(Eq.equalsOp, [lower(left), lower(right)])',
-    'callOf(Eq.isOp, [lower(left), lower(right)])',
+    "eq is built as the equality where null equals null, not SQL's",
+    logic,
+    'exprOf(call(Eq.equalsOp, [toNode(left), toNode(right)]))',
+    'exprOf(call(Eq.isOp, [toNode(left), toNode(right)]))',
   ),
   edit(
-    "in is translated as the membership that never gives null, not SQL's",
-    lower,
-    'callOf(Eq.amongOp, [lower(value), lower(among)])',
-    'callOf(Eq.inOp, [lower(value), lower(among)])',
+    "in is built as the membership that never gives null, not SQL's",
+    logic,
+    'call(Eq.amongOp, [',
+    'call(Eq.inOp, [',
   ),
   edit(
-    'isNotNull is translated as isNull',
-    lower,
-    'return present ? callOf(Bool.notOp, [absent]) : absent',
-    'return present ? absent : callOf(Bool.notOp, [absent])',
+    'isNotNull is built as isNull',
+    logic,
+    'made(call(Bool.notOp, [call(Null.isNullOp, [node])]), {',
+    'made(call(Null.isNullOp, [node]), {',
   ),
   edit(
     'a strict primitive operator is given nulls',
-    operator,
+    primitive,
     "nulls: operator.nulls === 'strict' ? 'strict' : 'own',",
     "nulls: 'own',",
   ),
   // ---- logic and arithmetic --------------------------------------------------------
   edit(
-    'and is translated as or',
-    lower,
-    'And: ({ operands }) => joined(Bool.andOp, operands.map(lower)),',
-    'And: ({ operands }) => joined(Bool.orOp, operands.map(lower)),',
+    'and is built as or',
+    logic,
+    "export const and: Connective = connective('and', Bool.andOp)",
+    "export const and: Connective = connective('and', Bool.orOp)",
   ),
+  edit('not is dropped', logic, 'return exprOf(call(Bool.notOp, [node]))', 'return exprOf(node)'),
   edit(
-    'not is dropped',
-    lower,
-    'Not: ({ operand }) => callOf(Bool.notOp, [lower(operand)]),',
-    'Not: ({ operand }) => lower(operand),',
-  ),
-  edit(
-    'sub is translated as add',
-    operator,
-    '[Expr.sub.descriptor, args => Node.Call({ op: Num.subOp, args })],',
-    '[Expr.sub.descriptor, args => Node.Call({ op: Num.addOp, args })],',
+    'sub is built as add',
+    arithmetic,
+    'args => Node.Call({ op: Num.subOp, args }),',
+    'args => Node.Call({ op: Num.addOp, args }),',
   ),
   // ---- relations -------------------------------------------------------------------
   edit(
     "a path's hops are followed in reverse",
-    lower,
-    '...via.map(hopSegment),',
-    '...[...via].reverse().map(hopSegment),',
+    relation,
+    '  ...via.map(hopSegment),',
+    '  ...[...via].reverse().map(hopSegment),',
   ),
   edit(
     'a path reads the row it reaches, not its field',
-    lower,
-    '[...hops([scope.slice], path.via), path.field.key]',
-    'hops([scope.slice], path.via)',
+    relation,
+    '): Node.Node => readStored([...hops(start, via), field.key], field.schema, true)',
+    '): Node.Node => readStored(hops(start, via), field.schema, true)',
   ),
   edit(
     "an exists' filter reads the row asked of, not the pointing row",
-    lower,
-    "lowerNode(where, { ...scope, slice: 'each' })",
-    "lowerNode(where, { ...scope, slice: 'row' })",
+    relation,
+    "slice === 'row' ? fieldNode(field, 'each') : made(rebuilt(), origin)",
+    "slice === 'row' ? fieldNode(field, 'row') : made(rebuilt(), origin)",
   ),
   // ---- the environment -------------------------------------------------------------
   edit(
@@ -143,14 +148,14 @@ export default [
   ),
   edit(
     'the viewer is read as their row’s id, not as who asks',
-    lower,
-    "return read(['viewer', entity.name, ASKER], viewer.schema, true)",
-    "return read(['viewer', entity.name, 'id'], viewer.schema, true)",
+    context,
+    "made(read(['viewer', entity.name, ASKER], Schema.String, true), {",
+    "made(read(['viewer', entity.name, 'id'], Schema.String, true), {",
   ),
   // ---- foreign operations ------------------------------------------------------------
   edit(
     'an implementation is given under its id alone',
-    operator,
+    reading,
     `          [
             name,`,
     `          [

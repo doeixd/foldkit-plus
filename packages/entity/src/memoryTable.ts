@@ -4,10 +4,11 @@
  *
  * The kernel's primitive operators (`Text.startsWith`, `Expr.add`,
  * `Expr.sub`) are metakit's own operations, which every reader runs
- * (`lowerOperator.ts`): every table runs them, and none implements them.
+ * (`expr/operator.ts`): every table runs them, and none implements them.
  */
 import { Option } from 'effect'
-import { Expr, type OperatorDescriptor } from './expr.js'
+import { add, sub } from './expr/arithmetic.js'
+import type { OperatorDescriptor } from './expr/operator.js'
 import type {
   Evidence,
   MemoryImplementation,
@@ -26,7 +27,7 @@ export const fail = (what: string): never => {
 
 /** The kernel's primitive operators, by name. */
 const kernel: ReadonlyMap<string, OperatorDescriptor> = new Map(
-  [Expr.add.descriptor, Expr.sub.descriptor, Text.startsWith.descriptor].map(
+  [add.descriptor, sub.descriptor, Text.startsWith.descriptor].map(
     operator => [nameOf(operator), operator] as const,
   ),
 )

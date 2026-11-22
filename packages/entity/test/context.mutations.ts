@@ -22,14 +22,14 @@ export default [
   edit(
     'a visitor is read as no one in particular',
     context,
-    'Option.some(Option.getOrNull(viewerIdOf(entity, context))),',
-    "Option.some(Option.getOrElse(viewerIdOf(entity, context), () => 'ada')),",
+    'Option.some(Option.getOrNull(viewerIdOf(term.entity, context)))',
+    "Option.some(Option.getOrElse(viewerIdOf(term.entity, context), () => 'ada'))",
   ),
   edit(
     'no reading of the time is a null',
     context,
-    'Now: () => context.now,',
-    'Now: () => Option.some(Option.getOrNull(context.now)),',
+    '    : context.now\n',
+    '    : Option.some(Option.getOrNull(context.now))\n',
   ),
   edit(
     'a run with no context reads a visitor',

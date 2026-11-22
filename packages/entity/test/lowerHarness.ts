@@ -20,9 +20,8 @@ import {
   type OrderTerm,
   type Predicate,
 } from '../src/index.js'
-import { lower, type Lowered } from '../src/lower.js'
-import { envOf } from '../src/lowerEnv.js'
-import { foreignOf } from '../src/lowerOperator.js'
+import { envOf } from '../src/environment.js'
+import { foreignOf, readingOf, type Reading } from '../src/reading.js'
 
 /** One judge's answer for one predicate over one row: SQL's three values, not held, or refused. */
 export type Answer = 'true' | 'false' | 'null' | 'unheld' | 'refused'
@@ -71,7 +70,7 @@ const valueAnswer = (value: unknown): Answer => {
   return value ? 'true' : 'false'
 }
 
-const envFor = (lowered: Lowered, over: Over) =>
+const envFor = (lowered: Reading, over: Over) =>
   envOf(lowered, {
     row: over.row,
     owner: over.entity.identity,
@@ -81,12 +80,12 @@ const envFor = (lowered: Lowered, over: Over) =>
     rows: over.rows,
   })
 
-const foreignFor = (lowered: Lowered, over: Over) =>
+const foreignFor = (lowered: Reading, over: Over) =>
   foreignOf(lowered, over.operators ?? Operators.kernel)
 
 /** Metakit's evaluator over the translation of `predicate`. */
 const metakitAnswer = (predicate: Predicate, over: Over): Answer => {
-  const lowered = lower([predicate])
+  const lowered = readingOf([predicate])
   return valueAnswer(evalNode(lowered.nodes[0]!, envFor(lowered, over), foreignFor(lowered, over)))
 }
 
@@ -107,7 +106,7 @@ export const entityJudged = (predicate: Predicate, over: Over): Judged => {
 
 /** Metakit's `Expr.judge` over the translation, a refusal told apart from not knowing. */
 export const metakitJudged = (predicate: Predicate, over: Over): Judged => {
-  const lowered = lower([predicate])
+  const lowered = readingOf([predicate])
   return Verdict.match<never, Judged>(
     judgeNode(lowered.nodes[0]!, envFor(lowered, over), foreignFor(lowered, over)),
     {
@@ -148,7 +147,7 @@ export const metakitQuery = (
   rows: ReadonlyArray<HeldRow>,
   over: Omit<Over, 'entity' | 'row'>,
 ): ReadonlyArray<string> | 'refused' => {
-  const lowered = lower(where, terms)
+  const lowered = readingOf(where, terms)
   const kept: Array<{ readonly id: string; readonly keys: ReadonlyArray<unknown> }> = []
   for (const row of rows) {
     const env = envFor(lowered, { ...over, entity, row })

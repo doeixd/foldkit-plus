@@ -4,8 +4,9 @@
  */
 import { Option } from 'effect'
 import type { Node } from 'metakit'
-import { Expr, missingName, noOperators } from './expr.js'
-import type { OperatorDescriptor, OperatorTable } from './expr.js'
+import type { OperatorDescriptor } from './expr/operator.js'
+import { missingName, noOperators, type OperatorTable } from './expr/table.js'
+import { show } from './expr/show.js'
 import type { NowExpr, ViewerExpr } from './context.js'
 
 export class QueryEvaluateError extends Error {
@@ -50,7 +51,7 @@ export class OperatorMissingError extends QueryEvaluateError {
  */
 export class ContextMissingError extends QueryEvaluateError {
   constructor(term: ViewerExpr<unknown> | NowExpr<unknown>, why: string) {
-    super(`this run reads ${Expr.show(term)}, but ${why}`)
+    super(`this run reads ${show(term)}, but ${why}`)
     this.name = 'ContextMissingError'
   }
 }

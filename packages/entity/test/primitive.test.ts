@@ -19,6 +19,7 @@ import {
   type Expr as ExprOf,
   type Predicate,
 } from '../src/index.js'
+import { collationOf } from '../src/expr/operand.js'
 
 const Item = Entity.define(
   'Item',
@@ -198,12 +199,14 @@ describe('A call carrying a collation', () => {
     // `code` is binary: 'ab-2' + '!' does not reach 'AB-' + '2!' and above.
     const body = where(Expr.gte(joined(fields.code, '!'), 'AB-2!'))
     expect(ids(body, table)).toEqual(['i2', 'i3'])
-    expect(joined(fields.code, '!').collation).toEqual(Collation.declared(fields.code.metadata))
+    expect(collationOf(joined(fields.code, '!').node)).toEqual(
+      Collation.declared(fields.code.metadata),
+    )
   })
 
   it('carries none when no operand holds one, and its text is then refused in a comparison', () => {
     const bare = joined(Expr.input('a', Schema.String), 'b')
-    expect(bare.collation._tag).toBe('None')
+    expect(collationOf(bare.node)._tag).toBe('None')
     expect(() => Expr.lt(bare, 'x')).toThrow(
       'acme.joined($a, "b") is text with no declared collation',
     )
@@ -215,7 +218,7 @@ describe('A call carrying a collation', () => {
 
   it('may be given one, in place of its operands', () => {
     const given = joined(fields.code, '!', { collation: Collation.asciiFold })
-    expect(given.collation).toEqual(Collation.declared(fields.name.metadata))
+    expect(collationOf(given.node)).toEqual(Collation.declared(fields.name.metadata))
   })
 })
 

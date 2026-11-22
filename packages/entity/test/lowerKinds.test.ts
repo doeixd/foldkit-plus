@@ -5,9 +5,8 @@
 import { Node } from 'metakit'
 import { evalNode } from 'metakit/build'
 import { describe, expect, it } from 'vitest'
-import { lower } from '../src/lower.js'
-import { envOf } from '../src/lowerEnv.js'
-import { foreignOf } from '../src/lowerOperator.js'
+import { envOf } from '../src/environment.js'
+import { foreignOf, readingOf } from '../src/reading.js'
 import { differences } from './lowerDifferences.js'
 import { compared, entityJudged, idOf, metakitJudged } from './lowerHarness.js'
 import { Item, judgedRows, kindCases, operators, serverOnly } from './lowerKindCases.js'
@@ -46,7 +45,7 @@ describe('a primitive operator the holder does not run', () => {
   })
 
   it('is refused by name by metakit evaluation, as the note says', () => {
-    const lowered = lower([predicate])
+    const lowered = readingOf([predicate])
     const [first] = over
     const value = evalNode(
       lowered.nodes[0]!,

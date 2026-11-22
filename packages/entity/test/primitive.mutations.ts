@@ -3,11 +3,13 @@
  * `pnpm mutate packages/entity/test/primitive.mutations.ts` checks that a test
  * fails for every one.
  */
-const expr = '../src/expr.ts'
+const operator = '../src/expr/operator.ts'
+const operand = '../src/expr/operand.ts'
+const dependencies = '../src/expr/dependencies.ts'
 const evaluate = '../src/evaluate.ts'
 const operators = '../src/operators.ts'
 const memoryTable = '../src/memoryTable.ts'
-const lowerOperator = '../src/lowerOperator.ts'
+const reading = '../src/reading.ts'
 const invariant = '../src/invariant.ts'
 const tests = [
   'packages/entity/test/primitive.test.ts',
@@ -24,20 +26,15 @@ export default [
   // ---- running a call
   edit(
     'text holding NUL reaches an implementation',
-    lowerOperator,
+    reading,
     "if (values.some(value => typeof value === 'string' && value.includes(NUL))) {",
     'if (false) {',
   ),
-  edit(
-    'a checked table checks nothing',
-    lowerOperator,
-    'return operators.checked &&',
-    'return false &&',
-  ),
+  edit('a checked table checks nothing', reading, 'return operators.checked &&', 'return false &&'),
   edit(
     'a table is never asked',
     '../src/judgeRun.ts',
-    'const foreign: ForeignImplementations = foreignOf(lowered, over.operators)',
+    'const foreign: ForeignImplementations = foreignOf(reading, over.operators)',
     'const foreign: ForeignImplementations = {}',
   ),
   edit(
@@ -93,7 +90,7 @@ export default [
   ),
   edit(
     'startsWith never folds',
-    lowerOperator,
+    '../src/text.ts',
     '(args, fold) => Node.Call({ op: Str.startsWithOp, args: args.map(fold) }),',
     '(args) => Node.Call({ op: Str.startsWithOp, args }),',
   ),
@@ -101,61 +98,61 @@ export default [
   // ---- declaring and calling
   edit(
     'a defined operator may declare a null rule',
-    expr,
+    operator,
     '(options.nulls !== undefined || options.collation !== undefined)',
     'false',
   ),
   edit(
     'a result that is not text may carry a collation',
-    expr,
-    "if (collation === 'operands' && orderKindOf(",
-    'if (false && orderKindOf(',
+    operator,
+    "if (collation === 'operands' && storedKindOf(options.output) !== 'text') {",
+    'if (false) {',
   ),
   edit(
     'text with no collation may be compared by a call needing one',
-    expr,
+    operator,
     'if (shared === undefined) {',
     'if (false) {',
   ),
   edit(
     'operands declaring different collations are taken',
-    expr,
+    operator,
     'if (collations.some(each => each._tag !== shared._tag)) {',
     'if (false) {',
   ),
   edit(
     'a declared locale is taken where a collation is required',
-    expr,
+    operator,
     "if (shared._tag === 'Locale') {",
     'if (false) {',
   ),
   edit(
     'a collation is taken by an operator comparing no text',
-    expr,
+    operator,
     "if (Option.isSome(descriptor.definedAs) || descriptor.collation === 'none') {",
     'if (false) {',
   ),
   edit(
     'a given locale is taken where a collation is required',
-    expr,
+    operator,
     "if (collation._tag === 'Locale') {",
     'if (false) {',
   ),
   edit(
     'a comparison reads no collation from a call',
-    expr,
-    'Call: call => [{ name: showExpr(call), collation: call.collation }],',
-    'Call: () => [],',
+    operand,
+    'Call: call => call.collation,',
+    'Call: () => Option.none<Collation>(),',
   ),
   edit(
     'a table implementing an operator still leaves it unsupported',
-    expr,
+    dependencies,
     '.filter(operator => Option.isNone(operator.definedAs) && !operators.has(operator))',
     '.filter(operator => Option.isNone(operator.definedAs))',
   ),
   edit(
     'a defined operator is unsupported',
-    expr,
+    dependencies,
     '.filter(operator => Option.isNone(operator.definedAs) && !operators.has(operator))',
     '.filter(operator => !operators.has(operator))',
   ),
@@ -194,7 +191,7 @@ export default [
   edit(
     'a check counts what the judge runs as missing',
     invariant,
-    'operations: dependenciesOf(...predicates).operations,',
-    'operations: [],',
+    '    dependenciesOf(...predicates).operations,',
+    '    [],',
   ),
 ]

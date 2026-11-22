@@ -4,6 +4,7 @@
  * expr-operations-DESIGN §8.
  */
 import { Option, Schema } from 'effect'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Collation,
@@ -100,7 +101,7 @@ describe('An order term over a call', () => {
 
   it('refuses, where it is written, a call that orders nowhere alike', () => {
     expect(() => Order.asc(joined(fields.plain, '!'))).toThrow(/is text with no collation/)
-    expect(() => Order.asc(past(fields.rank, 1))).toThrow(/a predicate is already an answer/)
+    expect(() => Order.asc(past(fields.rank, 1))).toThrow(/is neither a number nor text/)
     expect(() => Order.asc(pair(fields.rank))).toThrow(/is neither a number nor text/)
     expect(() =>
       Order.asc(joined(fields.name, '!'), { collation: Collation.locale('en_US') }),
@@ -185,14 +186,13 @@ describe('Placing by a call', () => {
   })
 })
 
-describe('Expanding a primitive call', () => {
-  it('expands a defined operator among its arguments', () => {
+describe('A primitive call over a defined operator', () => {
+  it('holds the defined operator as its body among its arguments', () => {
     const outer = distance(size(fields.rank), 1)
-    const expanded = Expr.expanded(outer)
-    expect(Expr.show(expanded)).toBe(Expr.show(distance(distance(fields.rank, 0), 1)))
+    expect(Node.key(outer.node)).toBe(Node.key(distance(distance(fields.rank, 0), 1).node))
     // A primitive predicate's arguments too.
-    expect(Expr.show(Expr.expanded(past(size(fields.rank), 1)))).toBe(
-      Expr.show(past(distance(fields.rank, 0), 1)),
+    expect(Node.key(past(size(fields.rank), 1).node)).toBe(
+      Node.key(past(distance(fields.rank, 0), 1).node),
     )
   })
 })

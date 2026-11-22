@@ -4,6 +4,7 @@
  * kernel's own operators, read by every reader as any primitive call is.
  */
 import { Schema } from 'effect'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Computation,
@@ -36,7 +37,9 @@ const covered = Expr.gte(balance, 0)
 
 describe('Expr.implies', () => {
   it('is the or of the condition negated and the consequence, as nodes', () => {
-    expect(Expr.implies(open, covered)).toEqual(Expr.or(Expr.not(open), covered))
+    expect(Node.key(Expr.implies(open, covered).node)).toBe(
+      Node.key(Expr.or(Expr.not(open), covered).node),
+    )
   })
 
   // The condition: open is true, false, or unknown for a null status; the

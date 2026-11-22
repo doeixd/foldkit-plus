@@ -9,7 +9,8 @@
  */
 import { Option } from 'effect'
 import { relationsOf } from './descriptor.js'
-import { Query, type AnyQuery, type OneRelation } from './expr.js'
+import type { OneRelation } from './expr/operand.js'
+import { dependencies, type AnyQuery } from './expr/query.js'
 import type { AnyEntity, EntityIdentity, EntityMember } from './index.js'
 import { own, put } from './record.js'
 
@@ -197,7 +198,7 @@ const linksOf = (query: AnyQuery): ReadonlyArray<string> => {
   const known = linksRead.get(query)
   if (known !== undefined) return known
   const relations: Readonly<Record<string, EntityMember>> = query.entity.relations
-  const links = Query.dependencies(query)
+  const links = dependencies(query)
     .fields.filter(
       field =>
         field.owner.token === query.entity.identity.token && Object.hasOwn(relations, field.key),

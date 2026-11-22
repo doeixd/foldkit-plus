@@ -10,8 +10,9 @@ import {
   Expr,
   Query,
   Relation,
-  type PathExpr,
+  type Expr as ExprOf,
   type Predicate,
+  type Reads,
   type Selected,
 } from '../src/index.js'
 
@@ -83,7 +84,8 @@ expectTypeOf(Shop.Order.relations.domain.target().variants).toEqualTypeOf(Domain
 
 // Through a one relation: a path to each case field, read by the relation's owner.
 const cheap = Expr.is(Shop.Order.relations.domain, 'Available', ({ price }) => {
-  expectTypeOf(price).toExtend<PathExpr<number>>()
+  // Through a one relation the value may be absent, so the path is nullable.
+  expectTypeOf(price).toEqualTypeOf<ExprOf<number | null> & Reads<'Order'>>()
   return Expr.lt(price, 20)
 })
 Query.from(Shop.Order).pipe(Query.where(cheap))

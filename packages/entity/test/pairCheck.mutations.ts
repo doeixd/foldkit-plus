@@ -15,7 +15,7 @@ export default [
     edits: [
       {
         file: '../src/pairCheck.ts',
-        find: "      assume.push(expr(underStates(lower([held.predicate]).nodes[0]!, 'state', false)))",
+        find: "      assume.push(expr(underStates(held.predicate.node, 'state', false)))",
         replace: '      void held',
       },
     ],

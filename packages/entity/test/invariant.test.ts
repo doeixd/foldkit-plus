@@ -5,6 +5,7 @@
 import { Option, Schema, SchemaGetter } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { assertSupported, Collation, Entity, Expr, Query, truthOver } from '../src/index.js'
+import { substituteNext } from './substituteNext.js'
 
 /** A date the store keeps as ISO text, so an invariant over it compares the text. */
 const Day = Schema.Date.pipe(
@@ -211,7 +212,7 @@ describe('Entity.check', () => {
   })
 })
 
-describe('Expr.substituteNext', () => {
+describe('Substituting the values a write sets for what a predicate reads after', () => {
   const Item = Entity.define(
     'Item',
     Schema.Struct({ id: Schema.String, name: Schema.String, size: Schema.NullOr(Schema.Number) }),
@@ -231,9 +232,9 @@ describe('Expr.substituteNext', () => {
     ['compare', Expr.gte(size, 2), { size: 1 }],
   ])('reads a value given for what %s reads after', (_, predicate, values) => {
     expect(truthOver(predicate, {}, {}, after)).toBe(true)
-    expect(truthOver(Expr.substituteNext(predicate, values), {}, {}, after)).toBe(false)
+    expect(truthOver(substituteNext(predicate, values), {}, {}, after)).toBe(false)
     // A field it names but does not read changes nothing.
-    expect(truthOver(Expr.substituteNext(predicate, { id: 'other' }), {}, {}, after)).toBe(true)
+    expect(truthOver(substituteNext(predicate, { id: 'other' }), {}, {}, after)).toBe(true)
   })
 
   it('is refused by a query, which reads stored rows and no row after', () => {
@@ -244,7 +245,7 @@ describe('Expr.substituteNext', () => {
 
   it('leaves a field as stored alone: only the row after is substituted', () => {
     const stored = Expr.eq(Item.fields.name, 'Bolt')
-    expect(truthOver(Expr.substituteNext(stored, { name: 'Nut' }), after)).toBe(true)
+    expect(truthOver(substituteNext(stored, { name: 'Nut' }), after)).toBe(true)
   })
 })
 

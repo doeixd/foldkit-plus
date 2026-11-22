@@ -503,9 +503,16 @@ why). Before writing one:
   (`Entity.annotateMembers({ title: Collation.of(Collation.binary) })`), or the
   comparison throws, `evaluate` refuses the order (`evaluateEach`, which only
   judges membership, does not) and a client cannot place rows in the list.
-- A path or exists reads other rows: it is in `Query.dependencies(q).reaches`,
-  not `fields`; `evaluate` refuses it, `Judge` and SQL run it; a list never
-  orders by one.
+- An expression is a metakit `Expr`: its `node` is metakit's own (`Expr.eq`
+  builds `eq.equals`, a field reads the path `row.<key>`, `Expr.path` reads
+  `row.@relation.<key>`, `Expr.exists` is a `Rows` node), so metakit's
+  evaluator, judge, checker and SQL lowering read it as it is. There is no
+  `_tag` per kind of predicate to branch on, and two built separately are
+  compared by `Node.key(a.node)`, not `toEqual`.
+- A path or exists reads other rows: it is in `Query.dependencies(q).reaches`
+  (each a `Path`, `ViewerPath` or `Exists` description with its `expr`), not
+  `fields`; `evaluate` refuses it, `Judge` and SQL run it; a list never orders
+  by one.
 - `Expr.viewer` and `Expr.now` come from the run's context; a run without one
   is refused (`ContextMissingError`), a visitor's viewer is null.
 - A derived member is not an operand, and there is no aggregate. Arithmetic is
@@ -569,7 +576,7 @@ output: Schema.Boolean, definedAs: at => Expr.isNotNull(at) })` declares an oper
 by what a call means; `published(Story.fields.publishedAt)` is then a predicate
 (a boolean output) or a scalar, printed by name, listed in
 `Query.dependencies(body).operators`, and run by every interpreter as its expansion
-(`Expr.expanded`), so it needs no SQL of its own. `definedAs` may read only its
+(a call is the expression its body builds), so it needs no SQL of its own. `definedAs` may read only its
 arguments. `foldkit-cms`'s `Cms.published(entity)` is one, over the `published` role.
 Without `definedAs` an operator is **primitive**: each interpreter implements it.
 In memory, `Operators.memory(Operators.implement(op, (a, b, { collation }) => …))`

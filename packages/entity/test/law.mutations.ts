@@ -3,7 +3,7 @@
  * `pnpm mutate packages/entity/test/law.mutations.ts`.
  */
 const tests = ['packages/entity/test/law.test.ts']
-const expr = '../src/expr.ts'
+const expr = '../src/expr/operatorLaws.ts'
 const law = '../src/law.ts'
 const operators = '../src/operators.ts'
 const helper = '../src/conformance/operator.ts'

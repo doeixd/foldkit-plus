@@ -31,7 +31,7 @@ export default [
   ),
   edit(
     'a value of any kind is stored',
-    "const comes = [...kindsOf(expr)].filter(kind => kind !== 'null' && !stored.has(kind))",
+    "const comes = [...kindsOf(expr.node)].filter(kind => kind !== 'null' && !stored.has(kind))",
     'const comes: Array<string> = []',
   ),
   edit(
@@ -49,8 +49,8 @@ export default [
   ),
   edit(
     'it is not bound',
-    'put(assignments, field.key, computationOf(write, expr, input))',
-    'void computationOf(write, expr, input)',
+    'put(assignments, field.key, computationOf(write, expr.node, input))',
+    'void computationOf(write, expr.node, input)',
   ),
 
   // ---- the row it leaves
@@ -91,13 +91,13 @@ export default [
   ),
   edit(
     'an assignment that may be null is let into a field storing none',
-    "if (!stored.has('null') && mayBeNull(expr)) {",
+    "if (!stored.has('null') && mayBeNull(expr.node)) {",
     'if (false) {',
   ),
   edit(
     'a strict call over a nullable argument reads as never null',
-    "expr.operator.nulls === 'strict' &&",
-    'false &&',
+    "operator.nulls === 'strict' && args.some(",
+    'false && args.some(',
   ),
 
   // ---- into an integer field
@@ -108,8 +108,8 @@ export default [
   ),
   edit(
     'a field or input is an integer whatever it holds',
-    'Input: ({ schema }) => storesIntegers(schema),',
-    'Input: () => true,',
+    'Option.exists(node.ast, holdsIntegers),',
+    'true,',
   ),
   edit(
     'an operator is an integer whatever it answers',
@@ -118,17 +118,17 @@ export default [
   ),
   edit(
     'a literal is an integer whatever it holds',
-    'Literal: ({ value }) => value === null || Number.isInteger(value),',
-    'Literal: () => true,',
+    '? node.value === null || Number.isInteger(node.value)',
+    '? true',
   ),
   edit(
     'a null literal is not an integer',
-    'Literal: ({ value }) => value === null || Number.isInteger(value),',
-    'Literal: ({ value }) => Number.isInteger(value),',
+    '? node.value === null || Number.isInteger(node.value)',
+    '? Number.isInteger(node.value)',
   ),
   edit(
     'a nullable field is not an integer one',
-    'const present = SchemaShape.present(Schema.toEncoded(schema).ast)',
-    'const present = [Schema.toEncoded(schema).ast]',
+    'const present = SchemaShape.present(ast)',
+    'const present = [ast]',
   ),
 ]

@@ -19,9 +19,8 @@
 import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
 import { Bool, Eq, Node, Null, Num, Path, Transition } from 'metakit'
 import type { ExprContext } from './context.js'
-import { viewerIdOf } from './context.js'
-import type { OneRelation } from './expr.js'
-import { lower } from './lower.js'
+import { matchContext, viewerIdOf } from './context.js'
+import type { OneRelation } from './expr/operand.js'
 import { Write, type AnyWrite, type ContextRead, type ContextSet } from './write.js'
 
 /** A row's place in its table: whether it is there, and what it holds, as the store holds it. */
@@ -77,10 +76,10 @@ const suppliedFor = (
   write: AnyWrite,
   { member, value }: ContextSet,
 ): { readonly name: string; readonly schema: Schema.Top } =>
-  Match.valueTags(value, {
-    Viewer: () => ({ name: VIEWER, schema: Schema.NullOr(Schema.String) }),
-    Now: () => ({ name: NOW, schema: Schema.Int }),
-    ViewerPath: () =>
+  matchContext<{ readonly name: string; readonly schema: Schema.Top }>(value, {
+    viewer: () => ({ name: VIEWER, schema: Schema.NullOr(Schema.String) }),
+    now: () => ({ name: NOW, schema: Schema.Int }),
+    viewerPath: () =>
       Match.valueTags(member, {
         Relation: ({ key }) =>
           fail(write, `${key} is a relation set from a path of the viewer's row`),
@@ -92,7 +91,7 @@ const suppliedFor = (
   })
 
 /**
- * An expression of the entity's, translated (`lower`) and read under the
+ * An expression of the entity's, read under the
  * transition's slices: `row` is `state.row`, `input` stays. It reads the row
  * and the input alone, as a write's precondition and assignments do.
  */
@@ -158,14 +157,11 @@ const build = (write: AnyWrite): WriteTransition => {
     ast: Option.some(Schema.Boolean.ast),
   })
 
-  const lowered = lower([
-    ...Option.match(write.when, { onNone: () => [], onSome: query => query.where }),
-    ...write.assignments.map(assignment => assignment.expr),
-  ])
-  const [conditions, assigned] = [
-    lowered.nodes.slice(0, lowered.nodes.length - write.assignments.length),
-    lowered.nodes.slice(lowered.nodes.length - write.assignments.length),
-  ]
+  const conditions = Option.match(write.when, {
+    onNone: () => [],
+    onSome: query => query.where.map(predicate => predicate.node),
+  })
+  const assigned = write.assignments.map(assignment => assignment.expr.node)
   const guard = [
     Match.value(write._tag).pipe(
       Match.when('Insert', () => Node.Call({ op: Bool.notOp, args: [present] })),
@@ -260,7 +256,7 @@ const build = (write: AnyWrite): WriteTransition => {
     let viewing: string | undefined
     for (const each of write.context) {
       const { name, schema } = suppliedFor(write, each)
-      if (each.value._tag === 'Viewer') {
+      if (each.value.term === 'viewer') {
         const asker = each.value.entity.name
         if (viewing !== undefined && viewing !== asker) {
           fail(write, `its context asks for the viewer as a ${viewing} and as a ${asker}`)
@@ -328,16 +324,16 @@ export const suppliedOf = <E, R>(
     for (const each of write.context) {
       const { name } = suppliedFor(write, each)
       const { value, member } = each
-      Match.valueTags(value, {
-        Viewer: ({ entity }) => {
+      matchContext(value, {
+        viewer: ({ entity }) => {
           supplied[name] = Option.getOrNull(viewerIdOf(entity, by))
         },
-        Now: () =>
+        now: () =>
           Option.match(by.now, {
             onNone: () => void missing.add(member.key),
             onSome: now => void (supplied[name] = now),
           }),
-        ViewerPath: () => {
+        viewerPath: () => {
           if (!missing.has(member.key)) supplied[name] = values[member.key]
         },
       })

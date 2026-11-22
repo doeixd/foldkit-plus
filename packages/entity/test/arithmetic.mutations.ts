@@ -3,7 +3,8 @@
  * as a transition, each broken in turn:
  * `pnpm mutate packages/entity/test/arithmetic.mutations.ts`.
  */
-const expr = '../src/expr.ts'
+const logic = '../src/expr/logic.ts'
+const show = '../src/expr/show.ts'
 const memory = '../src/memoryTable.ts'
 const sql = '../../metakit/src/sqlLowering.ts'
 const write = '../src/write.ts'
@@ -27,9 +28,9 @@ const edit = (
 export default [
   edit(
     'an implication drops the negation',
-    expr,
-    'Expr.or(Expr.not(condition), then) as',
-    'Expr.or(condition, then) as',
+    logic,
+    'or(not(condition), then) as',
+    'or(condition, then) as',
   ),
   edit('SQL subtracts as it adds', sql, "'num.sub': sum('-'),", "'num.sub': sum('+'),", sqlTests),
   edit(
@@ -39,22 +40,17 @@ export default [
     "'num.add': (args, ctx) => both(args, ctx, left => q`(${left} + ${left})`),",
     sqlTests,
   ),
-  edit(
-    'a sum prints as a call',
-    expr,
-    'const infix = arithmeticSymbols.get(node.operator)',
-    'const infix = undefined as string | undefined',
-  ),
+  edit('a sum prints as a call', show, '? infixes[node.op.id]', '? undefined'),
   edit(
     'a difference of integers is no integer',
     write,
-    '(operator === Expr.add.descriptor || operator === Expr.sub.descriptor) &&',
+    '(operator === add.descriptor || operator === sub.descriptor) &&',
     'false &&',
   ),
   edit(
     'a sum of anything is an integer',
     write,
-    'args.every(arg => !isPredicate(arg) && comesToInteger(arg))',
+    'args.every(arg => !isPredicateNode(arg) && comesToInteger(arg))',
     'true',
   ),
   edit(

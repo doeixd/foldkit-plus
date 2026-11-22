@@ -2,16 +2,17 @@
  * What `Entity.sets` declares: members whose value is the write's context,
  * never its input, and the writes that set them.
  */
-import { Match, Schema, SchemaAST } from 'effect'
-import type { NowExpr, ViewerExpr, ViewerPathExpr } from './context.js'
+import { Option, Schema, SchemaAST } from 'effect'
+import { isExpr } from 'metakit/build'
+import type { ContextValue } from './context.js'
+import { originTagged } from './expr/operand.js'
 import type { AnyEntity, EntityMember } from './index.js'
 import { SchemaShape } from './shape.js'
 
 /** The writes that set a member: every insert (`create`), or every insert and update (`write`). */
 export type SetOn = 'create' | 'write'
 
-/** A value the write's context gives: who asks, what their row holds, or when. */
-export type ContextValue = ViewerExpr<unknown> | ViewerPathExpr<unknown> | NowExpr<unknown>
+export type { ContextValue }
 
 /** One member `Entity.sets` names: its value, and the writes that set it. */
 export interface EntitySet {
@@ -31,8 +32,8 @@ const storedAs = (schema: Schema.Top): 'text' | 'number' | 'other' => {
   return 'other'
 }
 
-const tagOf = (value: unknown): unknown =>
-  typeof value === 'object' && value !== null && '_tag' in value ? value._tag : undefined
+const termOf = (value: unknown): unknown =>
+  isExpr(value) && 'term' in value ? value.term : undefined
 
 /**
  * `value` checked against the member `key` it sets, as `Entity.sets` was
@@ -50,9 +51,8 @@ export const checkedSet = (
   }
   if (key === 'id') return fail(entity, 'sets the id, which the client names')
   if (Object.hasOwn(entity.sets, key)) return fail(entity, `"${key}" is set already`)
-  const tag = tagOf(value)
-  // tag-check: open, the value is whatever the application wrote
-  if (tag !== 'Viewer' && tag !== 'Now' && tag !== 'ViewerPath') {
+  const term = termOf(value)
+  if (term !== 'viewer' && term !== 'now' && term !== 'viewerPath') {
     return fail(
       entity,
       `sets "${key}" to what is no value of the write's context (Expr.viewer, a path from it, Expr.now); a value from the input is a computed assignment`,
@@ -72,27 +72,33 @@ export const checkedSet = (
   if (member._tag === 'Relation') {
     if (member.cardinality !== 'one') return fail(entity, `sets "${key}", a many relation`)
     const target = member.target()
-    if (context._tag !== 'Viewer' || context.entity.token !== target.identity.token) {
+    if (context.term !== 'viewer' || context.entity.token !== target.identity.token) {
       return fail(entity, `sets the relation "${key}" to what is not Expr.viewer(${target.name})`)
     }
     return { value: context, on }
   }
   const stored = storedAs(member.schema as Schema.Top)
-  Match.value(context).pipe(
-    Match.tagsExhaustive({
-      Now: () =>
-        stored === 'number' ||
-        fail(entity, `sets "${key}" to the time, but it is not stored as a number`),
-      Viewer: () =>
-        stored === 'text' ||
-        fail(entity, `sets "${key}" to the viewer's id, but it is not stored as text`),
-      ViewerPath: ({ field }) =>
-        (stored !== 'other' && storedAs(field.schema as unknown as Schema.Top) === stored) ||
-        fail(
-          entity,
-          `sets "${key}" to what ${field.owner.name}.${field.key} holds, which it is not stored as`,
-        ),
-    }),
-  )
+  switch (context.term) {
+    case 'now':
+      if (stored !== 'number') {
+        fail(entity, `sets "${key}" to the time, but it is not stored as a number`)
+      }
+      break
+    case 'viewer':
+      if (stored !== 'text') {
+        fail(entity, `sets "${key}" to the viewer's id, but it is not stored as text`)
+      }
+      break
+    case 'viewerPath':
+      Option.map(originTagged(context.node, 'ViewerHop'), ({ field }) => {
+        if (stored === 'other' || storedAs(field.schema) !== stored) {
+          fail(
+            entity,
+            `sets "${key}" to what ${field.owner.name}.${field.key} holds, which it is not stored as`,
+          )
+        }
+      })
+      break
+  }
   return { value: context, on }
 }

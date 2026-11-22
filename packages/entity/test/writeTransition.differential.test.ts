@@ -16,6 +16,8 @@
 import { Effect, Option, Result, Schema, SchemaAST } from 'effect'
 import { Node, Transition } from 'metakit'
 import { describe, expect, it, vi } from 'vitest'
+import { matchContext, type ViewerPathExpr } from '../src/context.js'
+import { dependenciesOf } from '../src/index.js'
 import type { AnyWrite } from '../src/write.js'
 
 const declared = vi.hoisted(() => [] as Array<AnyWrite>)
@@ -74,8 +76,7 @@ for (const example of EXAMPLES) {
 }
 
 const { Held, Operators, Write, evaluate, QueryEvaluateError } = await import('../src/index.js')
-const { lower } = await import('../src/lower.js')
-const { foreignOf } = await import('../src/lowerOperator.js')
+const { foreignOf, readingOf } = await import('../src/reading.js')
 const { suppliedOf, transitionOf } = await import('../src/writeTransition.js')
 const { applyBefore } = await import('./writeBefore.js')
 
@@ -129,9 +130,9 @@ const sampleOf = (ast: SchemaAST.AST, rng: () => number, pools: Pools): unknown 
   throw new Unsupported(ast._tag)
 }
 
-/** What a write translates to: its precondition's predicates and its assignments' expressions. */
+/** What a write reads: its precondition's predicates and its assignments' expressions. */
 const loweredOf = (write: AnyWrite) =>
-  lower([
+  readingOf([
     ...Option.match(write.when, { onNone: () => [], onSome: query => query.where }),
     ...write.assignments.map(assignment => assignment.expr),
   ])
@@ -259,12 +260,17 @@ const compareWrite = (write: AnyWrite, seed: number): void => {
   }
 
   // What the write's context gives, read once.
+  const pathOf = (value: ViewerPathExpr<unknown>) => {
+    const [reach] = dependenciesOf(value).reaches
+    if (reach?._tag !== 'ViewerPath') throw new Error('a path from the viewer reads one')
+    return reach
+  }
   const viewing = write.context.flatMap(({ value }) =>
-    value._tag === 'Viewer'
-      ? [value.entity.name]
-      : value._tag === 'ViewerPath'
-        ? [value.viewer.entity.name]
-        : [],
+    matchContext(value, {
+      viewer: each => [each.entity.name],
+      viewerPath: each => [pathOf(each).viewer.name],
+      now: () => [],
+    }),
   )
   const by = {
     viewer: Option.some({ entity: viewing[0] ?? entity.name, id: 'u1' }),
@@ -277,11 +283,12 @@ const compareWrite = (write: AnyWrite, seed: number): void => {
       held.set(
         key,
         write.context.flatMap(({ value }) => {
-          if (value._tag !== 'ViewerPath') return []
-          const hop = value.via.find(relation => relation.key === key)
+          if (value.term !== 'viewerPath') return []
+          const reach = pathOf(value)
+          const hop = reach.via.find(relation => relation.key === key)
           if (hop !== undefined) return [`${hop.target().name}:t1`]
-          return value.field.key === key
-            ? [sampleOf(SchemaAST.toEncoded(value.field.schema.ast), rng, pools)]
+          return reach.field.key === key
+            ? [sampleOf(SchemaAST.toEncoded(reach.field.schema.ast), rng, pools)]
             : []
         })[0] ?? `${ref.entity}:t1`,
       )

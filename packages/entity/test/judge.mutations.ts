@@ -5,9 +5,11 @@
  */
 const evaluate = '../src/evaluate.ts'
 const judgeRun = '../src/judgeRun.ts'
-const lowerEnv = '../src/lowerEnv.ts'
+const lowerEnv = '../src/environment.ts'
 const held = '../src/held.ts'
-const expr = '../src/expr.ts'
+const relation = '../src/expr/relation.ts'
+const dependencies = '../src/expr/dependencies.ts'
+const order = '../src/expr/order.ts'
 const judge = ['packages/entity/test/judge.test.ts']
 const path = ['packages/entity/test/path.test.ts']
 
@@ -140,7 +142,11 @@ export default [
   {
     name: "a path's end is not checked to be on the row reached",
     edits: [
-      { file: expr, find: '    if (owner.token !== target.token) {', replace: '    if (false) {' },
+      {
+        file: relation,
+        find: '    if (owner.token !== target.token) {',
+        replace: '    if (false) {',
+      },
     ],
     tests: path,
   },
@@ -148,9 +154,9 @@ export default [
     name: 'a path may follow any number of relations',
     edits: [
       {
-        file: expr,
-        find: '    if (path.via.length > maxPathLength) {',
-        replace: '    if (path.via.length > maxPathLength + 1) {',
+        file: relation,
+        find: '    if (via.length > maxPathLength) {',
+        replace: '    if (via.length > maxPathLength + 1) {',
       },
     ],
     tests: path,
@@ -159,7 +165,7 @@ export default [
     name: "an exists' filter may reach past its row",
     edits: [
       {
-        file: expr,
+        file: relation,
         find: '    if (foreign !== undefined || read.next.length > 0 || read.reaches.length > 0) {',
         replace: '    if (foreign !== undefined || read.next.length > 0) {',
       },
@@ -168,15 +174,21 @@ export default [
   },
   {
     name: 'a path claims no row of the query it is in',
-    edits: [{ file: expr, find: '      yield expr.via[0]', replace: '' }],
+    edits: [
+      {
+        file: dependencies,
+        find: "          yield origin.via[0]\n          return\n        // It starts at the viewer's row",
+        replace: "          return\n        // It starts at the viewer's row",
+      },
+    ],
     tests: path,
   },
   {
     name: "an exists' filter's inputs are not read",
     edits: [
       {
-        file: expr,
-        find: '        inner.inputs.forEach(key => found.inputs.add(key))',
+        file: dependencies,
+        find: '          inner.inputs.forEach(key => found.inputs.add(key))',
         replace: '',
       },
     ],
@@ -186,10 +198,9 @@ export default [
     name: 'a list may order by a path',
     edits: [
       {
-        file: expr,
-        find: '      Path: (path): Option.Option<Collation> => {\n        throw new Error(',
-        replace:
-          '      Path: (path): Option.Option<Collation> => {\n        if (path) return path.field.collation\n        throw new Error(',
+        file: order,
+        find: "        Hop: () => Option.some('a path'),",
+        replace: '        Hop: () => Option.none<string>(),',
       },
     ],
     tests: path,
