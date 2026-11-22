@@ -165,10 +165,10 @@ Laws do not solve a Message the language cannot state, and do not make a weak st
 
 An application needs operations metakit does not ship: combining permission flags, a domain's rounding, a text normalisation. Phase 4 part A lets it declare one, a fold over it and a way of writing with it, so that every reader acts on its claims and a false claim fails a test. The vocabulary of properties stays closed; user-defined instances of it are allowed and checked (decision 11).
 
-- *Declaring.* Once, with id, version, a Schema per argument and for the result, its null rule and its claims. The declaration is the typed constructor. Each claim is typed by the signature: an identity has the argument's type; commutative and associative compile only for `(A, A) => A`; an inverse takes the result and the second argument and gives the first; monotone has one direction per argument.
-- *Checking.* A generated check per claim over inputs sampled from the argument Schemas (`Arbitrary.schema` from `effect/Arbitrary`, seeded), plus the awkward values each Schema admits and the ends of any range it checks. Checks never run on a page; they run in a test helper with each implementation the application ships, and optionally at a development server's start. Every claim reachable from an application's machines and languages is an obligation in the registry, discharged only by a passing check in that run, so a forgotten check fails the obligations test.
+- *Declaring.* Once, with id, version, a Schema per argument and for the result, its null rule and its claims. The declaration is the typed constructor. Each claim is typed by the signature: an identity has the argument's type; identity, absorbing, commutative and associative compile only for `(A, A) => A`; an inverse takes the result and the second argument and gives the first (or is `'self'`); monotone has one direction per argument. There is no per-claim domain: every claim holds over what the argument Schemas admit, and evaluation checks each argument and the answer against its Schema, refusing `ill-typed` otherwise. Names and signatures are fixed in [the checked-operations note](./metakit-checked-operations-DESIGN.md) ("the operations note").
+- *Checking.* A generated check per claim over inputs sampled from the argument Schemas (`Arbitrary.schema` from `effect/Arbitrary`, seeded; `@stability unstable`, see Risks), plus the awkward values each Schema admits and the ends of any range it checks, which the sampler adds itself. Our own loop checks, so the calls evaluated can be recorded for SQL parity. Checks never run on a page; they run in a test helper with each implementation the application ships, and optionally at a development server's start. Every claim reachable from an application's machines and languages is an obligation in the registry, discharged only by a passing check in that run, so a forgotten check fails the obligations test.
 - *Versions.* Obligations are named by `id@version`; a bump names new ones. A changed declaration under one version is refused where a server and a page compare descriptions.
-- *Lowering.* A lowering per dialect, typed by arity; a dialect without one refuses by name. Every lowering joins the parity suite over the same samples.
+- *Lowering.* A lowering per dialect, typed by arity; a dialect without one refuses by name. Every lowering joins the parity suite: one statement per dialect over the calls the memory checks evaluated.
 - *Folds and ways.* A custom fold names a checked operation that claims commutative, associative and an identity; its fold properties derive from the operation's. A custom way of writing is `combine`; `add` is its named case with `num.add`.
 - *Readers.* Partial evaluation and the page judge (identity, absorbing, idempotent, carried in the node); the checker (monotone, given implementations); `Transition.commutes`, `Transition.idempotent`, `metakit/pairs`, Sync convergence and `replayOver` (through `combine`); the update-or-rescan classifier (through the fold). The solver answers Unknown, as today.
 
@@ -398,99 +398,108 @@ Declarable now 19; after bouts 3.3, 4.4 and 3.6, 31 of 39, which passes three in
 
 **Depends on.** Phase 1 and Phase 2's structure. Part A edits `packages/metakit`, entity's operator files and `examples/metakit`; part B `packages/remote`, `packages/remote-drizzle`, `packages/durable`.
 
-**Probes first** (bout 4.1, before any API is written): seeded generation with `Arbitrary.schema` from Effect 4.1.4's `effect/Arbitrary` (does it take a seed, does it honour `Schema.check` ranges); SQLite and Postgres `|`, `#`/`^` and `& ~` against JavaScript's over integers 0 to 2^31−1, 2,000 seeded pairs; the instantiation count of a typed declaration of three operations against one `Expr.operator` today.
+**Probes** (bout 4.1, done): the results are in [the operations note](./metakit-checked-operations-DESIGN.md) and "Facts the probes settled" below.
 
 ### Part A: checked custom algebras
 
-**A1. The typed operation** (`packages/metakit/src/operation.ts`, subpath `metakit/operation`; names final in bout 4.1).
+The sketches below show shape; the note holds the compiled signatures, the error texts and the reasons for each change from the plan's first text, and bouts 4.4 to 4.12 build the note's.
+
+**A1. The typed operation** (`packages/metakit/src/operation.ts`, subpath `metakit/operation`).
 
 ```ts sketch
 export interface Operation<
   Id extends string, V extends number,
   Args extends ReadonlyArray<Schema.Top>, R extends Schema.Top,
+  N extends 'strict' | 'own',                     // the null rule: an implementation's argument types depend on it
   Claims extends OpClaims<Args, R> = {},
 > {
-  <Env>(...args: { readonly [K in keyof Args]: ExprInput<Env, Schema.Schema.Type<Args[K]> | null> }):
-    Expr<Env, Schema.Schema.Type<R> | null>
+  <const A extends { readonly [K in keyof Args]: ExprInput<never, Schema.Schema.Type<Args[K]> | null> }>(...args: A):
+    Expr<EnvOfAll<A>, Schema.Schema.Type<R> | null>
   readonly descriptor: ForeignOp & { readonly args: Args; readonly result: R; readonly claims: Claims }
 }
 
 export const define: <
   const Id extends string, const V extends number,
   const Args extends ReadonlyArray<Schema.Top>, R extends Schema.Top,
+  const N extends 'strict' | 'own',
   const Claims extends OpClaims<Args, R> = {},
 >(spec: {
   readonly id: Id & NotCorePrefixed<Id>
   readonly version: V
   readonly args: Args
   readonly returns: R
-  readonly nulls: 'strict' | 'own'
+  readonly nulls: N
   readonly claims?: Claims
-}) => Operation<Id, V, Args, R, Claims>
+}) => Operation<Id, V, Args, R, N, Claims>
 
-type OpClaims<Args, R> = {
-  readonly identity?: { readonly value: Schema.Schema.Type<R>; readonly side: Side }
-  readonly absorbing?: { readonly value: Schema.Schema.Type<R>; readonly result: Schema.Schema.Type<R>; readonly side: Side }
-  readonly idempotent?: SameType<Args, R> extends true ? true : never
-  readonly commutative?: Binary<Args, R> extends true ? true : never
-  readonly associative?: Binary<Args, R> extends true ? { readonly unlessRefused: boolean } : never
+type OpClaims<Args, R> = {                        // a claim that does not fit the shape is typed as a sentence, not never
+  readonly identity?: Binary<Args, R> extends true ? { readonly value: Schema.Schema.Type<R>; readonly side: Side } : Misfit
+  readonly absorbing?: Binary<Args, R> extends true ? { readonly value: Schema.Schema.Type<R>; readonly result: Schema.Schema.Type<R>; readonly side: Side } : Misfit
+  readonly idempotent?: SameType<Args, R> extends true ? true : Misfit
+  readonly commutative?: Binary<Args, R> extends true ? true : Misfit
+  readonly associative?: Binary<Args, R> extends true ? true | { readonly unlessRefused: true } : Misfit
   readonly invertible?: Args extends readonly [infer A, infer B]
-    ? { readonly inverse: Operation<string, number, readonly [R, B], A & Schema.Top> } : never
-  readonly monotone?: { readonly [K in keyof Args]: Direction }
-  readonly over?: { readonly [K in keyof Args]?: Schema.Top }
+    ? { readonly inverse: 'self' | Operation<string, number, readonly [R, B], A & Schema.Top, any> } : Misfit
+  readonly monotone?: { readonly [K in keyof Args]: 'up' | 'down' | 'none' }
 }
 ```
 
-`Binary<Args, R>` holds when `Args` is a pair of one Schema and `R` is that Schema; `SameType` covers the unary case. `Node.foreign` and `build.call` with a foreign op leave the public API (breaking). Refusals: `[metakit] Operation.define: "num.half" is under the core prefix "num."; choose an id outside bool., eq., null., ord., num., str., arr., rows.`; `[metakit] Operation.define: the version of "flags.or" is 0; a version is a positive integer, and a changed meaning takes a new one.`
+`Binary<Args, R>` holds when `Args` is a pair of one Schema and `R` is that Schema; `SameType` covers the unary case. `Node.foreign` and `build.call` with a foreign op leave the public API (breaking). Evaluation checks each argument against its Schema before the implementation runs and the answer after (refusal `ill-typed`); `define` also refuses a Schema that decodes from another form, a non-number, boolean or text argument, and a claimed value its Schema does not admit. Refusals: `[metakit] Operation.define: "num.half" is under the core prefix "num."; choose an id outside bool., eq., null., ord., num., str., arr., rows.`; `[metakit] Operation.define: the version of "flags.or" is 0; a version is a positive integer, and a changed meaning takes a new one.`
 
 **A2. Implementations and lowering** (`operation.ts`, `operationSql.ts`).
 
 ```ts sketch
 export const implement: <O extends AnyOperation>(op: O,
-  run: (...args: StoredArgs<O>) => StoredResult<O> | Refusal) => Implementation<O>
-export const implementations: <const Is extends ReadonlyArray<Implementation<AnyOperation>>>(...is: Is) =>
-  ForeignImplementations                                           // keyed internally by id@version
-export const sql: <O extends AnyOperation>(op: O, lowerings: {
+  run: (...args: RunArgs<O>) => Schema.Schema.Type<O['descriptor']['result']> | null) => Implementation<O>
+                                                                   // refuses by throwing; nulls only where nulls: 'own'
+export const implementations: (name: string, ...is: ReadonlyArray<Implementation<AnyOperation>>) =>
+  ForeignImplementations                                           // opaque; the name is for reports and obligations
+// metakit/operation/sql, so no page loads it; one lowering serves metakit/sql and metakit/drizzle
+export const lowering: <O extends AnyOperation>(op: O, lowerings: {
   readonly sqlite?: (...args: ArityOf<O, SqlPiece>) => SqlPiece
   readonly postgres?: (...args: ArityOf<O, SqlPiece>) => SqlPiece
   readonly aggregate?: { readonly sqlite?: (arg: SqlPiece) => SqlPiece; readonly postgres?: (arg: SqlPiece) => SqlPiece }
 }) => SqlLowering<O>
+export const lowerings: (...ls: ReadonlyArray<SqlLowering<AnyOperation>>) => ForeignLowerings
+// piece`(${a} | ${b})`: a tagged template whose holes are only other pieces
 ```
 
-Refusals: `[metakit] evaluate: no implementation of "flags.or@1" was given; pass Operation.implementations(Operation.implement(flagsOr, …)) to this reader.`; `[metakit/sql] no postgres lowering of "flags.or@1"; declare one with Operation.sql(flagsOr, { postgres }).`
+An aggregate lowering is wrapped in `coalesce(…, identity)`: Postgres's `bit_or` and `bit_xor` give null over no rows and SQLite has neither. Refusals: `[metakit] evaluate: no implementation of "flags.or@1" was given; pass Operation.implementations(…, Operation.implement(flagsOr, …)) to this reader.`; `[metakit/sql] no postgres lowering of "flags.or@1"; declare one with lowering(flagsOr, { postgres }) from metakit/operation/sql.`
 
 **A3. Generated checks and obligations** (`packages/metakit/src/operationChecks.ts`, exported from `metakit/conformance`).
 
 ```ts sketch
-export const checkOperation: <O extends AnyOperation>(op: O, implementation: Implementation<O>,
-  options?: { readonly seed?: number; readonly runs?: number; readonly sql?: ParityRunner }) => OperationReport
-export const lawObligations: (from: Machine<any, any> | Language<any>) => ReadonlyArray<WalkObligation>
+export const checkOperation: <O extends AnyOperation>(op: O, implementations: ForeignImplementations,
+  options?: { readonly seed?: number; readonly sql?: ReadonlyArray<ParityRunner> }) => OperationReport
+export const lawObligations: (from: Machine<any, any> | Expr | ReadonlyArray<AnyOperation>,
+  implementations: ReadonlyArray<ForeignImplementations>) => ReadonlyArray<WalkObligation>
 ```
 
-Samples: the awkward values each argument Schema admits (`Schema.is` over metakit's set), the ends of a checked range, 200 seeded values per argument (associativity: 1,000 triples), null and a refusal for a strict operation. A failure: `[metakit] flags.xor@1 claims idempotent, and it does not hold: flags.xor(5, 5) is 0, flags.xor(flags.xor(5, 5), 5)… expected 5. Remove the claim, or narrow it with over.` Obligations are named `law:<id>@<version>/<property>/<implementation>`; a passing `checkOperation` discharges them. Budget: under 1 s per operation in memory; SQL batched in one statement per property.
+Samples: the awkward values each argument Schema admits (`Schema.is` over metakit's set), the ends of a checked range (read from the check's `representation`), 200 seeded values per argument (associativity: 1,000 triples), null and a refusal for a strict operation. A failure: `[metakit] flags.xor@1 claims idempotent, and it does not hold: flags.xor(5, 5) is 0, not 5. Remove the claim, or narrow the argument Schemas.` Obligations are named `law:<id>@<version>/<property>/<implementations name>` (parity: `law:flags.or@1/parity/postgres`), are `WalkObligation`s with no steps, and a passing `checkOperation` records their discharges. Budget: under 1 s per operation in memory (generation alone is 4 ms; running the claims is unmeasured, bout 4.6 meets the budget); SQL parity is one statement per dialect over the recorded calls, since equality on exactly those calls carries every claim's equations to the dialect.
 
-**A4. Readers act on claims** (`ops/residualize.ts`, `ops/judge.ts`, `ops/laws.ts`, `abstract/rowOf.ts`). Partial evaluation and the page judge read a custom call's `identity`, `absorbing`, `idempotent` from its descriptor. The checker takes `{ foreign?: ForeignImplementations }`; with it, a call claiming `monotone` is bounded by its implementation at the interval's ends, without it Unknown. A claim with `over` is used only where the checker shows the arguments lie in it. Test first: `Abstract.checkInvariant` of `clamp(x, 0, 10) <= 10` is Unknown today and True with the implementation.
+**A4. Readers act on claims** (`ops/residualize.ts`, `ops/judge.ts`, `ops/laws.ts`, `abstract/rowOf.ts`). Partial evaluation and the page judge read a custom call's `identity`, `absorbing`, `idempotent` from its descriptor. The checker takes `{ foreign?: ForeignImplementations }`; with it, a call claiming `monotone` is bounded by its implementation at the interval's ends, without it Unknown. An identity, absorbing or idempotent claim rewrites only where the dropped operand is shown to lie within the argument Schema (the same AST, or every check it carries, or the result of an operation whose result Schema does); otherwise the call stays (rule 6). The checker's interval ends must lie within the argument Schemas, else Unknown. Test first: `Abstract.checkInvariant` of `clamp(x, 0, 10) <= 10` is Unknown today and True with the implementation.
 
 **A5. A fold over a checked operation** (`node.ts` adds `RowsFold` `'reduce'` carrying `op: ForeignOp | Op`; `ops/rows.ts`, `properties.ts`, `sqlLowering.ts`).
 
 ```ts sketch
-export const reduce: <Env, E, O extends CommutativeMonoid>(source: ListInput<Env, E>,
-  each: (e: Each<E>) => ExprInput<Env, ArgType<O>>, op: O) => Expr<Env, ResultType<O>>
-// CommutativeMonoid = AnyOperation whose Claims has commutative, associative (unlessRefused: false) and identity
+export const reduce: <L extends NullableItems, O extends CommutativeMonoid, V, T = true>(
+  list: L, op: O, value: (each: Each<ElementOf<L>>) => V, test?: (each: Each<ElementOf<L>>) => T) => Expr<…, ResultType<O>>
+// like Arr.sum: Arr.reduce($.roles, flagsOr, each => each.bits)
+// CommutativeMonoid = AnyOperation whose Claims has commutative: true, associative: true (not unlessRefused) and identity on both sides
 ```
 
-`foldProperties` for a `reduce` derives from the operation (identity, invertible from its inverse, idempotent). SQL lowers through the operation's `aggregate` lowering, else refuses: `[metakit/sql] Arr.reduce over "flags.or@1" has no sqlite aggregate; declare Operation.sql(flagsOr, { aggregate: { sqlite } }) or read the rows into memory.` Definition-time refusal for a runtime-built op without the claims: `[metakit] Arr.reduce: "flags.andNot@1" does not claim commutative and associative with an identity, so its answer over rows would depend on their order.` Test: the classifier's answer for `reduce(num.add)` equals its answer for `sum`.
+In memory the answer over no element is the identity and a null contribution is skipped, as `sum` and SQL's aggregates do. `foldProperties` for a `reduce` derives from the operation (identity, invertible from its inverse, idempotent). SQL lowers through the operation's `aggregate` lowering, else refuses: `[metakit/sql] Arr.reduce over "flags.or@1" has no sqlite aggregate; declare lowering(flagsOr, { aggregate: { sqlite } }) or read the rows into memory.` Definition-time refusal for a runtime-built op without the claims: `[metakit] Arr.reduce: "flags.andNot@1" does not claim commutative and associative with an identity, so its answer over rows would depend on their order.` Test: the classifier's answer for `reduce(num.add)` equals its answer for `sum`.
 
 **A6. `combine`** (`transitionLists.ts` or a new `transitionCombine.ts`, `ops/ways.ts`, `transitionCommutes.ts`).
 
 ```ts sketch
-export const combine: <State, Input, V, Supplied = NoSupplied, O extends AnyOperation = AnyOperation>(
-  target: PathType<TransitionEnv<State, Input, Supplied>, V>, op: O & BinaryOver<V>,
+export const combine: <State, Input, V, Supplied = NoSupplied>(
+  target: Path<TransitionEnv<State, Input, Supplied>, V>, op: BinaryOver<NonNullable<NoInfer<V>>>,
   value: ExprInput<TransitionEnv<State, Input, Supplied>, NoInfer<V>>)
   => WriteEquation<State, Input, V, Supplied, 'combine'>
 ```
 
-`WayOfWriting` gains `'combine'`; its `writeProperties` row: two combines of one operation commute when it claims commutative and associative without `unlessRefused` (with it: Unknown, since the checker cannot range a custom result), are idempotent when it claims associative and idempotent. `Transition.commutes` and `Transition.idempotent` read it; `replayOver` replays a pending combine over a newer value when the page holds the implementation, else treats it as a `set`; `PendingPatch` gains `combines` beside `adds` (`packages/remote/src/ledger.ts`); Sync convergence reads it. Test first: two `combine(flagsOr)` on one path: `commutes` True, `idempotent` True; `combine(flagsAndNot)` twice: Unknown with a walk. Mutation: the row claiming commutes for any operation.
+`WayOfWriting` gains `'combine'`; its `writeProperties` row: two combines of one operation (same id and version) commute when it claims commutative and `associative: true` (with `{ unlessRefused: true }`: Unknown, since the checker cannot range a custom result), and are idempotent when it claims idempotent and `associative: true` (conditions `'same-operation'`, `'idempotent-operation'`). `add` stays its own way: `num.add` is associative only unless refused, and a core operation is not an `Operation`. `Transition.commutes` and `Transition.idempotent` read it; `replayOver` replays a pending combine over a newer value when the page holds the implementation, else treats it as a `set`; `PendingPatch` gains `combines` beside `adds` (`packages/remote/src/ledger.ts`); Sync convergence reads it. Test first: two `combine(flagsOr)` on one path: `commutes` True, `idempotent` True; `combine(flagsAndNot)` twice: Unknown with a walk. Mutation: the row claiming commutes for any operation.
 
 **A7. Entity's operators on it** (`packages/entity/src/expr/operator.ts`, `expr/primitive.ts`, `law.ts` deleted, `operators.ts`, `conformance/operator.ts`). `Expr.operator` builds on `Operation.define`, keeping Entity-field arguments and its `collation` rule. The nine law kinds:
 
@@ -506,13 +515,13 @@ export const combine: <State, Input, V, Supplied = NoSupplied, O extends AnyOper
 | `Distributes` | no | deleted: no reader |
 | `PreservesCollation` | no | deleted: collations are fold operations (`str.lowerAscii`) placed by entity's constructors |
 
-`Operators.implement`, the memory and Drizzle tables and `Conformance.laws` become metakit's `implement`, `implementations`, `sql` and `checkOperation`; entity's names are deleted (breaking, each listed in the upgrade guide with its compiler error). `Evidence.Proven` no longer counts. Test: entity's existing operator tests pass on metakit's checks; a declared `Distributes` fails to compile.
+`Law.within` goes too: narrow the argument Schemas. `Operators.implement`, the memory and Drizzle tables and `Conformance.laws` become metakit's `implement`, `implementations`, `lowering`, `lowerings` and `checkOperation`; entity's names are deleted (breaking, each listed in the upgrade guide with its compiler error, the table in the operations note). `Evidence.Proven` is deleted and counts for nothing; `Evidence.Tested` becomes a registry discharge. A defined operator (`definedAs`) is its body and declares no claims (refused if it does); the kernel's `number.add`, `number.subtract` and `text.startsWith` declare nothing of their own, their rows in `opProperties` say what they keep. Test: entity's existing operator tests pass on metakit's checks; a declared `Distributes` fails to compile.
 
-**A8. The first consumer** (`examples/metakit/src/permissions.ts`, `test/permissions.test.ts`, `test/permissions.mutations.ts`, `test/permissions.test-d.ts`). `Flags = Schema.Int.check(Schema.isBetween(0, 2147483647))`; `flags.or` (commutative, associative, idempotent, identity 0), `flags.xor` (commutative, associative, identity 0, its own inverse), `flags.andNot` (none), `flags.clamp` (monotone up, none, none); a machine granting and revoking through `combine`; a rule `Abstract` bounds; a maintained total (part B); SQL on SQLite and PGlite. Postgres's `bit_or` aggregate and SQLite's none show a dialect refusing by name.
+**A8. The first consumer** (`examples/metakit/src/permissions.ts`, `test/permissions.test.ts`, `test/permissions.mutations.ts`, `test/permissions.test-d.ts`). `Flags = Schema.Int.check(Schema.isBetween(0, 2147483647))`; `flags.or` (commutative, associative, idempotent, identity 0), `flags.xor` (commutative, associative, identity 0, its own inverse), `flags.andNot` (none), `flags.clamp` (monotone up, none, none; `'none'` positions are single values); the domain is 0 to 2^31−1 because JavaScript's bitwise operators are 32-bit and SQLite's 64-bit; a machine granting and revoking through `combine`; a rule `Abstract` bounds; a maintained total (part B); SQL on SQLite and PGlite. Postgres's `bit_or` aggregate and SQLite's none show a dialect refusing by name; xor lowers to `a # b` on Postgres (its `^` is a power) and `(a | b) - (a & b)` on SQLite (no `^`).
 
 **Typing negative cases** (each alone, in `packages/metakit/test/operation.test-d.ts`): identity of the wrong type; `commutative` on `(Int, Text)`; an inverse of the wrong signature; a `monotone` tuple of the wrong length; an implementation of the wrong arity, and of the wrong argument type; a call with a text argument where an integer is taken, the error on that argument; `reduce` over `flags.andNot`; `combine` with an operation whose argument is not the path's type; id `'num.half'`.
 
-**Bytes and compile cost.** A page naming no custom operation is byte-for-byte unchanged; `operationChecks.ts` and `operationSql.ts` are absent from every page (`publishedBuild.test.ts`); a page judging with a custom operation carries its descriptor and claims (expected under 300 B brotli per operation, measured in bout 4.12). The typed declaration costs at most the bout 4.1 prototype's count per operation.
+**Bytes and compile cost.** A page naming no custom operation is byte-for-byte unchanged; `operationChecks.ts` and `operationSql.ts` are absent from every page (`publishedBuild.test.ts`); a page judging with a custom operation carries its descriptor and claims (expected under 300 B brotli per operation, measured in bout 4.12). The typed declaration costs at most 164 instantiations, and with one call and one implementation at most 684, measured as in the note's probe 3 (an entity operator costs 213 and 909 today).
 
 ### Part B: maintained values
 
@@ -564,7 +573,7 @@ Rules as before: a fold applies an insert from the row when commutative and asso
 
 - *A custom claim is false:* bout 4.6's checks; mutations `flags.or` invertible, `flags.xor` idempotent, `flags.andNot` commutative, each killed; removing the check call turns the obligations test red.
 - *A claim holds in memory and not in SQL:* the parity runner.
-- *A changed declaration under one version:* server and page descriptions differ for `flags.or@1`, refused: `[foldkit-remote] the server describes flags.or@1 differently from this page (claims differ); bump the version where the meaning changed.`
+- *A changed declaration under one version:* `Operation.describe` and `Operation.compare` (the note) give the refusal `[foldkit-remote] the server describes flags.or@1 differently from this page (claims differ); bump the version where the meaning changed.` Nothing carries descriptions between a server and a page yet, so until Phase 9's `Language.describe` they have their own tests and no caller in a package.
 - *A maintained result drifts:* seeded differentials against recomputation after each delta over overlapping optimistic layers, a live echo while pending, a failed write, reconnect and restore; mutations `min` invertible, a body called row-local when it reads a changing parameter.
 - *A partial list presented as complete:* B4's negative cases.
 - *The lock deadlocks:* opposite-direction transfers on CI Postgres.
@@ -575,7 +584,7 @@ Rules as before: a fold applies an insert from the row when commutative and asso
 
 | Bout | Model | Files | Beside |
 | --- | --- | --- | --- |
-| 4.1 Design note and the three probes | most capable | the note only | 4.2, 4.3 |
+| 4.1 Design note and the three probes (done, `109e52eff`) | most capable | the note only | 4.2, 4.3 |
 | 4.2 Row deltas and the mechanism (B1, B2) | most capable | `packages/remote/src/maintained/*`, `aggregate.ts` | 4.1, 4.3 |
 | 4.3 Phase 2 and 3 readings (2.1, 3.1) | Sonnet | ledger | 4.1, 4.2 |
 | 4.4 Typed operation (A1) | most capable | `packages/metakit/src/operation.ts`, `node.ts`, `ops/core.ts` | part B; not 1.1 |
@@ -739,15 +748,15 @@ Reviewed three times; open findings are deep review 2's L3 (a doc claim on `Enti
    export const make: <const Families extends Record<string, Record<string, AnyOperation>>>(families: Families) => Language<Families>
    interface Language<F> {
      readonly families: F                                                     // the operations, callable as constructors
-     readonly implement: (impls: ImplementationsFor<F>) => ForeignImplementations       // exhaustive by type
-     readonly implementSome: (impls: Partial<ImplementationsFor<F>>) => ForeignImplementations  // a page's
-     readonly sql: (dialect: 'sqlite' | 'postgres') => SqlTable                // refuses a missing lowering by name
+     readonly implement: (name: string, impls: ImplementationsFor<F>) => ForeignImplementations       // exhaustive by type
+     readonly implementSome: (name: string, impls: Partial<ImplementationsFor<F>>) => ForeignImplementations  // a page's
+     readonly sql: (dialect: 'sqlite' | 'postgres') => ForeignLowerings        // refuses a missing lowering by name
      readonly describe: () => ReadonlyArray<OperationDescription>              // what server and page compare
      readonly obligations: () => ReadonlyArray<WalkObligation>
    }
    ```
 
-   `foldkit-agent`'s machine tools list `describe()` so an agent sees the operations a tool's input may use. Consumers: `examples/metakit`'s permissions domain; entity's own operators as a language. Tests: a `*.test-d.ts` where `implement` missing `flags.xor` fails to compile and an expression mixing `Num` and `language.families.flags` infers its environment and flows into `Transition.set`; a page table missing an operation refuses at evaluation with A2's text.
+   `describe()` is the first channel `Operation.describe` and `Operation.compare` (the note) have: a server and a page compare descriptions through it. `foldkit-agent`'s machine tools list `describe()` so an agent sees the operations a tool's input may use. Consumers: `examples/metakit`'s permissions domain; entity's own operators as a language. Tests: a `*.test-d.ts` where `implement` missing `flags.xor` fails to compile and an expression mixing `Num` and `language.families.flags` infers its environment and flows into `Transition.set`; a page table missing an operation refuses at evaluation with A2's text.
 
 2. **Custom maintained values.** A `reduce` fold is a maintained-value kind with no further API. Consumer: the permissions total over rows; `flags.or` rescans on delete, `flags.xor` updates from the row; differential against recomputation.
 
@@ -791,7 +800,7 @@ One bout (most capable, with a Sonnet helper for measurements) after Phase 2's b
 
 ## Order, and what can run side by side
 
-Now: bouts 4.1, 4.2 and 4.3 together (metakit doc, `packages/remote`, ledger). Then three lines:
+Now: bouts 4.2 and 4.3 together (`packages/remote`, ledger); 4.1 is done. Then three lines:
 
 - **Phase 4 part A** (4.4–4.12) in `packages/metakit`, entity's operator files, `examples/metakit`.
 - **Phase 4 part B** (4.13–4.23) in `packages/remote`, `remote-drizzle`, `durable`.
@@ -807,7 +816,8 @@ Each brief carries `CLAUDE.md`'s git rules (one tree and branch, explicit-path c
 
 - **Model.** The most capable: a published API's shape and types.
 - **Commits.** Only `docs/design/metakit-checked-operations-DESIGN.md`. Probes and the prototype are temporary files in `examples/kitchen-sink` (types) and `packages/metakit` (behaviour, run from inside the package), deleted before the commit.
-- **Probes, first.** (1) `Arbitrary.schema` from `effect/Arbitrary` (Effect 4.1.4): a seed, and whether `Schema.isBetween` bounds are honoured; (2) SQLite and PGlite `|`, `#` (Postgres) / `^`-free XOR (`(a | b) - (a & b)` on SQLite), `a & ~b` against JavaScript over 2,000 seeded pairs in 0 to 2^31−1; (3) instantiation counts of a typed three-operation declaration against one `Expr.operator`. Each result goes in the note with its command.
+- **Probes, first.** (1) `Arbitrary.schema` from `effect/Arbitrary` (Effect 4.1.4): a seed, and whether `Schema.isBetween` bounds are honoured; (2) SQLite and PGlite `|`, xor (`a # b` on Postgres, `(a | b) - (a & b)` on SQLite) and `a & ~b` against JavaScript over 2,000 seeded pairs in 0 to 2^31−1; (3) instantiation counts of a typed three-operation declaration against one `Expr.operator`. Each result goes in the note with its command.
+- **Done** in `109e52eff`: the note, with the three probes and 15 changes to this plan, now made here.
 - **Reads.** This plan's "Custom algebras, checked" and Phase 4 part A; the kernel note's sections on custom operators and properties; `packages/metakit/src`: `node.ts`, `ops/core.ts`, `ops/eval.ts`, `sqlRender.ts`, `properties.ts`, `ops/ways.ts`, `ops/laws.ts`, `propertyChecks.ts`, `foldChecks.ts`, `writeChecks.ts`, `transitionCommutes.ts`, `transitionLists.ts`, `abstract/rowOf.ts`, `temporal.ts`; `packages/entity/src`: `law.ts`, `expr/operator.ts`, `expr/primitive.ts`, `expr/operatorLaws.ts`, `operators.ts`, `conformance/operator.ts`; `packages/remote/src/replay.ts`, `ledger.ts`; `docs/agents/traps-types.md`.
 - **Must decide.** Final names; each signature of A1–A6 compiled with every negative case; sampling; obligation collection and naming; the description compared; every break with its compiler error. It may change a decision of this plan with the reason.
 - **Form.** By `docs/agents/writing-docs.md`, under 500 lines; a cold reader (Sonnet, given only the path) before the commit.
@@ -833,8 +843,9 @@ Each brief carries `CLAUDE.md`'s git rules (one tree and branch, explicit-path c
 ## Risks, and what limits each
 
 - **A declared property is false.** Rule 10; generated checks; a mutation per property kind; reference runs in tests.
-- **A custom claim passes its check and is false.** The awkward values and range ends always sampled; Phase 4's reviewer hunts sampling gaps; readers decide only skips a reference run would catch.
-- **The typed claims cost the type checker.** Bout 4.1's probe; rule 21.
+- **A custom claim passes its check and is false.** The awkward values and range ends are always sampled, by our own code: `effect/Arbitrary` does not reliably reach a range's ends (200 values missed both). Phase 4's reviewer hunts sampling gaps; readers decide only skips a reference run would catch.
+- **`effect/Arbitrary` is `@stability unstable`, and its replay tokens are not stable across releases.** A seed's samples may change with an Effect upgrade, so a recorded failing seed may not replay. Pin the Effect version; generation goes through one internal module, so an upgrade changes one file; the sampler's own edge values do not depend on Arbitrary; checking is our own loop, not `checkEffect`.
+- **The typed claims cost the type checker.** 164 instantiations per declaration, 684 with a call and an implementation (note, probe 3), under entity's 213 and 909; rule 21.
 - **Bundles grow.** Rule 3; a page naming no custom operation asserted unchanged; rule 4.
 - **The bets do not pay, or gates are skipped.** Phase 3's gate was passed on its count with three premises unmeasured; bout 4.3 measures them and the coordinator reads each gate whole before its phase's later bouts are briefed. domains-plus's three in four depends on `Sheet` and `WindowList` machines (bout 3.3).
 - **Upstream does not move.** Every Phase 6 and 7 deliverable works on today's Foldkit.
@@ -867,6 +878,7 @@ Each brief carries `CLAUDE.md`'s git rules (one tree and branch, explicit-path c
 20. Phase 2's memos skip by epoch, not by building graph reader nodes per memo: `writes.epochFor` already is the graph's answer per path set.
 21. Sync's owned-fields rule is `make.ts`'s (a field is owned only when the whole field is a dependency); a throw in `Closure.reads` means unknown reads, never none.
 22. An index is built above 400 rows unless the benchmark moves the threshold.
+23. A custom operation has one domain, its argument Schemas, checked when it runs; there is no per-claim `over`. Its implementation refuses by throwing, and its SQL lowering lives on `metakit/operation/sql`, off every page (bout 4.1's note).
 
 ## Open questions for the maintainer
 
@@ -876,12 +888,17 @@ Each brief carries `CLAUDE.md`'s git rules (one tree and branch, explicit-path c
 
 ## Assumptions to verify, each where named
 
-- `Arbitrary.schema` takes a seed and honours range checks (bout 4.1, probe 1).
-- SQLite's and Postgres's bitwise operators agree with JavaScript's on 0 to 2^31−1 (bout 4.1, probe 2).
-- The typed claims stay within rule 21 (bout 4.1, probe 3).
 - Every custom operation an application acts on is reachable from a machine or language its tests check; one used only in a free-standing expression is not collected (bout 4.6 adds `lawObligations(expr)` for that case).
 - Phase 1's soundness leftovers are still open (bout 1.5 checks first).
 - A filtered list's body can be classified as row-local from `Expr.reads` alone (bout 4.22).
 - Remote's store rows can be read by a transition's guard as a path (bout 3.6; otherwise `ClickedAddDomain` stays opaque and domains-plus reaches 30 only with the Listbox question above).
 - A region Foldkit holds as trusted HTML is left alone across renders, and hydration adopts a page the binder changed (bouts 6.1, 6.2).
 - The CI flake is a resource limit of the runner (Phase 0).
+
+## Facts the probes settled
+
+Bout 4.1's probes (methods and commands in [the operations note](./metakit-checked-operations-DESIGN.md)), against Effect 4.1.4, `node:sqlite` 3.53.3 and PGlite 0.5.11 (Postgres 18.6):
+
+- `Arbitrary.schema` takes a seed (number or string; one seed gives one list), honours `Schema.isBetween` bounds, exclusive ones included, and runs synchronously with `Arbitrary.sampleEffect`. It does not reliably sample a range's ends (200 values held neither end of 0 to 2^31−1). An unbounded `Schema.Int` reaches about ±100 at the default size. `Schema.Number` yields NaN, ±Infinity, −0 and unsafe integers; `Schema.String` the empty text, NUL and lone surrogates. A range check's bounds read back from `annotations.representation`. The module is `@stability unstable` (see Risks).
+- SQLite's and Postgres's `|`, xor and `a & ~b` agree with JavaScript's over 2,000 pairs in 0 to 2^31−1. Postgres's `^` is a power and SQLite has no `^`: xor is `a # b` on Postgres and `(a | b) - (a & b)` on SQLite. Postgres's `bit_or` and `bit_xor` over no rows are null; SQLite has neither. Outside 0 to 2^31−1 the three part (`2147483647 | 2147483648` is −1 in JavaScript, 4294967295 in SQLite).
+- A typed declaration costs 164 instantiations, 684 with a call and an implementation, below an entity operator's 213 and 909.
