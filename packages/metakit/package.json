@@ -87,6 +87,11 @@
       "types": "./dist/policy.d.ts",
       "import": "./dist/policy.js"
     },
+    "./operation": {
+      "foldkit-plus:source": "./src/operation.ts",
+      "types": "./dist/operation.d.ts",
+      "import": "./dist/operation.js"
+    },
     "./store": {
       "foldkit-plus:source": "./src/store.ts",
       "types": "./dist/store.d.ts",

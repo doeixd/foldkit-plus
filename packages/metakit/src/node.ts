@@ -9,7 +9,7 @@
  * `clamp`, `between`, `isNotNull`, `implies`) are plain TypeScript functions
  * over `If` and the primitives and need no table entry.
  */
-import { Data, Option, type SchemaAST } from 'effect'
+import { Data, Option, type Schema, type SchemaAST } from 'effect'
 import type { OpProperties } from './properties.js'
 
 /** The closed set of 33 primitive operators. */
@@ -167,6 +167,33 @@ export interface Op<Id extends CoreOpId = CoreOpId> {
   readonly evaluate: (args: ReadonlyArray<unknown>) => unknown
 }
 
+/** Side an identity or absorbing element applies on. */
+export type ClaimSide = 'left' | 'right' | 'both'
+
+/** Monotonicity direction for one argument of a custom operation. */
+export type MonotoneDirection = 'up' | 'down' | 'none'
+
+/** Algebraic claims carried on a `ForeignOp` descriptor. */
+export interface ForeignClaims {
+  readonly identity?: { readonly value: unknown; readonly side: ClaimSide }
+  readonly absorbing?: {
+    readonly value: unknown
+    readonly result: unknown
+    readonly side: ClaimSide
+  }
+  readonly idempotent?: true
+  readonly commutative?: true
+  readonly associative?: true | { readonly unlessRefused: true }
+  readonly invertible?: { readonly inverse: ForeignOp | 'self' }
+  readonly monotone?: ReadonlyArray<MonotoneDirection>
+}
+
+/** A precompiled Schema guard carried on a `ForeignOp` for runtime domain enforcement. */
+export interface ForeignSchemaCheck {
+  readonly is: (value: unknown) => boolean
+  readonly describe: string
+}
+
 /**
  * An operation an application defines, outside the closed set: carried by
  * its `id` and `version`, with no evaluator, since a page and a server may
@@ -181,8 +208,18 @@ export interface ForeignOp {
   readonly returns: ValueKind
   /** `strict`: a null argument gives null, and a refused one the refusal, before an implementation runs. */
   readonly nulls: 'strict' | 'own'
-  /** What the operation declares it keeps; no reader acts on these yet. */
-  readonly properties: OpProperties
+  /** Argument Schemas when declared through `Operation.define`. */
+  readonly args?: ReadonlyArray<Schema.Top>
+  /** Result Schema when declared through `Operation.define`. */
+  readonly result?: Schema.Top
+  /** Precompiled argument guards built once at `Operation.define`. */
+  readonly checkArgs?: ReadonlyArray<ForeignSchemaCheck>
+  /** Precompiled result guard built once at `Operation.define`. */
+  readonly checkResult?: ForeignSchemaCheck
+  /** What the operation declares it keeps. */
+  readonly claims: ForeignClaims
+  /** Legacy alias kept for `Node.foreign` until bout 4.11. */
+  readonly properties?: OpProperties
 }
 
 /** An operator a `Call` may name: a core one, which carries its evaluator, or a foreign one. */
@@ -192,7 +229,16 @@ export type AnyOp = Op | ForeignOp
 export const isForeign = (op: AnyOp): op is ForeignOp => op._tag === 'Foreign'
 
 /** The prefixes of the core operators' ids, which a foreign operation may not take. */
-const RESERVED = ['bool.', 'eq.', 'null.', 'ord.', 'num.', 'str.', 'arr.', 'rows.']
+export const RESERVED_PREFIXES = [
+  'bool.',
+  'eq.',
+  'null.',
+  'ord.',
+  'num.',
+  'str.',
+  'arr.',
+  'rows.',
+] as const
 
 /**
  * Declare a foreign operation. An id under a core prefix (`num.`, `str.`, …)
@@ -204,8 +250,9 @@ export const foreign = (descriptor: {
   readonly returns: ValueKind
   readonly nulls: 'strict' | 'own'
   readonly properties?: OpProperties
+  readonly claims?: ForeignClaims
 }): ForeignOp => {
-  const reserved = RESERVED.find(prefix => descriptor.id.startsWith(prefix))
+  const reserved = RESERVED_PREFIXES.find(prefix => descriptor.id.startsWith(prefix))
   if (reserved !== undefined) {
     throw new Error(
       `[metakit] Node.foreign: "${descriptor.id}" is under the core prefix "${reserved}"`,
@@ -216,7 +263,7 @@ export const foreign = (descriptor: {
       `[metakit] Node.foreign: the version of "${descriptor.id}" is not a positive integer`,
     )
   }
-  return { _tag: 'Foreign', properties: {}, ...descriptor }
+  return { _tag: 'Foreign', claims: descriptor.claims ?? {}, properties: {}, ...descriptor }
 }
 
 /**

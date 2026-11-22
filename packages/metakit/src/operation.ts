@@ -1,0 +1,429 @@
+/**
+ * Typed custom operations with checked algebraic claims (`metakit/operation`).
+ *
+ * An operation is declared once with `Operation.define`: its id, version,
+ * argument and result Schemas, null rule and claims. The declaration is a
+ * callable function that builds `Expr` nodes and carries its `ForeignOp`
+ * descriptor. Evaluation checks arguments and results against the declared
+ * Schemas so every claim's domain is enforced at run time.
+ */
+import { Equal, Option, Schema, SchemaAST } from 'effect'
+import * as Node from './node.js'
+import { toNode, wrap, type ExprInput } from './ops/core.js'
+import type { Expr } from './path.js'
+
+type CorePrefix = (typeof Node.RESERVED_PREFIXES)[number]
+
+/** Rejects ids starting with any core operator prefix (`bool.`, `num.`, …). */
+export type NotCore<Id extends string> = Id extends `${CorePrefix}${string}`
+  ? `id must not start with a core prefix (${CorePrefix})`
+  : unknown
+
+/** Intersects the environments of each argument left to right; literals add none. */
+export type EnvOfAll<Args extends ReadonlyArray<unknown>, Acc = unknown> = Args extends readonly [
+  infer Head,
+  ...infer Tail,
+]
+  ? EnvOfAll<Tail, Head extends Expr<infer E, unknown> ? (unknown extends Acc ? E : Acc & E) : Acc>
+  : Acc
+
+type SameSchema<A extends Schema.Top, B extends Schema.Top> = [A] extends [B]
+  ? [B] extends [A]
+    ? true
+    : false
+  : false
+
+type Binary<Args extends ReadonlyArray<Schema.Top>, R extends Schema.Top> = Args extends readonly [
+  infer A extends Schema.Top,
+  infer B extends Schema.Top,
+]
+  ? SameSchema<A, B> extends true
+    ? SameSchema<A, R>
+    : false
+  : false
+
+type SameType<
+  Args extends ReadonlyArray<Schema.Top>,
+  R extends Schema.Top,
+> = Args extends readonly [infer A extends Schema.Top] ? SameSchema<A, R> : Binary<Args, R>
+
+type MonotoneTuple<Args extends ReadonlyArray<Schema.Top>> = {
+  readonly [K in keyof Args]: Node.MonotoneDirection
+}
+
+/**
+ * Algebraic claims typed by the operation's signature. A claim that does not
+ * fit the signature resolves to a human-readable sentence rather than `never`.
+ */
+export type Claims<Args extends ReadonlyArray<Schema.Top>, R extends Schema.Top> = {
+  readonly identity?: Binary<Args, R> extends true
+    ? { readonly value: Schema.Schema.Type<R>; readonly side: Node.ClaimSide }
+    : 'identity needs two arguments of one Schema and a result of that Schema'
+  readonly absorbing?: Binary<Args, R> extends true
+    ? {
+        readonly value: Schema.Schema.Type<R>
+        readonly result: Schema.Schema.Type<R>
+        readonly side: Node.ClaimSide
+      }
+    : 'absorbing needs two arguments of one Schema and a result of that Schema'
+  readonly idempotent?: SameType<Args, R> extends true
+    ? true
+    : 'idempotent needs one or two arguments of one Schema and a result of that Schema'
+  readonly commutative?: Binary<Args, R> extends true
+    ? true
+    : 'commutative needs two arguments of one Schema and a result of that Schema'
+  readonly associative?: Binary<Args, R> extends true
+    ? true | { readonly unlessRefused: true }
+    : 'associative needs two arguments of one Schema and a result of that Schema'
+  readonly invertible?: Args extends readonly [
+    infer A extends Schema.Top,
+    infer B extends Schema.Top,
+  ]
+    ? {
+        readonly inverse:
+          | (Binary<Args, R> extends true ? 'self' : never)
+          | Operation<string, number, readonly [R, B], A, 'strict' | 'own', object>
+      }
+    : 'invertible needs two arguments (A, B) => R'
+  readonly monotone?: MonotoneTuple<Args>
+}
+
+/** A declared custom operation: callable to build `Expr` calls, plus its `ForeignOp` descriptor. */
+export interface Operation<
+  Id extends string,
+  V extends number,
+  Args extends ReadonlyArray<Schema.Top>,
+  R extends Schema.Top,
+  N extends 'strict' | 'own',
+  C extends object = {},
+> {
+  <
+    const A extends {
+      readonly [K in keyof Args]: Args[K] extends Schema.Top
+        ? ExprInput<never, Schema.Schema.Type<Args[K]> | null>
+        : never
+    },
+  >(
+    ...args: A
+  ): Expr<EnvOfAll<A>, Schema.Schema.Type<R> | null>
+  readonly descriptor: Node.ForeignOp & {
+    readonly id: Id
+    readonly version: V
+    readonly args: Args
+    readonly result: R
+    readonly nulls: N
+    readonly claims: C
+  }
+}
+
+/** Any declared `Operation`, regardless of id, version, arity, null rule or claims. */
+export type AnyOperation = {
+  readonly descriptor: Node.ForeignOp & {
+    readonly args: ReadonlyArray<Schema.Top>
+    readonly result: Schema.Top
+  }
+}
+
+const formatCheck = (check: SchemaAST.Check<unknown>): string | undefined => {
+  const rep = check.annotations?.representation as
+    | { readonly id?: string; readonly payload?: Record<string, unknown> }
+    | undefined
+  if (rep?.id === 'effect/schema/isBetween' && rep.payload !== undefined) {
+    return `a value between ${String(rep.payload['minimum'])} and ${String(rep.payload['maximum'])}`
+  }
+  if (rep?.id === 'effect/schema/isGreaterThanOrEqualTo' && rep.payload !== undefined) {
+    return `a value >= ${String(rep.payload['minimum'])}`
+  }
+  if (rep?.id === 'effect/schema/isGreaterThan' && rep.payload !== undefined) {
+    return `a value > ${String(rep.payload['minimum'])}`
+  }
+  if (rep?.id === 'effect/schema/isLessThanOrEqualTo' && rep.payload !== undefined) {
+    return `a value <= ${String(rep.payload['maximum'])}`
+  }
+  if (rep?.id === 'effect/schema/isLessThan' && rep.payload !== undefined) {
+    return `a value < ${String(rep.payload['maximum'])}`
+  }
+  if (rep?.id === 'effect/schema/isInt') return 'an integer'
+  if (rep?.id === 'effect/schema/isFinite') return 'a finite number'
+  if (check._tag === 'FilterGroup') {
+    for (const inner of check.checks) {
+      const found = formatCheck(inner)
+      if (found !== undefined) return found
+    }
+  }
+  return undefined
+}
+
+const describeSchema = (schema: Schema.Top): string => {
+  const ast = schema.ast
+  const checks =
+    'checks' in ast
+      ? (ast.checks as ReadonlyArray<SchemaAST.Check<unknown>> | undefined)
+      : undefined
+  if (checks !== undefined) {
+    for (let i = checks.length - 1; i >= 0; i--) {
+      const text = formatCheck(checks[i]!)
+      if (text !== undefined) return text
+    }
+  }
+  if (SchemaAST.isNumber(ast)) return 'a number'
+  if (SchemaAST.isBoolean(ast)) return 'a boolean'
+  if (SchemaAST.isString(ast)) return 'text'
+  const id = ast.annotations?.identifier
+  if (typeof id === 'string') return `a ${id}`
+  return ast._tag
+}
+
+const encodingName = (ast: SchemaAST.AST): string | undefined => {
+  if (ast.encoding === undefined) return undefined
+  const id = ast.annotations?.identifier
+  return typeof id === 'string' ? id : 'transformed'
+}
+
+const scalarKindOf = (ast: SchemaAST.AST): Node.ValueKind | undefined => {
+  if (SchemaAST.isNumber(ast)) return 'number'
+  if (SchemaAST.isBoolean(ast)) return 'boolean'
+  if (SchemaAST.isString(ast)) return 'text'
+  if (SchemaAST.isLiteral(ast)) {
+    if (typeof ast.literal === 'number') return 'number'
+    if (typeof ast.literal === 'boolean') return 'boolean'
+    if (typeof ast.literal === 'string') return 'text'
+  }
+  if (SchemaAST.isUnion(ast) && ast.types.length > 0) {
+    const first = scalarKindOf(ast.types[0]!)
+    if (first !== undefined && ast.types.every(member => scalarKindOf(member) === first)) {
+      return first
+    }
+  }
+  return undefined
+}
+
+const validateSchema = (schema: Schema.Top, id: string, label: string): Node.ValueKind => {
+  const encoded = encodingName(schema.ast)
+  if (encoded !== undefined) {
+    throw new Error(
+      `[metakit] Operation.define: ${label} of "${id}" decodes from another form (${encoded}); declare the Schema of the value as stored, such as Schema.Number.`,
+    )
+  }
+  const kind = scalarKindOf(schema.ast)
+  if (kind === undefined) {
+    throw new Error(
+      `[metakit] Operation.define: ${label} of "${id}" holds ${describeSchema(schema)}; an operation takes and gives numbers, booleans and text.`,
+    )
+  }
+  return kind
+}
+
+const toForeignClaims = (raw: Record<string, unknown> | undefined): Node.ForeignClaims => {
+  if (raw === undefined) return {}
+  const out: {
+    identity?: { readonly value: unknown; readonly side: Node.ClaimSide }
+    absorbing?: { readonly value: unknown; readonly result: unknown; readonly side: Node.ClaimSide }
+    idempotent?: true
+    commutative?: true
+    associative?: true | { readonly unlessRefused: true }
+    invertible?: { readonly inverse: Node.ForeignOp | 'self' }
+    monotone?: ReadonlyArray<Node.MonotoneDirection>
+  } = {}
+  if (raw['identity'] !== undefined) {
+    out.identity = raw['identity'] as { readonly value: unknown; readonly side: Node.ClaimSide }
+  }
+  if (raw['absorbing'] !== undefined) {
+    out.absorbing = raw['absorbing'] as {
+      readonly value: unknown
+      readonly result: unknown
+      readonly side: Node.ClaimSide
+    }
+  }
+  if (raw['idempotent'] === true) out.idempotent = true
+  if (raw['commutative'] === true) out.commutative = true
+  if (raw['associative'] !== undefined) {
+    out.associative = raw['associative'] as true | { readonly unlessRefused: true }
+  }
+  if (raw['invertible'] !== undefined) {
+    const inv = (raw['invertible'] as { readonly inverse: 'self' | AnyOperation }).inverse
+    out.invertible = { inverse: inv === 'self' ? 'self' : inv.descriptor }
+  }
+  if (raw['monotone'] !== undefined) {
+    out.monotone = [...(raw['monotone'] as ReadonlyArray<Node.MonotoneDirection>)]
+  }
+  return out
+}
+
+/**
+ * Declare a typed custom operation with Schemas and algebraic claims.
+ *
+ * Returns a callable function that builds `Call` expressions, with `.descriptor`
+ * holding the `ForeignOp` carried in expression trees.
+ */
+export const define = <
+  const Id extends string,
+  const V extends number,
+  const Args extends ReadonlyArray<Schema.Top>,
+  R extends Schema.Top,
+  const N extends 'strict' | 'own',
+  const C extends Claims<Args, R> = {},
+>(spec: {
+  readonly id: Id & NotCore<Id>
+  readonly version: V
+  readonly args: Args
+  readonly returns: R
+  readonly nulls: N
+  readonly claims?: C
+}): Operation<Id, V, Args, R, N, C> => {
+  const id: string = spec.id
+  const reserved = Node.RESERVED_PREFIXES.find(prefix => id.startsWith(prefix))
+  if (reserved !== undefined) {
+    throw new Error(
+      `[metakit] Operation.define: "${id}" is under the core prefix "${reserved}"; choose an id outside ${Node.RESERVED_PREFIXES.join(', ')}.`,
+    )
+  }
+  if (!Number.isSafeInteger(spec.version) || spec.version < 1) {
+    throw new Error(
+      `[metakit] Operation.define: the version of "${id}" is ${String(spec.version)}; a version is a positive integer, and a changed meaning takes a new one.`,
+    )
+  }
+  for (let index = 0; index < spec.args.length; index++) {
+    validateSchema(spec.args[index]!, id, `argument ${index + 1}`)
+  }
+  const returns = validateSchema(spec.returns, id, 'result')
+
+  const checkArgs: ReadonlyArray<Node.ForeignSchemaCheck> = spec.args.map(arg => ({
+    is: Schema.is(arg),
+    describe: describeSchema(arg),
+  }))
+  const checkResult: Node.ForeignSchemaCheck = {
+    is: Schema.is(spec.returns),
+    describe: describeSchema(spec.returns),
+  }
+
+  const claims = toForeignClaims(spec.claims as Record<string, unknown> | undefined)
+  const firstArgCheck = checkArgs[0]
+  if (claims.identity !== undefined && firstArgCheck !== undefined) {
+    if (!firstArgCheck.is(claims.identity.value)) {
+      throw new Error(
+        `[metakit] Operation.define: the identity of "${id}" is ${String(claims.identity.value)}, which its argument Schema does not admit (${firstArgCheck.describe}).`,
+      )
+    }
+  }
+  if (claims.absorbing !== undefined && firstArgCheck !== undefined) {
+    if (!firstArgCheck.is(claims.absorbing.value)) {
+      throw new Error(
+        `[metakit] Operation.define: the absorbing value of "${id}" is ${String(claims.absorbing.value)}, which its argument Schema does not admit (${firstArgCheck.describe}).`,
+      )
+    }
+    if (!checkResult.is(claims.absorbing.result)) {
+      throw new Error(
+        `[metakit] Operation.define: the absorbing result of "${id}" is ${String(claims.absorbing.result)}, which its result Schema does not admit (${checkResult.describe}).`,
+      )
+    }
+  }
+
+  const descriptor: Node.ForeignOp & {
+    readonly id: Id
+    readonly version: V
+    readonly args: Args
+    readonly result: R
+    readonly nulls: N
+    readonly claims: C
+  } = {
+    _tag: 'Foreign',
+    id: spec.id,
+    version: spec.version,
+    returns,
+    nulls: spec.nulls,
+    args: spec.args,
+    result: spec.returns,
+    checkArgs,
+    checkResult,
+    claims: claims as Node.ForeignClaims & C,
+  }
+
+  const build = ((...args: ReadonlyArray<ExprInput<never, unknown>>) =>
+    wrap(Node.Call({ op: descriptor, args: args.map(toNode) }))) as Operation<Id, V, Args, R, N, C>
+  Object.defineProperty(build, 'descriptor', {
+    value: descriptor,
+    enumerable: true,
+    writable: false,
+  })
+  return build
+}
+
+/** Portable JSON-compatible description of a declared operation for cross-boundary comparison. */
+export interface OperationDescription {
+  readonly id: string
+  readonly version: number
+  readonly returns: Node.ValueKind
+  readonly nulls: 'strict' | 'own'
+  readonly args: ReadonlyArray<string>
+  readonly result: string
+  readonly claims: {
+    readonly identity?: { readonly value: unknown; readonly side: Node.ClaimSide }
+    readonly absorbing?: {
+      readonly value: unknown
+      readonly result: unknown
+      readonly side: Node.ClaimSide
+    }
+    readonly idempotent?: true
+    readonly commutative?: true
+    readonly associative?: true | { readonly unlessRefused: true }
+    readonly invertible?: { readonly inverse: string }
+    readonly monotone?: ReadonlyArray<Node.MonotoneDirection>
+  }
+}
+
+/** Build a serializable description of `op` for comparing client and server declarations. */
+export const describe = (op: AnyOperation): OperationDescription => {
+  const { descriptor } = op
+  const { claims } = descriptor
+  return {
+    id: descriptor.id,
+    version: descriptor.version,
+    returns: descriptor.returns,
+    nulls: descriptor.nulls,
+    args: descriptor.args.map(describeSchema),
+    result: describeSchema(descriptor.result),
+    claims: {
+      ...(claims.identity !== undefined ? { identity: claims.identity } : {}),
+      ...(claims.absorbing !== undefined ? { absorbing: claims.absorbing } : {}),
+      ...(claims.idempotent === true ? { idempotent: true } : {}),
+      ...(claims.commutative === true ? { commutative: true } : {}),
+      ...(claims.associative !== undefined ? { associative: claims.associative } : {}),
+      ...(claims.invertible !== undefined
+        ? {
+            invertible: {
+              inverse:
+                claims.invertible.inverse === 'self'
+                  ? 'self'
+                  : Node.foreignName(claims.invertible.inverse),
+            },
+          }
+        : {}),
+      ...(claims.monotone !== undefined ? { monotone: claims.monotone } : {}),
+    },
+  }
+}
+
+/**
+ * Compare two operation descriptions of one `id@version`. Returns `Option.none()`
+ * when they match, or the first difference (`args`, `result`, `nulls`, `claims`).
+ */
+export const compare = (
+  local: OperationDescription,
+  remote: OperationDescription,
+): Option.Option<string> => {
+  if (local.id !== remote.id || local.version !== remote.version) {
+    return Option.some(
+      `operation identity differs (${local.id}@${local.version} vs ${remote.id}@${remote.version})`,
+    )
+  }
+  if (local.nulls !== remote.nulls) return Option.some('null rules differ')
+  if (local.returns !== remote.returns || local.result !== remote.result) {
+    return Option.some('result Schema differs')
+  }
+  if (!Equal.equals(local.args, remote.args)) return Option.some('argument Schemas differ')
+  if (JSON.stringify(local.claims) !== JSON.stringify(remote.claims)) {
+    return Option.some('claims differ')
+  }
+  return Option.none()
+}

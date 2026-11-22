@@ -107,6 +107,20 @@ export const applyForeign = (
   const implementation = Object.hasOwn(implementations, name) ? implementations[name] : undefined
   if (implementation === undefined) return Node.unsupported(op)
   return Node.applying(op, args, values => {
+    if (op.checkArgs !== undefined) {
+      for (let index = 0; index < op.checkArgs.length; index++) {
+        const value = values[index]
+        const guard = op.checkArgs[index]!
+        if (value === null) continue
+        if (!guard.is(value)) {
+          return new Node.Refusal({
+            reason: 'ill-typed',
+            at: op.id,
+            detail: `${name}: argument ${index + 1} is ${String(value)}, outside its Schema (${guard.describe})`,
+          })
+        }
+      }
+    }
     let result: unknown
     try {
       result = implementation.run(values)
@@ -118,6 +132,13 @@ export const applyForeign = (
     if (kindOfValue(result) !== op.returns) return Node.illTyped(op.id, `a ${op.returns}`, result)
     if (typeof result === 'number' && !Number.isFinite(result)) {
       return new Node.Refusal({ reason: 'non-finite', at: op.id, detail: `gave ${result}` })
+    }
+    if (op.checkResult !== undefined && !op.checkResult.is(result)) {
+      return new Node.Refusal({
+        reason: 'ill-typed',
+        at: op.id,
+        detail: `${name}: the implementation gave ${String(result)}, outside its result Schema (${op.checkResult.describe})`,
+      })
     }
     return Node.holdsNul([result]) ? Node.unportable(op.id) : result
   })
