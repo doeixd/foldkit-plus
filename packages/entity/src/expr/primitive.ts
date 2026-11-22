@@ -37,6 +37,13 @@ const returnsOf = (operator: OperatorDescriptor): Node.ValueKind | 'other' => {
   return kind === 'null' ? 'other' : kind
 }
 
+/** Whether every argument Schema stores a scalar kind a foreign operation accepts. */
+const scalarInput = (operator: OperatorDescriptor): boolean =>
+  operator.input.every(schema => {
+    const kind = storedKindOf(schema)
+    return kind !== 'other' && kind !== 'null'
+  })
+
 const foreignOps = new WeakMap<OperatorDescriptor, Node.ForeignOp>()
 const declarations = new WeakMap<Node.ForeignOp, OperatorDescriptor>()
 
@@ -44,21 +51,37 @@ const declarations = new WeakMap<Node.ForeignOp, OperatorDescriptor>()
 const unheldKind = (operator: OperatorDescriptor): string =>
   `${Node.foreignName(operator)} gives neither a number, a boolean nor text, which a foreign operation declares`
 
+const unheldInputKind = (operator: OperatorDescriptor): string =>
+  `${Node.foreignName(operator)} takes an argument that is neither a number, a boolean nor text, which a foreign operation declares`
+
+/** Adapt `Node.ForeignClaims` (where `invertible.inverse` is a `ForeignOp`) to `Operation.define`'s input. */
+const adaptClaims = (claims: Node.ForeignClaims): Record<string, unknown> => {
+  if (claims.invertible === undefined || claims.invertible.inverse === 'self') {
+    return claims as Record<string, unknown>
+  }
+  const inv = claims.invertible.inverse
+  return {
+    ...claims,
+    invertible: {
+      inverse: 'descriptor' in inv ? inv : { descriptor: inv },
+    },
+  }
+}
+
 /** A primitive operator as a foreign operation, made once per declaration through `Operation.define`. */
 export const foreignOpOf = (operator: OperatorDescriptor): Node.ForeignOp => {
   const known = foreignOps.get(operator)
   if (known !== undefined) return known
   const returns = returnsOf(operator)
   if (returns === 'other') throw new Error(`[foldkit-entity] ${unheldKind(operator)}`)
+  if (!scalarInput(operator)) throw new Error(`[foldkit-entity] ${unheldInputKind(operator)}`)
   const defined = Operation.define({
     id: operator.id,
     version: operator.version,
     args: operator.input.map(Schema.toEncoded) as ReadonlyArray<Schema.Top>,
     returns: Schema.toEncoded(operator.output),
     nulls: operator.nulls,
-    ...(Object.keys(operator.claims).length > 0
-      ? { claims: operator.claims as Record<string, unknown> }
-      : {}),
+    ...(Object.keys(operator.claims).length > 0 ? { claims: adaptClaims(operator.claims) } : {}),
   } as Parameters<typeof Operation.define>[0])
   const made = defined.descriptor
   foreignOps.set(operator, made)
@@ -90,11 +113,11 @@ export const callOperator = (
   if (build !== undefined) return build(args, fold)
   // No reader in memory holds such a value, so every evaluation of the call refuses it;
   // the call is still written, for a reader that runs it by name (a server's computation).
-  if (returnsOf(operator) === 'other') {
+  if (returnsOf(operator) === 'other' || !scalarInput(operator)) {
     const refusal = new Node.Refusal({
       reason: 'unsupported',
       at: operator.id,
-      detail: unheldKind(operator),
+      detail: returnsOf(operator) === 'other' ? unheldKind(operator) : unheldInputKind(operator),
     })
     return Node.Opaque({
       name: Node.foreignName(operator),

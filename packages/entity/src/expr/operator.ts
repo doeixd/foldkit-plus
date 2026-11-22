@@ -303,6 +303,12 @@ export const makeOperator = (
   if (Option.isSome(definedAs) && options.claims !== undefined) {
     fail("a defined operator is its body, and readers read the body's operations; remove claims.")
   }
+  if (build === undefined && Option.isNone(definedAs)) {
+    const reserved = Node.RESERVED_PREFIXES.find(prefix => id.startsWith(prefix))
+    if (reserved !== undefined) {
+      fail(`ids under \`${reserved}\` are reserved for core operations`)
+    }
+  }
   const nulls = options.nulls ?? 'strict'
   const collation = options.collation ?? 'none'
   if (nulls !== 'strict' && nulls !== 'own') fail("`nulls` is 'strict' or 'own'")

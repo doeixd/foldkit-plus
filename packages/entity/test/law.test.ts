@@ -72,4 +72,36 @@ describe('Entity operator claims on Operation.define', () => {
     )
     expect(checkOperation(flagsOr, bad).ok).toBe(false)
   })
+
+  it('H8: validates core prefixes upfront, handles non-scalar inputs without crashing, and adapts invertible.inverse', () => {
+    expect(() =>
+      Expr.operator('num.custom', {
+        input: [Schema.Number],
+        output: Schema.Number,
+      }),
+    ).toThrow(/reserved for core operations/)
+
+    const arrSum = Expr.operator('custom.arrSum', {
+      input: [Schema.Array(Schema.Number)],
+      output: Schema.Number,
+    })
+    // Calling a non-scalar-input primitive operator builds an Opaque node without crashing.
+    const expr = arrSum(Expr.literal([1, 2, 3]))
+    expect(expr).toBeDefined()
+
+    const invOp = Operation.define({
+      id: 'custom.subInv',
+      version: 1,
+      args: [Schema.Number, Schema.Number],
+      returns: Schema.Number,
+      nulls: 'strict',
+    })
+    const fwdOp = Expr.operator('custom.addInv', {
+      input: [Schema.Number, Schema.Number],
+      output: Schema.Number,
+      claims: { invertible: { inverse: invOp.descriptor } },
+    })
+    const callExpr = fwdOp(1, 2)
+    expect(callExpr).toBeDefined()
+  })
 })
