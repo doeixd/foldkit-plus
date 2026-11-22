@@ -6,9 +6,9 @@
  */
 import { Option } from 'effect'
 import type { ExprContext, MemoryOperators } from 'foldkit-entity'
-import type { Install, LayerCapability, Lists } from './capability.js'
+import type { Capabilities, Install, LayerCapability, Lists } from './capability.js'
 import { items, type Connection, type Edge } from './connection.js'
-import type { Kept } from './kept.js'
+import { keepRead, settleKept, type Kept } from './kept.js'
 import { changesOf, readsThrough, rejudged } from './impact.js'
 import { memoRead } from './memo.js'
 import {
@@ -240,10 +240,16 @@ export const layers: LayerCapability = {
   begin: beginOptimistic,
   settleSuccess,
   settleFailure,
+  settleKept,
   pruneOverlays,
 }
 
-/** Installs the layer capability; whatever makes a layer calls it first. */
+/** `Capabilities.keeps` for a domain that holds layers: what a read moved under a pending write. */
+export const keepsRead: Capabilities['keeps'] = (model, rows, held, now) =>
+  keepRead(model.kept, model.entities, rows, held, model.mutations.pending, now)
+
+/** Installs the layer capability, and with it what a read keeps; whatever makes a layer calls it first. */
 export const installLayers: Install = capabilities => {
   capabilities.layers = Option.some(layers)
+  capabilities.keeps = keepsRead
 }

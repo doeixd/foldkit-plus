@@ -22,13 +22,8 @@ import type {
   MutationStarted,
   QueryRequirement,
 } from './index.js'
-import type {
-  applyConnectionEvent,
-  applyEntityEvent,
-  awaitEchoes,
-  settleKept,
-} from './liveEvents.js'
-import type { Kept } from './kept.js'
+import type { applyConnectionEvent, applyEntityEvent, awaitEchoes } from './liveEvents.js'
+import type { Kept, settleKept } from './kept.js'
 import type { LiveEvent } from './liveState.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { MutationAnswer, MutationState, NormalizedPatch } from './ledger.js'
@@ -61,8 +56,8 @@ export interface Capabilities {
   live: Option.Option<LiveCapability>
   /**
    * `model.kept` once a read is about to write `rows`, less those it `held`;
-   * the live capability replaces it with `keepRead` (#480), so a domain
-   * without live reads never loads that code or the call to it.
+   * the layer capability replaces it with `keepRead` (#480), so every domain
+   * with writes keeps what a read moved, and a read-only one loads none of it.
    */
   keeps: (
     model: RemoteModel,
@@ -166,6 +161,8 @@ export interface LayerCapability {
     readonly optimistic: OptimisticState
   }
   readonly settleFailure: (optimistic: OptimisticState, requestId: string) => OptimisticState
+  /** What an answer does to the values kept from before a newer patch or read, and what it reads again (#498, #499, #480). */
+  readonly settleKept: typeof settleKept
   readonly pruneOverlays: (
     optimistic: OptimisticState,
     connection: string,
@@ -263,8 +260,6 @@ export interface LiveCapability {
   readonly applyConnection: typeof applyConnectionEvent
   /** What a write's answer leaves the streams to send back (#485). */
   readonly awaitEchoes: typeof awaitEchoes
-  /** What an answer does to the values kept from before a stream's patches (#498, #499). */
-  readonly settleKept: typeof settleKept
   /**
    * What to do with a row a live event inserts into a list: none for the
    * position the event names, `ignore` where the list's body says the row

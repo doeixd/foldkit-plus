@@ -2202,7 +2202,8 @@ const reduceRemote = (
     case 'MutationSucceeded': {
       // Settling is release-the-layer-and-overlays, so overlapping optimistic
       // layers rebase instead of needing inverse patches.
-      const settled = layersIn(capabilities).settleSuccess(
+      const layers = layersIn(capabilities)
+      const settled = layers.settleSuccess(
         model.entities,
         model.optimistic,
         model.mutations,
@@ -2216,36 +2217,28 @@ const reduceRemote = (
         message.read === undefined || model.mutations.applied.has(message.requestId)
           ? undefined
           : unsettledRead(message.read, settledLater(model.mutations, message.requestId))
+      const answered = [...message.entities, ...(read?.result.entities ?? [])]
       // A live stream may still send what was committed before this write;
       // until it sends the answer's values back, it does not overwrite them.
       const echoes = model.mutations.applied.has(message.requestId)
         ? model.echoes
         : Option.match(capabilities.live, {
             onNone: () => model.echoes,
-            onSome: live =>
-              live.awaitEchoes(
-                model.echoes,
-                [...message.entities, ...(read?.result.entities ?? [])],
-                message.now,
-              ),
+            onSome: live => live.awaitEchoes(model.echoes, answered, message.now),
           })
-      // What a stream wrote while this was pending ends here; one that disagrees with
-      // the answer is read again, as only a read says which is the newer (#499).
-      const answered = [...message.entities, ...(read?.result.entities ?? [])]
+      // What a patch or a read moved while this was pending ends here; one that
+      // disagrees with the answer is read again, as only a read says which is the
+      // newer (#499, #480).
       const { kept, again } = model.mutations.applied.has(message.requestId)
         ? { kept: model.kept, again: [] }
-        : Option.match(capabilities.live, {
-            onNone: () => ({ kept: model.kept, again: [] }),
-            onSome: live =>
-              live.settleKept(
-                model.kept,
-                model.entities,
-                message.requestId,
-                answered,
-                settled.state.pending,
-                message.now,
-              ),
-          })
+        : layers.settleKept(
+            model.kept,
+            model.entities,
+            message.requestId,
+            answered,
+            settled.state.pending,
+            message.now,
+          )
       const repeated = model.mutations.applied.has(message.requestId)
       const written =
         read === undefined
