@@ -228,32 +228,30 @@ test('a page reading only Metadata keeps no Evidence module, built or source', a
 
 /**
  * Rule 3 of the unification plan's byte rules: a page carries the node
- * constructors and the operation modules it names, and the checker, the
- * prover, SQL lowering, conformance and graph analysis never reach it. Since
- * step 5 `foldkit-entity` judges with metakit, so a page that reaches entity
- * keeps `node`, `verdict` and the `ops/*` it names; this list is what it must
- * not keep. Of the graph, only the path matcher (`graph/match`) may come.
- * `foldkit-*`'s own `metakit` adapter entries are also off a page.
+ * constructors and the operation modules it names, and nothing else of
+ * metakit. So this is the list of what a page may keep, and any other module
+ * fails: one renamed or added is off a page until it is named here. A page
+ * that reaches entity keeps `node`, `verdict`, `path` and the evaluator and
+ * judge of a partly known environment (`ops/*`; never `ops/residualize`,
+ * which builds the expression left over, nor `ops/textChecks`, which the
+ * checker and the prover read); the reading of related rows (`ops/rows`,
+ * `ops/partialRows`, `ops/rowsLoad`) comes only with an `Expr.exists`, which a
+ * test below holds. Of the graph, only the path matcher (`graph/match`); of
+ * the domains, those a page names. `foldkit-*`'s own `metakit` adapter
+ * entries are also off a page. Broken by hand: a module-level read of
+ * `metakit/prove` in guard's `src/index.ts`, and a new module imported and
+ * read at the top of metakit's `src/verdict.ts`, each turned the guard row red.
  */
-const KEPT_OFF_A_PAGE: ReadonlyArray<RegExp> = [
-  /^abstract\//, // the checker
-  /^prove(\/|$)/, // the prover
-  /^sql(Lowering|Render|Statements)?$/,
-  /^drizzle$/,
-  /^aggregatesSql$/,
-  /^conformance$/,
-  /^(property|fold|write)Checks$/,
-  /^graph$/,
-  /^graph\/(?!match$)/,
-  /^policy$/,
-  /^temporal$/,
-  /^store$/,
-  /^inspect$/,
+const ON_A_PAGE: ReadonlyArray<RegExp> = [
+  /^(node|verdict|path)$/,
+  /^ops\/(?!(residualize|textChecks)$)[^/]+$/,
+  /^graph\/match$/,
+  /^domain\/[^/]+$/,
 ]
 const metakitKeptOffAPage = (id: string) => {
   const inMetakit = /\/metakit\/(?:src|dist)\/(.+)\.(?:js|ts)$/.exec(id)
   return (
-    (inMetakit !== null && KEPT_OFF_A_PAGE.some(pattern => pattern.test(inMetakit[1]!))) ||
+    (inMetakit !== null && !ON_A_PAGE.some(pattern => pattern.test(inMetakit[1]!))) ||
     /\/metakit\.(js|ts)$/.test(id)
   )
 }
