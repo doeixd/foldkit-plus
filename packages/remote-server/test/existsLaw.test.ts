@@ -2,10 +2,10 @@
  * The law over a feed whose body counts other rows through an exists (#344):
  * Home, an account's own posts and those of everyone it follows, with a
  * follow and an unfollow run through the client and through a memory server.
- * A follow's Home is the server's while pending and once answered; an
- * unfollow's is left to the server, since the store may not hold every
- * follow that keeps a post in it, unless it holds every follow of mine
- * (#409).
+ * The client judges no exists over rows its store may not hold (a refusal
+ * decides before null, so an `or` is not settled by its own side beside one),
+ * so Home is left to the server while either write is pending, whatever the
+ * store holds; the follows themselves agree (#344, #409).
  */
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -207,12 +207,13 @@ const checked = (
   )
 
 describe('the law over a feed counting follows', () => {
-  it('agrees on Home while a follow is pending, its posts already in it', async () => {
+  it('agrees on the follow while it is pending, and leaves Home to the server', async () => {
     const report = await checked(FollowAccount, { id: 'f2', followeeId: 'bo' })
     expect(report.disagreed).toEqual([])
     expect(report.agreed).toEqual(
-      expect.arrayContaining(['Follow:f2.follower', 'Follow:f2.followee', home.identity]),
+      expect.arrayContaining(['Follow:f2.follower', 'Follow:f2.followee']),
     )
+    expect(report.unknown).toContain(home.identity)
   })
 
   it('leaves Home to the server while an unfollow is pending', async () => {
@@ -222,10 +223,10 @@ describe('the law over a feed counting follows', () => {
     expect(report.unknown).toContain(home.identity)
   })
 
-  it('agrees on Home while an unfollow is pending, holding every follow of mine', async () => {
+  it('agrees on the list of follows while an unfollow is pending, and still leaves Home to the server', async () => {
     const report = await checked(UnfollowAccount, { id: 'f1' }, [home, following])
     expect(report.disagreed).toEqual([])
-    expect(report.agreed).toEqual(expect.arrayContaining([home.identity, following.identity]))
-    expect(report.unknown).not.toContain(home.identity)
+    expect(report.agreed).toContain(following.identity)
+    expect(report.unknown).toContain(home.identity)
   })
 })

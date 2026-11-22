@@ -15,7 +15,6 @@
  */
 import { Effect, Option, Result, Schema, SchemaAST } from 'effect'
 import { Node, Transition } from 'metakit'
-import { evalNode } from 'metakit/build'
 import { describe, expect, it, vi } from 'vitest'
 import type { AnyWrite } from '../src/write.js'
 
@@ -193,44 +192,18 @@ const pastRange = (write: AnyWrite, row: Row): boolean =>
     return typeof held === 'number' && Math.abs(held) > MAX
   })
 
-/** The transition run by `Transition.step`: where it lands, the state after. */
+/** The transition run by `Transition.step`, with the implementations of the foreign operators it calls: where it lands, the state after. */
 const stepOf = (
   transition: ReturnType<typeof transitionOf>,
   state: State,
   input: Row,
   supplied: Row,
+  foreign: ReturnType<typeof foreignOf>,
 ): Option.Option<State> =>
-  Result.match(Transition.step(transition, state, input, supplied), {
+  Result.match(Transition.step(transition, state, input, supplied, { foreign }), {
     onFailure: () => Option.none(),
     onSuccess: ({ state: next }) => Option.some(next),
   })
-
-/**
- * A transition with a foreign operation in it, which `Transition.step` cannot
- * run (it takes no implementations): its guard and each written value
- * evaluated as `step` does, with the table's.
- */
-const stepWith = (
-  transition: ReturnType<typeof transitionOf>,
-  state: State,
-  input: Row,
-  supplied: Row,
-  foreign: ReturnType<typeof foreignOf>,
-): Option.Option<State> => {
-  const env = { state, input, supplied }
-  if (evalNode(transition.when.node, env, foreign) !== true) return Option.none()
-  const values = transition.writes.map(
-    write => [write.target, evalNode(write.value.node, env, foreign)] as const,
-  )
-  if (values.some(([, value]) => Node.isRefusal(value))) return Option.none()
-  let present = state.present
-  const row: Record<string, unknown> = { ...state.row }
-  for (const [target, value] of values) {
-    if (target[0] === 'present') present = value === true
-    else row[target[1]!] = value
-  }
-  return Option.some({ present, row })
-}
 
 const linkIds = (links: Readonly<Record<string, Option.Option<{ readonly id: string }>>>) =>
   Object.fromEntries(
@@ -370,10 +343,7 @@ const compareWrite = (write: AnyWrite, seed: number): void => {
 
   // After: the transition, over the row's place in its table.
   const state = { present: write._tag !== 'Insert', row }
-  const run =
-    lowered.foreign.size > 0
-      ? stepWith(transition, state, encodedInput, supplied, foreign)
-      : stepOf(transition, state, encodedInput, supplied)
+  const run = stepOf(transition, state, encodedInput, supplied, foreign)
 
   const label = `${write._tag} ${entity.name} seed ${seed} input ${JSON.stringify(encodedInput)} row ${JSON.stringify(row)}`
   if (Option.isNone(before) && Option.isNone(run)) {
