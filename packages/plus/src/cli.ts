@@ -37,7 +37,9 @@ const usage = `Usage:
   npx foldkit-plus laws <module>[#export]
                                     What Laws.show says of the module's LawReport
                                     (its default export, or the named one), or of
-                                    the { writes } that Laws.check takes.`
+                                    the { writes } that Laws.check takes, or the
+                                    list of a metakit obligations report (open,
+                                    discharged, decided without a test).`
 
 // Beside `dist` and `src` alike.
 const own = readManifest(fileURLToPath(new URL('../package.json', import.meta.url)))

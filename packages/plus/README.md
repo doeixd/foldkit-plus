@@ -160,9 +160,13 @@ Entity's invariants and answers a report; `laws` prints that report as
 `Laws.show` writes it, so a person or an agent can read it without a test
 run. The export is a `LawReport` (what `Laws.check` returns), or the
 `{ writes }` that `Laws.check` takes; `examples/writes/src/laws.ts` exports
-the first. Findings are the report's content: a report that holds some still
-exits 0. A module that cannot be loaded, has no such export, or exports
-neither shape exits 1 and says what it found. The command only reads: it
+the first. It can also be the report of obligations that `metakit/temporal`
+keeps (`Temporal.registry.report()`): `laws` then prints the obligations still
+open with where each was declared, those a walk discharged, and the pairs of
+transitions decided without a test with the rule that decided each.
+Findings and open obligations are the report's content: a report that holds
+some still exits 0. A module that cannot be loaded, has no such export, or
+exports none of these shapes exits 1 and says what it found. The command only reads: it
 checks and prints, and writes nothing.
 
 It loads the module with the project's own `tsx` (found in the `node_modules`

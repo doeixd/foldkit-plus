@@ -1,6 +1,8 @@
 /**
  * `foldkit-plus laws <module>[#export]`: loads a module of the project and
- * prints `Laws.show` of the report it holds. It reads `tsx` and
+ * prints `Laws.show` of the report it holds, or the list an obligations
+ * report holds (`Temporal.registry.report()` of `metakit/temporal`: open,
+ * discharged, and decided without a test). It reads `tsx` and
  * `foldkit-entity` from the project, never its own copies: a report is the
  * project's data, and Effect values from a second copy of a library do not
  * compare with the first's.
@@ -38,6 +40,12 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
 const isReport = (value: unknown) =>
   isRecord(value) &&
   ['pairs', 'arrows', 'states', 'findings'].every(key => Array.isArray(value[key]))
+
+/** What `Temporal.registry.report()` returns: the lists of obligations and the text of them. */
+const isObligations = (value: unknown): value is { readonly format: () => string } =>
+  isRecord(value) &&
+  ['open', 'discharged', 'decided'].every(key => Array.isArray(value[key])) &&
+  typeof value['format'] === 'function'
 
 const isWrites = (value: unknown): value is { readonly writes: unknown } =>
   isRecord(value) && Array.isArray(value['writes'])
@@ -152,9 +160,22 @@ const printed = async (
       `${file} has no ${named}. It exports: ${Object.keys(loaded).join(', ') || 'nothing'}.`,
     )
   const value = loaded[exportName]
+  if (isObligations(value)) {
+    try {
+      return {
+        text: `${value.format()}
+`,
+        isError: false,
+      }
+    } catch (error) {
+      return failed(
+        `The obligations of the ${named} of ${file} could not be printed: ${messageOf(error)}`,
+      )
+    }
+  }
   if (!isReport(value) && !isWrites(value))
     return failed(
-      `The ${named} of ${file} is ${describeValue(value)}: expected a LawReport (Laws.check's result) or { writes }.`,
+      `The ${named} of ${file} is ${describeValue(value)}: expected a LawReport (Laws.check's result), { writes }, or the report of obligations (Temporal.registry.report()).`,
     )
 
   let laws: unknown
@@ -175,7 +196,8 @@ const printed = async (
 
 /**
  * Prints the report `spec` (`path` or `path#export`, resolved from `cwd`)
- * holds, or the `{ writes }` that `Laws.check` takes. Findings are the report's
+ * holds, the `{ writes }` that `Laws.check` takes, or the report of
+ * obligations. Findings and open obligations are the report's
  * content, not a failure; only a module that cannot be loaded, or an export that
  * is neither shape, fails.
  */
