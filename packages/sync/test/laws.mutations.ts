@@ -242,4 +242,70 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'fromMachine accepts a transition that declares supplied values',
+    edits: [
+      {
+        file: '../src/machine.ts',
+        find: 'if (declaresSupplied(declared)) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'fromMachine accepts reads it does not bound',
+    edits: [
+      {
+        file: '../src/machine.ts',
+        find: 'if (Option.isNone(footprint.stateReads)) {',
+        replace: 'if (false as boolean) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'fromMachine accepts a read outside the shared slice',
+    edits: [
+      {
+        file: '../src/machine.ts',
+        find: 'for (const statePath of footprint.stateReads.value) {\n      if (!withinShared(statePath)) {',
+        replace: 'for (const statePath of footprint.stateReads.value) {\n      if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'fromMachine accepts a write to a parent of the shared slice',
+    edits: [
+      {
+        file: '../src/machine.ts',
+        find: 'shared.dependencies.some(owned => Path.isPrefix(owned, path))',
+        replace: 'shared.dependencies.some(owned => Path.meets(owned, path))',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'fromMachine accepts a transition that emits a Command',
+    edits: [
+      {
+        file: '../src/machine.ts',
+        find: 'if (declared.emits.length > 0) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a fromMachine no-op gives the mount a new Model',
+    edits: [
+      {
+        file: '../src/machine.ts',
+        find: 'outcome.success === root ? sharedValue : shared.get(outcome.success)',
+        replace: 'shared.get(outcome.success)',
+      },
+    ],
+    tests,
+  },
 ]

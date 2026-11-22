@@ -354,8 +354,16 @@ the document does not record, throws too. A law written as a callback is run,
 never read by this check. An undecided check lets the declaration proceed. The
 journal still checks each document law on admission. To take the durable tags
 from an application's metakit `Machine` instead, use
-`SyncDeclared.fromMachine(machine, tags, shared)`: one transition per tag, thrown
-for one that emits a Command or writes outside the shared slice.
+`SyncDeclared.fromMachine(machine, tags, shared, initial)` (`initial` is the
+application's initial Model; a replay writes the shared slice into it): one
+transition per tag. It throws at definition, naming the tag, for a transition
+that is not the Machine's, emits a Command, declares supplied values (a replay
+passes none), has a read it does not bound, or reads or writes a path not
+inside a shared path (a write to a parent of the slice included). It does not
+check laws or an unreachable guard: use `SyncDeclared.transition` for those. A
+Message whose guard is false is refused, so `replica.submit` fails with
+`ReplayError`; do not submit a durable Message the application's own guard
+refuses.
 
 The journal judges every operation after `reduce` (`journalContract()` carries
 `judge`), `appendAsServer` and reactions included; a broken law is

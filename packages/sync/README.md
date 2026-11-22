@@ -693,8 +693,75 @@ callback is run, never read by this check.
 `foldkit-sync/metakit` is the only part of `foldkit-sync` that imports metakit,
 so a page whose laws are callbacks carries none of it. If your application
 already declares a metakit `Machine`, `SyncDeclared.fromMachine(machine, tags,
-shared)` takes the durable tags from it as one transition each, and throws for
-one that emits a Command or writes outside the shared slice.
+shared, initial)` takes the durable tags from it as one transition each. A
+replay runs the transition over `initial` (your application's initial Model)
+with the shared slice written in, as `forApplication` does for `update`.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, forApplication } from 'foldkit-sync'
+import { SyncDeclared } from 'foldkit-sync/metakit'
+import { Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+  filter: Schema.String,
+})
+const Message = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  ChangedFilter: { filter: Schema.String },
+})
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { todos: [], filter: '' },
+  update: model => ({ model }),
+})
+-->
+```ts
+const machine = Machine.make({
+  state: Model,
+  transitions: {
+    CreatedTodo: Transition.make({
+      state: Model,
+      input: Message.CreatedTodo,
+      apply: ({ state, input }) => [
+        Transition.append(state.todos, { id: input.id, title: input.title }),
+      ],
+    }),
+  },
+})
+
+const todos = Projection.pick(App.model.todos)
+
+const Board = forApplication(App).make({
+  documentId: DocumentId.make('board'),
+  shared: todos,
+  durable: MessageSet.make(App, [Message.CreatedTodo]),
+  transitions: SyncDeclared.fromMachine(machine, ['CreatedTodo'], todos, App.initial),
+})
+```
+
+`fromMachine` throws at definition, naming the tag, for a transition that:
+
+- is not one of the Machine's;
+- emits a Command (a durable transition is state-only);
+- declares supplied values (a time, a new id): a replay passes none, so every
+  replay would be refused;
+- has a read it does not bound (an opaque term may read anything);
+- reads or writes a path that is not inside a shared path. A write to a parent
+  of the shared slice is refused, as is a read of one; a path below it is
+  fine.
+
+It does not check the document's laws, and it does not check for an
+unreachable guard: those checks need the solver, which `foldkit-sync/metakit`
+keeps out of a page that only replays. Declare a transition with
+`SyncDeclared.transition` where you want them. As with that function, a
+Message whose guard is false is refused: `replica.submit` fails with
+`ReplayError`, so an application should not submit a durable Message its own
+guard refuses.
 
 ### Stamp what only the commit decides
 

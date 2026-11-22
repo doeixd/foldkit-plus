@@ -18,7 +18,7 @@ import {
   type Journal as JournalShape,
 } from 'foldkit-durable'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { Arr, Num, Path, Transition } from 'metakit'
+import { Arr, Eq, Expr, Num, Path, Transition } from 'metakit'
 import * as Machine from 'metakit/machine'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -530,13 +530,129 @@ describe('a replica', () => {
 })
 
 describe('SyncDeclared.fromMachine', () => {
-  it('extracts durable transitions from an application Machine and enforces sharedPaths & state-only rules', () => {
-    const AppMachine = Machine.make({
+  const AppMachine = Machine.make({
+    state: Model,
+    transitions: {
+      CreatedTodo: Transition.make({
+        state: Model,
+        input: Message.CreatedTodo,
+        apply: ({ state, input }) => [
+          Transition.insert(state.todos, { id: input.id, title: input.title }),
+        ],
+      }),
+      RemovedTodo: Transition.make({
+        state: Model,
+        input: Message.RemovedTodo,
+        apply: ({ state, input }) => [Transition.remove(state.todos, input.id)],
+      }),
+      ChangedFilter: Transition.make({
+        state: Model,
+        input: Message.ChangedFilter,
+        apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
+      }),
+      Emitting: Transition.make({
+        state: Model,
+        input: Message.CreatedTodo,
+        apply: () => [],
+        emits: () => [Transition.emit('Notify', {})],
+      }),
+      Supplied: Transition.make({
+        state: Model,
+        input: Message.CreatedTodo,
+        supplied: { id: Schema.String },
+        apply: ({ state, input, supplied }) => [
+          Transition.insert(state.todos, { id: supplied.id, title: input.title }),
+        ],
+      }),
+      Unbounded: Transition.make({
+        state: Model,
+        input: Message.CreatedTodo,
+        when: () => Expr.opaque({ name: 'clock' }, () => true),
+        apply: ({ state, input }) => [
+          Transition.insert(state.todos, { id: input.id, title: input.title }),
+        ],
+      }),
+      ReadsFilter: Transition.make({
+        state: Model,
+        input: Message.CreatedTodo,
+        when: ({ state }) => Eq.is(state.filter, ''),
+        apply: ({ state, input }) => [
+          Transition.insert(state.todos, { id: input.id, title: input.title }),
+        ],
+      }),
+    },
+  })
+  const fromMachine = (
+    tag: keyof typeof AppMachine.transitions,
+    dependencies = options.shared.dependencies,
+  ) =>
+    SyncDeclared.fromMachine(
+      AppMachine,
+      [tag],
+      { dependencies, get: options.shared.get, set: options.shared.set },
+      App.initial,
+    )
+
+  it.each([
+    [
+      'writes outside the shared slice',
+      'ChangedFilter',
+      /writes "filter", outside the shared slice/,
+    ],
+    ['emits a Command', 'Emitting', /emits a Command; durable transitions are state-only/],
+    ['declares supplied values', 'Supplied', /declares supplied values, and a replay passes none/],
+    ['has reads it does not bound', 'Unbounded', /reads it does not bound/],
+    ['reads outside the shared slice', 'ReadsFilter', /reads "filter", outside the shared slice/],
+  ] as const)('refuses, at definition, a tag that %s', (_, tag, reason) => {
+    expect(() => fromMachine(tag)).toThrow(reason)
+  })
+
+  it('refuses a tag the Machine does not declare', () => {
+    expect(() =>
+      SyncDeclared.fromMachine(
+        AppMachine,
+        // @ts-expect-error not a transition of the Machine
+        ['Missing'],
+        options.shared,
+        App.initial,
+      ),
+    ).toThrow(/not a transition of this Machine/)
+  })
+
+  it('refuses a write to a parent of the shared slice', () => {
+    // `CreatedTodo` writes `todos`, which is above the slice `todos.*.title`.
+    expect(() => fromMachine('CreatedTodo', [['todos', '*', 'title']])).toThrow(
+      /writes "todos", outside the shared slice/,
+    )
+  })
+
+  it('keeps the Model where the transition refuses, as SyncDeclared.transition does', () => {
+    const Guarded = Machine.make({
+      state: Model,
+      transitions: {
+        RemovedTodo: Transition.make({
+          state: Model,
+          input: Message.RemovedTodo,
+          when: ({ state }) => Num.gt(Arr.count(state.todos), 0),
+          apply: ({ state, input }) => [Transition.remove(state.todos, input.id)],
+        }),
+      },
+    })
+    const sync = Sync.forApplication(App).make({
+      ...options,
+      transitions: SyncDeclared.fromMachine(Guarded, ['RemovedTodo'], options.shared, App.initial),
+    })
+    expect(() => sync.replay({ todos: [] }, Message.RemovedTodo({ id: 'gone' }))).toThrow()
+  })
+
+  it('gives the live Model: the next one, and the same one where refused or unchanged', () => {
+    const Same = Machine.make({
       state: Model,
       transitions: {
         CreatedTodo: Transition.make({
           state: Model,
           input: Message.CreatedTodo,
+          when: ({ state }) => Num.lt(Arr.count(state.todos), 1),
           apply: ({ state, input }) => [
             Transition.insert(state.todos, { id: input.id, title: input.title }),
           ],
@@ -544,29 +660,35 @@ describe('SyncDeclared.fromMachine', () => {
         RemovedTodo: Transition.make({
           state: Model,
           input: Message.RemovedTodo,
-          apply: ({ state, input }) => [Transition.remove(state.todos, input.id)],
-        }),
-        ChangedFilter: Transition.make({
-          state: Model,
-          input: Message.ChangedFilter,
-          apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
-        }),
-        Emitting: Transition.make({
-          state: Model,
-          input: Message.CreatedTodo,
-          apply: () => [],
-          emits: () => [Transition.emit('Notify', {})],
+          apply: ({ state }) => [Transition.set(state.todos, state.todos)],
         }),
       },
     })
+    const sync = Sync.forApplication(App).make({
+      ...options,
+      transitions: SyncDeclared.fromMachine(
+        Same,
+        ['CreatedTodo', 'RemovedTodo'],
+        options.shared,
+        App.initial,
+      ),
+    })
+    const created = Message.CreatedTodo({ id: 'a', title: 'first' })
+    const filled = Option.getOrThrow(sync.live(App.initial, created))
+    expect(filled.todos).toEqual([{ id: 'a', title: 'first' }])
+    expect(Option.getOrThrow(sync.live(filled, created))).toBe(filled)
+    expect(Option.getOrThrow(sync.live(filled, Message.RemovedTodo({ id: 'a' })))).toBe(filled)
+    expect(sync.live(filled, Message.ChangedFilter({ filter: 'x' }))).toEqual(Option.none())
+  })
 
-    // Durable subset works cleanly in Sync.forApplication(App).make
+  it('extracts durable transitions from an application Machine', () => {
     const FromMachine = Sync.forApplication(App).make({
       ...options,
       transitions: SyncDeclared.fromMachine(
         AppMachine,
         ['CreatedTodo', 'RemovedTodo'],
         options.shared,
+        App.initial,
       ),
     })
     const replayed = FromMachine.replay(
@@ -575,15 +697,5 @@ describe('SyncDeclared.fromMachine', () => {
     )
     expect(replayed.todos).toEqual([{ id: 'a', title: 'first' }])
     expect(FromMachine.replay(replayed, Message.RemovedTodo({ id: 'a' })).todos).toEqual([])
-
-    // Writing outside sharedPaths is refused at definition time
-    expect(() => SyncDeclared.fromMachine(AppMachine, ['ChangedFilter'], options.shared)).toThrow(
-      /outside the shared slice/,
-    )
-
-    // Emitting a Command in a durable transition is refused at definition time
-    expect(() => SyncDeclared.fromMachine(AppMachine, ['Emitting'], options.shared)).toThrow(
-      /emits a Command; durable transitions are state-only/,
-    )
   })
 })
