@@ -171,6 +171,23 @@ describe('a decrement written with a negation', () => {
     expect(Expr.holds(backwards, { x: 1, y: -EPS / 4 })).toBe(false)
     expect(Verdict.isTrue(Abstract.checkInvariant(Pair, backwards))).toBe(false)
   })
+
+  it('of doubles is not related to its operands as an integer one is', () => {
+    // Adding or taking away a positive y may leave x as it was: 1 ± ε/4 rounds to 1.
+    const Small = Schema.Struct({
+      x: Schema.Finite.check(Schema.isBetween({ minimum: -8, maximum: 8 })),
+      y: Schema.Finite.check(Schema.isBetween({ minimum: EPS / 4, maximum: 8 })),
+    })
+    const small = Path.from(Small)
+    const env = { x: 1, y: EPS / 4 }
+    for (const moved of [
+      Ord.lt(Num.sub(small.x, small.y), small.x),
+      Ord.gt(Num.add(small.x, small.y), small.x),
+    ]) {
+      expect(Expr.holds(moved, env)).toBe(false)
+      expect(Verdict.isTrue(Abstract.checkInvariant(Small, moved))).toBe(false)
+    }
+  })
 })
 
 describe('an equality to a literal', () => {
@@ -192,6 +209,12 @@ describe('an equality to a literal', () => {
     expect(
       Abstract.checkInvariant(Doc, Bool.or(Eq.is(doc.flag, true), Eq.is(doc.flag, false)))._tag,
     ).toBe('True')
+    // What reads the value itself (membership) knows the member left as a fact.
+    const left = Expr.implies(
+      Bool.and(Bool.not(Eq.is(doc.status, 'draft')), Bool.not(Eq.is(doc.status, 'live'))),
+      Eq.in(doc.status, ['archived']),
+    )
+    expect(Abstract.checkInvariant(Doc, left)._tag).toBe('True')
   })
 
   it('is refuted for a literal the set does not hold', () => {
@@ -207,9 +230,22 @@ describe('an equality to a literal', () => {
   })
 
   it('is not decided where the member may be null, which is no member', () => {
-    expect(Expr.holds(Eq.is(doc.tag, 'a'), { status: 'live', flag: true, tag: null })).toBe(false)
+    const env = { status: 'live', flag: true, tag: null } as const
+    expect(Expr.holds(Eq.is(doc.tag, 'a'), env)).toBe(false)
     expect(Verdict.isTrue(Abstract.checkInvariant(Doc, Eq.is(doc.tag, 'a')))).toBe(false)
     expect(Verdict.isFalse(Abstract.checkInvariant(Doc, Eq.is(doc.tag, 'a')))).toBe(false)
+    // Not `a` leaves no member, but null is still there.
+    const either = Bool.or(Eq.is(doc.tag, 'a'), Eq.is(doc.status, 'draft'))
+    expect(Expr.holds(either, env)).toBe(false)
+    expect(Verdict.isTrue(Abstract.checkInvariant(Doc, either))).toBe(false)
+  })
+
+  it('assumed of a literal the set does not hold, leaves no state', () => {
+    // A rule read through a wider Schema names a literal the field's own set lacks.
+    const Wide = Schema.Struct({ status: Schema.String })
+    const wide = Path.from(Wide)
+    const Strict = Doc.pipe(Expr.refine(() => Eq.is(wide.status, 'gone')))
+    expect(Abstract.checkInvariant(Strict, Eq.is(doc.status, 'draft'))._tag).toBe('True')
   })
 })
 

@@ -260,8 +260,8 @@ export default [
     edits: [
       {
         file: matches,
-        find: '[...info.literals.value, null]',
-        replace: 'info.literals.value',
+        find: '...(state.fields.get(pk)!.nullable && known !== false ? [null] : []),',
+        replace: '',
       },
     ],
     tests: domainTests,

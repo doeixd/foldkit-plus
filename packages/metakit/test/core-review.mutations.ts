@@ -54,7 +54,7 @@ const checker = [
     soundness,
     'an exclusive minimum on a real is tightened as if it were an integer',
     fields,
-    'Interval.between(isInt ? Math.floor(m) + 1 : m, Infinity)',
+    'Interval.between(isInt ? Math.floor(m) + 1 : Interval.nextUp(m), Infinity)',
     'Interval.between(Math.floor(m) + 1, Infinity)',
   ),
   mutation(
@@ -152,8 +152,8 @@ const checker = [
     soundness,
     'a sum of doubles relates exactly to its operands',
     abstractState,
-    "if (relation !== 'none' && isInt && args.length === 2) {",
-    "if (relation !== 'none' && args.length === 2) {",
+    'this.relations.push({ id, relation, exact: isInt, left: args[0]!, right: args[1]! })',
+    'this.relations.push({ id, relation, exact: true, left: args[0]!, right: args[1]! })',
   ),
   mutation(
     soundness,
