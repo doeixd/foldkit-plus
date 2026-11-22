@@ -40,9 +40,14 @@ const aggregates = {
   entryLimit: Rows.count(Entry),
 }
 
-const store = (isolation: Store.Isolation, parentRowLock: boolean): Store.StoreCapabilities => ({
-  name: `${isolation}-store`,
+const store = (
+  isolation: Store.Isolation,
+  parentRowLock: boolean,
+  isolates: Store.Isolates = 'transaction',
+): Store.StoreCapabilities => ({
+  name: `${isolation}-${isolates}-store`,
   isolation,
+  isolates,
   parentRowLock,
 })
 
@@ -116,6 +121,42 @@ describe('mounting on a store', () => {
     expect(() => Store.mount(on, needed)).toThrow(Store.StoreRefused)
     expect(() => Store.mount(on, needed)).toThrow(`store "${on.name}"`)
     expect(() => Store.mount(on, needed)).toThrow(`"${rule}" needs ${needs}`)
+  })
+
+  describe('on a store whose isolation reaches one statement (D1)', () => {
+    const d1 = store('serializable', false, 'statement')
+    const inStatement = rows.map(rule => ({ ...rule, judged: 'in-statement' as const }))
+
+    it('refuses an aggregate judged from a read before the write', () => {
+      expect(() => Store.mount(d1, rows)).toThrow(
+        '[metakit] store "serializable-statement-store" (serializable per statement, does not lock the parent row) cannot hold:\n  - "balanceIsItsEntries" needs parent-serialized (writers of the rows under one parent run one at a time), judged from a read before the write: it reads every row under one parent',
+      )
+    })
+
+    it('holds an aggregate judged in the statement that writes', () => {
+      expect(() => Store.mount(d1, inStatement)).not.toThrow()
+    })
+
+    it('is what a store that does not say how far its isolation reaches is taken for', () => {
+      const unsaid = { name: 'unsaid', isolation: 'serializable', parentRowLock: false } as const
+      expect(Store.refused(unsaid, rows).map(({ rule }) => rule)).toEqual([
+        'balanceIsItsEntries',
+        'entryLimit',
+      ])
+      expect(Store.refused(unsaid, inStatement)).toEqual([])
+    })
+
+    it('a parent lock held for one statement serializes only a rule judged in it', () => {
+      const locking = store('read-committed', true, 'statement')
+      expect(Store.refused(locking, rows)).toHaveLength(2)
+      expect(Store.refused(locking, inStatement)).toEqual([])
+    })
+  })
+
+  it('judging in the statement gives no store what its isolation lacks', () => {
+    const inStatement = rows.map(rule => ({ ...rule, judged: 'in-statement' as const }))
+    expect(Store.refused(store('read-committed', false), inStatement)).toHaveLength(2)
+    expect(Store.refused(store('eventual', true), inStatement)).toHaveLength(2)
   })
 
   it('names only the rules the store cannot hold', () => {

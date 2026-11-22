@@ -19,11 +19,23 @@ import { Data } from 'effect'
  */
 export type Isolation = 'eventual' | 'read-committed' | 'serializable'
 
+/**
+ * How far a store's isolation reaches. `transaction`: a transaction that
+ * reads, then writes in a later round trip, is isolated as a whole (SQLite
+ * through one connection, Postgres, a step in memory). `statement`: one
+ * statement, or one batch, which cannot branch on what it read (D1), and no
+ * more: a read in one round trip and a write in the next can interleave with
+ * another writer.
+ */
+export type Isolates = 'transaction' | 'statement'
+
 /** What a store or adapter declares it guarantees. */
 export interface StoreCapabilities {
   /** What a refusal calls the store (`Postgres`, `memory`). */
   readonly name: string
   readonly isolation: Isolation
+  /** How far `isolation` reaches. A store that does not say isolates one `statement`. */
+  readonly isolates?: Isolates
   /**
    * Whether a write locks the row its rule's rows hang on (an account, for a
    * rule over its entries) until it commits, so writers of one parent wait
@@ -39,11 +51,21 @@ export interface StoreCapabilities {
  */
 export type Capability = 'row-atomic' | 'parent-serialized'
 
-const given: Readonly<Record<Capability, (store: StoreCapabilities) => boolean>> = {
+/**
+ * Where a writer judges a rule. `in-statement`: inside the statement, or the
+ * one batch, that writes, over the rows as that statement finds them.
+ * `read-first`: from a read made before the statement that writes.
+ */
+export type Judged = 'in-statement' | 'read-first'
+
+const given: Readonly<Record<Capability, (store: StoreCapabilities, judged: Judged) => boolean>> = {
   'row-atomic': store => store.isolation !== 'eventual',
-  'parent-serialized': store =>
-    store.isolation === 'serializable' ||
-    (store.isolation === 'read-committed' && store.parentRowLock),
+  // A read in one round trip and the write in the next are one isolated step only
+  // where the isolation reaches across them, or where the read is in the write.
+  'parent-serialized': (store, judged) =>
+    (judged === 'in-statement' || store.isolates === 'transaction') &&
+    (store.isolation === 'serializable' ||
+      (store.isolation === 'read-committed' && store.parentRowLock)),
 }
 
 const meaning: Readonly<Record<Capability, string>> = {
@@ -51,15 +73,25 @@ const meaning: Readonly<Record<Capability, string>> = {
   'parent-serialized': 'writers of the rows under one parent run one at a time',
 }
 
-/** Whether `store` gives `capability`. */
-export const gives = (store: StoreCapabilities, capability: Capability): boolean =>
-  given[capability](store)
+const where: Readonly<Record<Judged, string>> = {
+  'in-statement': 'judged in the statement that writes',
+  'read-first': 'judged from a read before the write',
+}
+
+/** Whether `store` gives `capability` to a rule judged as `judged` says. */
+export const gives = (
+  store: StoreCapabilities,
+  capability: Capability,
+  judged: Judged = 'read-first',
+): boolean => given[capability](store, judged)
 
 /** One declared rule, the capability it needs and why. */
 export interface Requirement<Rule extends string = string> {
   readonly rule: Rule
   readonly needs: Capability
   readonly because: string
+  /** Where the writer judges it: `read-first` unless said. */
+  readonly judged?: Judged
 }
 
 /** A store asked to hold rules it cannot. */
@@ -69,11 +101,12 @@ export class StoreRefused extends Data.TaggedError('StoreRefused')<{
   readonly refused: ReadonlyArray<Requirement>
 }> {
   override get message(): string {
-    const { name, isolation, parentRowLock } = this.store
+    const { name, isolation, isolates = 'statement', parentRowLock } = this.store
     const lines = this.refused.map(
-      ({ rule, needs, because }) => `  - "${rule}" needs ${needs} (${meaning[needs]}): ${because}`,
+      ({ rule, needs, because, judged = 'read-first' }) =>
+        `  - "${rule}" needs ${needs} (${meaning[needs]}), ${where[judged]}: ${because}`,
     )
-    return `[metakit] store "${name}" (${isolation}, ${parentRowLock ? 'locks' : 'does not lock'} the parent row) cannot hold:\n${lines.join('\n')}`
+    return `[metakit] store "${name}" (${isolation} per ${isolates}, ${parentRowLock ? 'locks' : 'does not lock'} the parent row) cannot hold:\n${lines.join('\n')}`
   }
 }
 
@@ -81,7 +114,8 @@ export class StoreRefused extends Data.TaggedError('StoreRefused')<{
 export const refused = <Rule extends string>(
   store: StoreCapabilities,
   needed: ReadonlyArray<Requirement<Rule>>,
-): ReadonlyArray<Requirement<Rule>> => needed.filter(({ needs }) => !gives(store, needs))
+): ReadonlyArray<Requirement<Rule>> =>
+  needed.filter(({ needs, judged }) => !gives(store, needs, judged))
 
 /**
  * Call where a store is set up: throws `StoreRefused`, naming each rule, the

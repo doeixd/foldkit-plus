@@ -11,7 +11,7 @@ This guide shows how to turn the first into an error when the server starts, and
 
 ## Refuse a store that cannot hold a rule
 
-A *store* here is whatever persists your state: Postgres, SQLite, a table in memory. Describe it with a name and two facts about how it runs writes, defined just below. The values here are Postgres as it comes: its default level is read committed, and nothing locks a parent row unless your writes do.
+A *store* here is whatever persists your state: Postgres, SQLite, a table in memory. Describe it with a name and three facts about how it runs writes, defined just below. The values here are Postgres as it comes: its default level is read committed, it runs a transaction of several statements as one unit, and nothing locks a parent row unless your writes do.
 
 ```ts
 import * as Store from 'metakit/store'
@@ -19,11 +19,12 @@ import * as Store from 'metakit/store'
 const postgres: Store.StoreCapabilities = {
   name: 'Postgres',
   isolation: 'read-committed',
+  isolates: 'transaction',
   parentRowLock: false,
 }
 ```
 
-`isolation` is how the store runs writes that overlap in time. `'serializable'` means the result is as if they ran one at a time. `'read-committed'` means each statement sees what has been committed so far, so two writers can both read a value that one of them is about to change. `'eventual'` means copies of the data accept writes separately and merge them later. `parentRowLock` says whether a write locks the row that a group of rows belongs to (the account, for its ledger entries) until it commits.
+`isolation` is how the store runs writes that overlap in time. `'serializable'` means the result is as if they ran one at a time. `'read-committed'` means each statement sees what has been committed so far, so two writers can both read a value that one of them is about to change. `'eventual'` means copies of the data accept writes separately and merge them later. `isolates` says how far that reaches: `'transaction'` when a read and a write made later in the same transaction are one unit, `'statement'` when only one statement, or one batch that cannot branch on what it read, is (Cloudflare D1 is such a store). A store that leaves it out is taken to isolate one statement. `parentRowLock` says whether a write locks the row that a group of rows belongs to (the account, for its ledger entries) until it commits.
 
 Now declare the rules. A *transition* is one change to one record, with an optional condition (`when`) that must hold for it to apply. A *machine* is a record's Schema with its named transitions. An *aggregate* is a value computed over many rows, such as the sum of an account's entries.
 
@@ -79,14 +80,34 @@ Call `Store.mount` where the server sets the store up:
 ```ts
 const mounting = () => Store.mount(postgres, needed)
 // throws StoreRefused:
-// [metakit] store "Postgres" (read-committed, does not lock the parent row) cannot hold:
+// [metakit] store "Postgres" (read-committed per transaction, does not lock the parent row) cannot hold:
 //   - "balanceIsItsEntries" needs parent-serialized (writers of the rows under one parent
-//     run one at a time): it reads every row under one parent
+//     run one at a time), judged from a read before the write: it reads every row under one parent
 ```
 
 It throws `StoreRefused`, an error, for a store that cannot hold one of the rules, and returns nothing for one that can. `Store.refused(postgres, needed)` gives the same list without throwing.
 
-To get past the refusal, change what is true of the database and then what you declare: run it at the serializable level (`isolation: 'serializable'`), or have every write of an entry lock its account row first (`select … for update`) and declare `parentRowLock: true`. `Store.mount` believes the two facts; it does not inspect the database.
+To get past the refusal, change what is true of the database and then what you declare: run it at the serializable level (`isolation: 'serializable'`), or have every write of an entry lock its account row first (`select … for update`) and declare `parentRowLock: true`. `Store.mount` believes the facts; it does not inspect the database.
+
+### A store that isolates one statement
+
+On D1 a writer cannot read in one round trip and write in the next as one unit, so a rule judged from a read before the write is refused there even though D1 runs one write at a time. A rule your writer judges inside the statement that writes (the read is a subquery of the `UPDATE`) holds. Say so on the requirement with `judged`:
+
+```ts
+const d1: Store.StoreCapabilities = {
+  name: 'D1',
+  isolation: 'serializable',
+  isolates: 'statement',
+  parentRowLock: false,
+}
+const readFirst = () => Store.mount(d1, needed)
+// throws StoreRefused: "balanceIsItsEntries" ... judged from a read before the write
+const inStatement = needed.map(rule => ({ ...rule, judged: 'in-statement' as const }))
+Store.mount(d1, inStatement)
+// returns: the rules are judged where D1 runs them as one step
+```
+
+Judging in the statement does not make up for a weaker isolation: on the read-committed Postgres above, the subquery reads what had committed when the statement began, and the same refusal stands.
 
 ## List the orders a proof leaves open
 
@@ -168,7 +189,7 @@ In a test, `expect(open).toEqual([])` fails until every obligation has a walk, a
 ## What this does not do
 
 - A walk tries the orders its seeds give (200 unless you pass `runs`), not every order. It finds races; it does not prove their absence.
-- `Store.mount` trusts the two facts you give it. It does not inspect the database.
+- `Store.mount` trusts the facts you give it, and where you say a rule is judged. It does not inspect the database or your writer.
 - The steps of a scenario are your model of the page and the server. A walk says nothing about code the steps do not call.
 
 ## Next

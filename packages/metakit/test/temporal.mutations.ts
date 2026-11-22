@@ -24,6 +24,30 @@ export default [
     store,
   ),
   mutation(
+    'a rule read before the write is taken to hold on a store isolating one statement',
+    "(judged === 'in-statement' || store.isolates === 'transaction') &&",
+    '',
+    store,
+  ),
+  mutation(
+    'a rule judged in the statement is refused on a store isolating one statement',
+    "(judged === 'in-statement' || store.isolates === 'transaction') &&",
+    "store.isolates === 'transaction' &&",
+    store,
+  ),
+  mutation(
+    'a store that does not say is taken to isolate a transaction',
+    "(judged === 'in-statement' || store.isolates === 'transaction') &&",
+    "(judged === 'in-statement' || store.isolates !== 'statement') &&",
+    store,
+  ),
+  mutation(
+    'refused forgets where each rule is judged',
+    'needed.filter(({ needs, judged }) => !gives(store, needs, judged))',
+    'needed.filter(({ needs }) => !gives(store, needs))',
+    store,
+  ),
+  mutation(
     'an eventual store is taken to write a row as one step',
     "'row-atomic': store => store.isolation !== 'eventual',",
     "'row-atomic': () => true,",
