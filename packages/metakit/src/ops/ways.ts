@@ -23,6 +23,7 @@ export const added: Pick<OpProperties, 'commutative' | 'associative' | 'invertib
 export type WayOfWriting =
   | 'set'
   | 'add'
+  | 'combine'
   | 'append'
   | 'insert'
   | 'remove'
@@ -55,6 +56,7 @@ export type CommuteCondition =
   | 'same-literal'
   | 'different-literals'
   | 'in-range'
+  | 'same-operation'
   | 'disjoint-fields'
   | 'steady'
   | 'reads-no-set-field'
@@ -64,12 +66,14 @@ export type CommuteCondition =
  * what it left once:
  * - `always`;
  * - `sets-unread`: no value it sets reads a field it sets (a toggle, which
- *   sets a field from itself, is not once twice).
+ *   sets a field from itself, is not once twice);
+ * - `idempotent-operation`: a `combine` whose operation claims `idempotent`
+ *   and total `associative: true`.
  *
- * Both hold of a write whose values read no path the transition writes; a
+ * All hold of a write whose values read no path the transition writes; a
  * value that does is `Transition.idempotent`'s to refuse, not the way's.
  */
-export type IdempotentCondition = 'always' | 'sets-unread'
+export type IdempotentCondition = 'always' | 'sets-unread' | 'idempotent-operation'
 
 export interface WriteProperties {
   /** The ways a write of this way commutes with on one path, and on what condition; any other does not decide. */
@@ -88,6 +92,12 @@ export const setWrites: WriteProperties = { commutes: { set: 'same-literal' } }
 export const addWrites: WriteProperties = {
   commutes:
     added.commutative === true && added.associative !== undefined ? { add: 'in-range' } : {},
+}
+
+/** Two `combine`s commute where both name one operation claiming commutative and total associative. */
+export const combineWrites: WriteProperties = {
+  commutes: { combine: 'same-operation' },
+  idempotent: 'idempotent-operation',
 }
 
 // Literals, not spreads: a bundler keeps a spread for its getters, so the
@@ -115,6 +125,7 @@ export const writeProperties: { readonly [Way in WayOfWriting]: WriteProperties 
   // A literal, not `setWrites`: its `idempotent` row stays off a page that reads only `setWrites`.
   set: { commutes: setWrites.commutes, idempotent: 'always' },
   add: addWrites,
+  combine: combineWrites,
   // Order shows: an appended list says which came first. Twice appends twice.
   append: { commutes: {} },
   // An element whose key is there already is left as it is.

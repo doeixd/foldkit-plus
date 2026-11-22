@@ -76,6 +76,7 @@ export class Refused extends Data.TaggedError('Refused')<{
 export type Way = Data.TaggedEnum<{
   set: {}
   add: { readonly amount: Node.Node }
+  combine: { readonly op: Node.ForeignOp; readonly value: Node.Node }
   append: { readonly element: ReadonlyArray<Node.Node> }
   insert: { readonly element: ReadonlyArray<Node.Node>; readonly key: string }
   remove: { readonly key: string; readonly value: Node.Node }
@@ -212,6 +213,32 @@ export const add = <State, Input, V extends number | null, Supplied = NoSupplied
     target: targetOf(target, 'add'),
     value: wrap(Node.Call({ op: addOp, args: [target.node, by] })),
     way: Way.add({ amount: by }),
+  }
+}
+
+/** A declared binary operation `(S, S) => S` whose Schema's type is `V`. */
+export interface BinaryOver<V> {
+  readonly descriptor: Node.ForeignOp & {
+    readonly args: readonly [{ readonly Type: V }, { readonly Type: V }]
+    readonly result: { readonly Type: V }
+  }
+}
+
+/**
+ * Declare that `target` in `state` is combined with `value` through a declared
+ * binary operation `op`: `target := op(target, value)`.
+ */
+export const combine = <State, Input, V, Supplied = NoSupplied>(
+  target: PathType<TransitionEnv<State, Input, Supplied>, V>,
+  op: BinaryOver<NonNullable<NoInfer<V>>>,
+  value: ExprInput<TransitionEnv<State, Input, Supplied>, NoInfer<V>>,
+): WriteEquation<State, Input, V, Supplied, 'combine'> => {
+  const operand = toNode(value)
+  return {
+    _tag: 'WriteEquation',
+    target: targetOf(target, 'combine'),
+    value: wrap(Node.Call({ op: op.descriptor, args: [target.node, operand] })),
+    way: Way.combine({ op: op.descriptor, value: operand }),
   }
 }
 

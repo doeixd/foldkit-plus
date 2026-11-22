@@ -77,6 +77,8 @@ const writesOf = (
       return literals.map(value => write(state => Transition.set(state.tag, value)))
     case 'add':
       return [-3, 0, 7].map(amount => write(state => Transition.add(state.n, amount)))
+    case 'combine':
+      return []
     case 'append':
       return literals.map(id =>
         write(state => Transition.append(state.list, { id, a: true, b: 1, c: true })),

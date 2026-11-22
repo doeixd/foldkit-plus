@@ -77,6 +77,7 @@ const moveWay = (way: Way, move: (node: Node.Node) => Node.Node): Way => {
   return Way.$match(way, {
     set: () => way,
     add: ({ amount }) => Way.add({ amount: move(amount) }),
+    combine: ({ op, value }) => Way.combine({ op, value: move(value) }),
     append: ({ element }) => Way.append({ element: element.map(move) }),
     insert: ({ element, key }) => Way.insert({ element: element.map(move), key }),
     remove: ({ key, value }) => Way.remove({ key, value: move(value) }),

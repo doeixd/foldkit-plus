@@ -72,6 +72,7 @@ const ownReadsLeft = (write: AnyWrite): ReadonlyArray<Segments> =>
   Way.$match(write.way, {
     set: () => readsOf([write.value.node]),
     add: ({ amount }) => readsOf([amount]),
+    combine: ({ value }) => readsOf([value]),
     append: ({ element }) => readsOf(element),
     insert: ({ element }) => readsOf(element),
     remove: ({ value }) => readsOf([value]),
@@ -87,6 +88,7 @@ const elementFieldsRead = (write: AnyWrite): ReadonlyArray<string> =>
   Way.$match(write.way, {
     set: () => [],
     add: () => [],
+    combine: () => [],
     append: () => [],
     include: () => [],
     exclude: () => [],
@@ -103,6 +105,7 @@ const fieldsSet = (write: AnyWrite): ReadonlyArray<string> =>
     patchWhere: ({ set }) => set.map(([field]) => field),
     set: () => [],
     add: () => [],
+    combine: () => [],
     append: () => [],
     insert: () => [],
     remove: () => [],
@@ -166,6 +169,7 @@ const inRange = (a: AnyTransition, wa: AnyWrite, b: AnyTransition, wb: AnyWrite)
   const amount = (write: AnyWrite) =>
     Way.$match(write.way, {
       add: ({ amount: by }) => Option.some(by),
+      combine: () => Option.none(),
       set: () => Option.none(),
       append: () => Option.none(),
       insert: () => Option.none(),
@@ -192,6 +196,7 @@ const valueOf = (write: AnyWrite): Option.Option<Node.Node> =>
     include: ({ value }) => Option.some(value),
     exclude: ({ value }) => Option.some(value),
     add: () => Option.none(),
+    combine: () => Option.none(),
     append: () => Option.none(),
     insert: () => Option.none(),
     remove: () => Option.none(),
@@ -257,6 +262,7 @@ const steady = (write: AnyWrite): boolean => {
     patchWhere: ({ test, set }) => cannotRefuse(test) && sets(set),
     set: () => false,
     add: () => false,
+    combine: () => false,
     append: () => false,
     insert: () => false,
     include: () => false,
@@ -293,6 +299,15 @@ const holds = (
       return Option.exists(literals(wa, wb), ([x, y]) => differ(x, y))
     case 'in-range':
       return inRange(a, wa, b, wb)
+    case 'same-operation': {
+      if (!Way.$is('combine')(wa.way) || !Way.$is('combine')(wb.way)) return false
+      const [opA, opB] = [wa.way.op, wb.way.op]
+      return (
+        Node.foreignName(opA) === Node.foreignName(opB) &&
+        opA.claims.commutative === true &&
+        opA.claims.associative === true
+      )
+    }
     case 'disjoint-fields': {
       const [setA, setB] = [fieldsSet(wa), fieldsSet(wb)]
       return (
@@ -366,6 +381,7 @@ const setValues = (write: AnyWrite): ReadonlyArray<Node.Node> =>
     patchWhere: ({ set }) => setBodies(set),
     set: () => [],
     add: () => [],
+    combine: () => [],
     append: () => [],
     insert: () => [],
     remove: () => [],
@@ -406,6 +422,17 @@ export const idempotent = <State, Input, Emit, Supplied>(
     const condition = writeProperties[tag].idempotent
     if (condition === undefined) {
       return walk(`${ofWay(tag)} of "${Path.format(write.target)}" twice is not once`)
+    }
+    if (condition === 'idempotent-operation') {
+      if (
+        !Way.$is('combine')(write.way) ||
+        write.way.op.claims.idempotent !== true ||
+        write.way.op.claims.associative !== true
+      ) {
+        return walk(
+          `a combine of "${Path.format(write.target)}" with "${Way.$is('combine')(write.way) ? Node.foreignName(write.way.op) : 'unknown'}" twice is not once`,
+        )
+      }
     }
     if (condition === 'sets-unread') {
       if (touches(setValues(write).flatMap(fieldsRead), fieldsSet(write))) {

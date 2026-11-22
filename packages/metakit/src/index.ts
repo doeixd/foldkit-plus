@@ -38,6 +38,7 @@ export {
 // From its own module, so a page reading it loads no other table.
 export {
   addWrites,
+  combineWrites,
   setWrites,
   writeProperties,
   type CommuteCondition,

@@ -44,6 +44,7 @@ const conditions: { readonly [Condition in CommuteCondition]: string } = {
   'different-literals': 'the two literals differ',
   'in-range':
     'integer amounts, and every total either order passes through stays in the safe range',
+  'same-operation': 'both combine with one commutative and associative operation',
   'disjoint-fields': 'they set different fields and neither reads a field the other sets',
   steady: 'no element can refuse either',
   'reads-no-set-field': 'the removal reads no field the patch sets',
