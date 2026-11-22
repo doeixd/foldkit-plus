@@ -113,6 +113,8 @@ export const Message = defineMessageUnion({
   DeleteRequested: { id: Schema.String },
   /** Puts the last deleted todo back. */
   UndoRequested: {},
+  /** The list's title input changed. A blank title is dropped here: `RenamedList` is only for a title its guard accepts. */
+  ListRenameRequested: { title: Schema.String },
 
   // --- durable facts: replicated, replayed, journaled ----------------------
   SubmittedTodo: {
@@ -202,6 +204,7 @@ export const todoCommands: CommandTable<Emitted, Model, Message> = {
     ),
   ],
   Delete: ({ id }) => [fact(Message.DeletedTodo({ id }))],
+  RenameList: ({ title }) => [fact(Message.RenamedList({ title }))],
   // Focus moves to the next row in the order shown, or the one before at the end.
   FocusNeighbour: ({ id, todos, filter }) => {
     const rows = visibleTodos({ todos, filter })

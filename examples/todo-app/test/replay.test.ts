@@ -49,6 +49,7 @@ const messageFrom = (random: () => number): Message => {
       }),
     () => Message.ClearedCompleted(),
     () => Message.RenamedList({ title: pick(titles) }),
+    () => Message.ListRenameRequested({ title: pick(titles) }),
     () => Message.DraftChanged({ value: pick(titles) }),
     () => Message.DraftSubmitted(),
     () =>

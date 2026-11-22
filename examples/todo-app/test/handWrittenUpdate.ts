@@ -77,6 +77,7 @@ const commandsOf = (record: Emitted): ReadonlyArray<Command> =>
       mintTodo(title, typeof requestId === 'string' ? { requestId } : {}),
     ],
     Delete: ({ id }) => [fact(Message.DeletedTodo({ id }))],
+    RenameList: ({ title }) => [fact(Message.RenamedList({ title }))],
     FocusNeighbour: ({ id, todos, filter }) => {
       const rows = visibleTodos({ todos, filter })
       const at = rows.findIndex(row => row.id === id)
@@ -109,6 +110,7 @@ export const makeUpdate =
       EditingSubmitted: input => run({ _tag: 'EditingSubmitted', input }),
       DeleteRequested: input => run({ _tag: 'DeleteRequested', input }),
       UndoRequested: input => run({ _tag: 'UndoRequested', input }),
+      ListRenameRequested: input => run({ _tag: 'ListRenameRequested', input }),
       SubmittedTodo: input => run({ _tag: 'SubmittedTodo', input }),
       RestoredTodo: input => run({ _tag: 'RestoredTodo', input }),
       ToggledTodo: input => run({ _tag: 'ToggledTodo', input }),

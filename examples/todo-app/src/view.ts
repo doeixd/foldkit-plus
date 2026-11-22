@@ -73,7 +73,7 @@ export const HeaderView = SurfaceView.define(Header, HeaderSlots, (model, slots,
         h.AriaLabel('List title'),
         // `change` fires on blur or Enter, so a rename is one durable fact, not
         // one per keystroke.
-        h.OnChange(title => Message.RenamedList({ title })),
+        h.OnChange(title => Message.ListRenameRequested({ title })),
       ]),
     ),
     h.p(slots.tally.attrs(), [`${tally.active} active · ${tally.completed} completed`]),

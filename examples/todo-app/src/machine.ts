@@ -243,6 +243,14 @@ export const transitions = {
     input: Message.ClearedCompleted,
     apply: ({ state }) => [Transition.removeWhere(state.todos, todo => todo.completed)],
   }),
+  // A blank title is refused here, so no durable `RenamedList` is submitted for the journal to refuse.
+  ListRenameRequested: Transition.make({
+    state: Model,
+    input: Message.ListRenameRequested,
+    when: ({ input }) => filled(input.title),
+    apply: () => [],
+    emits: ({ input }) => [Transition.emit('RenameList', { title: Str.trim(input.title) })],
+  }),
   RenamedList: Transition.make({
     state: Model,
     input: Message.RenamedList,

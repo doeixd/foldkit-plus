@@ -61,6 +61,7 @@ export const declared: Declared<
     Focus: ['CompletedFocus'],
     Submit: ['SubmittedTodo'],
     Delete: ['DeletedTodo'],
+    RenameList: ['RenamedList'],
     FocusNeighbour: ['CompletedFocus'],
     ExpireUndo: ['UndoExpired'],
     Restore: ['RestoredTodo'],
@@ -113,7 +114,7 @@ export const ListMeta = Projection.pick(App.model.listTitle)
 
 export const Header = App.surface('Header', {
   model: ({ model }) => ({ listTitle: model.listTitle, todos: model.todos }),
-  messages: [Message.RenamedList],
+  messages: [Message.ListRenameRequested],
 })
 
 export const Composer = App.surface('Composer', {
