@@ -113,14 +113,29 @@ const partialEnv = (r: Random): unknown => {
   return env
 }
 
-const foreignNum = Node.foreign({ id: 'test.plus', version: 1, returns: 'number', nulls: 'strict' })
-const foreignFlag = Node.foreign({ id: 'test.flag', version: 1, returns: 'boolean', nulls: 'own' })
-const foreignMissing = Node.foreign({
+import * as Operation from '../src/operation.js'
+
+const foreignNum = Operation.define({
+  id: 'test.plus',
+  version: 1,
+  args: [Schema.Number, Schema.Number],
+  returns: Schema.Number,
+  nulls: 'strict',
+}).descriptor
+const foreignFlag = Operation.define({
+  id: 'test.flag',
+  version: 1,
+  args: [Schema.Boolean],
+  returns: Schema.Boolean,
+  nulls: 'own',
+}).descriptor
+const foreignMissing = Operation.define({
   id: 'test.none',
   version: 1,
-  returns: 'text',
+  args: [Schema.String],
+  returns: Schema.String,
   nulls: 'strict',
-})
+}).descriptor
 const implementations: ForeignImplementations = {
   'test.plus@1': {
     run: ([a, b]) => (typeof a === 'number' && typeof b === 'number' ? a + b : 'not a number'),

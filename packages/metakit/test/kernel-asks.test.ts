@@ -113,7 +113,14 @@ describe('Transition.commutes reads negation', () => {
   })
 })
 
-const double = Node.foreign({ id: 'app.double', version: 1, returns: 'number', nulls: 'strict' })
+import * as Operation from '../src/operation.js'
+const double = Operation.define({
+  id: 'app.double',
+  version: 1,
+  args: [Schema.Number],
+  returns: Schema.Number,
+  nulls: 'strict',
+}).descriptor
 const Doubled = Transition.make({
   state: Counter,
   input: By,

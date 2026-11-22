@@ -140,9 +140,17 @@ const ordered: Expr.Expr<typeof Row.Type, boolean | null> = Str.lt(row.s, 'm')
 void Str.lt(row.m, 'm')
 void [equalsValues, amongValues, amongNull, amongNotNull, coalesced, folded, ordered]
 
-// A foreign operation is called through metakit/build, typed by its caller.
-const twice = Node.foreign({ id: 'app.twice', version: 1, returns: 'number', nulls: 'strict' })
-const doubled: Expr.Expr<typeof Row.Type, number | null> = call(twice, [row.n])
+import * as Operation from '../src/operation.js'
+
+// A foreign operation is declared through metakit/operation and called directly.
+const twice = Operation.define({
+  id: 'app.twice',
+  version: 1,
+  args: [Schema.Number],
+  returns: Schema.Number,
+  nulls: 'strict',
+})
+const doubled: Expr.Expr<typeof Row.Type, number | null> = twice(row.n)
 void doubled
-// @ts-expect-error a foreign operation returns one of the kinds
-Node.foreign({ id: 'app.x', version: 1, returns: 'date', nulls: 'strict' })
+// @ts-expect-error Node.foreign is removed; use Operation.define
+Node.foreign({ id: 'app.x', version: 1, returns: 'number', nulls: 'strict' })

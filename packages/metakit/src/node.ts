@@ -218,8 +218,6 @@ export interface ForeignOp {
   readonly checkResult?: ForeignSchemaCheck
   /** What the operation declares it keeps. */
   readonly claims: ForeignClaims
-  /** Legacy alias kept for `Node.foreign` until bout 4.11. */
-  readonly properties?: OpProperties
 }
 
 /** An operator a `Call` may name: a core one, which carries its evaluator, or a foreign one. */
@@ -239,32 +237,6 @@ export const RESERVED_PREFIXES = [
   'arr.',
   'rows.',
 ] as const
-
-/**
- * Declare a foreign operation. An id under a core prefix (`num.`, `str.`, …)
- * is refused, and so is a version that is not a positive integer.
- */
-export const foreign = (descriptor: {
-  readonly id: string
-  readonly version: number
-  readonly returns: ValueKind
-  readonly nulls: 'strict' | 'own'
-  readonly properties?: OpProperties
-  readonly claims?: ForeignClaims
-}): ForeignOp => {
-  const reserved = RESERVED_PREFIXES.find(prefix => descriptor.id.startsWith(prefix))
-  if (reserved !== undefined) {
-    throw new Error(
-      `[metakit] Node.foreign: "${descriptor.id}" is under the core prefix "${reserved}"`,
-    )
-  }
-  if (!Number.isSafeInteger(descriptor.version) || descriptor.version < 1) {
-    throw new Error(
-      `[metakit] Node.foreign: the version of "${descriptor.id}" is not a positive integer`,
-    )
-  }
-  return { _tag: 'Foreign', claims: descriptor.claims ?? {}, properties: {}, ...descriptor }
-}
 
 /**
  * A foreign operation's name in every reader's table of implementations:

@@ -5,6 +5,7 @@
  */
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
+import * as Operation from '../src/operation.js'
 import * as Abstract from '../src/abstract/check.js'
 import * as Expr from '../src/expr.js'
 import * as Node from '../src/node.js'
@@ -125,12 +126,13 @@ describe('Phase 1 adversarial soundness regressions', () => {
   })
 
   it('judgeNode reports unsupported (not missing-env) for a version-mismatched foreign op with unknown args', () => {
-    const op = Node.foreign({
+    const op = Operation.define({
       id: 'custom.check',
       version: 2,
-      returns: 'boolean',
+      args: [Schema.String],
+      returns: Schema.Boolean,
       nulls: 'strict',
-    })
+    }).descriptor
     const call = Node.Call({
       op,
       args: [Node.Path({ segments: ['x'], ast: Option.some(Schema.String.ast) })],

@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 import { Abstract, Eq, Expr, Node, Num, Ord, Path, Verdict } from 'metakit'
 import { call } from 'metakit/build'
 import * as Drizzle from 'metakit/drizzle'
+import * as Operation from '../src/operation.js'
 import * as Prove from 'metakit/prove'
 import * as Sql from 'metakit/sql'
 
@@ -20,8 +21,20 @@ type Row = typeof Row.Type
 type Env = { readonly row: Row }
 const { row } = Path.forEnv({ row: Row })
 
-const double = Node.foreign({ id: 'app.double', version: 1, returns: 'number', nulls: 'strict' })
-const shout = Node.foreign({ id: 'app.shout', version: 2, returns: 'text', nulls: 'own' })
+const double = Operation.define({
+  id: 'app.double',
+  version: 1,
+  args: [Schema.Number],
+  returns: Schema.Number,
+  nulls: 'strict',
+}).descriptor
+const shout = Operation.define({
+  id: 'app.shout',
+  version: 2,
+  args: [Schema.String],
+  returns: Schema.String,
+  nulls: 'own',
+}).descriptor
 const doubled = call<Env, number | null>(double, [row.n])
 const isBig = Ord.gt(doubled, 10)
 
@@ -37,15 +50,33 @@ const reason = (result: Result.Result<unknown, Node.Refusal>) =>
 describe('a foreign operation', () => {
   it('is refused where its id is a core prefix, or its version is not a positive integer', () => {
     expect(() =>
-      Node.foreign({ id: 'num.double', version: 1, returns: 'number', nulls: 'strict' }),
+      Operation.define({
+        id: 'num.double' as unknown as 'app.double',
+        version: 1,
+        args: [Schema.Number],
+        returns: Schema.Number,
+        nulls: 'strict',
+      }),
     ).toThrow(/core prefix "num\."/)
     expect(() =>
-      Node.foreign({ id: 'app.x', version: 0, returns: 'number', nulls: 'strict' }),
+      Operation.define({
+        id: 'app.x',
+        version: 0,
+        args: [Schema.Number],
+        returns: Schema.Number,
+        nulls: 'strict',
+      }),
     ).toThrow(/positive integer/)
   })
 
   it('is one term with its version, and another version is another', () => {
-    const later = Node.foreign({ id: 'app.double', version: 2, returns: 'number', nulls: 'strict' })
+    const later = Operation.define({
+      id: 'app.double',
+      version: 2,
+      args: [Schema.Number],
+      returns: Schema.Number,
+      nulls: 'strict',
+    }).descriptor
     expect(Node.key(doubled.node)).not.toBe(Node.key(call(later, [row.n]).node))
     expect(Expr.show(isBig)).toBe('(app.double(row.n) > 10)')
   })
@@ -69,7 +100,13 @@ describe('evaluation', () => {
   })
 
   it('runs two versions of one operation in one expression, each by its own implementation', () => {
-    const later = Node.foreign({ id: 'app.double', version: 2, returns: 'number', nulls: 'strict' })
+    const later = Operation.define({
+      id: 'app.double',
+      version: 2,
+      args: [Schema.Number],
+      returns: Schema.Number,
+      nulls: 'strict',
+    }).descriptor
     const both = Num.add(doubled, call<Env, number | null>(later, [row.n]))
     const versions = {
       ...memory,
@@ -187,7 +224,13 @@ describe('the checker and the solver', () => {
   }, 30_000)
 
   it('take a foreign predicate as no value, so a rule over it stays open', () => {
-    const flag = Node.foreign({ id: 'app.flag', version: 1, returns: 'boolean', nulls: 'strict' })
+    const flag = Operation.define({
+      id: 'app.flag',
+      version: 1,
+      args: [Schema.Number],
+      returns: Schema.Boolean,
+      nulls: 'strict',
+    }).descriptor
     const flagged = call<typeof Strict.Type, boolean>(flag, [s.n])
     expect(Verdict.isTrue(Abstract.checkInvariant(Strict, Eq.is(flagged, flagged)))).toBe(false)
   })
