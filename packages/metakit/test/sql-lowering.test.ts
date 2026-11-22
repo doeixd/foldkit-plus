@@ -48,7 +48,7 @@ describe('a guarded UPDATE', () => {
       ),
     )
     expect(update.text).toBe(
-      'UPDATE "acc" SET "balance" = ("balance" - ?) WHERE "id" = ? AND (? <= "balance")',
+      'UPDATE "acc" SET "balance" = NULLIF(NULLIF(max(min(("balance" - ?), 9007199254740992), -9007199254740992), 9007199254740992), -9007199254740992) WHERE "id" = ? AND (? <= "balance")',
     )
     expect(update.params).toEqual([30, 'u1', 30])
     db.prepare(update.text).run(...(update.params as Array<SQLInputValue>))

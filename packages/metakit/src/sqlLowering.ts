@@ -199,6 +199,35 @@ const numeric =
       infix(operator(ctx.dialect))(args, ctx),
     )
 
+/** The first integer past the safe range, which no safe integer reaches: the clamp's stop. */
+const PAST_SAFE = String(Number.MAX_SAFE_INTEGER + 1)
+
+/**
+ * `+` or `-` over integers as evaluation gives it: NULL where the result leaves
+ * ±(2^53−1), which SQL would return as a float (SQLite) or a bigint past the
+ * range (Postgres, which raises on an overflow of its own integer sum, so the
+ * sum is formed as `numeric`). The result is clamped to ±2^53 and that value
+ * made NULL, so the sum is written once; a NULL sum clamps to -2^53 on
+ * Postgres (`GREATEST` ignores NULL) and is NULL again. Only a sum with an
+ * integer term the row decides is guarded: sums of request values are folded
+ * and refused before SQL is written.
+ */
+const sum =
+  (operator: '+' | '-'): SqlLowerer =>
+  (args, ctx) => {
+    const left = args[0]!
+    const right = args[1]!
+    const integers = [left, right].every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))
+    if (!integers || !(isIntegerTerm(left) || isIntegerTerm(right))) {
+      return numeric(() => operator)(args, ctx)
+    }
+    return both(args, ctx, (l, r) =>
+      ctx.dialect === 'postgres'
+        ? q`CAST(NULLIF(NULLIF(LEAST(GREATEST((CAST(${l} AS numeric) ${operator} ${r}), -${PAST_SAFE}), ${PAST_SAFE}), ${PAST_SAFE}), -${PAST_SAFE}) AS bigint)`
+        : q`NULLIF(NULLIF(max(min((${l} ${operator} ${r}), ${PAST_SAFE}), -${PAST_SAFE}), ${PAST_SAFE}), -${PAST_SAFE})`,
+    )
+  }
+
 const byDialect =
   <A>(postgres: A, sqlite: A) =>
   (dialect: SqlDialect): A =>
@@ -296,8 +325,8 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'ord.lte': numeric(() => '<='),
   'ord.gt': numeric(() => '>'),
   'ord.gte': numeric(() => '>='),
-  'num.add': numeric(() => '+'),
-  'num.sub': numeric(() => '-'),
+  'num.add': sum('+'),
+  'num.sub': sum('-'),
   'num.mul': numeric(() => '*'),
   'num.neg': (args, ctx) => one(args, ctx, inner => q`(- ${inner})`),
   'num.mulScaled': (args, ctx) => {

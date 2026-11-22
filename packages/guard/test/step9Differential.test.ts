@@ -210,17 +210,23 @@ const onPage = (
 const grid = cases.flatMap(each => askers.map(asker => ({ ...each, ...asker })))
 
 /**
- * The one difference, and its direction: SQL adds two stored integers as a
- * double, so `rank + rank > 10` holds of d4 (rank 2^52), where metakit
- * refuses the sum past 2^53 − 1 and the judge in memory denies. Memory is the
- * stricter reader. A principal's number near 2^53 in a sum differs the same way. Closing it is metakit's SQL lowering of `num.add` giving
- * null past the range, as `num.mulScaled` does.
+ * The one difference left, and its direction. A sum past 2^53 − 1 (`rank +
+ * rank > 10` over d4, rank 2^52) is refused in memory and NULL in SQL, so
+ * alone neither lets the row through. Beside a rule that holds, SQL's `OR`
+ * answers true of `TRUE OR NULL` where memory refuses the whole: bo wrote d4,
+ * so `isAuthor or doubled` lets bo read it in SQL and not in memory. Memory
+ * is the stricter reader.
  */
-const sqlAlone = (name: string): ReadonlyArray<string> => (name.includes('doubled') ? ['d4'] : [])
+const sqlAlone = (name: string, who: string): ReadonlyArray<string> =>
+  name === 'isAuthor or doubled' && who === 'bo' ? ['d4'] : []
 
 /** What SQL must read, given what memory allowed: memory's rows and the known difference. */
-const sqlReads = (name: string, Ruled: AnyEntity, principal: Option.Option<Principal>) =>
-  [...new Set([...inMemory(Ruled, principal), ...sqlAlone(name)])].sort()
+const sqlReads = (
+  name: string,
+  who: string,
+  Ruled: AnyEntity,
+  principal: Option.Option<Principal>,
+) => [...new Set([...inMemory(Ruled, principal), ...sqlAlone(name, who)])].sort()
 
 describe('the page’s hint, wherever it decides, is the server’s judge in memory', () => {
   it.each(grid)('$name, asked by $who', ({ Ruled, principal }) => {
@@ -244,7 +250,7 @@ describe('the SQL filter is the server’s judge in memory, on SQLite', () => {
   })
   afterAll(() => client.close())
 
-  it.each(grid)('$name, asked by $who', ({ name, Ruled, visible, principal }) => {
+  it.each(grid)('$name, asked by $who', ({ name, who, Ruled, visible, principal }) => {
     const binding = bind(
       { User: Related.User, Doc: Ruled },
       {
@@ -260,7 +266,7 @@ describe('the SQL filter is the server’s judge in memory, on SQLite', () => {
           db
             .all<{ id: string }>(sql`select id from docs where ${filter} order by id`)
             .map(row => row.id),
-        ).toEqual(sqlReads(name, Ruled, principal)),
+        ).toEqual(sqlReads(name, who, Ruled, principal)),
     })
   })
 })
@@ -275,7 +281,7 @@ describe('the SQL filter is the server’s judge in memory, on Postgres', () => 
   }, 60_000)
   afterAll(() => pglite.close())
 
-  it.each(grid)('$name, asked by $who', async ({ name, Ruled, visible, principal }) => {
+  it.each(grid)('$name, asked by $who', async ({ name, who, Ruled, visible, principal }) => {
     const binding = bind(
       { User: Related.User, Doc: Ruled },
       {
@@ -288,6 +294,6 @@ describe('the SQL filter is the server’s judge in memory, on Postgres', () => 
     const { rows } = await db.execute<{ id: string }>(
       sql`select id from docs where ${compiled.success} order by id`,
     )
-    expect(rows.map(row => row.id)).toEqual(sqlReads(name, Ruled, principal))
+    expect(rows.map(row => row.id)).toEqual(sqlReads(name, who, Ruled, principal))
   })
 })
