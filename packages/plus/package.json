@@ -373,6 +373,11 @@
       "types": "./dist/metakit/store.d.mts",
       "import": "./dist/metakit/store.mjs"
     },
+    "./metakit/pairs": {
+      "foldkit-plus:source": "./src/metakit/pairs.ts",
+      "types": "./dist/metakit/pairs.d.mts",
+      "import": "./dist/metakit/pairs.mjs"
+    },
     "./metakit/temporal": {
       "foldkit-plus:source": "./src/metakit/temporal.ts",
       "types": "./dist/metakit/temporal.d.mts",

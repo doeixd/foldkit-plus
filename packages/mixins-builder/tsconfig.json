@@ -65,6 +65,7 @@
       "metakit/graph/readiness": ["../metakit/src/graph/readiness.ts"],
       "metakit/inspect": ["../metakit/src/inspect.ts"],
       "metakit/machine": ["../metakit/src/machine.ts"],
+      "metakit/pairs": ["../metakit/src/pairs.ts"],
       "metakit/policy": ["../metakit/src/policy.ts"],
       "metakit/prove": ["../metakit/src/prove.ts"],
       "metakit/relation": ["../metakit/src/relation.ts"],
