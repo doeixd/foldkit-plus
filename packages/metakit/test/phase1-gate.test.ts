@@ -4,7 +4,7 @@
  * of both orders of every list-write pair it calls commuting over awkward
  * literals.
  */
-import { Effect, Result, Schema } from 'effect'
+import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Abstract, Eq, Expr, Num, Ord, Path, Transition, Verdict } from 'metakit'
 import { Text } from 'metakit/domain'
@@ -155,6 +155,18 @@ describe('an operand past the safe range is refused by every reader', () => {
   it('the prover, whose counterexample replays', async () => {
     const proof = await Effect.runPromise(Prove.invariant(Row, Ord.gte(Num.mul($.f, 0), 0)))
     expect(Verdict.isTrue(proof)).toBe(false)
+    expect(Verdict.isFalse(proof)).toBe(true)
+  }, 30_000)
+})
+
+describe('the solver asks again for a witness without a NUL', () => {
+  const Row = Schema.Struct({ s: Schema.String })
+  const $ = Path.forSchema(Row)
+
+  it('and says so where every counterexample holds one, which no replay could show', async () => {
+    // `s is s` fails only where `s` holds a NUL, which the replay never writes.
+    const proof = await Effect.runPromise(Prove.invariant(Row, Eq.is($.s, $.s)))
+    expect(Verdict.isUnknown(proof) && Option.getOrNull(proof.obligation)?.kind).toBe('refused')
   }, 30_000)
 })
 

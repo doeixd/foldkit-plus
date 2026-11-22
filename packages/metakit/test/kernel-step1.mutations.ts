@@ -113,7 +113,6 @@ const readers = [
 ]
 
 const unportableTests = ['packages/metakit/test/unportable.test.ts']
-const policyTests = ['packages/metakit/test/policy.test.ts']
 
 const text = [
   mutation(
@@ -180,7 +179,7 @@ const text = [
     'return term',
   ),
   mutation(
-    policyTests,
+    ['packages/metakit/test/phase1-gate.test.ts'],
     'the solver reports a witness holding a NUL it cannot replay',
     '../src/prove/solve.ts',
     "if (status === 'sat' && nul.length > 0) {",
