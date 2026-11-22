@@ -430,3 +430,152 @@ describe('a post-update guard over another row (leaving)', () => {
     expect(row.active).toBe(0)
   })
 })
+
+describe('H1 & M1 (deep review 2): hidden link unlink bypass and read-ruled writer revision', () => {
+  it('H1: refuses unlinking a hidden one-relation target when the post-update row rule reads that relation', async () => {
+    const client = new DatabaseSync(':memory:')
+    client.exec(
+      'create table projects (id text primary key, owner_id text not null, open integer not null)',
+    )
+    client.exec('create table tasks (id text primary key, project_id text)')
+    try {
+      const Base = {
+        Project: Entity.define(
+          'Project',
+          Schema.Struct({ id: Schema.String, ownerId: Schema.String, open: Schema.Boolean }),
+        ),
+        Task: Entity.define('Task', Schema.Struct({ id: Schema.String })),
+      }
+      const Linked = Entity.relate(Base, {
+        Task: { project: Relation.one(Base.Project, { optional: true }) },
+      })
+      const H = Guards.declare(
+        'HiddenLink',
+        User,
+        guard => ({
+          ownProject: guard.row(Linked.Project, user =>
+            Expr.eq(Linked.Project.fields.ownerId, user.id),
+          ),
+          projectOpen: guard.row(Linked.Task, () =>
+            Expr.eq(Expr.path(Linked.Task.relations.project, Linked.Project.fields.open), true),
+          ),
+        }),
+        { key: user => user.id, unguarded: 'allow' },
+      )
+      const GuardedProject = Linked.Project.pipe(
+        Guards.attach(H, { row: { Read: [H.ownProject] } }),
+      )
+      const GuardedTask = Linked.Task.pipe(Guards.attach(H, { row: { Update: [H.projectOpen] } }))
+      const HPolicy = H.implement({})
+      const Unlink = Mutation.write(
+        'UnlinkTask',
+        Write.update(
+          Entity.input(
+            GuardedTask,
+            Schema.Struct({ id: Schema.String, projectId: Schema.NullOr(Schema.String) }),
+            { projectId: Relation.input(Linked.Task.relations.project) },
+          ),
+          { id: 'id' },
+        ),
+      )
+      const projects = sqliteTable('projects', {
+        id: text('id').primaryKey(),
+        ownerId: text('owner_id').notNull(),
+        open: integer('open', { mode: 'boolean' }).notNull(),
+      })
+      const tasks = sqliteTable('tasks', {
+        id: text('id').primaryKey(),
+        projectId: text('project_id'),
+      })
+      const visible = GuardDrizzle.visible(HPolicy, [GuardedProject, GuardedTask])
+      const db = bind(
+        { Project: GuardedProject, Task: GuardedTask },
+        {
+          Project: { table: projects, visible: visible.Project },
+          Task: {
+            table: tasks,
+            visible: visible.Task,
+            relations: { project: { field: tasks.projectId } },
+          },
+        },
+      )
+      client.exec("insert into projects values ('p1', 'alice', 1)")
+      client.exec("insert into tasks values ('t1', 'p1')")
+      const server = RemoteServer.handlers(
+        RemoteServer.make<Option.Option<{ readonly id: string }>, DrizzleDatabase>({
+          entities: [],
+          mutations: [
+            RemoteServer.write(Unlink, GuardServer.writer(GuardedTask, HPolicy, writer(db.Task))),
+          ],
+        }),
+        Option.some({ id: 'bob' }),
+      )
+      const answer = await Effect.runPromise(
+        server
+          .FoldkitRemoteMutate({
+            requestId: 'r1',
+            mutation: 'UnlinkTask',
+            input: { id: 't1', projectId: null },
+          })
+          .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client })))),
+      )
+      expect(Result.isFailure(answer)).toBe(true)
+      if (Result.isFailure(answer)) expect(answer.failure._tag).toBe('Forbidden')
+      const row = client.prepare("select project_id from tasks where id = 't1'").get() as {
+        project_id: string | null
+      }
+      expect(row.project_id).toBe('p1')
+    } finally {
+      client.close()
+    }
+  })
+
+  it('M1: GuardServer.check flags a writer carrying a revision field that has a Read rule', () => {
+    const PostBase = Entity.define(
+      'RevPost',
+      Schema.Struct({ id: Schema.String, title: Schema.String, version: Schema.Int }),
+    )
+    const R = Guards.declare(
+      'RevGuard',
+      User,
+      guard => ({
+        isAdmin: guard.row(PostBase, user => Expr.eq(user.id, 'admin')),
+      }),
+      { key: user => user.id, unguarded: 'allow' },
+    )
+    const RevPost = PostBase.pipe(Guards.attach(R, { members: { version: { Read: [R.isAdmin] } } }))
+    const RPolicy = R.implement({})
+    const Rename = Mutation.write(
+      'RenameRevPost',
+      Write.update(
+        Entity.input(RevPost, Schema.Struct({ id: Schema.String, title: Schema.String })),
+        { id: 'id' },
+      ),
+    )
+    const posts = sqliteTable('rev_posts', {
+      id: text('id').primaryKey(),
+      title: text('title').notNull(),
+      version: integer('version').notNull(),
+    })
+    const visible = GuardDrizzle.visible(RPolicy, [RevPost])
+    const db = bind({ RevPost }, { RevPost: { table: posts, visible: visible.RevPost } })
+    const server = RemoteServer.make<Option.Option<{ readonly id: string }>, DrizzleDatabase>({
+      entities: [],
+      mutations: [
+        RemoteServer.write(
+          Rename,
+          GuardServer.writer(RevPost, RPolicy, writer(db.RevPost, { revision: 'version' }), {
+            revision: 'version',
+          }),
+        ),
+      ],
+    })
+    expect(() =>
+      GuardServer.validate(RPolicy, {
+        entities: [RevPost],
+        domain: { registry: { queries: new Map() } },
+        server,
+      }),
+    ).toThrow(/carries RevPost's revision version, which has a Read rule/)
+  })
+})

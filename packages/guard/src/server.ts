@@ -877,7 +877,17 @@ export const GuardServer = {
             ),
             { entity: entity.name, id: context.id },
           )
-          if (read.some(key => !sameStored(before[key], after[key]))) {
+          const storedLinks = Option.getOrUndefined(stored)
+          const changed = (key: string): boolean => {
+            if (Object.hasOwn(links, key)) {
+              // `before[key]` may be masked to null when the caller cannot read the linked row;
+              // compare against the unmasked stored link when available, or fail closed if unknown.
+              if (storedLinks !== undefined) return !sameStored(storedLinks[key], after[key])
+              return before[key] === null || !sameStored(before[key], after[key])
+            }
+            return !sameStored(before[key], after[key])
+          }
+          if (read.some(changed)) {
             return yield* Effect.fail(refused(rules.row.deny))
           }
         }
@@ -1390,6 +1400,12 @@ export const GuardServer = {
             )
             const expected = write.expect?.field.key
             const pin = typeof writer === 'object' && writer !== null ? pins.get(writer) : undefined
+            const writerRev =
+              typeof writer === 'object' && writer !== null && 'revision' in writer
+                ? (writer as { readonly revision?: string }).revision
+                : undefined
+            const pinnedField = pin !== undefined && Option.isSome(pin) ? pin.value : undefined
+            const revField = writerRev ?? pinnedField
             return [
               ...open,
               ...when.map(
@@ -1399,6 +1415,9 @@ export const GuardServer = {
               ...computed,
               ...(expected !== undefined && readRuled(attachment, expected)
                 ? [`write ${mutation} expects ${name}'s ${expected}, which has a Read rule`]
+                : []),
+              ...(revField !== undefined && revField !== expected && readRuled(attachment, revField)
+                ? [`write ${mutation} carries ${name}'s revision ${revField}, which has a Read rule`]
                 : []),
               ...(expected !== undefined &&
               pin !== undefined &&
