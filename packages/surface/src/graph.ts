@@ -375,8 +375,11 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
   if (options.machine !== undefined) {
     const { footprints } = options.machine
     const sentBy = new Map<string, Array<string>>()
-    for (const { from, to } of options.sends ?? [])
-      sentBy.set(from, [...(sentBy.get(from) ?? []), to])
+    for (const { from, to } of options.sends ?? []) {
+      const known = sentBy.get(from)
+      if (known === undefined) sentBy.set(from, [to])
+      else known.push(to)
+    }
     // The Message and every one its Commands send, and those send: a cycle is walked once.
     const reached = (tag: string): ReadonlySet<string> => {
       const seen = new Set([tag])
