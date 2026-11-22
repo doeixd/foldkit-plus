@@ -162,7 +162,7 @@ const inputsOf = (
 }
 
 /** A relational `Query` over one Entity, as `Query.define`'s body returns. */
-type RelationalQueryOf<E extends AnyEntity> = ReturnType<typeof RelationalQuery.from<E>>
+type RelationalQueryOf<E extends AnyEntity> = RelationalQuery<E>
 
 /**
  * What `Query.define` returns: a descriptor whose `body` is always there and
@@ -177,11 +177,7 @@ export interface DefinedQuery<
   readonly body: RelationalQueryOf<E>
 }
 
-// Built in a call marked pure: a spread object literal is kept as if reading it could
-// do something, and with it `define` and the body capability it installs (#378).
-export const Query = /* @__PURE__ */ (() => ({
-  ...RelationalQuery,
-
+const queryMembers = {
   /** Declares the entity and options a query's result is a connection over. */
   connection: <Entity extends string>(
     entity: { readonly name: Entity },
@@ -213,7 +209,7 @@ export const Query = /* @__PURE__ */ (() => ({
       ...(config.cache === undefined ? {} : { cache: cachePolicy(config.cache) }),
       Input,
       Result: (isEntityName(config.Result)
-        ? Query.connection(config.Result)
+        ? queryMembers.connection(config.Result)
         : config.Result) as ResultOf<Result>,
       ref: input => ({
         query: name,
@@ -262,9 +258,9 @@ export const Query = /* @__PURE__ */ (() => ({
   ): DefinedQuery<Name, TypeOf<Input>, E> => {
     const schema = schemaOf(Input)
     const built = body({ input: inputsOf(name, schema) as QueryInputs<TypeOf<Input>> })
-    const descriptor = Query.make(name, {
+    const descriptor = queryMembers.make(name, {
       Input,
-      Result: Query.connection(built.entity, options) as ConnectionSpec<E['name']>,
+      Result: queryMembers.connection(built.entity, options) as ConnectionSpec<E['name']>,
       ...(options?.cache === undefined ? {} : { cache: options.cache }),
     })
     return { ...descriptor, body: built, [Installs]: installBodies }
@@ -297,4 +293,12 @@ export const Query = /* @__PURE__ */ (() => ({
       ...ref,
       window: { ...ref.window, before: cursor },
     }),
+}
+
+// Built in a call marked pure: a spread object literal is kept as if reading it could
+// do something, and with it `define` and the body capability it installs (#378). The
+// type is written out because the entity members' own return type is not exported by name.
+export const Query: typeof RelationalQuery & typeof queryMembers = /* @__PURE__ */ (() => ({
+  ...RelationalQuery,
+  ...queryMembers,
 }))()

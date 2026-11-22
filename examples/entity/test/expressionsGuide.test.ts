@@ -190,7 +190,7 @@ describe('related Entities: links, paths, exists, Judge, and the other declarati
 
   it('a path and an exists are reaches, not fields; evaluate refuses them, and an order refuses a path', () => {
     expect(Query.dependencies(ByAuthorName).predicate).toEqual([])
-    expect(Query.dependencies(ByAuthorName).reaches.map(reach => Expr.show(reach))).toEqual([
+    expect(Query.dependencies(ByAuthorName).reaches.map(reach => Expr.show(reach.expr))).toEqual([
       'Post.author.name',
     ])
     expect(Query.unsupported(Discussed, ['eq', 'viewer'])).toEqual(['exists'])

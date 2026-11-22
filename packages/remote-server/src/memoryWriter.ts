@@ -139,7 +139,7 @@ export const memoryWriter = <P>(
   }
   const clocked = new Set(
     Object.entries(entity.sets)
-      .filter(([, set]) => set.value._tag === 'Now')
+      .filter(([, set]) => set.value.term === 'now')
       .map(([field]) => field),
   )
 

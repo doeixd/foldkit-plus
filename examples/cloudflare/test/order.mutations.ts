@@ -45,9 +45,9 @@ export default [
     name: 'id does not break a tie',
     edits: [
       {
-        file: '../../../packages/entity/src/expr.ts',
-        find: 'return endsOnId ? terms : [...terms, id]',
-        replace: 'return endsOnId || id !== undefined ? terms : [...terms, id]',
+        file: '../../../packages/entity/src/expr/query.ts',
+        find: 'return endsOnId ? terms : [...terms, idTermOf(self.entity)]',
+        replace: 'return terms',
       },
     ],
     tests,

@@ -168,7 +168,7 @@ export default [
     name: 'an exists fixes nothing of the rows it counts',
     edits: [
       {
-        file: '../../entity/src/lowerEnv.ts',
+        file: '../../entity/src/environment.ts',
         find: 'const { rows, missing } = row.pointing(slot.relation, pinsOf(slot))',
         replace: 'const { rows, missing } = row.pointing(slot.relation, new Map())',
       },

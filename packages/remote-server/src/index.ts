@@ -3172,7 +3172,7 @@ export const RemoteServer = {
     }
     if (config.viewer === undefined) {
       const viewing = (config.mutations ?? []).find(source =>
-        (source.writes?.write.context ?? []).some(({ value }) => value._tag === 'Viewer'),
+        (source.writes?.write.context ?? []).some(({ value }) => value.term === 'viewer'),
       )
       if (viewing !== undefined) {
         throw new Error(

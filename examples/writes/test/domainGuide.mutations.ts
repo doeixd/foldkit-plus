@@ -24,8 +24,8 @@ export default [
   ),
   edit(
     'the reference interpreter orders a descending term ascending',
-    '../../../packages/entity/src/expr.ts',
-    "term('desc', orderOperand(expr, 'desc'), options),",
-    "term('asc', orderOperand(expr, 'desc'), options),",
+    '../../../packages/entity/src/expr/order.ts',
+    "term('desc', orderOperand(expr, 'desc'), options)",
+    "term('asc', orderOperand(expr, 'desc'), options)",
   ),
 ]

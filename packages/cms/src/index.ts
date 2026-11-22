@@ -18,7 +18,7 @@ import {
   type EntityField,
   type EntityInput,
   type Reads,
-  type TestPredicate,
+  type Predicate,
   Expr,
   Order,
   SchemaShape,
@@ -388,14 +388,14 @@ export const Cms = {
    * guard.row(Post, () => Cms.published(Post))
    * ```
    */
-  published: <E extends AnyEntity>(entity: E): TestPredicate & Reads<E['name']> => {
+  published: <E extends AnyEntity>(entity: E): Predicate & Reads<E['name']> => {
     const field = Cms.rolesOf(entity).published
     if (field === undefined) {
       throw new Error(
         `[foldkit-cms] Cms.published: ${entity.name} names no published role, so every row is visible`,
       )
     }
-    return publishedOperator(field) as TestPredicate & Reads<E['name']>
+    return publishedOperator(field) as Predicate & Reads<E['name']>
   },
 
   /**

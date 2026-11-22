@@ -220,7 +220,7 @@ export const readout = (inputs: Inputs): Readout => {
   const question = questionOf(inputs)
   const dependencies = Query.dependencies(question.body)
   const own = dependencies.fields.map(field => field.key).join(', ')
-  const others = dependencies.reaches.map(reach => Expr.show(reach)).join(', ')
+  const others = dependencies.reaches.map(reach => Expr.show(reach.expr)).join(', ')
   return {
     question,
     expression: Query.show(question.body),

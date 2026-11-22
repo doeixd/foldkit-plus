@@ -17,15 +17,15 @@ const guide = (name: string, file: string, find: string, replace: string) => ({
 export default [
   edit(
     'in memory, not of an unknown holds, so a post with no editor is kept',
-    '../../../packages/entity/src/lower.ts',
-    'Not: ({ operand }) => callOf(Bool.notOp, [lower(operand)]),',
-    'Not: ({ operand }) => callOf(Bool.notOp, [callOf(Null.coalesceOp, [lower(operand), Node.Lit({ value: false })])]),',
+    '../../../packages/entity/src/expr/logic.ts',
+    'return exprOf(call(Bool.notOp, [node]))',
+    'return exprOf(call(Bool.notOp, [call(Null.coalesceOp, [node, Node.Lit({ value: false })])]))',
   ),
   edit(
     'in memory, contains is exact about case',
-    '../../../packages/entity/src/lower.ts',
-    'callOf(Str.lowerAsciiOp, [lower(search)]),',
-    'lower(search),',
+    '../../../packages/entity/src/expr/text.ts',
+    'args: [lowered(text), lowered(sought)]',
+    'args: [lowered(text), sought]',
   ),
   edit(
     'SQL searches a title from its start only',
@@ -53,9 +53,9 @@ export default [
   ),
   guide(
     'the guide: not of an unknown comparison keeps the draft',
-    '../../../packages/entity/src/lower.ts',
-    'Not: ({ operand }) => callOf(Bool.notOp, [lower(operand)]),',
-    'Not: ({ operand }) => callOf(Bool.notOp, [callOf(Null.coalesceOp, [lower(operand), Node.Lit({ value: false })])]),',
+    '../../../packages/entity/src/expr/logic.ts',
+    'return exprOf(call(Bool.notOp, [node]))',
+    'return exprOf(call(Bool.notOp, [call(Null.coalesceOp, [node, Node.Lit({ value: false })])]))',
   ),
   guide(
     'the guide: a viewer of any Entity reads as an author',
@@ -66,7 +66,7 @@ export default [
   guide(
     'the guide: a visitor reads as the first author',
     '../../../packages/entity/src/context.ts',
-    'Option.some(Option.getOrNull(viewerIdOf(entity, context))),',
-    "Option.some(Option.getOrElse(viewerIdOf(entity, context), () => 'a1')),",
+    'Option.some(Option.getOrNull(viewerIdOf(term.entity, context)))',
+    "Option.some(Option.getOrElse(viewerIdOf(term.entity, context), () => 'a1'))",
   ),
 ]
