@@ -683,6 +683,7 @@ describe('Shared fields on the live hub', () => {
   })
   const writer: EntityWriter<string> = {
     entity: 'Person',
+    store: { name: 'test double', isolation: 'serializable', parentRowLock: false },
     update: ({ id, values }) =>
       Effect.sync(() => {
         people[id] = { ...people[id], ...values }

@@ -530,12 +530,13 @@ export interface EntityWriter<P, R = never> {
   readonly refuses?: (write: AnyWrite) => ReadonlyArray<string>
   /**
    * How the store this writer writes to runs concurrent writes
-   * (`metakit/store`'s vocabulary). A rule that reads other rows (a `when`
+   * (`metakit/store`'s vocabulary). Every writer says: `RemoteServer.write`
+   * refuses a writer that names none. A rule that reads other rows (a `when`
    * or an invariant with a path or an exists) holds only where the writers of
-   * those rows run one at a time: `RemoteServer.write` refuses such a write
-   * through a writer that declares no store, or one that cannot.
+   * those rows run one at a time, so it is refused through a store that
+   * cannot.
    */
-  readonly store?: StoreCapabilities
+  readonly store: StoreCapabilities
   /**
    * The answer recorded for `operation`, when this writer has a ledger and
    * holds one: what a wrapping writer (a guard) answers a retry with, without
@@ -2571,6 +2572,12 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" writes ${write.input.entity.name}, but its writer is for ${writer.entity}`,
       )
     }
+    // A JavaScript caller, or a cast, can still hand over a writer the types forbid.
+    if (writer.store === undefined) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" writes through a writer for ${writer.entity} that names no store (store)`,
+      )
+    }
     // Without a revision, only a ledger tells a retry of an increment from a second one.
     if (write.increments.length > 0 && write.expect === undefined && writer.ledger !== true) {
       throw new Error(
@@ -2654,14 +2661,7 @@ export const RemoteServer = {
       needs: 'parent-serialized',
       because: 'it reads other rows',
     }))
-    if (reaching.length > 0) {
-      if (writer.store === undefined) {
-        throw new Error(
-          `[foldkit-remote-server] write "${reaching[0]!.rule}" reads other rows, but its writer for ${writer.entity} names no store (store)`,
-        )
-      }
-      mount(writer.store, reaching)
-    }
+    if (reaching.length > 0) mount(writer.store, reaching)
     // An insert's row is its values and its links (a `one` relation an invariant reads as the
     // id it points at): a member it leaves to a default the writer cannot judge.
     if (kind.inserts) {

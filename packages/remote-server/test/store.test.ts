@@ -67,22 +67,39 @@ const writes = {
   },
 }
 
-/** Registers the write over its Entity's memory writer, naming `store` or none. */
-const register = (name: keyof typeof writes, store: StoreCapabilities | undefined) =>
+const domain = Remote.define({
+  entities: [Project, Task],
+  mutations: [Retitle, RetitleWhileOpen, CloseWhenEmpty],
+})
+
+/** Registers the write over its Entity's memory writer, naming `store`. */
+const register = (name: keyof typeof writes, store: StoreCapabilities) =>
   RemoteServer.memory({
-    domain: Remote.define({
-      entities: [Project, Task],
-      mutations: [Retitle, RetitleWhileOpen, CloseWhenEmpty],
-    }),
+    domain,
     rows: { Project: [], Task: [] },
     mutations: (rows: MemoryStore) => {
       // Its own refusals aside: what is under test is the store it names.
+      const { refuses: _, ...writer } = RemoteServer.memoryWriter<undefined>(
+        rows,
+        writes[name].entity,
+      )
+      return [writes[name].source({ ...writer, store })]
+    },
+  })
+
+/** Registers the write over a memory writer with its `store` taken away. */
+const registerUnnamed = (name: keyof typeof writes) =>
+  RemoteServer.memory({
+    domain,
+    rows: { Project: [], Task: [] },
+    mutations: (rows: MemoryStore) => {
       const {
         store: _,
         refuses: __,
         ...writer
       } = RemoteServer.memoryWriter<undefined>(rows, writes[name].entity)
-      return [writes[name].source(store === undefined ? writer : { ...writer, store })]
+      // @ts-expect-error a writer names its store
+      return [writes[name].source(writer)]
     },
   })
 
@@ -107,12 +124,6 @@ describe('a write whose rule reads other rows', () => {
   it.each(reaching)('%s registers on a store that can', name => {
     expect(() => register(name, stores.serializable)).not.toThrow()
     expect(() => register(name, stores.locking)).not.toThrow()
-  })
-
-  it('is refused through a writer that names no store', () => {
-    expect(() => register('RetitleWhileOpen', undefined)).toThrow(
-      'write "RetitleWhileOpen precondition" reads other rows, but its writer for Task names no store (store)',
-    )
   })
 
   it('names an invariant that reads other rows', () => {
@@ -172,7 +183,17 @@ describe('the memory writer', () => {
 
 describe('a write whose rule reads its own row only', () => {
   it('asks nothing of its store', () => {
-    expect(() => register('Retitle', undefined)).not.toThrow()
     expect(() => register('Retitle', stores.eventual)).not.toThrow()
   })
+})
+
+describe('a writer that names no store', () => {
+  it.each(['Retitle', 'RetitleWhileOpen', 'CloseWhenEmpty'] as const)(
+    '%s is refused at registration, whatever its rule reads',
+    name => {
+      expect(() => registerUnnamed(name)).toThrow(
+        `write "${name}" writes through a writer for ${writes[name].entity.name} that names no store (store)`,
+      )
+    },
+  )
 })

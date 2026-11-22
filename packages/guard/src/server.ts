@@ -892,7 +892,7 @@ export const GuardServer = {
       // So is clearing a link to it; the guard hands over each such row's Update rules.
       ...(writer.clears === true ? { clears: true } : {}),
       // What its store guarantees of concurrent writes is the writer's to say.
-      ...(writer.store === undefined ? {} : { store: writer.store }),
+      store: writer.store,
       // What the store refuses, the store knows: the guard drops none of its reasons. It
       // adds one: its rules judge the row the write leaves, worked out by the policy's
       // table, so an assignment that table cannot run would be judged as its old value.

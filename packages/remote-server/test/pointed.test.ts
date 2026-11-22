@@ -89,6 +89,7 @@ const notes = (
   }
   return {
     entity: 'Note',
+    store: { name: 'test double', isolation: 'serializable', parentRowLock: false },
     update: () => Effect.die('no updates'),
     insert: () => Effect.die('no inserts'),
     delete: () =>

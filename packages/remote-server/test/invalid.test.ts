@@ -34,6 +34,7 @@ const SetQuantity = Mutation.write(
 /** A writer that refuses every update as `refusal` says. */
 const refusing = (refusal: ReturnType<typeof RemoteServer.invalid>): EntityWriter<unknown> => ({
   entity: 'Stock',
+  store: { name: 'test double', isolation: 'serializable', parentRowLock: false },
   invariants: true,
   update: () => Effect.fail(refusal),
   insert: () => Effect.die('no inserts'),

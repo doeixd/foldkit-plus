@@ -14,13 +14,13 @@ const edit = (name: string, find: string, replace: string, file = server) => ({
 export default [
   edit(
     'a store that cannot serialize a parent is let through',
-    '      mount(writer.store, reaching)\n',
+    '    if (reaching.length > 0) mount(writer.store, reaching)\n',
     '',
   ),
   edit(
     'a writer naming no store is let through',
-    '      if (writer.store === undefined) {',
-    '      if (writer.store === undefined) return undefined as never\n      if (false) {',
+    '    if (writer.store === undefined) {\n',
+    '    if (false) {\n',
   ),
   edit(
     'a precondition reading other rows asks nothing',
