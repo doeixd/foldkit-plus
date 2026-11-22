@@ -463,6 +463,8 @@ const mountList = (options: {
   )
 }
 
+// The browser tests share one pointer: a stale one over the list highlights its row on mount.
+const park = () => userEvent.hover(document.body, { position: { x: 1400, y: 880 } })
 const activeRow = () => document.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')
 /** Presses ArrowDown `count` times, each once the one before is drawn: a key meets the last frame's view. */
 const down = async (count: number) => {
@@ -485,6 +487,7 @@ test('the highlighted row is scrolled into the list as the keys move it, with ke
       expect(found).not.toBeNull()
       return found!
     })
+    await park()
     input.focus()
     const list = document.querySelector<HTMLElement>('[role="listbox"]')!
     expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
@@ -504,6 +507,7 @@ test('without keepActiveInView the list stays where it was', async () => {
       expect(found).not.toBeNull()
       return found!
     })
+    await park()
     input.focus()
     await down(20)
     expect(inView(activeRow()!)).toBe(false)
@@ -528,6 +532,7 @@ test('PageDown and PageUp move the highlight; typing and the caret keys, Home an
       expect(found).not.toBeNull()
       return found!
     })
+    await park()
     input.focus()
     const at = () => activeRow()?.textContent
     await userEvent.keyboard('{ArrowDown}')
@@ -583,6 +588,7 @@ test('keys pressed before the next frame each move the highlight from where the 
       expect(found).not.toBeNull()
       return found!
     })
+    await park()
     input.focus()
     await vi.waitFor(() => expect(activeRow()?.textContent).toContain('Row 0'))
     const release = holdFrames()
