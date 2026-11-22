@@ -674,7 +674,7 @@ export interface RemoteDomain<
    * turns the call into the write's input. A held `may` that forbids refuses
    * in `authorize`, with its words; a `when` that does not hold, or a broken
    * invariant, refuses in `applies`, which the agent asks only once
-   * `authorize` allowed; `Undecided` allows, since the server decides. Judged
+   * `authorize` allowed; `Unknown` allows, since the server decides. Judged
    * as the Model's viewer, not as the agent's principal. A key written after
    * the spread replaces the one given here.
    */

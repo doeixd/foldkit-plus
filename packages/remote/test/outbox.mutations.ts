@@ -286,4 +286,27 @@ export default [
     ],
     tests: ['packages/remote/test/outboxReload.test.ts'],
   },
+  // A write stored by v0.43.0 carried a collation on each computed call.
+  ...[
+    [
+      'an ASCII fold is dropped from a stored call',
+      "? { _tag: 'Call', operator: lowerAsciiName, args: [arg] }",
+      '? arg',
+    ],
+    [
+      'a stored binary collation is refused',
+      'Binary: (): Upgraded<unknown> => ({ value: kept })',
+      "Binary: (): Upgraded<unknown> => ({ refused: 'binary' })",
+    ],
+    [
+      'a stored locale collation is not named',
+      'compared text by the backend\'s "${locale}" collation',
+      "compared text by the backend's collation",
+    ],
+    ['a fold of an operator the table lacks is guessed', 'Option.isNone(descriptor) || ', ''],
+  ].map(([name, find, replace]) => ({
+    name: name!,
+    edits: [{ file: store, find: find!, replace: replace! }],
+    tests: ['packages/remote/test/outboxLegacy.test.ts'],
+  })),
 ]
