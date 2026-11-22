@@ -34,8 +34,13 @@ export default [
   edit("the guard drops its writer's own needs", '        ...(writer.needs?.(write) ?? []),\n', ''),
   edit(
     "the guard's rules are taken as read before the write",
-    "            judged: 'in-statement',\n",
-    "            judged: 'read-first',\n",
+    "    const judged = writer.judgesInStatement === true ? 'in-statement' : 'read-first'\n",
+    "    const judged = 'read-first'\n",
+  ),
+  edit(
+    "the guard's rules are taken as judged in the statement whatever its writer says",
+    "    const judged = writer.judgesInStatement === true ? 'in-statement' : 'read-first'\n",
+    "    const judged = 'in-statement'\n",
   ),
   edit(
     'an insert is held to the rules of an update',

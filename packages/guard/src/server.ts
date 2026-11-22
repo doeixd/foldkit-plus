@@ -450,8 +450,9 @@ export const GuardServer = {
     }
     // A rule reading another row decides from a row a concurrent write can change, so
     // its store must run the writers under that row's parent one at a time, as for a
-    // data rule. Each is handed to the writer as `requires`, held in its statement
-    // (a writer without that is refused above): on D1 that is enough.
+    // data rule. Each is handed to the writer as `requires`; where the writer says it
+    // judges what it is handed in its statement, that is enough on D1.
+    const judged = writer.judgesInStatement === true ? 'in-statement' : 'read-first'
     const overOthers = (of: AnyEntity, interaction: 'Update' | 'Delete') =>
       Option.match(enforced(of), {
         onNone: () => [],
@@ -460,7 +461,7 @@ export const GuardServer = {
             rule: `guard "${name}" (${of.name}'s ${interaction} rule)`,
             needs: 'parent-serialized',
             because: 'it reads another row, which a concurrent write can change',
-            judged: 'in-statement',
+            judged,
           })),
       })
     const updating = overOthers(entity, 'Update')

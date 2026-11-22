@@ -155,6 +155,13 @@ describe('a guard over another row, at registration', () => {
     }
   })
 
+  it('is refused on SQLite and D1 through a writer that does not say it judges in its statement', () => {
+    const { judgesInStatement: _, ...readFirst } = writer(sqlite.Task)
+    expect(() => RemoteServer.write(Activate, GuardServer.writer(Task, Policy, readFirst))).toThrow(
+      `store "SQLite" (serializable per statement, does not lock the parent row) cannot hold:\n  - "Activate guard "projectOpen" (Task's Update rule)" needs parent-serialized (writers of the rows under one parent run one at a time), judged from a read before the write`,
+    )
+  })
+
   it('asks nothing of the store for a write its rules over other rows do not judge', () => {
     // An insert is judged by the Create rule, which reads no other row.
     expect(() =>
