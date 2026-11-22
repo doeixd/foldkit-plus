@@ -125,4 +125,38 @@ const unsafeOperands = [
   ),
 ]
 
-export default [...commuting, ...unsafeOperands]
+const guardTests = ['packages/guard/test/step9Differential.test.ts']
+const condition = '../../guard/src/condition.ts'
+
+const principals = [
+  mutation(
+    guardTests,
+    'SQL binds a number past the safe range',
+    '../src/sqlLowering.ts',
+    "if (typeof value === 'number' && Math.abs(value) > Number.MAX_SAFE_INTEGER) {",
+    'if (false) {',
+  ),
+  mutation(
+    guardTests,
+    'a principal number past the safe range is portable',
+    condition,
+    '? !Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER',
+    '? !Number.isFinite(value)',
+  ),
+  mutation(
+    guardTests,
+    'a principal fraction beside an integer column is judged in memory',
+    condition,
+    'fractionBesideInteger(residualizeNode(predicate.node, { input })),',
+    'false,',
+  ),
+  mutation(
+    guardTests,
+    'a fraction beside an integer term is found only at the top call',
+    '../src/integerTerm.ts',
+    'fractionCandidate(call) ||\n      call.args.some(fractionBesideInteger),',
+    'fractionCandidate(call),',
+  ),
+]
+
+export default [...commuting, ...unsafeOperands, ...principals]

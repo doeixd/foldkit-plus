@@ -7,8 +7,8 @@
  * placeholder can never part from its parameter. A reader renders the pieces
  * with its own column and bind strategy.
  */
-import { Data, Option, Result, SchemaAST } from 'effect'
-import { isIntCheck } from './intCheck.js'
+import { Data, Option, Result } from 'effect'
+import { isFraction, isIntegerLiteral, isIntegerTerm } from './integerTerm.js'
 import * as Node from './node.js'
 import { isShift } from './ops/mulScaled.js'
 import * as Path from './path.js'
@@ -86,62 +86,23 @@ const joined = (parts: ReadonlyArray<Sql>, separator: string): Sql =>
 
 /**
  * A constant. Postgres refuses a NUL in text, and neither dialect stores NaN
- * or an infinity as JavaScript compares them, so those are refused here, for
- * a bound parameter as for an inlined literal.
+ * or an infinity as JavaScript compares them, nor a number past ±(2^53−1) as
+ * a double holds it, so those are refused here, for a bound parameter as for
+ * an inlined literal.
  */
 const literal = (value: unknown): Lowered => {
   if (value === null || value === undefined) return Result.succeed(q`NULL`)
   if (typeof value === 'number' && !Number.isFinite(value)) {
     return unsupported(`non-finite number literal: ${value}`)
   }
+  if (typeof value === 'number' && Math.abs(value) > Number.MAX_SAFE_INTEGER) {
+    return unsupported(`number literal past ±(2^53−1): ${value}`)
+  }
   if (typeof value === 'string' && value.includes('\u0000')) {
     return unsupported('text literal holds a NUL character')
   }
   return Result.succeed([SqlPiece.Value({ value: Object.is(value, -0) ? 0 : value })])
 }
-
-const isIntAst = (ast: SchemaAST.AST): boolean =>
-  SchemaAST.isUnion(ast)
-    ? ast.types.some(isIntAst) &&
-      ast.types.every(t => isIntAst(t) || SchemaAST.isNull(t) || SchemaAST.isUndefined(t))
-    : SchemaAST.isNumber(ast) && (ast.checks ?? []).some(isIntCheck)
-
-const integerOps: ReadonlySet<string> = new Set<Node.CoreOpId>([
-  'num.add',
-  'num.sub',
-  'num.mul',
-  'num.neg',
-  'num.mulScaled',
-  'null.coalesce',
-])
-
-/** Whether `node` is an integer whatever the row holds, and reads the row. */
-const isIntegerTerm = (node: Node.Node): boolean =>
-  Node.$match(node, {
-    Lit: () => false,
-    Path: ({ ast }) => Option.isSome(ast) && isIntAst(ast.value),
-    Call: ({ op, args }) =>
-      op.id === 'str.len' ||
-      op.id === 'arr.count' ||
-      (integerOps.has(op.id) &&
-        args.some(isIntegerTerm) &&
-        args.every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))),
-    If: ({ then, otherwise }) => isIntegerTerm(then) && isIntegerTerm(otherwise),
-    Match: ({ cases, otherwise }) =>
-      cases.every(([, branch]) => isIntegerTerm(branch)) &&
-      Option.match(otherwise, { onNone: () => true, onSome: isIntegerTerm }),
-    Opaque: () => false,
-    Rows: ({ fold, value }) =>
-      fold === 'count' ||
-      ((fold === 'sum' || fold === 'min' || fold === 'max') &&
-        Option.exists(value, each => isIntegerTerm(each) || isIntegerLiteral(each))),
-  })
-
-const isIntegerLiteral = (node: Node.Node): boolean =>
-  Node.$is('Lit')(node) && typeof node.value === 'number' && Number.isInteger(node.value)
-
-const isFraction = (value: unknown): boolean =>
-  typeof value === 'number' && Number.isFinite(value) && !Number.isInteger(value)
 
 /**
  * Refuse a fraction beside an integer term. Postgres types a parameter by the

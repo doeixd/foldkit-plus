@@ -6,7 +6,9 @@
  * (PGlite), and the page's hint (`Condition.judge`) wherever it decides. Each
  * guard is asked alone as a row's Read rule, and in the combinations a set
  * writes, of each asker over each row: nulls, text the case fold meets, an
- * integer sum, a principal whose id holds a NUL.
+ * integer sum, a principal whose id holds a NUL, one whose number is past
+ * the safe range, and one whose fraction meets the integer rank (SQL lowering
+ * refuses it, so every reader denies).
  */
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
@@ -51,6 +53,7 @@ const { ownerId, title, rank, score } = Doc.fields
 const Principal = Schema.Struct({
   id: Schema.String,
   rank: Schema.Int,
+  level: Schema.Finite,
   names: Schema.Array(Schema.String),
 })
 type Principal = typeof Principal.Type
@@ -64,6 +67,9 @@ const G = Guards.declare(
     isAuthor: guard.row(Doc, () => Expr.eq(Doc.relations.author, Expr.viewer(Related.User))),
     titled: guard.row(Doc, () => Expr.eq(title, 'open')),
     outranks: guard.row(Doc, p => Expr.gte(rank, p.rank)),
+    leveled: guard.row(Doc, p => Expr.gte(rank, p.level)),
+    lifted: guard.row(Doc, p => Expr.gt(Expr.add(rank, p.level), 0)),
+    capped: guard.row(Doc, p => Expr.lte(rank, p.level)),
     named: guard.row(Doc, p => Expr.in(ownerId, p.names)),
     mentions: guard.row(Doc, () => Expr.contains(title, 'PE')),
     unscored: guard.row(Doc, () => Expr.isNull(score)),
@@ -85,6 +91,9 @@ const rowGuards = [
   G.isAuthor,
   G.titled,
   G.outranks,
+  G.leveled,
+  G.lifted,
+  G.capped,
   G.named,
   G.mentions,
   G.unscored,
@@ -117,10 +126,23 @@ const askers: ReadonlyArray<{
   readonly principal: Option.Option<Principal>
 }> = [
   { who: 'a visitor', principal: Option.none() },
-  { who: 'ada', principal: Option.some({ id: 'ada', rank: 3, names: ['bo', 'cy'] }) },
-  { who: 'root', principal: Option.some({ id: 'root', rank: 0, names: [] }) },
-  { who: 'bo', principal: Option.some({ id: 'bo', rank: 100, names: ['', 'ada'] }) },
-  { who: 'a NUL', principal: Option.some({ id: 'a\u0000', rank: 1, names: ['a\u0000'] }) },
+  { who: 'ada', principal: Option.some({ id: 'ada', rank: 3, level: 3, names: ['bo', 'cy'] }) },
+  { who: 'root', principal: Option.some({ id: 'root', rank: 0, level: -1, names: [] }) },
+  { who: 'bo', principal: Option.some({ id: 'bo', rank: 100, level: 7, names: ['', 'ada'] }) },
+  {
+    who: 'a NUL',
+    principal: Option.some({ id: 'a\u0000', rank: 1, level: 1, names: ['a\u0000'] }),
+  },
+  // Past the safe range: SQL compares it exactly, a double rounds it.
+  {
+    who: 'cy, at level 2^60',
+    principal: Option.some({ id: 'cy', rank: 0, level: 2 ** 60, names: [] }),
+  },
+  // A fraction beside the integer rank: SQL lowering refuses it, so memory does.
+  {
+    who: 'ada, at level 2.5',
+    principal: Option.some({ id: 'ada', rank: 3, level: 2.5, names: [] }),
+  },
 ]
 
 const create = [
@@ -233,6 +255,25 @@ describe('the page’s hint, wherever it decides, is the server’s judge in mem
     const allowed = new Set<string>(inMemory(Ruled, principal))
     for (const decided of onPage(Ruled, principal))
       expect(decided).toEqual({ id: decided.id, allowed: allowed.has(decided.id) })
+  })
+
+  it('a principal field past the safe range, or a fraction beside an integer column, denies every row', () => {
+    const asked = (name: string, who: string) =>
+      grid.find(each => each.name === name && each.who === who)!
+    for (const [name, who] of [
+      ['capped', 'cy, at level 2^60'],
+      ['lifted', 'cy, at level 2^60'],
+      ['leveled', 'ada, at level 2.5'],
+    ] as const) {
+      const { Ruled, principal } = asked(name, who)
+      expect(inMemory(Ruled, principal), `${name} by ${who}`).toEqual([])
+    }
+    // The same guards over a field within range read rows: the denial is the value's.
+    expect(inMemory(asked('leveled', 'ada').Ruled, asked('leveled', 'ada').principal)).not.toEqual(
+      [],
+    )
+    expect(inMemory(asked('lifted', 'bo').Ruled, asked('lifted', 'bo').principal)).not.toEqual([])
+    expect(inMemory(asked('capped', 'bo').Ruled, asked('capped', 'bo').principal)).not.toEqual([])
   })
 
   it('decides some of them, so the comparison is not empty', () => {

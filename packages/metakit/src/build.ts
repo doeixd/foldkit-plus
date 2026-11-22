@@ -10,9 +10,12 @@
  * run, over a node; `settleNode` is the value `judgeNode` decides from, for a
  * node that is not a predicate. `loadRows` loads the reading of a `Rows`
  * node, which a language that builds its own calls before it returns one.
+ * `fractionBesideInteger` says whether SQL lowering refuses a node for a
+ * fraction beside an integer term, for a reader that must refuse as SQL does.
  */
 export { call, isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
 export { evalNode, type ForeignImplementation, type ForeignImplementations } from './ops/eval.js'
+export { fractionBesideInteger } from './integerTerm.js'
 export { judgeNode, settleNode, Settled } from './ops/judge.js'
 export { readsOfNode } from './ops/reads.js'
 export { loadRows } from './ops/rowsLoad.js'

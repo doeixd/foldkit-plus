@@ -27,7 +27,13 @@ import {
 } from 'foldkit-entity'
 import { envOf, foreignOf, readingOf, type Reading } from 'foldkit-entity/lowering'
 import { Bool, Node, Verdict } from 'metakit'
-import { Settled, judgeNode, settleNode } from 'metakit/build'
+import {
+  Settled,
+  fractionBesideInteger,
+  judgeNode,
+  residualizeNode,
+  settleNode,
+} from 'metakit/build'
 import {
   attached,
   defaultDeny,
@@ -181,19 +187,26 @@ const nodeOf = (
   return build(condition)
 }
 
-/** A value no two readers agree on: text holding a NUL, a number that is not finite, or a list holding one. */
+/**
+ * A value no two readers agree on: text holding a NUL, a number that is not
+ * finite or is past ±(2^53−1) (exact in SQL, rounded in a double), or a list
+ * holding one.
+ */
 const unportable = (value: unknown): boolean =>
   typeof value === 'string'
     ? value.includes('\u0000')
     : typeof value === 'number'
-      ? !Number.isFinite(value)
+      ? !Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER
       : Array.isArray(value) && value.some(unportable)
 
 /**
  * Whether a row guard of `condition` reads a principal's field holding a
  * value no two readers agree on. Metakit refuses NUL text and NaN and orders
  * ±Infinity; SQL refuses all three, and a guard kept for the statement is
- * never judged in memory. Refused here, before any guard, every reader denies.
+ * never judged in memory. A fraction the guard compares with an integer
+ * column is refused too, as SQL lowering refuses it (`fractionBesideInteger`)
+ * over the guard with the principal's fields put in. Refused here, before any
+ * guard, every reader denies.
  */
 const refusesInput = (condition: Condition, input: Row): boolean =>
   Match.valueTags(condition, {
@@ -202,6 +215,9 @@ const refusesInput = (condition: Condition, input: Row): boolean =>
     Row: ({ guard }) =>
       Query.dependencies(guard.query).inputs.some(
         key => Object.hasOwn(input, key) && unportable(input[key]),
+      ) ||
+      guard.query.where.some(predicate =>
+        fractionBesideInteger(residualizeNode(predicate.node, { input })),
       ),
     Inherit: () => false,
     And: ({ conditions }) => conditions.some(each => refusesInput(each, input)),
