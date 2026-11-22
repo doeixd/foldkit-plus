@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import * as Conformance from '../src/conformance.js'
-import { Transition } from '../src/index.js'
+import { Ord, Transition } from '../src/index.js'
 import * as Machine from '../src/machine.js'
 import * as Operation from '../src/operation.js'
 import * as Temporal from '../src/temporal.js'
@@ -147,7 +147,8 @@ describe('checkOperation and lawObligations (Phase 4 bout 4.6)', () => {
   it('runs SQL parity runners over recorded calls and reports mismatches', () => {
     const goodPg: Conformance.ParityRunner = {
       dialect: 'postgres',
-      evaluate: (_op, calls) => calls.map(([a, b]) => (a as number) | (b as number)),
+      evaluate: (_op, calls) =>
+        calls.map(([a, b]) => (a === null || b === null ? null : (a as number) | (b as number))),
     }
     const ok = Conformance.checkOperation(flagsOr, impls, { sql: [goodPg] })
     expect(ok.ok).toBe(true)
@@ -155,10 +156,156 @@ describe('checkOperation and lawObligations (Phase 4 bout 4.6)', () => {
 
     const badPg: Conformance.ParityRunner = {
       dialect: 'postgres',
-      evaluate: (_op, calls) => calls.map(([a, b]) => (a as number) ^ (b as number)),
+      evaluate: (_op, calls) =>
+        calls.map(([a, b]) => (a === null || b === null ? null : (a as number) ^ (b as number))),
     }
     const fail = Conformance.checkOperation(flagsOr, impls, { sql: [badPg] })
     expect(fail.ok).toBe(false)
     expect(fail.failures.some(f => f.includes('postgres parity failed'))).toBe(true)
+  })
+
+  it('H2: runs baseline samples for SQL parity even when an operation has no claims', () => {
+    const noClaims = Operation.define({
+      id: 'flags.noClaims',
+      version: 1,
+      args: [Flags, Flags],
+      returns: Flags,
+      nulls: 'strict',
+    })
+    const localImpls = Operation.implementations(
+      'page',
+      Operation.implement(noClaims, (a, b) => a & ~b),
+    )
+    let seenCalls = 0
+    const badSql: Conformance.ParityRunner = {
+      dialect: 'sqlite',
+      evaluate: (_op, calls) => {
+        seenCalls = calls.length
+        return calls.map(([a, b]) =>
+          a === null || b === null ? null : (a as number) | (b as number),
+        )
+      },
+    }
+    const report = Conformance.checkOperation(noClaims, localImpls, { sql: [badSql] })
+    expect(seenCalls).toBeGreaterThan(0)
+    expect(report.ok).toBe(false)
+    expect(report.failures.some(f => f.includes('sqlite parity failed'))).toBe(true)
+  })
+
+  it('C1 & M1: monotone fails on null/refused in-domain results and non-numeric 0-pair checks; invertible fails when all samples refuse', () => {
+    const partialMono = Operation.define({
+      id: 'rev.partialMono',
+      version: 1,
+      args: [Flags],
+      returns: Flags,
+      nulls: 'strict',
+      claims: { monotone: ['up'] },
+    })
+    const partialImpls = Operation.implementations(
+      'page',
+      Operation.implement(partialMono, x => (x === 1 ? null : x)),
+    )
+    const monoReport = Conformance.checkOperation(partialMono, partialImpls)
+    expect(monoReport.ok).toBe(false)
+    expect(monoReport.failures.some(f => f.includes('monotone'))).toBe(true)
+
+    const alwaysRefuses = Operation.define({
+      id: 'rev.alwaysRefuses',
+      version: 1,
+      args: [Flags, Flags],
+      returns: Flags,
+      nulls: 'strict',
+      claims: { invertible: { inverse: 'self' } },
+    })
+    const refuseImpls = Operation.implementations(
+      'page',
+      Operation.implement(alwaysRefuses, () => {
+        throw new Error('always fails')
+      }),
+    )
+    const invReport = Conformance.checkOperation(alwaysRefuses, refuseImpls)
+    expect(invReport.ok).toBe(false)
+    expect(invReport.failures.some(f => f.includes('every forward sample was refused'))).toBe(true)
+  })
+
+  it('H3: samples null for nulls: own operations when checking claims', () => {
+    const badOwn = Operation.define({
+      id: 'rev.badOwnComm',
+      version: 1,
+      args: [Flags, Flags],
+      returns: Flags,
+      nulls: 'own',
+      claims: { commutative: true },
+    })
+    // Commutative on numbers, but NOT commutative when one argument is null!
+    const badOwnImpls = Operation.implementations(
+      'page',
+      Operation.implement(badOwn, (a, b) => (a === null ? 1 : b === null ? 2 : a | b)),
+    )
+    const report = Conformance.checkOperation(badOwn, badOwnImpls)
+    expect(report.ok).toBe(false)
+    expect(report.failures.some(f => f.includes('commutative'))).toBe(true)
+  })
+
+  it('M2: lawObligations collects custom operations inside Transition emit.when', () => {
+    const State = Schema.Struct({ granted: Flags })
+    const emitGuard = Transition.make({
+      state: State,
+      input: Schema.Struct({ bit: Flags }),
+      apply: ({ state }) => [Transition.set(state.granted, state.granted)],
+      emits: ({ state, input }) => [
+        Transition.emit(
+          'Notify',
+          { ok: true },
+          { when: Ord.gt(flagsOr(state.granted, input.bit), 0) },
+        ),
+      ],
+    })
+    const owed = Conformance.lawObligations(emitGuard, [impls])
+    expect(owed.map(o => o.name)).toContain('law:flags.or@1/commutative/page')
+  })
+
+  it('L1: associative failure prints (a, b, c) and invertible failure names the inverse operation', () => {
+    const badAssoc = Operation.define({
+      id: 'rev.badAssoc',
+      version: 1,
+      args: [Flags, Flags],
+      returns: Flags,
+      nulls: 'strict',
+      claims: { associative: true },
+    })
+    const assocImpls = Operation.implementations(
+      'page',
+      Operation.implement(badAssoc, (a, b) =>
+        a === 0 && b === 1 ? 2 : a === 1 && b === 2 ? 3 : 0,
+      ),
+    )
+    const assocRep = Conformance.checkOperation(badAssoc, assocImpls)
+    expect(assocRep.ok).toBe(false)
+    expect(assocRep.failures[0]).toMatch(/rev\.badAssoc\([^,]+, [^,]+, [^,]+\)/)
+
+    const invTarget = Operation.define({
+      id: 'rev.invTarget',
+      version: 1,
+      args: [Flags, Flags],
+      returns: Flags,
+      nulls: 'strict',
+    })
+    const fwdOp = Operation.define({
+      id: 'rev.fwdOp',
+      version: 1,
+      args: [Flags, Flags],
+      returns: Flags,
+      nulls: 'strict',
+      claims: { invertible: { inverse: invTarget } },
+    })
+    const invImpls = Operation.implementations(
+      'page',
+      Operation.implement(fwdOp, (a, b) => (a + b) & 0x7fffffff),
+      Operation.implement(invTarget, (a, b) => a | b),
+    )
+    const invRep = Conformance.checkOperation(fwdOp, invImpls)
+    expect(invRep.ok).toBe(false)
+    expect(invRep.failures[0]).toContain('rev.invTarget@1')
   })
 })

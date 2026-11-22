@@ -17,6 +17,7 @@ import {
 } from './operation.js'
 import type { SqlDialect } from './operationSql.js'
 import { applyForeign } from './ops/eval.js'
+import { present } from './ops/kind.js'
 import type { Expr } from './path.js'
 import { sameAnswer } from './propertyChecks.js'
 import * as Temporal from './temporal.js'
@@ -68,46 +69,47 @@ const isIntSchema = (ast: SchemaAST.AST): boolean => {
 }
 
 const rangeEndsOf = (schema: Schema.Top): ReadonlyArray<number> => {
-  const ast = schema.ast
-  const checks =
-    'checks' in ast
-      ? (ast.checks as ReadonlyArray<SchemaAST.Check<unknown>> | undefined)
-      : undefined
-  if (checks === undefined) return []
-  const intOnly = isIntSchema(ast)
-  const stepIn = (n: number, dir: 1 | -1): number =>
-    intOnly ? n + dir : n + dir * Math.max(Number.MIN_VALUE, Math.abs(n) * Number.EPSILON * 2)
   const ends: Array<number> = []
-  const visit = (list: ReadonlyArray<SchemaAST.Check<unknown>>): void => {
-    for (const check of list) {
-      if (check._tag === 'FilterGroup') {
-        visit(check.checks)
-        continue
-      }
-      const rep = check.annotations?.representation as
-        | { readonly id?: string; readonly payload?: Record<string, unknown> }
-        | undefined
-      if (rep?.payload === undefined || rep.payload === null || typeof rep.payload !== 'object')
-        continue
-      const min = rep.payload['minimum']
-      const max = rep.payload['maximum']
-      if (typeof min === 'number') {
-        ends.push(
-          rep.id === 'effect/schema/isGreaterThan' || rep.payload['exclusiveMinimum']
-            ? stepIn(min, 1)
-            : min,
-        )
-      }
-      if (typeof max === 'number') {
-        ends.push(
-          rep.id === 'effect/schema/isLessThan' || rep.payload['exclusiveMaximum']
-            ? stepIn(max, -1)
-            : max,
-        )
+  for (const ast of present(schema.ast)) {
+    const checks =
+      'checks' in ast
+        ? (ast.checks as ReadonlyArray<SchemaAST.Check<unknown>> | undefined)
+        : undefined
+    if (checks === undefined) continue
+    const intOnly = isIntSchema(ast)
+    const stepIn = (n: number, dir: 1 | -1): number =>
+      intOnly ? n + dir : n + dir * Math.max(Number.MIN_VALUE, Math.abs(n) * Number.EPSILON * 2)
+    const visit = (list: ReadonlyArray<SchemaAST.Check<unknown>>): void => {
+      for (const check of list) {
+        if (check._tag === 'FilterGroup') {
+          visit(check.checks)
+          continue
+        }
+        const rep = check.annotations?.representation as
+          | { readonly id?: string; readonly payload?: Record<string, unknown> }
+          | undefined
+        if (rep?.payload === undefined || rep.payload === null || typeof rep.payload !== 'object')
+          continue
+        const min = rep.payload['minimum']
+        const max = rep.payload['maximum']
+        if (typeof min === 'number') {
+          ends.push(
+            rep.id === 'effect/schema/isGreaterThan' || rep.payload['exclusiveMinimum']
+              ? stepIn(min, 1)
+              : min,
+          )
+        }
+        if (typeof max === 'number') {
+          ends.push(
+            rep.id === 'effect/schema/isLessThan' || rep.payload['exclusiveMaximum']
+              ? stepIn(max, -1)
+              : max,
+          )
+        }
       }
     }
+    visit(checks)
   }
-  visit(checks)
   return ends
 }
 
@@ -117,19 +119,26 @@ interface ArgSamples {
   readonly outside: ReadonlyArray<unknown>
 }
 
-const sampleArg = (schema: Schema.Top, seed: number): ArgSamples => {
+const sampleArg = (schema: Schema.Top, seed: number, nulls: 'strict' | 'own'): ArgSamples => {
   const is = Schema.is(schema)
-  const pool: ReadonlyArray<unknown> = SchemaAST.isNumber(schema.ast)
-    ? [...rangeEndsOf(schema), ...AWKWARD_NUMBERS]
-    : SchemaAST.isString(schema.ast)
-      ? AWKWARD_STRINGS
-      : SchemaAST.isBoolean(schema.ast)
-        ? AWKWARD_BOOLEANS
-        : [...AWKWARD_NUMBERS, ...AWKWARD_STRINGS, ...AWKWARD_BOOLEANS]
+  const members = present(schema.ast)
+  const hasNumber = members.some(SchemaAST.isNumber)
+  const hasString = members.some(SchemaAST.isString)
+  const hasBoolean = members.some(SchemaAST.isBoolean)
+  const pool: Array<unknown> = []
+  if (hasNumber) pool.push(...rangeEndsOf(schema), ...AWKWARD_NUMBERS)
+  if (hasString) pool.push(...AWKWARD_STRINGS)
+  if (hasBoolean) pool.push(...AWKWARD_BOOLEANS)
+  if (pool.length === 0) pool.push(...AWKWARD_NUMBERS, ...AWKWARD_STRINGS, ...AWKWARD_BOOLEANS)
 
   const hand: Array<unknown> = []
   const outside: Array<unknown> = []
   const seen = new Set<string>()
+  const admitNull = nulls === 'own' || is(null)
+  if (admitNull) {
+    seen.add('object:null')
+    hand.push(null)
+  }
   for (const val of pool) {
     const key = `${typeof val}:${formatVal(val)}`
     if (seen.has(key)) continue
@@ -141,7 +150,9 @@ const sampleArg = (schema: Schema.Top, seed: number): ArgSamples => {
   let seeded: ReadonlyArray<unknown> = []
   try {
     const arb = Arbitrary.schema(schema as unknown as Schema.Codec<unknown>)
-    seeded = Effect.runSync(Arbitrary.sampleEffect(arb, { count: 200, seed, size: 12 })).filter(is)
+    seeded = Effect.runSync(Arbitrary.sampleEffect(arb, { count: 200, seed, size: 12 })).filter(
+      val => (admitNull && val === null) || is(val),
+    )
   } catch {
     seeded = hand
   }
@@ -192,7 +203,7 @@ export const checkOperation = (
   const { name: tableName } = implementationsMeta(table)
   const seed = options?.seed ?? 1
   const next = Temporal.generator(seed)
-  const argSamples = desc.args.map((schema, i) => sampleArg(schema, seed + i * 31))
+  const argSamples = desc.args.map((schema, i) => sampleArg(schema, seed + i * 31, desc.nulls))
 
   const recordedKeys = new Set<string>()
   const recordedCalls: Array<ReadonlyArray<unknown>> = []
@@ -205,11 +216,11 @@ export const checkOperation = (
     if (
       record &&
       target === desc &&
-      !args.some(a => a === null || Node.isRefusal(a)) &&
+      !args.some(Node.isRefusal) &&
       !Node.isRefusal(answer) &&
       recordedCalls.length < 2000
     ) {
-      const k = args.map(formatVal).join('\u0000')
+      const k = args.map(a => `${typeof a}:${formatVal(a)}`).join('\u0000')
       if (!recordedKeys.has(k)) {
         recordedKeys.add(k)
         recordedCalls.push(args)
@@ -259,18 +270,24 @@ export const checkOperation = (
     }
   }
 
-  // Strict null/refusal check.
-  if (desc.nulls === 'strict' && desc.args.length > 0) {
-    const base = argSamples.map(s => s.hand[0] ?? s.seeded[0] ?? 0)
-    const nullArgs = [null, ...base.slice(1)]
-    const nullAns = run(desc, nullArgs, false)
-    if (nullAns !== null) {
-      failures.push(failMsg(desc, 'nulls: strict', nullArgs, nullAns, null))
-    }
-    const refArgs = [SAMPLE_REFUSAL, ...base.slice(1)]
-    const refAns = run(desc, refArgs, false)
-    if (!sameAnswer(refAns, SAMPLE_REFUSAL)) {
-      failures.push(failMsg(desc, 'nulls: strict', refArgs, refAns, SAMPLE_REFUSAL))
+  // Strict null/refusal check across every argument position (and refusal propagation for nulls: own).
+  if (desc.args.length > 0) {
+    const base = argSamples.map(
+      s => s.hand.find(v => v !== null) ?? s.seeded.find(v => v !== null) ?? 0,
+    )
+    for (let pos = 0; pos < desc.args.length; pos++) {
+      if (desc.nulls === 'strict') {
+        const nullArgs = base.map((v, idx) => (idx === pos ? null : v))
+        const nullAns = run(desc, nullArgs, true)
+        if (nullAns !== null) {
+          failures.push(failMsg(desc, 'nulls: strict', nullArgs, nullAns, null))
+        }
+      }
+      const refArgs = base.map((v, idx) => (idx === pos ? SAMPLE_REFUSAL : v))
+      const refAns = run(desc, refArgs, false)
+      if (!sameAnswer(refAns, SAMPLE_REFUSAL)) {
+        failures.push(failMsg(desc, `nulls: ${desc.nulls}`, refArgs, refAns, SAMPLE_REFUSAL))
+      }
     }
   }
 
@@ -278,13 +295,17 @@ export const checkOperation = (
     ...argSamples[i]!.hand,
     ...argSamples[i]!.seeded,
   ]
+  const emptyPoolMsg = (claim: string): string =>
+    `[metakit] ${name} claims ${claim}, but no valid in-Schema samples could be generated.`
+
   const claims = desc.claims
 
   if (claims.identity !== undefined) {
     const { value: idVal, side } = claims.identity
     const pool = allOf(0)
-    let bad: string | undefined
+    let bad: string | undefined = pool.length === 0 ? emptyPoolMsg('identity') : undefined
     for (const x of pool) {
+      if (bad !== undefined) break
       if (side === 'left' || side === 'both') {
         const res = run(desc, [idVal, x])
         if (!sameAnswer(res, x)) {
@@ -306,8 +327,9 @@ export const checkOperation = (
   if (claims.absorbing !== undefined) {
     const { value: absVal, result: absRes, side } = claims.absorbing
     const pool = allOf(0)
-    let bad: string | undefined
+    let bad: string | undefined = pool.length === 0 ? emptyPoolMsg('absorbing') : undefined
     for (const x of pool) {
+      if (bad !== undefined) break
       if (side === 'left' || side === 'both') {
         const res = run(desc, [absVal, x])
         if (!sameAnswer(res, absRes)) {
@@ -328,22 +350,24 @@ export const checkOperation = (
 
   if (claims.idempotent === true) {
     const pool = allOf(0)
-    let bad: string | undefined
-    if (desc.args.length === 1) {
-      for (const x of pool) {
-        const once = run(desc, [x])
-        const twice = run(desc, [once])
-        if (!sameAnswer(twice, once)) {
-          bad = failMsg(desc, 'idempotent', [once], twice, once)
-          break
+    let bad: string | undefined = pool.length === 0 ? emptyPoolMsg('idempotent') : undefined
+    if (bad === undefined) {
+      if (desc.args.length === 1) {
+        for (const x of pool) {
+          const once = run(desc, [x])
+          const twice = run(desc, [once])
+          if (!sameAnswer(twice, once)) {
+            bad = failMsg(desc, 'idempotent', [once], twice, once)
+            break
+          }
         }
-      }
-    } else {
-      for (const x of pool) {
-        const res = run(desc, [x, x])
-        if (!sameAnswer(res, x)) {
-          bad = failMsg(desc, 'idempotent', [x, x], res, x)
-          break
+      } else {
+        for (const x of pool) {
+          const res = run(desc, [x, x])
+          if (!sameAnswer(res, x)) {
+            bad = failMsg(desc, 'idempotent', [x, x], res, x)
+            break
+          }
         }
       }
     }
@@ -353,7 +377,7 @@ export const checkOperation = (
   if (claims.commutative === true) {
     const hand = argSamples[0]!.hand
     const pool = allOf(0)
-    let bad: string | undefined
+    let bad: string | undefined = pool.length === 0 ? emptyPoolMsg('commutative') : undefined
     let runs = 0
     const checkPair = (a: unknown, b: unknown): boolean => {
       runs += 1
@@ -365,9 +389,11 @@ export const checkOperation = (
       }
       return true
     }
-    outer: for (const a of hand) {
-      for (const b of hand) {
-        if (!checkPair(a, b)) break outer
+    if (bad === undefined) {
+      outer: for (const a of hand) {
+        for (const b of hand) {
+          if (!checkPair(a, b)) break outer
+        }
       }
     }
     if (bad === undefined && pool.length > 0) {
@@ -380,9 +406,10 @@ export const checkOperation = (
 
   if (claims.associative !== undefined) {
     const unlessRefused = typeof claims.associative === 'object' && claims.associative.unlessRefused
-    const hand = argSamples[0]!.hand.slice(0, 8)
+    const fullHand = argSamples[0]!.hand
+    const hand = fullHand.length <= 8 ? fullHand : [...fullHand.slice(0, 4), ...fullHand.slice(-4)]
     const pool = allOf(0)
-    let bad: string | undefined
+    let bad: string | undefined = pool.length === 0 ? emptyPoolMsg('associative') : undefined
     let runs = 0
     const checkTriple = (a: unknown, b: unknown, c: unknown): boolean => {
       runs += 1
@@ -392,15 +419,17 @@ export const checkOperation = (
       const rhs = run(desc, [a, bc])
       if (unlessRefused && (Node.isRefusal(lhs) || Node.isRefusal(rhs))) return true
       if (!sameAnswer(lhs, rhs)) {
-        bad = failMsg(desc, 'associative', [ab, c], lhs, rhs)
+        bad = failMsg(desc, 'associative', [a, b, c], lhs, rhs)
         return false
       }
       return true
     }
-    outer: for (const a of hand) {
-      for (const b of hand) {
-        for (const c of hand) {
-          if (!checkTriple(a, b, c)) break outer
+    if (bad === undefined) {
+      outer: for (const a of hand) {
+        for (const b of hand) {
+          for (const c of hand) {
+            if (!checkTriple(a, b, c)) break outer
+          }
         }
       }
     }
@@ -418,22 +447,27 @@ export const checkOperation = (
     const handB = argSamples[1]!.hand
     const poolA = allOf(0)
     const poolB = allOf(1)
-    let bad: string | undefined
+    let bad: string | undefined =
+      poolA.length === 0 || poolB.length === 0 ? emptyPoolMsg('invertible') : undefined
     let runs = 0
+    let checked = 0
     const checkInv = (a: unknown, b: unknown): boolean => {
       runs += 1
       const forward = run(desc, [a, b])
       if (Node.isRefusal(forward)) return true
+      checked += 1
       const back = run(invOp, [forward, b], false)
       if (!sameAnswer(back, a)) {
-        bad = failMsg(desc, 'invertible', [forward, b], back, a)
+        bad = failMsg(invOp, 'invertible', [forward, b], back, a)
         return false
       }
       return true
     }
-    outer: for (const a of handA) {
-      for (const b of handB) {
-        if (!checkInv(a, b)) break outer
+    if (bad === undefined) {
+      outer: for (const a of handA) {
+        for (const b of handB) {
+          if (!checkInv(a, b)) break outer
+        }
       }
     }
     if (bad === undefined && poolA.length > 0 && poolB.length > 0) {
@@ -441,49 +475,110 @@ export const checkOperation = (
         if (!checkInv(pick(poolA), pick(poolB))) break
       }
     }
+    if (bad === undefined && checked === 0) {
+      bad = `[metakit] ${name} claims invertible, but every forward sample was refused.`
+    }
     recordClaim('invertible', runs, bad)
   }
 
   if (claims.monotone !== undefined) {
     const dirs = claims.monotone
-    const pools = argSamples.map((_, i) => allOf(i))
+    const pools = argSamples.map((_, i) =>
+      allOf(i).filter(v => (desc.nulls === 'strict' ? v !== null : true)),
+    )
+    const handNums = argSamples.map(s => s.hand.filter((v): v is number => typeof v === 'number'))
     let bad: string | undefined
     let runs = 0
+    const checkMonoPair = (
+      pos: number,
+      dir: 'up' | 'down',
+      base: ReadonlyArray<unknown>,
+      x: number,
+      y: number,
+    ): boolean => {
+      if (x === y) return true
+      const [lo, hi] = x < y ? [x, y] : [y, x]
+      const argsLo = base.map((v, idx) => (idx === pos ? lo : v))
+      const argsHi = base.map((v, idx) => (idx === pos ? hi : v))
+      runs += 1
+      const rLo = run(desc, argsLo)
+      const rHi = run(desc, argsHi)
+      if (typeof rLo !== 'number' || typeof rHi !== 'number') {
+        bad = failMsg(
+          desc,
+          'monotone',
+          typeof rLo !== 'number' ? argsLo : argsHi,
+          typeof rLo !== 'number' ? rLo : rHi,
+          'a non-null number (monotone operations must be total on their argument Schemas)',
+        )
+        return false
+      }
+      const ok = dir === 'up' ? rLo <= rHi : rLo >= rHi
+      if (!ok) {
+        bad = failMsg(desc, 'monotone', argsHi, rHi, `${dir === 'up' ? '>=' : '<='} ${rLo}`)
+        return false
+      }
+      return true
+    }
     for (let pos = 0; pos < dirs.length && bad === undefined; pos++) {
       const dir = dirs[pos]!
       if (dir === 'none') continue
       const pool = pools[pos]!
-      if (pool.length < 2) continue
+      if (pools.some(p => p.length === 0) || pool.length < 2) continue
+      const handBase = pools.map(p => p[0]!)
+      const hNums = handNums[pos]!
+      handLoop: for (let a = 0; a < hNums.length; a++) {
+        for (let b = a + 1; b < hNums.length; b++) {
+          if (!checkMonoPair(pos, dir, handBase, hNums[a]!, hNums[b]!)) break handLoop
+        }
+      }
       for (let i = 0; i < 300 && bad === undefined; i++) {
         const base = pools.map(p => pick(p))
         const x = pick(pool)
         const y = pick(pool)
         if (typeof x !== 'number' || typeof y !== 'number' || x === y) continue
-        const [lo, hi] = x < y ? [x, y] : [y, x]
-        const argsLo = base.map((v, idx) => (idx === pos ? lo : v))
-        const argsHi = base.map((v, idx) => (idx === pos ? hi : v))
-        runs += 1
-        const rLo = run(desc, argsLo)
-        const rHi = run(desc, argsHi)
-        if (typeof rLo !== 'number' || typeof rHi !== 'number') continue
-        const ok = dir === 'up' ? rLo <= rHi : rLo >= rHi
-        if (!ok) {
-          bad = failMsg(desc, 'monotone', argsHi, rHi, `${dir === 'up' ? '>=' : '<='} ${rLo}`)
-        }
+        if (!checkMonoPair(pos, dir, base, x, y)) break
       }
     }
-    recordClaim('monotone', Math.max(runs, 1), bad)
+    if (bad === undefined && dirs.some(d => d !== 'none') && runs === 0) {
+      bad = `[metakit] ${name} claims monotone, but no numeric pairs could be sampled from its argument Schemas.`
+    }
+    recordClaim('monotone', runs, bad)
+  }
+
+  // Baseline sample so SQL parity runs even when an operation declares no algebraic claims.
+  if ((options?.sql?.length ?? 0) > 0 && desc.args.length > 0) {
+    const pools = argSamples.map((_, i) => allOf(i))
+    if (pools.every(p => p.length > 0)) {
+      const handMax = Math.max(...argSamples.map(s => s.hand.length), 1)
+      for (let i = 0; i < Math.min(handMax, 32); i++) {
+        run(
+          desc,
+          argSamples.map((s, idx) => s.hand[i % s.hand.length] ?? pools[idx]![0]!),
+        )
+      }
+      for (let i = 0; i < 64 && recordedCalls.length < 200; i++) {
+        run(
+          desc,
+          pools.map(p => pick(p)),
+        )
+      }
+    }
   }
 
   // Optional SQL parity runners over the recorded calls.
   for (const runner of options?.sql ?? []) {
     const obligation = `law:${name}/parity/${runner.dialect}`
-    const sqlAnswers = runner.evaluate(desc, recordedCalls)
     let bad: string | undefined
-    for (let i = 0; i < recordedCalls.length; i++) {
-      if (!sameAnswer(sqlAnswers[i], recordedAnswers[i])) {
-        bad = `[metakit] ${name} ${runner.dialect} parity failed: ${desc.id}(${recordedCalls[i]!.map(formatVal).join(', ')}) gave ${formatVal(sqlAnswers[i])}, memory gave ${formatVal(recordedAnswers[i])}.`
-        break
+    if (recordedCalls.length === 0) {
+      bad = `[metakit] ${name} ${runner.dialect} parity failed: 0 valid calls were recorded to compare against SQL.`
+    } else {
+      const sqlAnswers = runner.evaluate(desc, recordedCalls)
+      for (let i = 0; i < recordedCalls.length; i++) {
+        if (!sameAnswer(sqlAnswers[i], recordedAnswers[i])) {
+          bad = `[metakit] ${name} ${runner.dialect} parity failed: ${desc.id}(${recordedCalls[i]!.map(formatVal).join(', ')}) gave ${formatVal(sqlAnswers[i])}, memory gave ${formatVal(recordedAnswers[i])}.`
+          break
+        }
       }
     }
     if (bad !== undefined) {
@@ -495,7 +590,7 @@ export const checkOperation = (
     } else {
       discharges.push({
         obligation,
-        result: Temporal.WalkResult.Held({ seed, runs: Math.max(recordedCalls.length, 1) }),
+        result: Temporal.WalkResult.Held({ seed, runs: recordedCalls.length }),
       })
     }
   }
@@ -561,6 +656,7 @@ export const lawObligations = (
         readonly when: Expr<never, boolean>
         readonly writes: ReadonlyArray<{ readonly value: Expr<never, unknown> }>
         readonly emits: ReadonlyArray<{
+          readonly when?: Option.Option<Node.Node> | undefined
           readonly fields: ReadonlyArray<readonly [string, Node.Node]>
         }>
       }
@@ -582,12 +678,14 @@ export const lawObligations = (
     readonly when: Expr<never, boolean>
     readonly writes: ReadonlyArray<{ readonly value: Expr<never, unknown> }>
     readonly emits: ReadonlyArray<{
+      readonly when?: Option.Option<Node.Node> | undefined
       readonly fields: ReadonlyArray<readonly [string, Node.Node]>
     }>
   }): void => {
     collectNodeOps(t.when.node, ops)
     for (const w of t.writes) collectNodeOps(w.value.node, ops)
     for (const e of t.emits) {
+      if (e.when !== undefined && Option.isSome(e.when)) collectNodeOps(e.when.value, ops)
       for (const [, fieldNode] of e.fields) collectNodeOps(fieldNode, ops)
     }
   }
