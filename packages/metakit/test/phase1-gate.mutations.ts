@@ -103,6 +103,13 @@ const unsafeOperands = [
     'SchemaAST.isNumber(member)',
   ),
   mutation(
+    ['packages/metakit/test/rows.test.ts'],
+    'a count may be past the safe range',
+    '../src/abstract/ops.ts',
+    '  range: Interval.between(0, Number.MAX_SAFE_INTEGER),\n  forward: () => Interval.between(0, Number.MAX_SAFE_INTEGER),',
+    '  range: Interval.between(0, Infinity),\n  forward: () => Interval.between(0, Infinity),',
+  ),
+  mutation(
     gateTests,
     'the checker reads only the result’s range',
     '../src/abstract/state.ts',

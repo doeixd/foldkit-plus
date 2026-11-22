@@ -119,11 +119,15 @@ const monotone = (
   return directions === undefined ? () => Interval.top : Interval.monotone(directions, at)
 }
 
-/** A count: an integer that is never negative and never refused. */
+/**
+ * A count: an integer that is never negative and never refused, and within
+ * the safe range (a list holds at most 2^32 − 1 elements, text at most
+ * 2^53 − 1 units), so arithmetic over it refuses for its result alone.
+ */
 const measure: TermOp = {
   _tag: 'Term',
-  range: Interval.between(0, Infinity),
-  forward: () => Interval.between(0, Infinity),
+  range: Interval.between(0, Number.MAX_SAFE_INTEGER),
+  forward: () => Interval.between(0, Number.MAX_SAFE_INTEGER),
   integral: () => true,
   refuses: false,
   relation: 'none',

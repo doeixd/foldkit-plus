@@ -306,5 +306,6 @@ describe('every list-write pair Transition.commutes calls commuting gives one ou
       }
     }
     expect([...parted]).toEqual([])
-  })
+    // About 10 seconds while the other suites run beside it.
+  }, 60_000)
 })
