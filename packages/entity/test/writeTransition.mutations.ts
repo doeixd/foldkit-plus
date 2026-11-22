@@ -61,8 +61,8 @@ export default [
   ),
   inTransition(
     'a key left out is written as null',
-    'mayBeLeftOut(inputFields[key]!) ? optional(key, field) : inputOf(key)',
-    'inputOf(key)',
+    'mayBeLeftOut(inputFields[each.key]!) ? optional(each) : inputOf(each.key)',
+    'inputOf(each.key)',
   ),
   inTransition(
     'a nullable field is kept where its key is null, though null was given',

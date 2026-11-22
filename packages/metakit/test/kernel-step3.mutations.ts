@@ -72,7 +72,7 @@ export default [
     transitionTests,
     'rule 4: an include and an exclude commute whatever their values',
     commutes,
-    'return Option.exists(literals(wa, wb), ([x, y]) => !sameAnswer(x, y))',
+    'return Option.exists(literals(wa, wb), ([x, y]) => differ(x, y))',
     'return true',
   ),
   mutation(
@@ -86,7 +86,7 @@ export default [
     transitionTests,
     'rule 4: a removal commutes with a patch of the field it tests',
     commutes,
-    'return !touches(elementFieldsRead(removal), fieldsSet(changed))',
+    'return steady(changed) && !touches(elementFieldsRead(removal), fieldsSet(changed))',
     'return true',
   ),
   mutation(

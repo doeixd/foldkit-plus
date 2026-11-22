@@ -31,8 +31,8 @@ export default [
   edit(
     'a bound value is assigned',
     write,
-    'held => put(values, field.key, encoded(field, held))',
-    'held => void (values[field.key] = encoded(field, held))',
+    'value => put(values, field.key, value))',
+    'value => void (values[field.key] = value))',
   ),
   edit(
     'a bound increment is assigned',
@@ -73,8 +73,8 @@ export default [
   edit(
     'an input key is read with what it inherits',
     write,
-    'Option.map(given(own(input, key)), held => put(values',
-    'Option.map(given(input[key]), held => put(values',
+    'setValue(field, own(input, key))',
+    'setValue(field, input[key])',
   ),
   edit(
     'a key a write names is read with what the members inherit',

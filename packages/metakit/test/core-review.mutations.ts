@@ -145,7 +145,7 @@ const checker = [
     soundness,
     'arithmetic is never refused',
     abstractState,
-    'Interval.within(this.evalInterval(node), SAFE)',
+    '[node, ...node.args].every(term => Interval.within(this.evalInterval(term), SAFE))',
     'true',
   ),
   mutation(

@@ -140,7 +140,7 @@ export default [
   ),
   mutation(
     'SQL does not read a product as an integer term',
-    lowering,
+    '../src/ops/integerTerm.ts',
     "  'num.neg',\n  'num.mulScaled',\n  'null.coalesce',",
     "  'num.neg',\n  'null.coalesce',",
     unit,

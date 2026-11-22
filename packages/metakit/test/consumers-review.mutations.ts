@@ -122,7 +122,7 @@ export default [
   mutation(
     'an integer result past the safe range is a value',
     proveLower,
-    "return strict('num', [a!, b!], result, unsafe(result))",
+    "return strict('num', [a!, b!], result, z3.Or(unsafe(x), unsafe(y), unsafe(result)))",
     "return strict('num', [a!, b!], result)",
     ['packages/metakit/test/prove.test.ts'],
   ),
