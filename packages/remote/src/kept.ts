@@ -5,9 +5,10 @@
  * what the field held before it, and a relative layer (`adds`, `computes`)
  * resolves over that instead, or its own echo would be counted twice (#498).
  * The record also tells an answer which fields moved while its request was
- * pending, to be read again where the answer disagrees (#499, #480). Every
- * domain with writes keeps it, through the layer capability, whether or not it
- * reads live (`keeping.ts`).
+ * pending, to be read again where the answer disagrees and is not the write
+ * replayed over the newer value (#499, #480). Every domain with writes keeps
+ * it, through the layer capability, whether or not it reads live
+ * (`replay.ts`).
  */
 import { Option } from 'effect'
 import { put } from './record.js'

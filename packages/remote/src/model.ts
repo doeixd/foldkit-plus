@@ -2227,13 +2227,14 @@ const reduceRemote = (
             onSome: live => live.awaitEchoes(model.echoes, answered, message.now),
           })
       // What a patch or a read moved while this was pending ends here; one that
-      // disagrees with the answer is read again, as only a read says which is the
-      // newer (#499, #480).
+      // disagrees with the answer, and is not the write replayed over it, is read
+      // again, as only a read says which is the newer (#499, #480).
       const { kept, again } = model.mutations.applied.has(message.requestId)
         ? { kept: model.kept, again: [] }
-        : layers.settleKept(
+        : layers.settleReplayed(
             model.kept,
             model.entities,
+            model.optimistic.layers.find(layer => layer.id === message.requestId),
             message.requestId,
             answered,
             settled.state.pending,

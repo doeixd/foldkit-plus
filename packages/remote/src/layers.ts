@@ -9,7 +9,7 @@ import type { ExprContext, MemoryOperators } from 'foldkit-entity'
 import type { Capabilities, Install, LayerCapability, Lists } from './capability.js'
 import { items, type Connection, type Edge } from './connection.js'
 import type { Kept } from './kept.js'
-import { keepRead, settleKept } from './keeping.js'
+import { replayOver, settleReplayed } from './replay.js'
 import { changesOf, readsThrough, rejudged } from './impact.js'
 import { memoRead } from './memo.js'
 import {
@@ -241,13 +241,20 @@ export const layers: LayerCapability = {
   begin: beginOptimistic,
   settleSuccess,
   settleFailure,
-  settleKept,
+  settleReplayed,
   pruneOverlays,
 }
 
 /** `Capabilities.keeps` for a domain that holds layers: what a read moved under a pending write. */
 export const keepsRead: Capabilities['keeps'] = (model, rows, held, now) =>
-  keepRead(model.kept, model.entities, rows, held, model.mutations.pending, now)
+  replayOver(
+    model.kept,
+    model.entities,
+    rows.filter(row => !held.has(entityKey(row.entity, row.id))),
+    'read',
+    model.mutations.pending,
+    now,
+  )
 
 /** Installs the layer capability, and with it what a read keeps; whatever makes a layer calls it first. */
 export const installLayers: Install = capabilities => {

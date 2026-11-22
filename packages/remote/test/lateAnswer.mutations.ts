@@ -23,9 +23,9 @@ export default [
     edits: [
       {
         file: '../src/model.ts',
-        find: '        : layers.settleKept(\n',
+        find: '        : layers.settleReplayed(\n',
         replace:
-          '        : Option.isNone(capabilities.live)\n          ? { kept: model.kept, again: [] }\n          : layers.settleKept(\n',
+          '        : Option.isNone(capabilities.live)\n          ? { kept: model.kept, again: [] }\n          : layers.settleReplayed(\n',
       },
     ],
     tests,
@@ -35,9 +35,9 @@ export default [
     name: 'a read keeps the value it replaced, not its own',
     edits: [
       {
-        file: '../src/keeping.ts',
-        find: 'field => Option.some(values[field])',
-        replace: 'heldOf(store[key])',
+        file: '../src/replay.ts',
+        find: "const over = from === 'patch' ? held(field) : Option.some(values[field])",
+        replace: 'const over = held(field)',
       },
     ],
     tests: ['packages/remote/test/derivedCount.test.ts'],

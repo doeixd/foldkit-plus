@@ -9,7 +9,7 @@ import { Equal } from 'effect'
 import { type Connection, hasNext, hasPrevious } from './connection.js'
 import { addOverlay } from './capability.js'
 import { noKept, type Kept } from './kept.js'
-import { echoKept, heldOf, keptBefore, unexpired } from './keeping.js'
+import { echoKept, replayOver } from './replay.js'
 import type { OptimisticState } from './optimistic.js'
 import type { LiveInsertion, LivePolicy } from './query.js'
 import {
@@ -137,7 +137,7 @@ export const applyEntityEvent = (
     /** The stream the event came on, which an answer it has sent back is heard from. */
     readonly stream?: string | undefined
     readonly echoes?: Readonly<Record<EntityKey, AwaitedEcho>> | undefined
-    /** What fields held before a patch landed while a write was pending (`settleKept`). */
+    /** What fields held before a patch landed while a write was pending (`replayOver`). */
     readonly kept?: Kept | undefined
     /** The requests in flight, which a patch is kept beside. */
     readonly pending?: ReadonlySet<string> | undefined
@@ -179,7 +179,6 @@ export const applyEntityEvent = (
   const heard =
     awaited === undefined ? undefined : heardBack(awaited, context.stream ?? '', event.values)
   const written = heard?.values ?? event.values
-  const unexpiredKept = unexpired(kept, context.now ?? 0)
   const patched = writeEntities(
     store,
     [
@@ -198,11 +197,11 @@ export const applyEntityEvent = (
     written,
     echoes:
       heard === undefined || heard.echo === awaited ? echoes : { ...echoes, [key]: heard.echo },
-    kept: keptBefore(
-      unexpiredKept,
-      key,
-      heldOf(store[key]),
-      Object.keys(written),
+    kept: replayOver(
+      kept,
+      store,
+      [{ ...event.ref, values: written }],
+      'patch',
       context.pending ?? noPending,
       context.now ?? 0,
     ),
