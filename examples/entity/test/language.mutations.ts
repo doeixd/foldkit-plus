@@ -58,15 +58,16 @@ export default [
     'return exprOf(call(Bool.notOp, [call(Null.coalesceOp, [node, Node.Lit({ value: false })])]))',
   ),
   guide(
+    // The judge reads the viewer through the environment it builds.
     'the guide: a viewer of any Entity reads as an author',
-    '../../../packages/entity/src/context.ts',
-    'Option.filter(context.viewer, ref => ref.entity === entity.name),',
+    '../../../packages/entity/src/environment.ts',
+    'Option.filter(context.viewer, ref => ref.entity === name),',
     'Option.filter(context.viewer, () => true),',
   ),
   guide(
     'the guide: a visitor reads as the first author',
-    '../../../packages/entity/src/context.ts',
-    'Option.some(Option.getOrNull(viewerIdOf(term.entity, context)))',
-    "Option.some(Option.getOrElse(viewerIdOf(term.entity, context), () => 'a1'))",
+    '../../../packages/entity/src/environment.ts',
+    '// A visitor, or a viewer of another Entity.\n          onNone: () => null,',
+    "// A visitor, or a viewer of another Entity.\n          onNone: () => ({ '#asker': 'a1' }),",
   ),
 ]

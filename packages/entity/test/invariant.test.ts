@@ -4,7 +4,15 @@
  */
 import { Option, Schema, SchemaGetter } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { assertSupported, Collation, Entity, Expr, Query, truthOver } from '../src/index.js'
+import {
+  assertSupported,
+  Collation,
+  Entity,
+  Expr,
+  Query,
+  decided,
+  truthOver,
+} from '../src/index.js'
 import { substituteNext } from './substituteNext.js'
 
 /** A date the store keeps as ISO text, so an invariant over it compares the text. */
@@ -288,6 +296,10 @@ describe('Entity.judgeInput', () => {
     expect(Entity.judgeInput(Bare, { quantity: 3, reserved: Option.some(5) })).toEqual(
       failing('reservedWithinQuantity'),
     )
+  })
+
+  it('decides nothing from the input alone of a predicate reading the row after', () => {
+    expect(decided(Expr.lte(Expr.next(Inventory.fields.quantity), 3), {})).toEqual(Option.none())
   })
 
   it('leaves an invariant over a key holding nothing undecided', () => {

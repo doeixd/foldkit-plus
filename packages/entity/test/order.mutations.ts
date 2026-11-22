@@ -4,6 +4,7 @@
  */
 const tests = [
   'packages/entity/test/expr.test.ts',
+  'packages/entity/test/orderCall.test.ts',
   'packages/remote/test/impact.test.ts',
   'packages/remote/test/matching.test.ts',
   'packages/remote-drizzle/test/compile.test.ts',
