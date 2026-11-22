@@ -173,6 +173,11 @@
       "types": "./dist/entity/lowering.d.mts",
       "import": "./dist/entity/lowering.mjs"
     },
+    "./entity/transition": {
+      "foldkit-plus:source": "./src/entity/transition.ts",
+      "types": "./dist/entity/transition.d.mts",
+      "import": "./dist/entity/transition.mjs"
+    },
     "./entity/conformance": {
       "foldkit-plus:source": "./src/entity/conformance.ts",
       "types": "./dist/entity/conformance.d.mts",

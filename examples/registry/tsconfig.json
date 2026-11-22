@@ -19,6 +19,7 @@
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-entity/lowering": ["../../packages/entity/src/lowering.ts"],
+      "foldkit-entity/transition": ["../../packages/entity/src/writeTransition.ts"],
       "foldkit-example-site/demo-style": ["../site/src/demoStyle.ts"],
       "foldkit-example-site/demos": ["../site/src/demos.ts"],
       "foldkit-example-site/guide": ["../site/src/guide.ts"],

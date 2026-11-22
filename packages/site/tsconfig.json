@@ -11,6 +11,7 @@
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-entity/lowering": ["../entity/src/lowering.ts"],
+      "foldkit-entity/transition": ["../entity/src/writeTransition.ts"],
       "foldkit-primitives": ["../primitives/src/index.ts"],
       "foldkit-primitives/device": ["../primitives/src/device/index.ts"],
       "foldkit-primitives/dom": ["../primitives/src/dom/index.ts"],

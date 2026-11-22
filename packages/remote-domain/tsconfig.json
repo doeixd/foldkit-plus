@@ -10,6 +10,7 @@
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-entity/lowering": ["../entity/src/lowering.ts"],
+      "foldkit-entity/transition": ["../entity/src/writeTransition.ts"],
       "foldkit-guard": ["../guard/src/index.ts"],
       "foldkit-guard/agent": ["../guard/src/agent.ts"],
       "foldkit-guard/check": ["../guard/src/check.ts"],
