@@ -57,10 +57,13 @@ export interface Machine<State, Transitions extends Readonly<Record<string, unkn
    * Dispatch a tagged message `{ _tag, input }` against `state`: the next
    * state and the records the step emits, or `Result.fail(Refused)` where
    * the transition's guard is not true. A no-op keeps `state`'s identity.
+   * `options.foreign` holds the implementations of the foreign operations
+   * the transitions call.
    */
   readonly dispatch: (
     state: State,
     message: MessageOf<Transitions>,
+    options?: Expr.ReaderOptions,
   ) => Result.Result<
     { readonly state: State; readonly emitted: ReadonlyArray<EmitOf<Transitions>> },
     Transition.Refused
@@ -72,6 +75,7 @@ export interface Machine<State, Transitions extends Readonly<Record<string, unkn
   readonly update: (
     state: State,
     message: MessageOf<Transitions>,
+    options?: Expr.ReaderOptions,
   ) => readonly [State, ReadonlyArray<EmitOf<Transitions>>]
   /** Exact static read/write footprints for every declared transition. */
   readonly footprints: {
@@ -113,7 +117,7 @@ export const make = <
         )
       : Option.none()
 
-  const dispatch: Machine<State, Transitions>['dispatch'] = (state, message) =>
+  const dispatch: Machine<State, Transitions>['dispatch'] = (state, message, options) =>
     Option.match(transitionOf(message._tag), {
       onNone: () =>
         Result.fail(new Transition.Refused({ reason: `unknown message "${message._tag}"` })),
@@ -123,14 +127,15 @@ export const make = <
           state,
           message.input,
           'supplied' in message ? message.supplied : {},
+          options,
         ) as Result.Result<
           { readonly state: State; readonly emitted: ReadonlyArray<EmitOf<Transitions>> },
           Transition.Refused
         >,
     })
 
-  const update: Machine<State, Transitions>['update'] = (state, message) => {
-    const res = dispatch(state, message)
+  const update: Machine<State, Transitions>['update'] = (state, message, options) => {
+    const res = dispatch(state, message, options)
     return Result.isSuccess(res)
       ? ([res.success.state, res.success.emitted] as const)
       : ([state, []] as const)

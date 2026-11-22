@@ -40,6 +40,12 @@ interface GroupAggregate<Row, A extends number> {
   readonly contribution: Expr.Expr<Row, A>
   /** Evaluate the aggregate over a concrete array of rows. */
   readonly evaluate: (rows: ReadonlyArray<Row>) => A
+  /**
+   * The total after a delta: `total + delta`, throwing the `Refusal`
+   * `unsafe-integer` (as `Expr.eval` does) where it leaves ±(2^53−1), as the
+   * fold over the rows is refused there. Keep a total with this, not with `+`.
+   */
+  readonly apply: (total: A, delta: A) => A
   /** Exact O(1) delta for inserting `row`: `next = prev + insertDelta(row)`. */
   readonly insertDelta: (row: Row) => A
   /** Exact O(1) delta for deleting `row`: `next = prev + deleteDelta(row)`. */
@@ -140,6 +146,20 @@ const isIntegerValued = (node: Node.Node): boolean =>
 const isMissing = (value: unknown): value is null | undefined =>
   value === null || value === undefined
 
+const SAFE_TOTAL = BigInt(Number.MAX_SAFE_INTEGER)
+
+/** `total` as a number, or thrown as the refusal `unsafe-integer` where it is past ±(2^53−1). */
+const withinSafe = (fold: string, total: bigint): number => {
+  if (total > SAFE_TOTAL || total < -SAFE_TOTAL) {
+    throw new Node.Refusal({
+      reason: 'unsafe-integer',
+      at: `Rows.${fold}`,
+      detail: 'the total is past ±(2^53−1)',
+    })
+  }
+  return Number(total)
+}
+
 /**
  * A total kept by deltas: exact only where the fold is commutative,
  * associative and invertible, and only over the domain each holds over, so a
@@ -172,7 +192,13 @@ const groupAggregate = <Row, A extends number>(
     identity: zero,
     rowSchema: rowSchema as unknown as Schema.Codec<Row>,
     contribution,
-    evaluate: rows => rows.reduce((acc, row) => (acc + valueOf(row)) as A, zero),
+    // Exact by integers, so only the final total decides, as `Rows.sum` over a list does.
+    evaluate: rows =>
+      withinSafe(
+        fold,
+        rows.reduce((acc, row) => acc + BigInt(valueOf(row)), BigInt(zero)),
+      ) as A,
+    apply: (total, delta) => withinSafe(fold, BigInt(total) + BigInt(delta)) as A,
     insertDelta: valueOf,
     deleteDelta: row => (0 - valueOf(row)) as A,
     updateDelta: (before, after) => (valueOf(after) - valueOf(before)) as A,

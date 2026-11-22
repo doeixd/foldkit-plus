@@ -28,6 +28,7 @@ import { readsOfNode } from './ops/reads.js'
 import * as Path from './path.js'
 import type { Expr as ExprType, Path as PathType, PathAccessor } from './path.js'
 import type { WayOfWriting } from './properties.js'
+import type { ReaderOptions } from './expr.js'
 
 export { can } from './can.js'
 export { commutes } from './transitionCommutes.js'
@@ -309,8 +310,8 @@ export const make = <
 
 /** What `step` takes for a transition's supplied values: nothing for one that declares none. */
 export type SuppliedArgs<Supplied> = [keyof Supplied] extends [never]
-  ? [supplied?: Supplied]
-  : [supplied: Supplied]
+  ? [supplied?: NoInfer<Supplied> | undefined, options?: ReaderOptions]
+  : [supplied: NoInfer<Supplied>, options?: ReaderOptions]
 
 const acceptors = new WeakMap<Schema.Top, (value: unknown) => boolean>()
 
@@ -333,13 +334,15 @@ const accepts = (schema: Schema.Top): ((value: unknown) => boolean) => {
  * refused.
  *
  * All right-hand sides evaluate against the pre-state (simultaneous update).
- * A no-op returns the exact `state` reference it was given.
+ * A no-op returns the exact `state` reference it was given. A transition
+ * that calls a foreign operation runs only with `options.foreign` holding
+ * its implementation; otherwise the call is refused as `unsupported`.
  */
 export const step = <State, Input, Emit, Supplied>(
   transition: Transition<State, Input, Emit, Supplied>,
   state: State,
   input: Input,
-  ...[supplied]: SuppliedArgs<Supplied>
+  ...[supplied, options]: SuppliedArgs<Supplied>
 ): Result.Result<{ readonly state: State; readonly emitted: ReadonlyArray<Emit> }, Refused> => {
   const given = supplied ?? ({} as Supplied)
   const env: TransitionEnv<State, Input, Supplied> = { state, input, supplied: given }
@@ -353,12 +356,12 @@ export const step = <State, Input, Emit, Supplied>(
     return Result.fail(new Refused({ reason: 'a supplied value is not a value of its Schema' }))
   }
   // A guard holds only where it is true: null and a refusal do not fire.
-  if (evalNode(transition.when.node, env) !== true) {
+  if (evalNode(transition.when.node, env, options?.foreign) !== true) {
     return Result.fail(new Refused({ reason: 'transition guard evaluated to false' }))
   }
   const refusals: Array<Node.Refusal> = []
   const valueOf = (node: Node.Node): unknown => {
-    const value = evalNode(node, env)
+    const value = evalNode(node, env, options?.foreign)
     if (Node.isRefusal(value)) refusals.push(value)
     return value
   }
@@ -428,9 +431,9 @@ export const run = <State, Input, Emit, Supplied>(
   transition: Transition<State, Input, Emit, Supplied>,
   state: State,
   input: Input,
-  ...supplied: SuppliedArgs<Supplied>
+  ...args: SuppliedArgs<Supplied>
 ): Result.Result<State, Refused> =>
-  Result.map(step(transition, state, input, ...supplied), s => s.state)
+  Result.map(step(transition, state, input, ...args), s => s.state)
 
 /**
  * The paths a write changes, from the state: its target, or, for a `patch`

@@ -136,6 +136,13 @@ const integerOf = (
       ? Option.some(Interval.constant(node.value as number))
       : Option.none()
   }
+  // A decrement is an `add` of the negated amount.
+  if (Node.$is('Call')(node) && !Node.isForeign(node.op) && node.op.id === 'num.neg') {
+    const [operand] = node.args
+    return operand === undefined
+      ? Option.none()
+      : Option.map(integerOf(transition, operand), Interval.neg)
+  }
   if (!Node.$is('Path')(node)) return Option.none()
   const slices: ReadonlyArray<readonly [string, Option.Option<Schema.Top>]> = [
     ['state', transition.stateSchema],

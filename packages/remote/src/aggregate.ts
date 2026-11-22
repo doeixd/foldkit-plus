@@ -39,8 +39,11 @@ type AnyDomain = RemoteDomain<any, any, any, any, any>
  * selects is accepted, and one reading a field the list does not select is not.
  */
 export type ListAggregate<Row> =
-  | Pick<Sum<Row, number>, '_tag' | 'evaluate' | 'insertDelta' | 'deleteDelta' | 'updateDelta'>
-  | Pick<Count<Row>, '_tag' | 'evaluate' | 'insertDelta' | 'deleteDelta' | 'updateDelta'>
+  | Pick<
+      Sum<Row, number>,
+      '_tag' | 'evaluate' | 'apply' | 'insertDelta' | 'deleteDelta' | 'updateDelta'
+    >
+  | Pick<Count<Row>, '_tag' | 'evaluate' | 'apply' | 'insertDelta' | 'deleteDelta' | 'updateDelta'>
   | Pick<Min<Row>, '_tag' | 'evaluate' | 'insertStep'>
   | Pick<Max<Row>, '_tag' | 'evaluate' | 'insertStep'>
   | Pick<Every<Row>, '_tag' | 'evaluate' | 'insertStep'>
@@ -158,13 +161,17 @@ interface Fold<Row> {
 
 /** `sum` and `count`: each change moves the total by its exact delta. */
 const groupFold = <Row>(
-  aggregate: Pick<Sum<Row, number>, 'evaluate' | 'insertDelta' | 'deleteDelta' | 'updateDelta'>,
+  aggregate: Pick<
+    Sum<Row, number>,
+    'evaluate' | 'apply' | 'insertDelta' | 'deleteDelta' | 'updateDelta'
+  >,
 ): Fold<Row> => {
   let total = aggregate.evaluate([])
   return {
-    add: row => void (total += aggregate.insertDelta(row)),
-    remove: row => void (total += aggregate.deleteDelta(row)),
-    replace: (before, after) => void (total += aggregate.updateDelta(before, after)),
+    add: row => void (total = aggregate.apply(total, aggregate.insertDelta(row))),
+    remove: row => void (total = aggregate.apply(total, aggregate.deleteDelta(row))),
+    replace: (before, after) =>
+      void (total = aggregate.apply(total, aggregate.updateDelta(before, after))),
     value: () => total,
   }
 }
