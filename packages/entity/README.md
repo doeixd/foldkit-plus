@@ -769,8 +769,8 @@ one answer. A null on either side gives null; a text operand is a type error
 where it is passed. A comparison, an order term, an invariant, a write's `when`
 and its `compute` read one as any number, and a sum of integers computes an
 integer field. An integer sum past 2^53 - 1, where a double no longer holds
-every integer, is refused in memory (a `QueryEvaluateError`), as Postgres
-refuses the statement; SQLite alone gives a real there.
+every integer, is refused in memory (a `QueryEvaluateError`); the SQL both
+databases run gives `NULL` there, since SQL has no refusal.
 
 ### Reading across relations: `Expr.path` and `Expr.exists`
 

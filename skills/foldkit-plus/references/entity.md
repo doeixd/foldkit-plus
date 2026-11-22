@@ -510,9 +510,9 @@ why). Before writing one:
   `_tag` per kind of predicate to branch on, and two built separately are
   compared by `Node.key(a.node)`, not `toEqual`. The types are `Expr<T>`,
   `Predicate` (`Expr<boolean | null>`, so a boolean field is one) and
-  `InputExpr<T>`; the per-kind node types, `isPredicate`, `Expr.expanded` and
-  `Expr.substituteNext` are gone. `Expr`, `Query` and `Order` are namespaces,
-  so a page keeps only the members it calls.
+  `InputExpr<T>`; no type names a kind of node, and a value is tested through
+  its `node`. `Expr`, `Query` and `Order` are namespaces, so a page keeps only
+  the members it calls.
 - A path or exists reads other rows: it is in `Query.dependencies(q).reaches`
   (each a `Path`, `ViewerPath` or `Exists` description with its `expr`), not
   `fields`; `evaluate` refuses it, `Judge` and SQL run it; a list never orders
@@ -767,7 +767,8 @@ Expr.path(Feed.Post.relations.author,
   answers a metakit `Verdict` (read with `Verdict.match` from `metakit`): `True` or `False`
   (SQL's answer), or `Unknown` with why, when the
   answer rests on a field or row the holder lacks or may not see, or an operator
-  only the server runs. SQL's null is `False`, its witness `'null'`. An exists is false only
+  only the server runs. SQL's null is `False`; `Judge.query`'s `False` carries no witness, where
+  `Judge.predicate`'s carries `'null'` for a null. An exists is false only
   where `HeldRow.pointing(relation, pinned)` misses no row: `pinned` is what its
   filter fixes (`Judge.pins(predicates, { input, context })`: each `eq` of a field
   and a literal, an input or the viewer, and whether that is all), so a holder of

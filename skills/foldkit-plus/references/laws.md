@@ -161,8 +161,9 @@ edge yet.
 ## `Data.can`
 
 `Data.can(model, Mutation, input)` is a hint, from the held rows and no I/O:
-`Can.Yes`, `Can.No({ refusal })` (`Forbidden`, `Unmet` or `Invalid`, in the
-server's order) or `Can.Undecided({ reasons })` (a row not held, a field or
+a metakit `Verdict` (read with `Verdict.match` from `metakit`): `True`, `False`
+with the refusal as its witness (`Forbidden`, `Unmet` or `Invalid`, in the
+server's order) or `Unknown` with its reasons (a row not held, a field or
 operator missing). `Data.mutate` does not read it: the server answers some
 writes the client calls `Unmet` as written. It throws for a mutation that is
 not a declared `Write`. `Data.capability` and `Data.available` give an agent
