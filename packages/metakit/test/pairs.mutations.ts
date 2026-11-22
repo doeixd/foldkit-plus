@@ -30,8 +30,8 @@ export default [
     edits: [
       {
         file: properties,
-        find: 'insert: { commutes: {} },',
-        replace: "insert: { commutes: { insert: 'always' } },",
+        find: "insert: { commutes: {}, idempotent: 'always' },",
+        replace: "insert: { commutes: { insert: 'always' }, idempotent: 'always' },",
       },
     ],
     tests: ['examples/todo-app/test/pairs.test.ts'],

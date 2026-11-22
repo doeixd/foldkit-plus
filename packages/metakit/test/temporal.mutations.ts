@@ -4,9 +4,10 @@ const store = '../src/store.ts'
 const proveMachine = '../src/prove/machine.ts'
 const tests = ['packages/metakit/test/temporal.test.ts']
 
-const mutation = (name: string, find: string, replace: string, at = file) => ({
+// `all`: `walk` and `walkAsync` repeat these lines, and a mutation breaks both.
+const mutation = (name: string, find: string, replace: string, at = file, all = false) => ({
   name,
-  edits: [{ file: at, find, replace }],
+  edits: [{ file: at, find, replace, all }],
   tests,
 })
 
@@ -108,11 +109,19 @@ export default [
     'const obligations: ReturnType<typeof Temporal.obligations<State, Transitions>> = []',
     proveMachine,
   ),
-  mutation('every run walks the first seed', 'const seed = first + run', 'const seed = first'),
+  mutation(
+    'every run walks the first seed',
+    'const seed = first + run',
+    'const seed = first',
+    file,
+    true,
+  ),
   mutation(
     'a step runs before one it waits on',
     'const ready = waiting.filter(step => (step.after ?? []).every(name => ran.has(name)))',
     'const ready = waiting',
+    file,
+    true,
   ),
   mutation(
     'the property is asked only after the last step',
@@ -123,6 +132,8 @@ export default [
     'shrinking drops a step another waits on',
     'if (rest.some(other => (other.after ?? []).includes(step.name))) continue',
     '',
+    file,
+    true,
   ),
   mutation(
     'the failing order is reported unshrunk',
