@@ -494,6 +494,23 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
           ? z3.Bool.val(node.value.length === 0)
           : measure('arrCount', node!).eq(0),
       ),
+    'arr.has': ([list, needle], [listNode, needleNode]) => {
+      const key = `arrHas:${Node.key(listNode!)}:${Node.key(needleNode!)}`
+      const known = opaque.has(key)
+      let sym = opaque.get(key)
+      if (sym === undefined) {
+        sym = z3.Bool.const(key)
+        opaque.set(key, sym)
+      }
+      if (!known && z3.isBool(sym)) {
+        const count =
+          Node.$is('Lit')(listNode!) && Array.isArray(listNode.value)
+            ? z3.Int.val(listNode.value.length)
+            : measure('arrCount', listNode!)
+        solver.add(z3.Implies(sym, count.ge(1)))
+      }
+      return strict('bool', [list!, needle!], sym)
+    },
     'arr.append': () => listWrite('arr.append'),
     'arr.include': () => listWrite('arr.include'),
     'arr.exclude': () => listWrite('arr.exclude'),

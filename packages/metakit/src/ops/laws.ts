@@ -76,6 +76,7 @@ export const opLaws: { readonly [Id in Node.CoreOpId]: OpLaws } = {
   'str.contains': {},
   'arr.count': {},
   'arr.isEmpty': {},
+  'arr.has': {},
   'arr.append': {},
   'arr.include': {},
   'arr.exclude': {},

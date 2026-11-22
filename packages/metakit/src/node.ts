@@ -12,7 +12,7 @@
 import { Data, Option, type Schema, type SchemaAST } from 'effect'
 import type { OpProperties } from './properties.js'
 
-/** The closed set of 43 primitive operators. */
+/** The closed set of 44 primitive operators. */
 export type CoreOpId =
   | 'bool.and'
   | 'bool.or'
@@ -54,6 +54,7 @@ export type CoreOpId =
   | 'str.contains'
   | 'arr.count'
   | 'arr.isEmpty'
+  | 'arr.has'
   | 'arr.append'
   | 'arr.include'
   | 'arr.exclude'

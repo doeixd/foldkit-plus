@@ -754,6 +754,27 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
       if (Option.isSome(count)) state.zone.constrainLower(count.value, 1)
     },
   },
+  'arr.has': {
+    _tag: 'Predicate',
+    unportable: true,
+    neverNull: false,
+    measures: args => [countOf(args[0]!)],
+    valued: () => false,
+    decide: (args, state) => {
+      const [list, needle] = [args[0]!, args[1]!]
+      if (Node.$is('Lit')(list) && Array.isArray(list.value) && Node.$is('Lit')(needle)) {
+        const value = Node.apply(Arr.hasOp, [list.value, needle.value])
+        if (value === true) return proved('concrete')
+        if (value === false) return refuted()
+      }
+      return Verdict.Unknown('array membership undecided in Tier 3')
+    },
+    assume: (args, state) => {
+      const count = state.varOf(countOf(args[0]!))
+      if (Option.isSome(count)) state.zone.constrainLower(count.value, 1)
+    },
+    refute: () => {},
+  },
   'arr.append': { _tag: 'Value', unportable: false },
   'arr.include': text,
   'arr.exclude': text,

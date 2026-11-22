@@ -39,6 +39,53 @@ export const isEmptyOp: Node.Op<'arr.isEmpty'> = {
     Array.isArray(items) ? items.length === 0 : Node.illTyped('arr.isEmpty', 'an array', items),
 }
 
+const normalizeHasScalar = (value: unknown): number | string | boolean | Node.Refusal => {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    return Node.holdsNul([value]) ? Node.unportable('arr.has') : wellFormed(value)
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+      ? Object.is(value, -0)
+        ? 0
+        : value
+      : new Node.Refusal({ reason: 'non-finite', at: 'arr.has', detail: `operand is ${value}` })
+  }
+  return Node.illTyped('arr.has', 'a number, boolean or text', value)
+}
+
+export const hasOp: Node.Op<'arr.has'> = {
+  id: 'arr.has',
+  returns: 'boolean',
+  nulls: 'strict',
+  refuses: value => (Node.holdsNul([value]) ? Node.unportable('arr.has') : undefined),
+  evaluate: ([items, rawNeedle]) => {
+    if (!Array.isArray(items)) return Node.illTyped('arr.has', 'an array', items)
+    const needle = normalizeHasScalar(rawNeedle)
+    if (Node.isRefusal(needle)) return needle
+    let found = false
+    for (const item of items) {
+      if (item === null || item === undefined) continue
+      if (typeof item === 'string' && Node.holdsNul([item])) return Node.unportable('arr.has')
+      if (typeof item === 'number' && !Number.isFinite(item)) {
+        return new Node.Refusal({
+          reason: 'non-finite',
+          at: 'arr.has',
+          detail: `list element is ${item}`,
+        })
+      }
+      const norm =
+        typeof item === 'string'
+          ? wellFormed(item)
+          : typeof item === 'number' && Object.is(item, -0)
+            ? 0
+            : item
+      if (norm === needle) found = true
+    }
+    return found
+  },
+}
+
 /** A refusal among `args`, which every list operation passes on first. */
 const refusedOf = (args: ReadonlyArray<unknown>): Node.Refusal | undefined =>
   args.find(Node.isRefusal)
@@ -431,6 +478,16 @@ export const keep = <L extends NullableItems, R extends ExprInput<never, boolean
 export const isEmpty = <A extends NullableItems>(
   items: A,
 ): Expr<EnvOfInput<A>, boolean | NullOf<A>> => call(isEmptyOp, [items])
+
+/** True when `items` (a list of scalars) contains `value`. */
+export const has = <
+  L extends NullableItems,
+  V extends ExprInput<never, number | string | boolean | null>,
+>(
+  items: L,
+  value: V,
+): Expr<EnvOfInput<L> & EnvOfInput<V>, boolean | NullOf<L> | NullOf<V>> =>
+  call(hasOp, [items, value])
 
 /** Derived helper: `Bool.not(Arr.isEmpty(items))`. */
 export const nonEmpty = <A extends NullableItems>(

@@ -439,6 +439,12 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
     ),
   'arr.count': (args, ctx) => one(args, ctx, a => q`${arrayLength(ctx.dialect)}(${a})`),
   'arr.isEmpty': (args, ctx) => one(args, ctx, a => q`(${arrayLength(ctx.dialect)}(${a}) = 0)`),
+  'arr.has': (args, ctx) =>
+    both(args, ctx, (list, value) =>
+      ctx.dialect === 'postgres'
+        ? q`(CASE WHEN (${list}) IS NULL OR (${value}) IS NULL THEN NULL ELSE (${value} = ANY(${list})) END)`
+        : q`(CASE WHEN (${list}) IS NULL OR (${value}) IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM json_each(${list}) WHERE value = ${value}) END)`,
+    ),
   'arr.append': () => listWrite('arr.append'),
   'arr.include': () => listWrite('arr.include'),
   'arr.exclude': () => listWrite('arr.exclude'),

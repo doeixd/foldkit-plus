@@ -158,3 +158,13 @@ export const relatedEffectivePermissions = Relation.reduce(
   each => each.bits,
   each => each.active,
 )
+
+export const RoleTagRow = Schema.Struct({
+  id: Schema.String,
+  roleTags: Schema.Array(Schema.String),
+})
+
+const $roleTags = Path.forSchema(RoleTagRow)
+
+/** Whether a user holds the `'admin'` role tag (`arr.has` consumer). */
+export const hasAdminRole = Arr.has($roleTags.roleTags, 'admin')
