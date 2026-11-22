@@ -6,10 +6,12 @@
 import { Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Arr, Bool, Eq, Expr, Num, Ord, Path, Str, Transition, Verdict } from 'metakit'
+import { Text } from 'metakit/domain'
 import * as Machine from 'metakit/machine'
 
+// Ids hold no NUL: a removal by a key that may hold one is refused by some elements and not others.
 const Todo = Schema.Struct({
-  id: Schema.String,
+  id: Text.schema,
   title: Schema.String,
   completed: Schema.Boolean,
   note: Schema.OptionFromNullOr(Schema.String),
@@ -26,7 +28,7 @@ const Model = Schema.Struct({
 })
 type Model = typeof Model.Type
 
-const ById = Schema.Struct({ id: Schema.String })
+const ById = Schema.Struct({ id: Text.schema })
 const None = Schema.Struct({})
 
 const todo = (id: string, completed = false, title = id): Todo => ({
@@ -54,14 +56,14 @@ const Toggled = Transition.make({
 })
 const Renamed = Transition.make({
   state: Model,
-  input: Schema.Struct({ id: Schema.String, title: Schema.String }),
+  input: Schema.Struct({ id: Text.schema, title: Schema.String }),
   apply: ({ state, input }) => [
     Transition.patch(state.todos, input.id, () => ({ title: input.title })),
   ],
 })
 const Noted = Transition.make({
   state: Model,
-  input: Schema.Struct({ id: Schema.String, note: Schema.NullOr(Schema.String) }),
+  input: Schema.Struct({ id: Text.schema, note: Schema.NullOr(Schema.String) }),
   apply: ({ state, input }) => [
     Transition.patch(state.todos, input.id, () => ({ note: input.note })),
   ],

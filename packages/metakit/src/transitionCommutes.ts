@@ -22,10 +22,12 @@
  * carries an obligation of the kind `walk`, a test that runs the pair in
  * both orders.
  */
-import { Option, type Schema } from 'effect'
+import { Option, SchemaAST, type Schema } from 'effect'
 import { collectFields, SAFE, type FieldInfo } from './abstract/fields.js'
 import * as Interval from './abstract/interval.js'
 import * as Node from './node.js'
+import { elementAst } from './ops/arr.js'
+import { cannotRefuse, kindOf } from './ops/kind.js'
 import { readsOfNode } from './ops/reads.js'
 import * as Path from './path.js'
 import { writeProperties, type CommuteCondition } from './properties.js'
@@ -208,6 +210,63 @@ const literals = (wa: AnyWrite, wb: AnyWrite): Option.Option<readonly [unknown, 
     : Option.none()
 }
 
+/**
+ * Two members a set compares as different: two texts unequal as the set
+ * compares them (`Node.textIdentity`), neither holding a NUL, or two unequal
+ * finite numbers. Two of different kinds (`1` and `'1'`) do not decide: the
+ * set refuses whichever meets a member of the other kind, so the order shows.
+ */
+const differ = (x: unknown, y: unknown): boolean =>
+  typeof x === 'string' && typeof y === 'string'
+    ? !Node.holdsNul([x, y]) && Node.textIdentity(x) !== Node.textIdentity(y)
+    : typeof x === 'number' &&
+      typeof y === 'number' &&
+      Number.isFinite(x) &&
+      Number.isFinite(y) &&
+      x !== y
+
+/** The Schema of field `key` of the elements of the list a write changes, where the list's Schema says it. */
+const elementField = (write: AnyWrite, key: string): Option.Option<SchemaAST.AST> => {
+  const { node } = write.value
+  if (!Node.$is('Rows')(node)) return Option.none()
+  return Option.flatMap(elementAst(Node.rowsSource(node.over)), element =>
+    Option.fromUndefinedOr(
+      SchemaAST.isObjects(element)
+        ? element.propertySignatures.find(property => property.name === key)?.type
+        : undefined,
+    ),
+  )
+}
+
+/**
+ * Whether a list write is refused by no element: its key and the element's
+ * key field, or its test, and what it sets, are values no operation refuses
+ * (`cannotRefuse`: no text that may hold a NUL). One that may be refused by
+ * an element is refused or not by whether a removal ran first.
+ */
+const steady = (write: AnyWrite): boolean => {
+  const keyed = (key: string, value: Node.Node) =>
+    cannotRefuse(value) &&
+    cannotRefuse(Node.Path({ segments: [Node.EACH, key], ast: elementField(write, key) }))
+  // A value set is written, not compared: a read gives what it holds, even text with a NUL.
+  const sets = (set: ReadonlyArray<readonly [string, Node.Node]>) =>
+    setBodies(set).every(
+      body => Node.$is('Path')(body) || Node.$is('Lit')(body) || cannotRefuse(body),
+    )
+  return Way.$match(write.way, {
+    remove: ({ key, value }) => keyed(key, value),
+    removeWhere: ({ test }) => cannotRefuse(test),
+    patch: ({ key, value, set }) => keyed(key, value) && sets(set),
+    patchWhere: ({ test, set }) => cannotRefuse(test) && sets(set),
+    set: () => false,
+    add: () => false,
+    append: () => false,
+    insert: () => false,
+    include: () => false,
+    exclude: () => false,
+  })
+}
+
 const isRemoval = (write: AnyWrite): boolean =>
   Way.$is('remove')(write.way) || Way.$is('removeWhere')(write.way)
 
@@ -222,10 +281,15 @@ const holds = (
   switch (condition) {
     case 'always':
       return true
+    case 'one-kind':
+      return Option.exists(Option.all([valueOf(wa), valueOf(wb)]), ([x, y]) => {
+        const [kx, ky] = [kindOf(x), kindOf(y)]
+        return Option.isSome(kx) && Option.isSome(ky) && kx.value === ky.value
+      })
     case 'same-literal':
       return Option.exists(literals(wa, wb), ([x, y]) => sameAnswer(x, y))
     case 'different-literals':
-      return Option.exists(literals(wa, wb), ([x, y]) => !sameAnswer(x, y))
+      return Option.exists(literals(wa, wb), ([x, y]) => differ(x, y))
     case 'in-range':
       return inRange(a, wa, b, wb)
     case 'disjoint-fields': {
@@ -236,9 +300,11 @@ const holds = (
         !touches(elementFieldsRead(wb), setA)
       )
     }
+    case 'steady':
+      return steady(wa) && steady(wb)
     case 'reads-no-set-field': {
       const [removal, changed] = isRemoval(wa) ? [wa, wb] : [wb, wa]
-      return !touches(elementFieldsRead(removal), fieldsSet(changed))
+      return steady(changed) && !touches(elementFieldsRead(removal), fieldsSet(changed))
     }
   }
 }

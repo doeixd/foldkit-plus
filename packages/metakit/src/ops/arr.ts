@@ -79,8 +79,9 @@ const scalarOf = (id: Node.CoreOpId, value: unknown): number | string | Node.Ref
   if (typeof value === 'string')
     return Node.holdsNul([value]) ? Node.unportable(id) : wellFormed(value)
   if (typeof value !== 'number') return Node.illTyped(id, 'a number or text', value)
+  // -0 is held as 0, so includes of 0 and -0 agree in either order.
   return Number.isFinite(value)
-    ? value
+    ? value + 0
     : new Node.Refusal({ reason: 'non-finite', at: id, detail: `${value} in a set` })
 }
 
@@ -125,7 +126,8 @@ const setOp = <Id extends 'arr.include' | 'arr.exclude'>(id: Id): Node.Op<Id> =>
       }
       if (sign > 0 && at === list.length) at = index
     }
-    return id === 'arr.include' ? [...list.slice(0, at), raw, ...list.slice(at)] : list
+    // The text as the set compares it, so two includes of text that compare alike agree in either order.
+    return id === 'arr.include' ? [...list.slice(0, at), value, ...list.slice(at)] : list
   },
 })
 
