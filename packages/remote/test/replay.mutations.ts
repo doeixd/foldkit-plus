@@ -16,14 +16,14 @@ export default [
   edit(
     'a set is declared to commute with any set, so its answer is never read again',
     ways,
-    "set: { commutes: { set: 'same-literal' } },",
-    "set: { commutes: { set: 'always' } },",
+    "setWrites: WriteProperties = { commutes: { set: 'same-literal' } }",
+    "setWrites: WriteProperties = { commutes: { set: 'always' } }",
   ),
   edit(
     'an add is declared to commute with nothing, so its answer is read again',
     ways,
-    '  add: adds,\n',
-    '  add: { ...adds, commutes: {} },\n',
+    "? { add: 'in-range' } : {},",
+    '? {} : {},',
   ),
   edit(
     'a way replays on a condition over the two values',

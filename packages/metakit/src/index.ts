@@ -35,6 +35,8 @@ export {
 } from './properties.js'
 // From its own module, so a page reading it loads no other table.
 export {
+  addWrites,
+  setWrites,
   writeProperties,
   type CommuteCondition,
   type WayOfWriting,

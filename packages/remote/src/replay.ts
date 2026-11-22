@@ -21,7 +21,7 @@
  * layer, and apart from `kept.ts`, which every page's Model reads.
  */
 import { Equal, Option } from 'effect'
-import { writeProperties, type WayOfWriting } from 'metakit'
+import { addWrites, setWrites, type WayOfWriting, type WriteProperties } from 'metakit'
 import { noKept, type Kept, type KeptField } from './kept.js'
 import type { EntityLayer } from './optimistic.js'
 import { own } from './record.js'
@@ -108,12 +108,14 @@ export const replayOver = (
 }
 
 /**
- * Whether a write of `way` replayed over any newer value of its path gives
- * the value after both: it commutes with another write of its way whatever
- * their values. Two `set`s commute only when they set one literal.
+ * Whether a write of `way`, whose row of `writeProperties` is `row`, replayed
+ * over any newer value of its path gives the value after both: it commutes
+ * with another write of its way whatever their values. Two `set`s commute
+ * only when they set one literal. Read through the two rows a pending write
+ * uses, so a page keeps no other.
  */
-const replays = (way: WayOfWriting): boolean => {
-  const condition = writeProperties[way].commutes[way]
+const replays = (row: WriteProperties, way: WayOfWriting): boolean => {
+  const condition = row.commutes[way]
   return (
     condition !== undefined && condition !== 'same-literal' && condition !== 'different-literals'
   )
@@ -143,8 +145,10 @@ const replayed = (
   if (patch === undefined) return Option.none()
   const amount = own(patch.adds, field)
   if (amount !== undefined)
-    return replays('add') && typeof newer === 'number' ? Option.some(newer + amount) : Option.none()
-  return replays('set') && Object.hasOwn(patch.values, field)
+    return replays(addWrites, 'add') && typeof newer === 'number'
+      ? Option.some(newer + amount)
+      : Option.none()
+  return replays(setWrites, 'set') && Object.hasOwn(patch.values, field)
     ? Option.some(own(patch.values, field))
     : Option.none()
 }

@@ -1,9 +1,9 @@
 /**
  * The ways of writing and what each keeps (`writeProperties`), apart from
  * `properties.ts`, so a page that replays a pending write over a newer value
- * (`foldkit-remote`'s `replay.ts`) loads this table alone, without the
- * operation and fold tables or what derives them. `properties.ts` re-exports
- * it and takes `num.add`'s row from here.
+ * (`foldkit-remote`'s `replay.ts`) loads the rows it reads (`setWrites`,
+ * `addWrites`) alone, without the operation and fold tables or what derives
+ * them. `properties.ts` re-exports it and takes `num.add`'s row from here.
  */
 import type { OpProperties } from '../properties.js'
 
@@ -64,30 +64,47 @@ export interface WriteProperties {
   readonly commutes: { readonly [Way in WayOfWriting]?: CommuteCondition }
 }
 
+/**
+ * The rows of `set` and `add`, exported apart: a page that asks only of these
+ * two (`foldkit-remote`'s replay) keeps them and drops the rest of the table.
+ */
+export const setWrites: WriteProperties = { commutes: { set: 'same-literal' } }
+
 /** Two `add`s commute where `num.add` is commutative and associative, over the integers it is associative over. */
-const adds: WriteProperties = {
+export const addWrites: WriteProperties = {
   commutes:
     added.commutative === true && added.associative !== undefined ? { add: 'in-range' } : {},
 }
 
-const removals = { remove: 'steady', removeWhere: 'steady' } as const
-const patches = { patch: 'reads-no-set-field', patchWhere: 'reads-no-set-field' } as const
-const patchesEach = { patch: 'disjoint-fields', patchWhere: 'disjoint-fields' } as const
+// Literals, not spreads: a bundler keeps a spread for its getters, so the
+// table would stay on a page that reads none of it.
+const removals: WriteProperties = {
+  commutes: {
+    remove: 'steady',
+    removeWhere: 'steady',
+    patch: 'reads-no-set-field',
+    patchWhere: 'reads-no-set-field',
+  },
+}
+const patches: WriteProperties = {
+  commutes: {
+    patch: 'disjoint-fields',
+    patchWhere: 'disjoint-fields',
+    remove: 'reads-no-set-field',
+    removeWhere: 'reads-no-set-field',
+  },
+}
 
 export const writeProperties: { readonly [Way in WayOfWriting]: WriteProperties } = {
-  set: { commutes: { set: 'same-literal' } },
-  add: adds,
+  set: setWrites,
+  add: addWrites,
   // Order shows: an appended list says which came first.
   append: { commutes: {} },
   insert: { commutes: {} },
-  remove: { commutes: { ...removals, ...patches } },
-  removeWhere: { commutes: { ...removals, ...patches } },
-  patch: {
-    commutes: { ...patchesEach, remove: 'reads-no-set-field', removeWhere: 'reads-no-set-field' },
-  },
-  patchWhere: {
-    commutes: { ...patchesEach, remove: 'reads-no-set-field', removeWhere: 'reads-no-set-field' },
-  },
+  remove: removals,
+  removeWhere: removals,
+  patch: patches,
+  patchWhere: patches,
   include: { commutes: { include: 'one-kind', exclude: 'different-literals' } },
   exclude: { commutes: { exclude: 'one-kind', include: 'different-literals' } },
 }
