@@ -1,6 +1,6 @@
 /**
  * The seven kinds of node every MetaKit expression is made of, and the closed
- * set of 32 primitive operators (`CoreOpId`).
+ * set of 33 primitive operators (`CoreOpId`).
  *
  * Every reader's table (`sqlOps`, `abstractOps`, `smtOps`, `opProperties`) is
  * typed by `CoreOpId`, and `Conformance.coreOps` holds the operator
@@ -12,7 +12,7 @@
 import { Data, Option, type SchemaAST } from 'effect'
 import type { OpProperties } from './properties.js'
 
-/** The closed set of 32 primitive operators. */
+/** The closed set of 33 primitive operators. */
 export type CoreOpId =
   | 'bool.and'
   | 'bool.or'
@@ -38,6 +38,7 @@ export type CoreOpId =
   | 'num.sub'
   | 'num.mul'
   | 'num.neg'
+  | 'num.mulScaled'
   | 'str.len'
   | 'str.startsWith'
   | 'str.contains'

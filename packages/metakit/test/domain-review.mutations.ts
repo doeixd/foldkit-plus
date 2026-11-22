@@ -7,6 +7,7 @@ const calendarDay = '../src/domain/calendarDay.ts'
 const fixed = '../src/domain/fixed.ts'
 const decimal = '../src/domain/decimal.ts'
 const money = '../src/domain/money.ts'
+const mulScaled = '../src/ops/mulScaled.ts'
 const aggregates = '../src/aggregates.ts'
 const aggregatesSql = '../src/aggregatesSql.ts'
 
@@ -108,23 +109,16 @@ export default [
   // 6. Decimal.mul and Money.mul
   mutation(
     'a tie rounds away from zero instead of to even',
-    fixed,
+    mulScaled,
     'return q % 2n === 0n ? q : q + step',
     'return q + step',
     domainTests,
   ),
   mutation(
     'a product outside the safe range is kept',
-    fixed,
-    'if (product > MAX_SAFE || product < -MAX_SAFE) return Option.none()',
-    '',
-    domainTests,
-  ),
-  mutation(
-    'a missing operand is multiplied',
-    fixed,
-    'if (!isSafeInteger(a) || !isSafeInteger(b)) return null',
-    '',
+    mulScaled,
+    'if (product > MAX_SAFE || product < -MAX_SAFE) {',
+    'if (false) {',
     domainTests,
   ),
   mutation(

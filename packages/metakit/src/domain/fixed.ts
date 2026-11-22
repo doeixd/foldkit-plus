@@ -7,19 +7,11 @@
 import { Data, Option, Result, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import * as Bool from '../ops/bool.js'
-import {
-  call,
-  toNode,
-  wrap,
-  type EnvOfInput,
-  type ExprInput,
-  type ValueOfInput,
-} from '../ops/core.js'
+import { call, toNode, type EnvOfInput, type ExprInput, type ValueOfInput } from '../ops/core.js'
 import * as Eq from '../ops/eq.js'
-import { evalNode } from '../ops/eval.js'
+import { mulScaledOp, roundHalfEvenBig } from '../ops/mulScaled.js'
 import * as Num from '../ops/num.js'
 import * as Ord from '../ops/ord.js'
-import { readsOfNode } from '../ops/reads.js'
 import type { Expr } from '../path.js'
 import { domainOfAst } from './annotation.js'
 
@@ -86,17 +78,6 @@ export const formatUnits = (units: number, scale: number, who: string): string =
   return `${sign}${digits.slice(0, -scale)}.${digits.slice(-scale)}`
 }
 
-/** Half-even rounding of `n / d` for `d > 0`, exact in `bigint`. */
-const roundHalfEvenBig = (n: bigint, d: bigint): bigint => {
-  const r = n % d
-  const q = (n - r) / d
-  const twiceR = 2n * (r < 0n ? -r : r)
-  const step = n < 0n ? -1n : 1n
-  if (twiceR < d) return q
-  if (twiceR > d) return q + step
-  return q % 2n === 0n ? q : q + step
-}
-
 /**
  * Exact half-even (banker's) rounding of `numerator / divisor`, both safe
  * integers and `divisor > 0`. Integer arithmetic only, so no float drift.
@@ -110,24 +91,6 @@ export const roundHalfEven = (numerator: number, divisor: number): number => {
   const result = Number(roundHalfEvenBig(BigInt(numerator), BigInt(divisor)))
   return result === 0 ? 0 : result
 }
-
-/**
- * `a * b` (safe integers) in units, moved `shift` decimal places down
- * (half-even) or up. `Option.none()` when the product or the result leaves the
- * safe range.
- */
-const mulUnits = (a: number, b: number, shift: number): Option.Option<number> => {
-  const product = BigInt(a) * BigInt(b)
-  if (product > MAX_SAFE || product < -MAX_SAFE) return Option.none()
-  const result =
-    shift >= 0 ? roundHalfEvenBig(product, 10n ** BigInt(shift)) : product * 10n ** BigInt(-shift)
-  if (result > MAX_SAFE || result < -MAX_SAFE) return Option.none()
-  return Option.some(result === 0n ? 0 : Number(result))
-}
-
-const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER)
-
-const isSafeInteger = (value: unknown): value is number => Number.isSafeInteger(value)
 
 const scaleAnnotated = (node: Node.Node): Option.Option<number> =>
   Node.$is('Path')(node)
@@ -150,11 +113,11 @@ export interface Operand {
 }
 
 /**
- * Multiply two fixed-scale operands into an `Opaque` term evaluated in memory
- * only: SQL refuses it and the static checkers read it as unknown. The product
- * moves `shift` decimal places (down with half-even rounding, or up). A missing
- * operand, or a product outside the safe range, evaluates to `null`. An operand
- * read from a field whose Schema declares a scale other than the stated one is
+ * Multiply two fixed-scale operands into a `num.mulScaled` call, which every
+ * reader implements or refuses by name. The product moves `shift` decimal
+ * places (down with half-even rounding, or up). A missing operand evaluates to
+ * `null`, and a product outside the safe range is refused. An operand read
+ * from a field whose Schema declares a scale other than the stated one is
  * refused here.
  */
 export const mulExpr = <Env, A>(
@@ -176,24 +139,7 @@ export const mulExpr = <Env, A>(
       )
     }
   }
-  const leftReads = readsOfNode(leftNode)
-  const rightReads = readsOfNode(rightNode)
-  const reads =
-    Option.isSome(leftReads) && Option.isSome(rightReads)
-      ? Option.some([...leftReads.value, ...rightReads.value])
-      : Option.none()
-  return wrap(
-    Node.Opaque({
-      name,
-      reads,
-      run: env => {
-        const a = evalNode(leftNode, env)
-        const b = evalNode(rightNode, env)
-        if (!isSafeInteger(a) || !isSafeInteger(b)) return null
-        return Option.getOrNull(mulUnits(a, b, shift))
-      },
-    }),
-  )
+  return call(mulScaledOp, [left.value, right.value, shift])
 }
 
 /** `null` when some input may be null, else `never`. */

@@ -16,6 +16,7 @@ import { call, toNode, wrap, type EnvOfInput, type NullOf } from './core.js'
 import * as Ord from './ord.js'
 
 export { gt, gte, gtOp, gteOp, lt, lte, ltOp, lteOp } from './ord.js'
+export { mulScaled } from './mulScaled.js'
 
 const arithmetic =
   (id: Node.CoreOpId, compute: (a: number, b: number) => number) =>

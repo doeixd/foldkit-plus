@@ -19,6 +19,7 @@ import * as Arr from './ops/arr.js'
 import * as Bool from './ops/bool.js'
 import * as Eq from './ops/eq.js'
 import { evalNode } from './ops/eval.js'
+import * as MulScaled from './ops/mulScaled.js'
 import * as Null from './ops/null.js'
 import * as Num from './ops/num.js'
 import * as Ord from './ops/ord.js'
@@ -69,6 +70,7 @@ export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
   'num.sub': Num.subOp,
   'num.mul': Num.mulOp,
   'num.neg': Num.negOp,
+  'num.mulScaled': MulScaled.mulScaledOp,
   'str.len': Str.lenOp,
   'str.startsWith': Str.startsWithOp,
   'str.contains': Str.containsOp,
@@ -80,7 +82,7 @@ export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
 }
 
 /** What an operand is drawn from: a field of a kind, or a literal the call is written with. */
-type Operand = 'number' | 'boolean' | 'text' | 'items' | 'value' | 'candidates'
+type Operand = 'number' | 'boolean' | 'text' | 'items' | 'value' | 'candidates' | 'shift'
 
 /** Each primitive's operands. */
 const operands: Readonly<Record<Node.CoreOpId, ReadonlyArray<Operand>>> = {
@@ -108,6 +110,7 @@ const operands: Readonly<Record<Node.CoreOpId, ReadonlyArray<Operand>>> = {
   'num.sub': ['number', 'number'],
   'num.mul': ['number', 'number'],
   'num.neg': ['number'],
+  'num.mulScaled': ['number', 'number', 'shift'],
   'str.len': ['text'],
   'str.startsWith': ['text', 'text'],
   'str.contains': ['text', 'text'],
@@ -214,6 +217,8 @@ const samples: Readonly<Record<Operand, ReadonlyArray<Sample>>> = {
     literal('ab'),
   ],
   candidates: [literal([]), literal([1]), literal([0, MAX]), literal([null]), literal([1, null])],
+  // The places a decimal product moves: none, down, up.
+  shift: [literal(0), literal(2), literal(-1)],
 }
 
 export interface OpFailure {

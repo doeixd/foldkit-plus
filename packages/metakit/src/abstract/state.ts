@@ -236,10 +236,15 @@ export class AbstractState {
     return Match.valueTags(abstractOf(node.op), {
       Predicate: () => true,
       Value: () => true,
-      Term: ({ refuses }) =>
+      Term: ({ refuses, unrefused }) =>
         !refuses ||
         this.unrefused.has(Node.key(node)) ||
-        Interval.within(this.evalInterval(node), SAFE),
+        (unrefused === undefined
+          ? Interval.within(this.evalInterval(node), SAFE)
+          : unrefused(
+              node.args.map(arg => this.evalInterval(arg)),
+              node.args.map(arg => this.isIntNode(arg)),
+            )),
     })
   }
 

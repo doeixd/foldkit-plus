@@ -10,7 +10,9 @@
 import { Data, Option, Result, SchemaAST } from 'effect'
 import { isIntCheck } from './intCheck.js'
 import * as Node from './node.js'
+import { isShift } from './ops/mulScaled.js'
 import * as Path from './path.js'
+import { mulScaledChunks, LEFT } from './sqlMulScaled.js'
 
 export type SqlDialect = 'postgres' | 'sqlite'
 
@@ -109,6 +111,7 @@ const integerOps: ReadonlySet<string> = new Set<Node.CoreOpId>([
   'num.sub',
   'num.mul',
   'num.neg',
+  'num.mulScaled',
   'null.coalesce',
 ])
 
@@ -297,6 +300,23 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'num.sub': numeric(() => '-'),
   'num.mul': numeric(() => '*'),
   'num.neg': (args, ctx) => one(args, ctx, inner => q`(- ${inner})`),
+  'num.mulScaled': (args, ctx) => {
+    const shift = args[2]
+    if (!Node.$is('Lit')(shift) || !isShift(shift.value)) {
+      return unsupported('num.mulScaled: the shift is not a literal number of places')
+    }
+    const places = shift.value
+    if (![args[0]!, args[1]!].every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))) {
+      return unsupported(
+        'num.mulScaled needs operands that are integers whatever the row holds: a Schema.Int, Decimal or Money column, or an integer literal',
+      )
+    }
+    return both(args, ctx, (left, right) =>
+      mulScaledChunks(ctx.dialect, places).flatMap(chunk =>
+        typeof chunk === 'string' ? q`${chunk}` : chunk === LEFT ? left : right,
+      ),
+    )
+  },
   'str.len': (args, ctx) =>
     one(args, ctx, s => q`${byDialect('char_length', 'length')(ctx.dialect)}(${s})`),
   'str.startsWith': (args, ctx) =>

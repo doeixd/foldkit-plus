@@ -55,6 +55,8 @@ export const opLaws: { readonly [Id in Node.CoreOpId]: OpLaws } = {
   'num.sub': { identity: { value: 0, side: 'right' } },
   'num.mul': { identity: { value: 1, side: 'both' } },
   'num.neg': { involution: true },
+  // No identity: the unit that leaves a product alone is `10^shift`, which the closed set cannot name per call.
+  'num.mulScaled': {},
   'str.len': {},
   'str.startsWith': {},
   'str.contains': {},

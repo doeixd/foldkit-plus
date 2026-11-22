@@ -183,7 +183,7 @@ describe('Decimal.mul and Money.mul: exact half-even products', () => {
     expect(Expr.eval(Up, { row })).toBe(2_250_000)
   })
 
-  it('is null for a missing operand and for a product outside the safe range', () => {
+  it('is null for a missing operand and refused for a product outside the safe range', () => {
     const Maybe = Expr.in({ row: Line }, ({ row }) =>
       Decimal.mul(row.price, row.maybe, { leftScale: 2, rightScale: 4, scale: 2 }),
     )
@@ -192,15 +192,14 @@ describe('Decimal.mul and Money.mul: exact half-even products', () => {
         row: { price: Decimal.units(100, 2), rate: Decimal.units(1, 4), maybe: null },
       }),
     ).toBe(null)
-    expect(
-      Expr.eval(Taxed, {
-        row: {
-          price: Decimal.units(Number.MAX_SAFE_INTEGER, 2),
-          rate: Decimal.units(10_000, 4),
-          maybe: null,
-        },
-      }),
-    ).toBe(null)
+    const past = Expr.evalResult(Taxed, {
+      row: {
+        price: Decimal.units(Number.MAX_SAFE_INTEGER, 2),
+        rate: Decimal.units(10_000, 4),
+        maybe: null,
+      },
+    })
+    expect(Result.isFailure(past) && past.failure.reason).toBe('unsafe-integer')
   })
 
   it("refuses a stated scale that disagrees with the field's Schema", () => {
@@ -212,19 +211,16 @@ describe('Decimal.mul and Money.mul: exact half-even products', () => {
     ).toThrow(/scale 4/)
   })
 
-  it('is evaluated in memory only: SQL lowering refuses it', () => {
-    expect(
-      Result.isFailure(
-        Sql.toWhere(
-          Expr.in({ row: Line }, ({ row }) =>
-            Decimal.gt(
-              Decimal.mul(row.price, row.rate, { leftScale: 2, rightScale: 4, scale: 2 }),
-              Decimal.units(0, 2),
-            ),
-          ),
+  it('lowers to SQL over columns whose Schemas are integers', () => {
+    const where = Sql.toWhere(
+      Expr.in({ row: Line }, ({ row }) =>
+        Decimal.gt(
+          Decimal.mul(row.price, row.rate, { leftScale: 2, rightScale: 4, scale: 2 }),
+          Decimal.units(0, 2),
         ),
       ),
-    ).toBe(true)
+    )
+    expect(Result.isSuccess(where)).toBe(true)
   })
 
   it('multiplies money by a decimal rate into the same currency and scale', () => {
@@ -239,9 +235,11 @@ describe('Decimal.mul and Money.mul: exact half-even products', () => {
       Expr.eval(Vat, { row: { net: Money.minor('USD', 25), vat: Decimal.units(50, 3) } }),
     ).toBe(1)
     expect(
-      Expr.eval(Vat, {
-        row: { net: Money.minor('USD', Number.MAX_SAFE_INTEGER), vat: Decimal.units(2000, 3) },
-      }),
-    ).toBe(null)
+      Result.isFailure(
+        Expr.evalResult(Vat, {
+          row: { net: Money.minor('USD', Number.MAX_SAFE_INTEGER), vat: Decimal.units(2000, 3) },
+        }),
+      ),
+    ).toBe(true)
   })
 })

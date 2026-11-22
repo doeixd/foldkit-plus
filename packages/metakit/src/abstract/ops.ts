@@ -7,6 +7,7 @@ import * as Str from '../ops/str.js'
 import { opProperties } from '../properties.js'
 import * as Verdict from '../verdict.js'
 import * as Interval from './interval.js'
+import * as MulScaled from './mulScaled.js'
 import type { AbstractState } from './state.js'
 import { isRead, negated, noCandidate, proved, refuted } from './support.js'
 import { ZERO } from './zone.js'
@@ -27,6 +28,15 @@ export interface TermOp {
   readonly integral: (args: ReadonlyArray<boolean>) => boolean
   /** Whether the evaluator refuses a result outside the safe range. */
   readonly refuses: boolean
+  /**
+   * Where the evaluator refuses by something besides the result's range: whether
+   * the operands, from their intervals and whether each is an integer, keep it
+   * from refusing. Absent: the result's interval lies within the safe range.
+   */
+  readonly unrefused?: (
+    args: ReadonlyArray<Interval.Interval>,
+    integers: ReadonlyArray<boolean>,
+  ) => boolean
   /** The difference constraints an integer result has with its operands. */
   readonly relation: 'add' | 'sub' | 'none'
   /** Whether the evaluator refuses an operand that is text holding a NUL. */
@@ -539,6 +549,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     'none',
     monotone('num.neg', ([a]) => -a!),
   ),
+  'num.mulScaled': { ...arithmetic('none', MulScaled.forward), unrefused: MulScaled.unrefused },
   'str.len': length,
   'str.startsWith': search(Str.startsWithOp),
   'str.contains': search(Str.containsOp),

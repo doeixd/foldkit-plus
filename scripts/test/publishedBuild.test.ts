@@ -315,6 +315,24 @@ test('a page drawing a form keeps none of foldkit-mixins-form/declared, built or
 }, 240_000)
 
 /**
+ * An Entity's write is read as a metakit transition through
+ * `foldkit-entity/transition`: a page that declares writes and binds them
+ * with the main entry keeps none of `writeTransition`, built or source.
+ */
+test('a page reaching the main entry of foldkit-entity keeps no writeTransition module, built or source', async () => {
+  const root = scratchIn('entity', 'published-')
+  made.push(root)
+  const page = `import { Write } from 'pkg'\nexport const used = Write.update`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('entity', root))
+  const source = await kept(join(packages, 'entity', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/write\.js$/.test(id))).toBe(true)
+  expect(source.some(id => id.endsWith('/entity/src/write.ts'))).toBe(true)
+  expect([...built, ...source].filter(id => /\/writeTransition\.(m?js|ts)$/.test(id))).toEqual([])
+}, 240_000)
+
+/**
  * Declared writes are read through `foldkit-surface/writes`, so a page with a
  * Surface and no declared writes keeps no metakit and no lazy slot; and the
  * development check is a file of its own, which a page that reaches it only
@@ -499,6 +517,73 @@ test('a page running transitions keeps no ops/residualize unless it asks what a 
     expect(asking.some(id => residualize.test(id))).toBe(true)
   }
 }, 240_000)
+
+/**
+ * `num.mulScaled` is one module (`ops/mulScaled`): a page that names no decimal
+ * multiplication keeps none of it, from the main entry or from `metakit/domain`,
+ * which holds `Decimal.mul` and `Money.mul` beside `Money.add`. The pages that
+ * name it keep it, so the others can fail. Broken by hand: a call of
+ * `isShift` from `./mulScaled.js` inside the evaluator of `num.add` turned
+ * the first three rows red.
+ */
+test.each([
+  [
+    'Num.add from the main entry',
+    'index',
+    `import { Num } from 'pkg'\nexport const used = Num.add`,
+    false,
+  ],
+  [
+    'Money.add from metakit/domain',
+    'domain',
+    `import { Money } from 'pkg'\nexport const used = Money.add`,
+    false,
+  ],
+  [
+    'Decimal.add from metakit/domain',
+    'domain',
+    `import { Decimal } from 'pkg'\nexport const used = Decimal.add`,
+    false,
+  ],
+  [
+    'Num.mulScaled from the main entry',
+    'index',
+    `import { Num } from 'pkg'\nexport const used = Num.mulScaled`,
+    true,
+  ],
+  [
+    'Money.mul from metakit/domain',
+    'domain',
+    `import { Money } from 'pkg'\nexport const used = Money.mul`,
+    true,
+  ],
+  [
+    'Decimal.mul from metakit/domain',
+    'domain',
+    `import { Decimal } from 'pkg'\nexport const used = Decimal.mul`,
+    true,
+  ],
+])(
+  'a page naming %s keeps the decimal product only if it names one',
+  async (_, file, page, keeps) => {
+    const root = scratchIn('metakit', 'published-')
+    made.push(root)
+    const index = await buildPublished('metakit', root)
+    const modules = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const built = await modules(
+      index.endsWith(`${file}.js`) ? index : join(dirname(index), `${file}.js`),
+    )
+    const source = await modules(
+      join(packages, 'metakit', 'src', file === 'index' ? 'index.ts' : `${file}.ts`),
+    )
+    const product = (ids: ReadonlyArray<string>) =>
+      ids.filter(id => /\/ops\/mulScaled\.(js|ts)$/.test(id))
+    expect(product(built).length > 0).toBe(keeps)
+    expect(product(source).length > 0).toBe(keeps)
+  },
+  120_000,
+)
 
 /**
  * `foldkit-remote-server` checks a writer's store on every server, so

@@ -114,6 +114,7 @@ const integerOps: ReadonlySet<string> = new Set<Node.CoreOpId>([
   'num.sub',
   'num.mul',
   'num.neg',
+  'num.mulScaled',
 ])
 
 /** True when every value `node` can take is a safe integer or null. */

@@ -166,7 +166,10 @@ const expression = (r: Random, depth: number, scope: 'row' | 'each' = 'row'): No
     // A term twice, so laws that ask for one term (`x = x`, `x and x`) are met.
     const left = sub()
     const right = r.chance(0.2) ? left : sub()
-    return Node.Call({ op, args: unary.has(op.id) ? [left] : [left, right] })
+    // A decimal product moves its operands by a literal number of places.
+    const operands =
+      op.id === 'num.mulScaled' ? [left, right, Node.Lit({ value: 2 })] : [left, right]
+    return Node.Call({ op, args: unary.has(op.id) ? [left] : operands })
   }
   if (choice < 0.68) {
     const op = r.pick([foreignNum, foreignFlag, foreignMissing])

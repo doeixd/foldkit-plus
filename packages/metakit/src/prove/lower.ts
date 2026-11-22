@@ -3,8 +3,10 @@ import type { Arith, Bool, Context, Solver } from 'z3-solver'
 import { abstractOps } from '../abstract/ops.js'
 import { noCandidate } from '../abstract/support.js'
 import * as Node from '../node.js'
+import { isShift } from '../ops/mulScaled.js'
 import * as Str from '../ops/str.js'
 import * as Path from '../path.js'
+import { halfEven } from './mulScaled.js'
 import type { PathInfo, Shape, Sort } from './shape.js'
 import { textReading } from './text.js'
 
@@ -354,6 +356,23 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     'num.neg': ([a]) => {
       const result = number(a!).neg()
       return strict('num', [a!], result, unsafe(result))
+    },
+    // Exact over integers. A product past the safe range is refused before it is rounded, as evaluation does.
+    'num.mulScaled': ([a, b], [, , places]) => {
+      const [left, right] = [number(a!), number(b!)]
+      if (!z3.isInt(left) || !z3.isInt(right)) {
+        throw new Unsupported('num.mulScaled of an operand the solver does not read as an integer')
+      }
+      if (!Node.$is('Lit')(places!) || !isShift(places.value)) {
+        throw new Unsupported('num.mulScaled of a shift that is not a literal number of places')
+      }
+      const shift = places.value
+      const product = left.mul(right)
+      if (shift <= 0) {
+        const moved = product.mul(10 ** -shift)
+        return strict('num', [a!, b!], moved, unsafe(moved))
+      }
+      return strict('num', [a!, b!], halfEven(z3, product, shift), unsafe(product))
     },
     'str.len': ([a], [node]) => strict('num', [a!], length(node!)),
     'arr.count': ([a], [node]) =>
