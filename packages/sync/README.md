@@ -1273,8 +1273,10 @@ whole of it.
 
 ## Testing without a browser or a server
 
-A `Storage` needs three members, and the loopback transport takes a handler in
-place of a socket:
+A `Storage` needs four members (`store` says what it guarantees of concurrent
+writes; a replica's is `eventual`, since it accepts writes apart and the
+journal's order merges them later), and the loopback transport takes a handler
+in place of a socket:
 
 <!-- docs-check standalone
 import { Option, Schema } from 'effect'
@@ -1307,6 +1309,7 @@ import type { Storage } from 'foldkit-sync'
 const memoryStorage = (): Storage => {
   let state: unknown
   return {
+    store: { name: 'memory replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next => Effect.sync(() => void (state = structuredClone(next))),
     close: Effect.void,
@@ -1603,7 +1606,7 @@ Local Model fields belong to your Foldkit app, server-derived read caches belong
 
 ## Limits
 
-- IndexedDB is the only built-in browser storage; custom `Storage` requires implementing three methods (`load`, `save`, `close`).
+- IndexedDB is the only built-in browser storage; custom `Storage` requires `store` (what it guarantees of concurrent writes) and three methods (`load`, `save`, `close`).
 - One server order per document; use a CRDT if you need peer-to-peer collaborative text merging.
 - Binding the socket transport to a platform WebSocket server uses thin glue (`ws` in Node, or `foldkit-sync/do` and `Sync.transport.workerSocket` on Cloudflare Workers).
 

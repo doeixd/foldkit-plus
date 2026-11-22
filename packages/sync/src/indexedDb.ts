@@ -1,5 +1,20 @@
 import { Config, Effect, Option } from 'effect'
+import type { StoreCapabilities } from 'metakit/store'
 import { StorageError } from './errors.js'
+
+/**
+ * Eventual, whatever IndexedDB does inside one browser: its read-write
+ * transactions on a database run one at a time, and `write` below commits
+ * only over the revision it expected, so one tab's writes never interleave.
+ * But the replica is a copy the server has not seen: it accepts operations
+ * offline and the server's journal merges them later, and nothing here makes
+ * two replicas' writes wait for each other.
+ */
+const REPLICA_STORE: StoreCapabilities = {
+  name: 'IndexedDB replica',
+  isolation: 'eventual',
+  parentRowLock: false,
+}
 
 /** One submitted operation, as `Storage.append` records it. */
 export interface OutboxEntry {
@@ -17,6 +32,12 @@ export interface OutboxEntry {
 
 /** Persists a replica's state with compare-and-swap on its revision. */
 export interface Storage {
+  /**
+   * What this store guarantees of concurrent writes. A replica's store is
+   * `eventual`: it accepts a write apart from the others and the journal's
+   * order merges it later, so no rule reading other rows is held on it.
+   */
+  readonly store: StoreCapabilities
   /**
    * The saved state, with every operation appended since in its `pending` (replacing the
    * one of the same local sequence), and the last one's `revision` and `nextLocalSequence`.
@@ -127,6 +148,7 @@ export const indexedDb = Effect.fn('Storage.indexedDb')(function* (
     })
   // Every member, `append` included, so a caller need not check for it.
   const storage: Required<Storage> = {
+    store: REPLICA_STORE,
     load: () =>
       Effect.tryPromise({
         try: () =>

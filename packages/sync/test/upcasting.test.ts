@@ -636,6 +636,7 @@ describe('what the replica keeps', () => {
     // A store that checks the revision, as IndexedDB does.
     let stored: { readonly revision: number } | undefined
     const store: Storage = {
+      store: { name: 'test replica', isolation: 'eventual', parentRowLock: false },
       load: () => Effect.sync(() => structuredClone(stored)),
       save: (state, expected) =>
         (stored?.revision ?? null) === expected

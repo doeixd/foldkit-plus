@@ -134,7 +134,9 @@ const program = Effect.gen(function* () {
   (`sessionStorage` key, IndexedDB `${name}/${key}`; a duplicated tab mints its
   own); `Sync.indexedDb(name, factory?)` opens a database by name (pass
   `fake-indexeddb` in Node). Its submit writes only the new operation, through
-  the optional `Storage.append`. A test `Storage` needs just three members:
+  the optional `Storage.append`. A test `Storage` needs four members: `store`, which says what the
+  store guarantees of concurrent writes (a replica's is `eventual`: it accepts writes apart and the
+  journal's order merges them later), and `load`, `save` and `close`:
 
 ```ts
 import { Effect } from 'effect'
@@ -143,6 +145,7 @@ import type { Storage } from 'foldkit-sync'
 const memoryStorage = (): Storage => {
   let state: unknown
   return {
+    store: { name: 'memory replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next => Effect.sync(() => { state = structuredClone(next) }),   // ignores the CAS revision
     close: Effect.void,

@@ -599,6 +599,18 @@ describe('documentHost, for a runtime of its own', () => {
     expect(await response.json()).toEqual({ error: 'Sign in.' })
   })
 
+  it('declares the store its journal runs on: the authoritative replica has no store of its own', async () => {
+    const answered = await answering(new Map([['ada', 'ada']]))(asking('ada'))
+    const accepted = Result.match(answered, { onFailure: () => undefined, onSuccess: a => a })!
+    expect(accepted.store).toEqual((await openJournal()).store)
+    expect(accepted.store).toEqual({
+      name: 'SQLite journal',
+      isolation: 'serializable',
+      parentRowLock: false,
+    })
+    accepted.abandon()
+  })
+
   it('releases what an accepted upgrade built once it is abandoned, a socket never opened', async () => {
     class Store extends Context.Service<Store, { readonly who: string }>()('do-test/Store') {}
     const log: Array<string> = []

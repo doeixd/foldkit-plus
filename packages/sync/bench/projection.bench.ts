@@ -76,6 +76,7 @@ const stateWith = (pending: number, committed: number): ReplicaState<Shared> => 
 })
 
 const storageWith = (state: ReplicaState<Shared>): Storage => ({
+  store: { name: 'bench replica', isolation: 'eventual', parentRowLock: false },
   load: () => Effect.succeed(state),
   save: () => Effect.void,
   close: Effect.void,

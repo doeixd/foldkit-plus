@@ -248,6 +248,7 @@ void Coalesced
 const memoryStorage = (): Storage => {
   let state: unknown
   return {
+    store: { name: 'memory replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next => Effect.sync(() => void (state = structuredClone(next))),
     close: Effect.void,

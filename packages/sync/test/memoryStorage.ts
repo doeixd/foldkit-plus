@@ -5,6 +5,7 @@ import type { Storage } from '../src/index.js'
 export const memoryStorage = (): Storage => {
   let state: unknown
   return {
+    store: { name: 'test replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next =>
       Effect.sync(() => {

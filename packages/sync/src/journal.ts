@@ -26,6 +26,7 @@ import {
 } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Diagnostic, ReportDiagnostic } from 'foldkit-surface'
+import type { StoreCapabilities } from 'metakit/store'
 import {
   Cursor,
   DocumentId as JournalDocumentId,
@@ -683,6 +684,13 @@ export interface HostSocket extends SocketLike {
  * what the upgrade built.
  */
 export interface Accepted {
+  /**
+   * What the store under this host's journal guarantees of concurrent writes:
+   * the host is the authoritative replica, and takes its declaration from the
+   * journal it runs on (`Journal.store`), serializable over SQLite and
+   * read-committed over D1.
+   */
+  readonly store: StoreCapabilities
   readonly serve: (socket: HostSocket) => void
   readonly abandon: () => void
 }
@@ -876,6 +884,7 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
       return defect('Exchange', Cause.die(error))
     }
     return Result.succeed({
+      store: journal.success.store,
       abandon: release,
       serve: socket => {
         const stop = serveJournal(socket, { ...exchange, diagnostics: reporter })

@@ -39,6 +39,7 @@ export const keyValueStorage = (database: string) =>
     )
     const store = Context.get(context, KeyValueStore.KeyValueStore)
     const storage: Storage = {
+      store: { name: 'KeyValueStore replica', isolation: 'eventual', parentRowLock: false },
       load: () =>
         store.get(KEY).pipe(
           Effect.map(text => (text === undefined ? undefined : (JSON.parse(text) as unknown))),
@@ -115,6 +116,7 @@ export const transactionalStorage = (database: string) =>
         ),
       )
     const storage: Required<Storage> = {
+      store: { name: 'prototype replica', isolation: 'eventual', parentRowLock: false },
       load: () =>
         Effect.gen(function* () {
           const saved = (yield* value('state')) as

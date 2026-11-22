@@ -10,6 +10,17 @@ const file = '../src/do.ts'
 
 export default [
   {
+    name: 'the host declares a store of its own, not the journal one',
+    edits: [
+      {
+        file: host,
+        find: 'store: journal.success.store,',
+        replace: "store: { name: 'host', isolation: 'eventual', parentRowLock: false },",
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a socket is never asked who it serves again',
     edits: [{ file: host, find: 'if (revalidate !== undefined) {', replace: 'if (false) {' }],
     tests,
