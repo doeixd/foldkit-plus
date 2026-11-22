@@ -78,10 +78,11 @@ const Pg = bind(Domain, {
 })
 
 describe('what a writer says of its store', () => {
-  it('SQLite runs every write alone', () => {
+  it('SQLite runs every write alone, isolating no more than one statement, as D1 does', () => {
     expect(writer(Sqlite.Task).store).toEqual({
       name: 'SQLite',
       isolation: 'serializable',
+      isolates: 'statement',
       parentRowLock: false,
     })
   })
@@ -90,13 +91,20 @@ describe('what a writer says of its store', () => {
     expect(writer(Pg.Task).store).toEqual({
       name: 'Postgres',
       isolation: 'read-committed',
+      isolates: 'transaction',
       parentRowLock: false,
     })
     expect(writer(Pg.Task, { isolation: 'serializable' }).store).toEqual({
       name: 'Postgres',
       isolation: 'serializable',
+      isolates: 'transaction',
       parentRowLock: false,
     })
+  })
+
+  it('judges every rule it is handed in the statement that writes', () => {
+    expect(writer(Sqlite.Task).judgesInStatement).toBe(true)
+    expect(writer(Pg.Task).judgesInStatement).toBe(true)
   })
 })
 
@@ -116,14 +124,21 @@ describe('a write whose precondition reads other rows', () => {
     return rest
   }
 
-  it('would register on SQLite', () => {
+  it('would register on SQLite and D1, where the writer judges it in its statement', () => {
     expect(() => RemoteServer.write(RetitleWhileOpen, running(writer(Sqlite.Task)))).not.toThrow()
     expect(() => RemoteServer.write(CloseWhenEmpty, running(writer(Sqlite.Project)))).not.toThrow()
   })
 
+  it('would be refused there through a writer reading first and writing in a second round trip', () => {
+    const { judgesInStatement: _, ...readFirst } = running(writer(Sqlite.Task))
+    expect(() => RemoteServer.write(RetitleWhileOpen, readFirst)).toThrow(
+      'store "SQLite" (serializable per statement, does not lock the parent row) cannot hold:\n  - "RetitleWhileOpen precondition" needs parent-serialized (writers of the rows under one parent run one at a time), judged from a read before the write: it reads other rows',
+    )
+  })
+
   it('would be refused on Postgres, naming the rule, what it needs and the store', () => {
     expect(() => RemoteServer.write(RetitleWhileOpen, running(writer(Pg.Task)))).toThrow(
-      'store "Postgres" (read-committed, does not lock the parent row) cannot hold:\n  - "RetitleWhileOpen precondition" needs parent-serialized (writers of the rows under one parent run one at a time): it reads other rows',
+      'store "Postgres" (read-committed per transaction, does not lock the parent row) cannot hold:\n  - "RetitleWhileOpen precondition" needs parent-serialized (writers of the rows under one parent run one at a time), judged in the statement that writes: it reads other rows',
     )
     expect(() => RemoteServer.write(CloseWhenEmpty, running(writer(Pg.Project)))).toThrow(
       '"CloseWhenEmpty precondition" needs parent-serialized',

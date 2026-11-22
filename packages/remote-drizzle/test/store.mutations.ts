@@ -14,8 +14,18 @@ const edit = (name: string, find: string, replace: string, file = drizzle) => ({
 export default [
   edit(
     'SQLite is said to be read-committed',
-    "? { name: 'SQLite', isolation: 'serializable', parentRowLock: false }",
-    "? { name: 'SQLite', isolation: 'read-committed', parentRowLock: false }",
+    "? { name: 'SQLite', isolation: 'serializable', isolates: 'statement', parentRowLock: false }",
+    "? { name: 'SQLite', isolation: 'read-committed', isolates: 'statement', parentRowLock: false }",
+  ),
+  edit(
+    'SQLite, D1 among it, is said to isolate a read and a later write',
+    "? { name: 'SQLite', isolation: 'serializable', isolates: 'statement', parentRowLock: false }",
+    "? { name: 'SQLite', isolation: 'serializable', isolates: 'transaction', parentRowLock: false }",
+  ),
+  edit(
+    'the writer does not say it judges its rules in the statement',
+    '    judgesInStatement: true,\n    operators: binding.operators.memory,',
+    '    operators: binding.operators.memory,',
   ),
   edit(
     'Postgres is said to run serializable as it comes',
@@ -29,8 +39,8 @@ export default [
   ),
   edit(
     'Postgres is said to lock the parent row',
-    "isolation: serializable ? 'serializable' : 'read-committed',\n        parentRowLock: false,",
-    "isolation: serializable ? 'serializable' : 'read-committed',\n        parentRowLock: true,",
+    "isolates: 'transaction',\n        parentRowLock: false,",
+    "isolates: 'transaction',\n        parentRowLock: true,",
   ),
   {
     name: 'the statement that writes a row ignores the revision it was sent from',
@@ -42,6 +52,17 @@ export default [
       },
     ],
     tests: ['packages/remote-drizzle/test/storeRace.test.ts'],
+  },
+  {
+    name: 'an update holds its row to no rule over other rows in its statement',
+    edits: [
+      {
+        file: drizzle,
+        find: '          at.where,\n          ...required,\n          ...(yield* holdingInvariants(',
+        replace: '          at.where,\n          ...(yield* holdingInvariants(',
+      },
+    ],
+    tests: ['packages/remote-drizzle/test/parentRace.test.ts'],
   },
   edit(
     'a guarded writer says a weaker store than its writer does',

@@ -1357,18 +1357,22 @@ const writeOperations = supported.filter(operation => operation !== 'viewer' && 
 
 /**
  * What the database behind `table` guarantees of concurrent writes, as the
- * writer uses it. SQLite runs one writing transaction at a time (D1 is SQLite
- * behind one writer, its batch one transaction), and the writer judges a rule
- * in the statement that writes, so every write runs alone. Postgres runs
- * transactions at once under READ COMMITTED unless it is set otherwise, and
- * the writer locks no row but the one it writes.
+ * writer uses it. SQLite runs one writing transaction at a time. A SQLite
+ * table may be D1's, which the writer learns only per request: D1 is SQLite
+ * behind one writer, and a batch is one transaction, but it has no
+ * transaction a read and a later write share, so the isolation reaches one
+ * statement or batch. That is all the writer uses: it judges every rule in
+ * the statement, or the batch, that writes (`judgesInStatement`). Postgres
+ * runs transactions at once under READ COMMITTED unless it is set otherwise,
+ * each transaction one unit, and the writer locks no row but the one it writes.
  */
 const storeOf = (table: Table, serializable: boolean): StoreCapabilities =>
   is(table, SQLiteTable)
-    ? { name: 'SQLite', isolation: 'serializable', parentRowLock: false }
+    ? { name: 'SQLite', isolation: 'serializable', isolates: 'statement', parentRowLock: false }
     : {
         name: 'Postgres',
         isolation: serializable ? 'serializable' : 'read-committed',
+        isolates: 'transaction',
         parentRowLock: false,
       }
 
@@ -2260,6 +2264,9 @@ export const writer = <P = unknown>(
     assignments: true,
     requires: true,
     store: storeOf(binding.table, options.isolation === 'serializable'),
+    // `when`, `requires`, invariants and the postcondition are clauses of the UPDATE or
+    // DELETE; what a cascade or a cleared link must hold gates each statement of its batch.
+    judgesInStatement: true,
     operators: binding.operators.memory,
     commutes,
     invariants: true,

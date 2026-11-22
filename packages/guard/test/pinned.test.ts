@@ -289,6 +289,7 @@ describe('GuardServer.writer with a revision', () => {
     expect(guarded.store).toEqual({
       name: 'SQLite',
       isolation: 'serializable',
+      isolates: 'statement',
       parentRowLock: false,
     })
   })
