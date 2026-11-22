@@ -82,6 +82,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-entity/transition`: `transitionOf(write)` keeps a field whose optional key decodes to an empty `Option`, as `Write.bind` does; it wrote null.
 - `foldkit-remote`: a durable write stored by 0.43.0 whose layer computes a field by a call that carried a collation still reads after the upgrade. A binary collation is dropped, an ASCII-folding one folds the call's text as a write does now (`text.lowerAscii`), and one a write cannot say (a backend locale, or an operator that does not compare text itself) is kept in the store and shown as unreadable with its reason, instead of being lost.
 - `foldkit-guard/drizzle`: `GuardDrizzle.visible` accepts a rule calling `Expr.add`, `Expr.sub` or `Text.startsWith` again; it refused them after those operators moved to metakit.
 - `metakit/graph`: `overlaps(a, b)` gives the same reasons as `overlaps(b, a)` across a link from a row to the Model.
