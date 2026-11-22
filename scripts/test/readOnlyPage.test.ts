@@ -195,14 +195,18 @@ describe('a read-only Remote page', () => {
   })
 
   it('keeps no expressions or operator table, which only judging needs (#397)', () => {
-    expect(kept.readOnly.entity).not.toContain('expr.js')
+    // `expr.js` is now `src/expr/*`: its evaluation modules are the ones a judge loads.
+    expect(kept.readOnly.entity).not.toContain('compare.js')
+    expect(kept.readOnly.entity).not.toContain('operand.js')
     expect(kept.readOnly.entity).not.toContain('operators.js')
   })
 })
 
 describe('a page that builds an Expr body and evaluates it', () => {
   it('keeps the evaluator', () => {
-    expect(kept.evaluates.entity).toEqual(expect.arrayContaining(['expr.js', 'evaluate.js']))
+    expect(kept.evaluates.entity).toEqual(
+      expect.arrayContaining(['evaluate.js', 'operand.js', 'compare.js']),
+    )
   })
 
   // `Law.describe` and `Operators.describe` are what turn a schema into JSON
