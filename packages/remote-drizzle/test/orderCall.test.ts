@@ -289,6 +289,16 @@ describe('A call order compiled', () => {
     )
   })
 
+  it('names the binary collation of a text call, which a database in a locale would not give', () => {
+    const [pg] = orderByTerms(
+      compileOrderBy(bodies.Joined, entity('Part', pgParts, { operators }), {}, 'Joined'),
+      'forward',
+    )
+    expect(new PgDialect().sqlToQuery(pg!).sql).toBe(
+      '(("parts"."code" || $1) collate "C") asc nulls last',
+    )
+  })
+
   it('is refused at registration by a binding that cannot run it, a chosen alternative too', () => {
     const bare = entity('Part', sqliteParts)
     for (const name of ['Nearest', 'Chosen'] as const) {

@@ -51,6 +51,7 @@ import { frameOf, toSql } from './render.js'
 import {
   QueryCompileError,
   columnFor,
+  dialectOf,
   linkOf,
   operatorsOf,
   reachedTable,
@@ -398,7 +399,11 @@ export const compileOrderBy = (
         // The key is the call folded under the term's collation; the node alone would order unfolded.
         const key = reading.keys[0]!
         const bound = bindNode(key, envFor(key, reading, target, input))
-        return { key: toSql(bound, frameOf(reading, target, body.entity, query)), direction, nulls }
+        const ordered = toSql(bound, frameOf(reading, target, body.entity, query))
+        // Binary is a database's default only when it is not in a locale.
+        const binary = Option.exists(term.collation, each => each._tag === 'Binary')
+        const collate = dialectOf(target) === 'postgres' ? sql`"C"` : sql`binary`
+        return { key: binary ? sql`(${ordered} collate ${collate})` : ordered, direction, nulls }
       },
     })
   })
