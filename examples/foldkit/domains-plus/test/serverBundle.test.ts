@@ -76,7 +76,13 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // 700 bytes in `remote-server`), the SSR coverage fix (198 bytes), and about 1.4 kB in
 // `foldkit-remote` since v0.43.0 (`storePaths`, the store-step bookkeeping, the plan's reuse in
 // `observeEntry`), which nobody bisected. Ceiling: reading plus 2,000, rounded up.
-const CEILING = 3_277_700
+// +14,663 on 2026-11-22, permanent: 3,292,063 measured after step 10 of the metakit unification plan
+// (3,331,100 before it, in one tree; it read about 3,333,000 since step 5, and this ceiling was never
+// raised for it). A Worker carries both readers: metakit's evaluator and judge, which entity's judge runs
+// on every page and server since step 5 (accepted by the maintainer on 2026-11-21), and its SQL lowering.
+// Step 10 took the translation layer and, with the related-rows reading, about 39 kB off it. Ceiling: the
+// reading plus 300.
+const CEILING = 3_292_363
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

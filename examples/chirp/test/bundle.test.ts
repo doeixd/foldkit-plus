@@ -58,11 +58,16 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // data +24, the app's own style +44) and +447 by #593, whose `runtimeJson` codec (1.7 kB minified)
 // is Remote's Model schema, so every Remote page carries it. No module was added to or dropped from
 // the page by the first, so `foldkit-bundle` and FileUpload did not reach it. Ceiling raised to the reading.
-// +7,267 on 2026-11-21, TEMPORARY: 252,667 measured after step 9 of the metakit unification plan. Not
-// measured step by step; the growth matches the other Remote pages' (step 5, entity's judge on metakit,
-// and step 9, guard's conditions). Step 10 must bring this back toward 245,700, as recorded in
-// docs/design/metakit-unification-LEDGER.md under "Owed by step 10".
-const CEILING = 252_967
+// +7,267 on 2026-11-21 after step 9 of the metakit unification plan (entity's judge on metakit at
+// step 5, guard's conditions at step 9; not measured step by step).
+// -1,876 on 2026-11-22, permanent: 250,791 measured (252,677 before, in one tree) after step 10. Entity's
+// constructors build metakit nodes, the translation layer is deleted, `Expr`, `Query` and `Order` are
+// namespaces, and metakit's reading of related rows arrives only with an `Expr.exists` (foldkit-entity
+// 83,473 to 76,531 minified, metakit 22,941 to 18,182). What stays over the earlier 245,700 (5,091) is
+// metakit's evaluator and judge on every page that reaches entity (18.2 kB minified, `node`,
+// `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
+// 2026-11-21. Ceiling: the reading plus 300.
+const CEILING = 251_091
 
 clientBudget({
   name: 'chirp',

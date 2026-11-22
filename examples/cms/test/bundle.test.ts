@@ -54,15 +54,16 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // first is held by `routes.test.ts`, which adds the chunk: studio 366.6 kB, site 322.2 kB.
 // +500 on 2026-11-19: CI read 164,044 (+44 over 164,000) after `Expr.add`/`sub`/`implies`,
 // `Entity.transition`, `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600).
-// +7,711 on 2026-11-21, TEMPORARY: 171,911 measured. Step 5 of the metakit unification plan
-// put entity's judge on metakit through a translation layer (`lower.ts`, `lowerEnv.ts`,
-// `lowerOperator.ts`), so the page carries metakit's node, partial evaluation and operation modules
-// (22.5 kB minified) and the layer on top of them, against the old `evaluate.js` it replaced. Step 10
-// deletes the layer; forecast after it, estimated from minified size at this page's brotli ratio: 170,000 to 171,300.
-// -331 on 2026-11-21, still TEMPORARY: 171,580 measured. The page judges with metakit's lean judge
-// (103e5f790): no partial evaluation, property table or reads walker, and `Node.key` left it.
-// Step 10 of the unification plan must bring this back to 164,500. Owed: docs/design/metakit-unification-LEDGER.md.
-const CEILING = 171_880
+// +7,711 on 2026-11-21 (step 5 of the metakit unification plan: entity's judge on metakit through a
+// translation layer), -331 the same day (the lean judge).
+// -2,224 on 2026-11-22, permanent: 169,356 measured (171,585 before, in one tree) after step 10. Entity's
+// constructors build metakit nodes, the translation layer is deleted, `Expr`, `Query` and `Order` are
+// namespaces, and metakit's reading of related rows arrives only with an `Expr.exists` (foldkit-entity
+// 61,348 to 54,135 minified, metakit 20,524 to 15,885). What stays over the pre-step-5 164,500 (4,856) is
+// metakit's evaluator and judge on every page that reaches entity (15.9 kB minified, `node`,
+// `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
+// 2026-11-21. Ceiling: the reading plus 300.
+const CEILING = 169_656
 
 clientBudget({
   name: 'cms',

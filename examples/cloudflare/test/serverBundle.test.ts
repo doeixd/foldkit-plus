@@ -25,7 +25,12 @@ import { record } from '../../../scripts/perf-report.mjs'
 // `RemoteServer.write` through), `foldkit-remote` +4.7 kB (the write judges, `Data.can`),
 // `foldkit-sync` +2.6 kB (laws). The ceiling is 4,500.2 kB plus about 1.7%.
 // Never raise it without saying here what the growth bought.
-const CEILING = 4_577_000
+// +62,460 on 2026-11-22, permanent: 4,639,160 measured after step 10 of the metakit unification plan
+// (4,645,318 before it, in one tree; it read about 4,636,000 since steps 5 and 8, and this ceiling was
+// never raised for them). A Worker carries both of metakit's readers: its evaluator and judge, which
+// entity's judge runs since step 5 (accepted by the maintainer on 2026-11-21), and the SQL lowering
+// `foldkit-remote-drizzle` writes operations with since step 8 (about 19 kB). Ceiling: the reading plus 300.
+const CEILING = 4_639_460
 
 // The replica side of `foldkit-sync`. A server reaches `Sync` through the namespace
 // object, or a shared module does, and the bundler then keeps all of these.

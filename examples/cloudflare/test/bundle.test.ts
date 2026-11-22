@@ -22,18 +22,17 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // first chunk. Ceiling raised to the reading plus about 0.4%, rounded up.
 // +500 on 2026-11-19: 224,160 measured, 160 over, after `Expr.add`/`sub`/`implies`, `decrement`,
 // row-reading `when` and `Mutation.update`'s `input` (#600) in `foldkit-entity` and `foldkit-remote`.
-// +8,265 on 2026-11-21, TEMPORARY: 232,465 measured. Step 5 of the metakit unification plan
-// put entity's judge on metakit through a translation layer (`lower.ts`, `lowerEnv.ts`,
-// `lowerOperator.ts`), so the page carries metakit's node, partial evaluation and operation modules
-// (22.5 kB minified) and the layer on top of them, against the old `evaluate.js` it replaced. Step 10
-// deletes the layer; forecast after it, estimated from minified size at this page's brotli ratio: 230,500 to 231,800.
-// -606 on 2026-11-21, still TEMPORARY: 231,859 measured. The page judges with metakit's lean judge
-// (103e5f790): no partial evaluation, property table or reads walker, and `Node.key` left it.
-// Step 10 of the unification plan must bring this back to 224,500. Owed: docs/design/metakit-unification-LEDGER.md.
-// +374 on 2026-11-21, still TEMPORARY: 232,233 measured after step 9 (guard's conditions judged as one
-// metakit expression; `Condition` is one exported object, so its server code reaches the page). Owed by
-// step 10 with the rest; the target stays 224,500.
-const CEILING = 232_533
+// +8,265 on 2026-11-21 (step 5 of the metakit unification plan: entity's judge on metakit through a
+// translation layer), -606 the same day (the lean judge), +374 after step 9 (guard's conditions as one
+// metakit expression).
+// -2,694 on 2026-11-22, permanent: 229,539 measured (232,300 before, in one tree) after step 10. Entity's
+// constructors build metakit nodes, the translation layer is deleted, `Expr`, `Query` and `Order` are
+// namespaces, and metakit's reading of related rows arrives only with an `Expr.exists` (foldkit-entity
+// 79,708 to 72,698 minified, metakit 20,533 to 15,758). What stays over the pre-step-5 224,500 (5,039) is
+// metakit's evaluator and judge on every page that reaches entity (15.8 kB minified, `node`,
+// `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
+// 2026-11-21. Ceiling: the reading plus 300.
+const CEILING = 229_839
 
 clientBudget({
   name: 'cloudflare',
