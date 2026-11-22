@@ -4,10 +4,11 @@
  * of both orders of every list-write pair it calls commuting over awkward
  * literals.
  */
-import { Result, Schema } from 'effect'
+import { Effect, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Transition, Verdict } from 'metakit'
+import { Abstract, Eq, Expr, Num, Ord, Path, Transition, Verdict } from 'metakit'
 import { Text } from 'metakit/domain'
+import * as Prove from 'metakit/prove'
 
 const None = Schema.Struct({})
 
@@ -103,6 +104,58 @@ describe('Transition.commutes compares literals as the set does', () => {
     )
     expect([Result.isSuccess(byIdFirst), Result.isSuccess(clearedFirst)]).toEqual([false, true])
   })
+})
+
+describe('an operand past the safe range is refused by every reader', () => {
+  const Row = Schema.Struct({
+    a: Schema.Int,
+    f: Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: 2 ** 60 })),
+  })
+  const $ = Path.forSchema(Row)
+  const reasonOf = (expr: Expr.Expr<typeof Row.Type, unknown>, env: typeof Row.Type) =>
+    Result.match(Expr.evalResult(expr, env), {
+      onSuccess: value => value,
+      onFailure: refusal => `refused: ${refusal.reason}`,
+    })
+
+  it('the evaluator, as SQL makes the sum NULL', () => {
+    const past = Ord.gt(Num.add($.a, 2 ** 60), 0)
+    expect(reasonOf(past, { a: 1, f: 0 })).toBe('refused: unsafe-integer')
+    for (const expr of [Num.sub($.f, 1), Num.mul($.f, 0), Num.neg($.f)]) {
+      expect(reasonOf(expr, { a: 0, f: 2 ** 60 })).toBe('refused: unsafe-integer')
+      expect(reasonOf(expr, { a: 0, f: 2 })).not.toBe('refused: unsafe-integer')
+    }
+  })
+
+  it('the page-side judge, which no identity lets keep the operand', () => {
+    // `f + 0` is refused at 2^60, so it is not `f`, and not known to equal it.
+    const kept = Eq.is(Num.add($.f, 0), $.f)
+    expect(reasonOf(kept, { a: 0, f: 2 ** 60 })).toBe('refused: unsafe-integer')
+    expect(Verdict.isTrue(Expr.judge(kept, {}))).toBe(false)
+    expect(Verdict.isTrue(Expr.judge(Eq.is(Num.add($.a, 0), $.a), {}))).toBe(true)
+    expect(Expr.show(Expr.residualize(Num.add($.a, 0), {}))).toBe('a')
+    expect(Expr.show(Expr.residualize(Num.add($.f, 0), {}))).toBe('(f + 0)')
+    expect(Expr.show(Expr.residualize(Num.neg(Num.neg($.f)), {}))).toBe('--f')
+    expect(Expr.show(Expr.residualize(Num.neg(Num.neg($.a)), {}))).toBe('a')
+  })
+
+  it('the checker, which proves no rule over an operand that may be past it', () => {
+    const zero = Ord.gte(Num.mul($.f, 0), 0)
+    expect(reasonOf(zero, { a: 0, f: 2 ** 60 })).toBe('refused: unsafe-integer')
+    expect(Verdict.isTrue(Abstract.checkInvariant(Row, zero))).toBe(false)
+    const Small = Schema.Struct({
+      f: Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: 9 })),
+    })
+    const small = Path.forSchema(Small)
+    expect(Verdict.isTrue(Abstract.checkInvariant(Small, Ord.gte(Num.mul(small.f, 0), 0)))).toBe(
+      true,
+    )
+  })
+
+  it('the prover, whose counterexample replays', async () => {
+    const proof = await Effect.runPromise(Prove.invariant(Row, Ord.gte(Num.mul($.f, 0), 0)))
+    expect(Verdict.isTrue(proof)).toBe(false)
+  }, 30_000)
 })
 
 /** mulberry32: the states are the same on every run. */

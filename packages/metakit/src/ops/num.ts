@@ -3,8 +3,8 @@
  * and derived helpers (`min`, `max`, `abs`, `clamp`) built over `If` + `Ord`.
  *
  * Null-strict: a null operand gives null, after an operand that is NaN or
- * infinite is refused. A result that is NaN or infinite is refused, and so is
- * an integer result past ±(2^53−1), where a double no longer holds every
+ * infinite is refused. An operand past ±(2^53−1) is refused, and so is an
+ * integer result past that range, where a double no longer holds every
  * integer and SQL's answer would differ.
  *
  * `Ord` comparisons (`lt`, `lte`, `gt`, `gte`) are also re-exported here for
@@ -18,19 +18,24 @@ import * as Ord from './ord.js'
 export { gt, gte, gtOp, gteOp, lt, lte, ltOp, lteOp } from './ord.js'
 export { mulScaled } from './mulScaled.js'
 
+const MAX = Number.MAX_SAFE_INTEGER
+
 const arithmetic =
   (id: Node.CoreOpId, compute: (a: number, b: number) => number) =>
   (args: ReadonlyArray<unknown>): unknown => {
     const other = args.find(arg => typeof arg !== 'number')
     if (other !== undefined) return Node.illTyped(id, 'a number', other)
-    const result = compute(args[0] as number, args[1] as number)
-    if (!Number.isFinite(result)) {
+    // Every double past ±(2^53−1) is an integer a double may already have rounded.
+    const unsafe = (args as ReadonlyArray<number>).find(arg => Math.abs(arg) > MAX)
+    if (unsafe !== undefined) {
       return new Node.Refusal({
-        reason: 'non-finite',
+        reason: 'unsafe-integer',
         at: id,
-        detail: `the result of ${args.join(', ')} is not a finite number`,
+        detail: `the operand ${unsafe} is past ±(2^53−1)`,
       })
     }
+    // Operands within ±(2^53−1) give a finite result: the largest product is about 8e31.
+    const result = compute(args[0] as number, args[1] as number)
     if (args.every(Number.isSafeInteger) && !Number.isSafeInteger(result)) {
       return new Node.Refusal({
         reason: 'unsafe-integer',

@@ -109,6 +109,8 @@ export interface View<T> {
   readonly cannotRefuse: (operand: T) => boolean
   readonly isRead: (operand: T) => boolean
   readonly isPortableRead: (operand: T) => boolean
+  /** A number it holds is within ±(2^53−1) (`isSafeRead`). */
+  readonly safe: (operand: T) => boolean
   readonly unary: (operand: T) => { readonly id: string; readonly arg: T } | undefined
   readonly same: (left: T, right: T) => boolean
 }
@@ -146,7 +148,7 @@ export const nullBesideUnrefused = <T>(
  * known, from the operation's row of `opLaws`, then its fold over a known list
  * of candidates (`eq.in`, `eq.among`). A law that returns an operand holds
  * only where the operand is what the operation would have returned: `x + 0`
- * over text is refused, `x` is not.
+ * over text is refused, `x` is not, and so is `x + 0` over 2^60.
  */
 export const rewrite = <T>(
   view: View<T>,
@@ -155,7 +157,9 @@ export const rewrite = <T>(
 ): Option.Option<Rewrite<T>> => {
   const laws = opLaws[op.id]
   const ofKind = (operand: T): boolean =>
-    op.returns === 'operand' || Option.exists(view.kind(operand), kind => kind === op.returns)
+    op.returns === 'operand' ||
+    (Option.exists(view.kind(operand), kind => kind === op.returns) &&
+      (op.returns !== 'number' || view.safe(operand)))
   const isLit = (operand: T, expected: unknown): boolean =>
     Option.exists(
       view.known(operand),

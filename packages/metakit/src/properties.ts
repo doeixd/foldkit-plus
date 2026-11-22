@@ -44,7 +44,7 @@ export type Domain = 'all' | 'integers'
  * rewrite rules partial evaluation alone reads (`reflexive`, `involution`).
  */
 export interface OpProperties {
-  /** `op(x, value)` is `x`, on `side`, for every `x` of the result's kind, null or refused. */
+  /** `op(x, value)` is `x`, on `side`, for every `x` of the result's kind (a number within ±(2^53−1)), null or refused. */
   readonly identity?: { readonly value: unknown; readonly side: Side }
   /**
    * `op(x, value)` is `result`, on `side`, for every `x`; `unlessRefused`:
@@ -71,7 +71,7 @@ export interface OpProperties {
   readonly monotone?: ReadonlyArray<Direction>
   /** `op(x, x)` is `value` for an `x` that is a literal or a path and holds no NUL text. */
   readonly reflexive?: { readonly value: unknown }
-  /** `op(op(x))` is `x` for every `x` of the result's kind, null or refused. */
+  /** `op(op(x))` is `x` for every `x` of the result's kind (a number within ±(2^53−1)), null or refused. */
   readonly involution?: true
 }
 

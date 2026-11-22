@@ -81,6 +81,25 @@ export const isPortableRead = (node: Node.Node): boolean => {
   return Node.$is('Path')(node) && Option.isSome(node.ast) && holdsNoNulText(node.ast.value)
 }
 
+const INT: ReadonlySet<string> = new Set(['effect/schema/isInt'])
+
+/** A number within ±(2^53−1), past which arithmetic refuses an operand. */
+export const isSafeNumber = (value: unknown): boolean =>
+  typeof value === 'number' && Math.abs(value) <= Number.MAX_SAFE_INTEGER
+
+/**
+ * A literal or a path that, whenever it holds a number, holds one within
+ * ±(2^53−1): a path whose Schema admits only integers (`Schema.Int` takes
+ * only safe ones). The guard of a numeric law that returns an operand.
+ */
+export const isSafeRead = (node: Node.Node): boolean =>
+  Node.$is('Lit')(node)
+    ? isSafeNumber(node.value)
+    : Node.$is('Path')(node) &&
+      Option.exists(node.ast, ast =>
+        present(ast).every(member => SchemaAST.isNumber(member) && declares(member.checks, INT)),
+      )
+
 /** A literal `isPortableRead` takes: not a refusal, and no text holding a NUL. */
 export const isPortableValue = (value: unknown): boolean =>
   !Node.isRefusal(value) && !Node.holdsNul([value])

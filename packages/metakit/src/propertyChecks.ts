@@ -7,6 +7,7 @@
  */
 import { Equal } from 'effect'
 import * as Node from './node.js'
+import { isSafeNumber } from './ops/kind.js'
 import type { Domain, OpProperties, Side } from './properties.js'
 
 const MAX = Number.MAX_SAFE_INTEGER
@@ -119,8 +120,12 @@ export const checkProperties = (
   }
 
   const { identity, absorbing, invertible, monotone, reflexive, associative } = properties
+  // The operands a law that returns one is applied to (`rewrite`): of a number, one in the safe range.
+  const returned = ofKind(op).filter(
+    x => op.returns !== 'number' || typeof x !== 'number' || isSafeNumber(x),
+  )
   if (identity !== undefined) {
-    for (const x of ofKind(op)) {
+    for (const x of returned) {
       for (const args of placed(identity.side, x, identity.value)) {
         expect('identity', args, sameAnswer(run(args), x), `gives ${label(x)}`)
       }
@@ -143,7 +148,7 @@ export const checkProperties = (
     }
   }
   if (properties.involution === true) {
-    for (const x of ofKind(op)) {
+    for (const x of returned) {
       expect('involution', [x], sameAnswer(run([run([x])]), x), 'undoes itself')
     }
   }

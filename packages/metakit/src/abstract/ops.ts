@@ -27,7 +27,7 @@ export interface TermOp {
   readonly forward: (args: ReadonlyArray<Interval.Interval>) => Interval.Interval
   /** Whether the result is an integer, given which operands are. */
   readonly integral: (args: ReadonlyArray<boolean>) => boolean
-  /** Whether the evaluator refuses a result outside the safe range. */
+  /** Whether the evaluator refuses an operand or a result outside the safe range. */
   readonly refuses: boolean
   /**
    * Where the evaluator refuses by something besides the result's range: whether

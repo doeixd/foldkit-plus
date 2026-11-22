@@ -294,13 +294,6 @@ export default [
   ),
   mutation(
     nullStrict,
-    'a non-finite result is returned',
-    num,
-    'if (!Number.isFinite(result)) {',
-    'if (false) {',
-  ),
-  mutation(
-    nullStrict,
     'NaN is ordered',
     ord,
     'Number.isNaN(value) ? Node.unordered(id) : undefined',

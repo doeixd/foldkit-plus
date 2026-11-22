@@ -27,6 +27,8 @@ import {
   holdsValue,
   isPortableRead,
   isPortableValue,
+  isSafeNumber,
+  isSafeRead,
   kindOf,
   kindOfValue,
 } from './kind.js'
@@ -103,6 +105,10 @@ const view: View<unknown> = {
     isLeftover(judged)
       ? judged.path !== undefined && isPortableRead(judged.path)
       : isPortableValue(judged),
+  safe: judged =>
+    isLeftover(judged)
+      ? judged.path !== undefined && isSafeRead(judged.path)
+      : isSafeNumber(judged),
   unary: judged => (isLeftover(judged) ? judged.unary : undefined),
   same,
 }

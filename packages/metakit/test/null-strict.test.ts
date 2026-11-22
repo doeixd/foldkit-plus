@@ -111,7 +111,12 @@ describe('null-strict evaluation', () => {
       { ...row({}), n: 2 ** 53 - 1 },
       'unsafe-integer',
     ],
-    ['a float overflow', Num.mul($.f, $.f), { ...row({}), f: 1e200 }, 'non-finite'],
+    [
+      'an operand past the safe range',
+      Num.add($.f, 0.5),
+      { ...row({}), f: 2 ** 60 },
+      'unsafe-integer',
+    ],
     ['arithmetic over NaN', Num.add($.raw, 1), { ...row({}), raw: NaN }, 'non-finite'],
     ['an order over NaN', Ord.lte($.raw, $.raw), { ...row({}), raw: NaN }, 'non-finite'],
     ['arithmetic over text', Num.add($.n, 0), row({ n: 'a' }), 'ill-typed'],
@@ -136,7 +141,8 @@ describe('null-strict evaluation', () => {
   })
 
   it('keeps a float sum a float and a safe integer sum exact', () => {
-    expect(outcome(Num.add($.f, $.f), { ...row({}), f: 1e300 })).toBe(2e300)
+    expect(outcome(Num.add($.f, $.f), { ...row({}), f: 1.25 })).toBe(2.5)
+    expect(outcome(Num.add($.f, $.f), { ...row({}), f: 1e300 })).toBe('refused: unsafe-integer')
     expect(outcome(Num.add($.n, 1), { ...row({}), n: 2 ** 53 - 2 })).toBe(2 ** 53 - 1)
     expect(Object.is(outcome(Num.mul($.n, 0), { ...row({}), n: -3 }), 0)).toBe(true)
   })
@@ -269,7 +275,9 @@ describe('partial evaluation keeps the answer of evaluation', () => {
     const shown = (expr: Expr.Expr<Row, unknown>) => Expr.show(Expr.residualize(expr, {}))
     expect(shown(Num.add($.n, 0))).toBe('n')
     expect(shown(Num.sub($.n, 0))).toBe('n')
-    expect(shown(Num.mul(1, $.f))).toBe('f')
+    expect(shown(Num.mul(1, $.n))).toBe('n')
+    // A finite number may be past the safe range, where `1 * f` is refused and `f` is not.
+    expect(shown(Num.mul(1, $.f))).toBe('(1 * f)')
     expect(shown(Num.neg(Num.neg($.n)))).toBe('n')
     expect(shown(Bool.and($.b, true))).toBe('b')
     expect(shown(Bool.or(false, $.b))).toBe('b')

@@ -18,7 +18,7 @@
 import { Option } from 'effect'
 import * as Node from '../node.js'
 import { applyForeign, evalNode, ifArm, matchArm, type ForeignImplementations } from './eval.js'
-import { cannotRefuse, isPortableRead, kindOf } from './kind.js'
+import { cannotRefuse, isPortableRead, isSafeRead, kindOf } from './kind.js'
 import { nullBesideUnrefused, rewrite, type View } from './laws.js'
 import { lookupPartial } from './partial.js'
 import { partialRows } from './partialRows.js'
@@ -30,6 +30,7 @@ const residual: View<Node.Node> = {
   cannotRefuse,
   isRead: Node.$is('Path'),
   isPortableRead,
+  safe: isSafeRead,
   unary: node =>
     Node.$is('Call')(node) && node.args.length === 1
       ? { id: node.op.id, arg: node.args[0]! }

@@ -260,11 +260,13 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       strict('bool', [a!, b!], apply(...aligned(number(a!), number(b!))))
   // The solver's numbers are exact. Whatever leaves the safe range is taken
   // for refused, an integer or not: a proof then never rests on a double's rounding there.
+  // Evaluation refuses an operand past it too.
   const arithmetic =
     (apply: (a: ZArith, b: ZArith) => ZArith) =>
     ([a, b]: ReadonlyArray<Term>): Term => {
-      const result = apply(...aligned(number(a!), number(b!)))
-      return strict('num', [a!, b!], result, unsafe(result))
+      const [x, y] = aligned(number(a!), number(b!))
+      const result = apply(x, y)
+      return strict('num', [a!, b!], result, z3.Or(unsafe(x), unsafe(y), unsafe(result)))
     }
   /** Kleene: a refusal first, which is not absorbed; then `settling` when either side is; then null; then the other value. */
   const kleene = (settling: boolean) => {

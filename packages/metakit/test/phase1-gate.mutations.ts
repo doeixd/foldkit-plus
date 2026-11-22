@@ -63,4 +63,66 @@ const commuting = [
   mutation(gateTests, 'a set holds -0 as given', arr, '    ? value + 0\n', '    ? value\n'),
 ]
 
-export default [...commuting]
+const nullStrict = 'packages/metakit/test/null-strict.test.ts'
+const propertyTests = ['packages/metakit/test/properties.test.ts']
+
+const unsafeOperands = [
+  mutation(
+    gateTests,
+    'arithmetic takes an operand past the safe range',
+    '../src/ops/num.ts',
+    'if (unsafe !== undefined) {',
+    'if (false) {',
+  ),
+  mutation(
+    [...gateTests, nullStrict],
+    'an identity returns a number that may be past the safe range',
+    '../src/ops/laws.ts',
+    "(op.returns !== 'number' || view.safe(operand))",
+    'true',
+  ),
+  mutation(
+    [...gateTests, nullStrict],
+    'partial evaluation takes every read as a safe number',
+    '../src/ops/residualize.ts',
+    'safe: isSafeRead,',
+    'safe: () => true,',
+  ),
+  mutation(
+    gateTests,
+    'the judge takes every read as a safe number',
+    '../src/ops/judge.ts',
+    '? judged.path !== undefined && isSafeRead(judged.path)',
+    '? true',
+  ),
+  mutation(
+    [...gateTests, nullStrict],
+    'a finite number read is a safe number',
+    '../src/ops/kind.ts',
+    'SchemaAST.isNumber(member) && declares(member.checks, INT)',
+    'SchemaAST.isNumber(member)',
+  ),
+  mutation(
+    gateTests,
+    'the checker reads only the result’s range',
+    '../src/abstract/state.ts',
+    '[node, ...node.args].every(',
+    '[node].every(',
+  ),
+  mutation(
+    gateTests,
+    'the prover reads only the result’s range',
+    '../src/prove/lower.ts',
+    'z3.Or(unsafe(x), unsafe(y), unsafe(result))',
+    'unsafe(result)',
+  ),
+  mutation(
+    propertyTests,
+    'an identity is checked over numbers past the safe range',
+    '../src/propertyChecks.ts',
+    "x => op.returns !== 'number' || typeof x !== 'number' || isSafeNumber(x),",
+    'x => x !== undefined,',
+  ),
+]
+
+export default [...commuting, ...unsafeOperands]
