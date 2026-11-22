@@ -35,7 +35,7 @@ export default [
     name: 'a read keeps the value it replaced, not its own',
     edits: [
       {
-        file: '../src/kept.ts',
+        file: '../src/keeping.ts',
         find: 'field => Option.some(values[field])',
         replace: 'heldOf(store[key])',
       },

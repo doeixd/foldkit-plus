@@ -8,7 +8,8 @@
 import { Equal } from 'effect'
 import { type Connection, hasNext, hasPrevious } from './connection.js'
 import { addOverlay } from './capability.js'
-import { echoKept, heldOf, keptBefore, noKept, unexpired, type Kept } from './kept.js'
+import { noKept, type Kept } from './kept.js'
+import { echoKept, heldOf, keptBefore, unexpired } from './keeping.js'
 import type { OptimisticState } from './optimistic.js'
 import type { LiveInsertion, LivePolicy } from './query.js'
 import {

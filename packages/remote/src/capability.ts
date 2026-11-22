@@ -23,7 +23,8 @@ import type {
   QueryRequirement,
 } from './index.js'
 import type { applyConnectionEvent, applyEntityEvent, awaitEchoes } from './liveEvents.js'
-import type { Kept, settleKept } from './kept.js'
+import type { Kept } from './kept.js'
+import type { settleKept } from './keeping.js'
 import type { LiveEvent } from './liveState.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { MutationAnswer, MutationState, NormalizedPatch } from './ledger.js'
