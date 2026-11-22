@@ -2,10 +2,12 @@
  * The law over a feed whose body counts other rows through an exists (#344):
  * Home, an account's own posts and those of everyone it follows, with a
  * follow and an unfollow run through the client and through a memory server.
- * The client judges no exists over rows its store may not hold (a refusal
- * decides before null, so an `or` is not settled by its own side beside one),
- * so Home is left to the server while either write is pending, whatever the
- * store holds; the follows themselves agree (#344, #409).
+ * The client judges no exists over rows its store may not hold, but Home's
+ * cannot refuse (it compares stored ids with the input's), so an `or` is
+ * settled by a post's own side beside it. While a follow is pending the client
+ * decides every held post and agrees with the server; while an unfollow is
+ * pending the followee's posts rest on follows it may lack, and Home is left
+ * to the server, unless every follow of the account is held (#344, #409).
  */
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -207,13 +209,12 @@ const checked = (
   )
 
 describe('the law over a feed counting follows', () => {
-  it('agrees on the follow while it is pending, and leaves Home to the server', async () => {
+  it('agrees on the follow while it is pending, and on Home', async () => {
     const report = await checked(FollowAccount, { id: 'f2', followeeId: 'bo' })
     expect(report.disagreed).toEqual([])
     expect(report.agreed).toEqual(
-      expect.arrayContaining(['Follow:f2.follower', 'Follow:f2.followee']),
+      expect.arrayContaining(['Follow:f2.follower', 'Follow:f2.followee', home.identity]),
     )
-    expect(report.unknown).toContain(home.identity)
   })
 
   it('leaves Home to the server while an unfollow is pending', async () => {
@@ -223,10 +224,9 @@ describe('the law over a feed counting follows', () => {
     expect(report.unknown).toContain(home.identity)
   })
 
-  it('agrees on the list of follows while an unfollow is pending, and still leaves Home to the server', async () => {
+  it('agrees on the list of follows while an unfollow is pending, and on Home beside it', async () => {
     const report = await checked(UnfollowAccount, { id: 'f1' }, [home, following])
     expect(report.disagreed).toEqual([])
-    expect(report.agreed).toContain(following.identity)
-    expect(report.unknown).toContain(home.identity)
+    expect(report.agreed).toEqual(expect.arrayContaining([following.identity, home.identity]))
   })
 })

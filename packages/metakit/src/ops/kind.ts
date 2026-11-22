@@ -140,8 +140,10 @@ const refusesOperandsOnly: ReadonlySet<Node.CoreOpId> = new Set<Node.CoreOpId>([
  * and its Schemas: a literal of none; a path whose Schema admits none (a
  * finite number, a boolean, a literal set of none, `Text`); a core
  * operation that refuses only for its operands' values, over operands of its
- * kind that cannot be refused. The guard of every rewrite that drops an
- * operand: a refusal decides before null and is not absorbed.
+ * kind that cannot be refused; an `any` or `every` over a list or a row's
+ * related rows whose test cannot be refused (`foldCannotRefuse`). The guard
+ * of every rewrite that drops an operand: a refusal decides before null and
+ * is not absorbed.
  */
 export const cannotRefuse = (node: Node.Node): boolean =>
   Node.$match(node, {
@@ -155,7 +157,49 @@ export const cannotRefuse = (node: Node.Node): boolean =>
     If: () => false,
     Match: () => false,
     Opaque: () => false,
-    Rows: () => false,
+    Rows: rows => {
+      const source = Node.rowsSource(rows.over)
+      return foldCannotRefuse(
+        rows,
+        Node.$is('Lit')(source)
+          ? holdsValue(rows.over, source.value)
+          : Node.$is('Path')(source) && holdsRead(rows.over, source),
+        Option.match(rows.where, { onNone: () => true, onSome: cannotRefuse }),
+      )
+    },
+  })
+
+/**
+ * `cannotRefuse` of a `Rows` node, from whether its source is what it folds
+ * (`holdsValue`, `holdsRead`) and whether its test cannot be refused. `any`
+ * and `every` refuse only for a source that is not, or for a test refused
+ * where no other element settles them (`foldAnswers`); every other fold
+ * refuses for an answer it needs or a total past a range.
+ */
+export const foldCannotRefuse = (
+  rows: Node.Rows,
+  sourceHolds: boolean,
+  testCannotRefuse: boolean,
+): boolean => (rows.fold === 'any' || rows.fold === 'every') && sourceHolds && testCannotRefuse
+
+/** Whether a known source is what `over` folds, or null: a list of values `admitted` takes, or a row. */
+export const holdsValue = (over: Node.RowsOver, value: unknown): boolean =>
+  value === null ||
+  value === undefined ||
+  Node.RowsOver.$match(over, {
+    List: () => Array.isArray(value) && admitted(value),
+    Related: () => typeof value === 'object' && !Array.isArray(value) && !Node.isRefusal(value),
+  })
+
+/**
+ * Whether a read is what `over` folds, or null, wherever it is read: a path
+ * whose Schema admits only lists; over related rows any read, which is a row
+ * or null, the rows pointing at it held as `{ rows, whole }` or not at all.
+ */
+export const holdsRead = (over: Node.RowsOver, path: Node.PathNode): boolean =>
+  Node.RowsOver.$match(over, {
+    List: () => Option.exists(path.ast, ast => present(ast).every(SchemaAST.isArrays)),
+    Related: () => true,
   })
 
 /**

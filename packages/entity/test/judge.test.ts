@@ -246,8 +246,10 @@ describe('the two-valued interpreter, given one row', () => {
     ).toBe(true)
   })
 
-  it('does not settle an or by its own row beside an exists, which is not judged without its rows', () => {
+  it('settles an or by its own row beside an exists that cannot be refused, without its rows', () => {
     const beside = Expr.or(Expr.eq(M.fields.rank, 1), Expr.exists(B.relations.member))
-    expect(() => truthOver(beside, { id: 'm1', rank: 1 })).toThrow(RowsMissingError)
+    expect(truthOver(beside, { id: 'm1', rank: 1 })).toBe(true)
+    // Its other side false, the exists decides, and its rows are not held.
+    expect(() => truthOver(beside, { id: 'm1', rank: 2 })).toThrow(RowsMissingError)
   })
 })

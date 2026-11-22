@@ -28,7 +28,6 @@ const rows = (
 
 const refusalFirst =
   'A refusal decides before null and is not absorbed (metakit decision of 2026-11-21, "a refusal decides before null"): metakit models one statement, which a database refuses as a whole.'
-const notAbsorbed = `${refusalFirst} Partial evaluation drops the operand \`and\` or \`or\` does not need only where it cannot be refused; a related-rows fold is not judged, so over a partly held world metakit leaves open what the old judge decided. (A stored text field cannot be refused, since a write refuses text holding a NUL; the rows over the team's \`name\` match since step 5.)`
 
 export const differences: ReadonlyArray<Difference> = [
   ...rows(
@@ -51,29 +50,5 @@ export const differences: ReadonlyArray<Difference> = [
     'null',
     'refused',
     `${refusalFirst} The stored text holding a NUL is refused before the null search makes the call null.`,
-  ),
-  ...rows(
-    'every other row of each table: and joins a path and the negation of an exists',
-    ['m3'],
-    'false',
-    'unknown',
-    notAbsorbed,
-  ),
-  ...rows(
-    'no badge, and not every pin: and joins a path and the negation of an exists',
-    ['m3', 'm4'],
-    'false',
-    'unknown',
-    notAbsorbed,
-  ),
-  ...['every other row of each table', 'no badge, and not every pin', 'no link held'].flatMap(
-    world =>
-      rows(
-        `${world}: or holds by either side, an exists or the row's own field`,
-        ['m5'],
-        'true',
-        'unknown',
-        notAbsorbed,
-      ),
   ),
 ]

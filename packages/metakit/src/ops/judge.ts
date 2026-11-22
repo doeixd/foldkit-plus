@@ -22,6 +22,9 @@ import {
   callCannotRefuse,
   callKind,
   cannotRefuse,
+  foldCannotRefuse,
+  holdsRead,
+  holdsValue,
   isPortableRead,
   isPortableValue,
   kindOf,
@@ -129,8 +132,8 @@ const openCall = (
 
 /**
  * A choice left over (`If`, `Match`). Its kind is not kept: what is left of
- * a choice or of a `Rows` node is never a read and never shown unrefused, so
- * no rule's answer turns on its kind (`lean-judge.mutations.ts`).
+ * a choice is never a read and never shown unrefused, so no rule's answer
+ * turns on its kind (`lean-judge.mutations.ts`).
  */
 const openChoice = (on: Leftover, arms: ReadonlyArray<unknown>): Leftover =>
   new Leftover(
@@ -222,8 +225,15 @@ const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): 
           kept: (kept, source, outer) => {
             const body = Node.rowsBody(kept).map(each => judge(each, outer, foreign))
             return new Leftover(
-              Option.none(),
-              false,
+              kindOf(kept),
+              foldCannotRefuse(
+                kept,
+                isLeftover(source)
+                  ? source.path !== undefined && holdsRead(kept.over, source.path)
+                  : holdsValue(kept.over, source),
+                // The test is the body's first part, where there is one.
+                Option.isNone(kept.where) || view.cannotRefuse(body[0]),
+              ),
               undefined,
               undefined,
               Option.map(Option.all([readsOf(source), readsTogether(body)]), ([from, read]) =>
