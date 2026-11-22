@@ -90,20 +90,20 @@ export default [
   edit(
     'a request new to a patched field is kept over the first patch (#513)',
     '../src/replay.ts',
-    'by: new Map([...(was?.by ?? []), ...fresh.map(id => [id, over] as const)]),',
-    'by: new Map([...(was?.by ?? []), ...fresh.map(id => [id, was?.by.values().next().value ?? over] as const)]),',
+    'by: new Map([...(was?.by ?? []), ...ids.map(id => [id, over] as const)]),',
+    'by: new Map([...(was?.by ?? []), ...ids.map(id => [id, was?.by.values().next().value ?? over] as const)]),',
   ),
   edit(
     'a later patch replaces the value kept from before the first',
     '../src/replay.ts',
-    'const fresh = [...pending].filter(id => was === undefined || !was.by.has(id))',
-    'const fresh = [...pending]',
+    ': [...pending].filter(id => was === undefined || !was.by.has(id))',
+    ': [...pending]',
   ),
   edit(
     'a patch is kept with no write pending',
     '../src/replay.ts',
-    'const fresh = [...pending].filter(id => was === undefined || !was.by.has(id))',
-    "const fresh = [...(pending.size === 0 ? ['x'] : pending)]",
+    ': [...pending].filter(id => was === undefined || !was.by.has(id))',
+    ": [...(pending.size === 0 ? ['x'] : pending)]",
   ),
   edit(
     'a kept value outlives the bound',
@@ -114,8 +114,8 @@ export default [
   edit(
     'an answer leaves the fields it wrote kept',
     '../src/replay.ts',
-    '.filter(([field]) => !Object.hasOwn(values, field))',
-    '.filter(() => true)',
+    'if (!Object.hasOwn(values, field)) {',
+    'if (true) {',
   ),
   edit(
     'the last write answered leaves what is kept',

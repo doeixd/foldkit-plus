@@ -606,6 +606,7 @@ describe('documentHost, for a runtime of its own', () => {
     expect(accepted.store).toEqual({
       name: 'SQLite journal',
       isolation: 'serializable',
+      isolates: 'transaction',
       parentRowLock: false,
     })
     accepted.abandon()

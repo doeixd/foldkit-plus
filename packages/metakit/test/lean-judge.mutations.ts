@@ -78,8 +78,8 @@ export default [
   ),
   mutation(
     'an opaque term left over is not marked',
-    ': new Leftover(Option.none(), false, undefined, undefined, opaque.reads, true, undefined),',
-    ': new Leftover(Option.none(), false, undefined, undefined, opaque.reads, false, undefined),',
+    'return new Leftover(Option.none(), false, undefined, undefined, opaque.reads, true, undefined)',
+    'return new Leftover(Option.none(), false, undefined, undefined, opaque.reads, false, undefined)',
   ),
   mutation(
     'a strict call beside a known null is not folded',

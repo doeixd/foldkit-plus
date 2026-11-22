@@ -19,13 +19,13 @@ export default [
   ),
   edit(
     'a data rule is taken as judged in the statement whatever its writer says',
-    "judged: writer.judgesInStatement === true ? 'in-statement' : 'read-first',",
-    "judged: 'in-statement',",
+    "!kind.inserts && writer.judgesInStatement === true ? 'in-statement' : 'read-first'",
+    "'in-statement'",
   ),
   edit(
     'a data rule is taken as read first through a writer that judges it in its statement',
-    "judged: writer.judgesInStatement === true ? 'in-statement' : 'read-first',",
-    "judged: 'read-first',",
+    "!kind.inserts && writer.judgesInStatement === true ? 'in-statement' : 'read-first'",
+    "'read-first'",
   ),
   edit(
     "a writer's own rules are not held to its store",

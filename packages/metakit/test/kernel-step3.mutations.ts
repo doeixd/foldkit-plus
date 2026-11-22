@@ -65,8 +65,8 @@ export default [
     transitionTests,
     'rule 4: two sets commute whatever their values',
     commutes,
-    'return Option.exists(literals(wa, wb), ([x, y]) => sameAnswer(x, y))',
-    'return true',
+    "sameAnswer(x, y) && !(typeof x === 'number' && typeof y === 'number' && !Object.is(x, y)),",
+    'true,',
   ),
   mutation(
     transitionTests,
@@ -185,7 +185,7 @@ export default [
     rowsTests,
     'a list in a column is not refused by name',
     lowering,
-    'a list held in a column is not lowered to SQL',
+    'rows.${rows.fold} over a list: a list held in a column is not lowered to SQL',
     'unsupported',
   ),
   mutation(
@@ -218,8 +218,8 @@ export default [
     rowsTests,
     'include adds a value at the end, not at its place',
     arr,
-    'if (sign > 0 && at === list.length) at = index',
-    '',
+    '} else if (sign > 0 && at === list.length) {',
+    '} else if (false) {',
   ),
   mutation(
     [...rowsTests, ...transitionTests],
