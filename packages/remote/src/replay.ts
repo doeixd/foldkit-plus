@@ -26,7 +26,13 @@ import { addWrites, setWrites, type WayOfWriting, type WriteProperties } from 'm
 import { noKept, type Kept, type KeptField } from './kept.js'
 import type { EntityLayer } from './optimistic.js'
 import { own } from './record.js'
-import { entityKey, type EntityEntry, type EntityKey, type EntityStore } from './store.js'
+import {
+  entityKey,
+  olderThanHeld,
+  type EntityEntry,
+  type EntityKey,
+  type EntityStore,
+} from './store.js'
 
 /** Long past any stream's lag behind an answer: it only bounds what the Model keeps (echoes and `kept` alike). */
 export const echoKept = 60_000
@@ -82,15 +88,19 @@ export const replayOver = (
   now: number,
 ): Kept => {
   let next = unexpired(kept, now)
-  for (const { entity, id, values } of rows) {
+  for (const { entity, id, values, revision } of rows) {
     const key = entityKey(entity, id)
     const under = store[key]
+    // A row rejected by `writeEntities` as older than what the store holds never moves it.
+    if (olderThanHeld(under, revision)) continue
     const held = (field: string): Option.Option<unknown> =>
       under !== undefined && !under.tombstone && under.present.has(field)
         ? Option.some(own(under.values, field))
         : Option.none()
+    const advanced =
+      revision !== undefined && under?.revision !== undefined && revision > under.revision
     const fields =
-      from === 'patch'
+      from === 'patch' || advanced
         ? Object.keys(values)
         : Object.keys(values).filter(
             field => !Equal.equals(own(under?.values, field), values[field]),
@@ -205,6 +215,7 @@ export const settleReplayed = (
   entities: ReadonlyArray<Row>,
   pending: ReadonlySet<string>,
   now: number,
+  earlier?: ReadonlySet<string>,
 ): { readonly kept: Kept; readonly again: ReadonlyArray<AgainRow> } => {
   const held = unexpired(kept, now)
   const asked = new Map<EntityKey, { entity: string; id: string; fields: Set<string> }>()
@@ -247,8 +258,13 @@ export const settleReplayed = (
           .filter(([pendingId]) => pendingId !== requestId && pending.has(pendingId))
           .map(([pendingId]) => [pendingId, rebased] as const),
       )
-      // A request the read may include still may: the answer is no word on its write.
-      const included = entry.included && new Set([...entry.included].filter(id => by.has(id)))
+      // A request the read may include still may, and a request sent earlier than the
+      // one settling out of order may already be included in this answer's value.
+      const includedIds = [
+        ...(entry.included ? [...entry.included].filter(id => by.has(id)) : []),
+        ...(earlier ? [...earlier].filter(id => by.has(id)) : []),
+      ]
+      const included = includedIds.length > 0 ? new Set(includedIds) : undefined
       if (by.size > 0) rest.set(field, { since: entry.since, by, included })
     }
     if (rest.size === 0) next.delete(key)

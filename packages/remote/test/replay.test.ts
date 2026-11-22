@@ -319,4 +319,86 @@ describe('concurrent pending writes, slow answers, and multi-patch layers', () =
     const settled = settle(mixed, [patched({ likes: 11 }, 1, 2), answered({ likes: 12 }, 3)])
     expect(settled).toMatchObject({ rereads: true })
   })
+
+  it('C1 (TLC2): out-of-order server execution with revisions applies the higher revision instead of silently diverging', () => {
+    // Client sends r1 (+1) then r2 (set 2). Server executes r2 (2, rev 2) then r1 (3, rev 3).
+    const r1 = Posts.mutate(
+      known,
+      Edit,
+      { id: 'p1' },
+      {
+        requestId: 'r1',
+        optimistic: [{ entity: 'Post', id: 'p1', values: {}, adds: { likes: 1 } }],
+      },
+    ).model
+    const both = Posts.mutate(
+      r1,
+      Edit,
+      { id: 'p1' },
+      { requestId: 'r2', optimistic: [Post.patch('p1', { likes: 2 })] },
+    ).model
+    const settled = settle(both, [
+      patched({ likes: 2 }, 1, 2),
+      {
+        _tag: 'MutationSucceeded',
+        requestId: 'r2',
+        entities: [{ entity: 'Post', id: 'p1', values: { likes: 2 }, revision: 2 }],
+        now: 20,
+      },
+      {
+        _tag: 'MutationSucceeded',
+        requestId: 'r1',
+        entities: [{ entity: 'Post', id: 'p1', values: { likes: 3 }, revision: 3 }],
+        now: 30,
+      },
+    ])
+    expect(settled.value).toEqual({ likes: 3, title: 'Draft' })
+  })
+
+  it('H5: a stale read rejected by olderThanHeld does not pollute kept or suppress a pending add', () => {
+    const rev2 = Posts.reduce(start, read({ likes: 11, title: 'Draft' }, 0, 2))
+    const pending = like(rev2)
+    expect(post.read(pending)).toMatchObject({ _tag: 'Ready', value: { likes: 12 } })
+    const afterStale = Posts.reduce(pending, read({ likes: 10 }, 5, 1))
+    expect(post.read(afterStale)).toMatchObject({ _tag: 'Ready', value: { likes: 12 } })
+    expect(afterStale.remote.kept.size).toBe(0)
+  })
+
+  it('H6: out-of-order settle after a live patch does not double-count an earlier still-pending add', () => {
+    const r1 = Posts.mutate(
+      known,
+      Edit,
+      { id: 'p1' },
+      {
+        requestId: 'r1',
+        optimistic: [{ entity: 'Post', id: 'p1', values: {}, adds: { likes: 1 } }],
+      },
+    ).model
+    const both = Posts.mutate(
+      r1,
+      Edit,
+      { id: 'p1' },
+      {
+        requestId: 'r2',
+        optimistic: [{ entity: 'Post', id: 'p1', values: {}, adds: { likes: 1 } }],
+      },
+    ).model
+    const afterPatch = Posts.reduce(both, patched({ likes: 11 }, 1, 2))
+    // r2 (sent second) settles first with 12 (which already includes r1): UI must stay 12, not jump to 13.
+    const afterR2 = Posts.reduce(afterPatch, {
+      _tag: 'MutationSucceeded',
+      requestId: 'r2',
+      entities: [{ entity: 'Post', id: 'p1', values: { likes: 12 }, revision: 3 }],
+      now: 20,
+    })
+    expect(post.read(afterR2)).toMatchObject({ _tag: 'Ready', value: { likes: 12 } })
+  })
+
+  it('M2: a read whose revision advanced while returning the same value (ABA) is still recorded in kept', () => {
+    // Store at likes=10 rev 1; pending +1; server did +1 (rev 2) then -1 (rev 3) -> read returns 10 at rev 3.
+    const afterAbaRead = Posts.reduce(liked, read({ likes: 10 }, 10, 3))
+    // Unrevisioned stale answer 11 arrives -> must trigger a reread rather than silently sticking at 11.
+    const settled = settle(afterAbaRead, [answered({ likes: 11 })])
+    expect(settled).toMatchObject({ rereads: true })
+  })
 })

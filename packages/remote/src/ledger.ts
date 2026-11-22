@@ -275,8 +275,22 @@ export const reconcileMutation = (
     : answer.entities.flatMap(entity => {
         const key = entityKey(entity.entity, entity.id)
         if (newer(key)) return []
+        const held = store[key]
         const values = Object.fromEntries(
-          Object.entries(entity.values).filter(([field]) => !newer(`${key}\u0000${field}`)),
+          Object.entries(entity.values).filter(([field]) => {
+            // When both the held row and this answer carry server revisions for the field,
+            // server execution order decides: a strictly newer revision lands even if a
+            // later-sent request settled earlier, and a strictly older revision is dropped.
+            if (
+              entity.revision !== undefined &&
+              held?.revision !== undefined &&
+              held.revisionFields?.has(field) === true
+            ) {
+              if (entity.revision > held.revision) return true
+              if (entity.revision < held.revision) return false
+            }
+            return !newer(`${key}\u0000${field}`)
+          }),
         )
         return Object.keys(values).length === 0
           ? []

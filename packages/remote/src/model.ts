@@ -2229,6 +2229,15 @@ const reduceRemote = (
       // What a patch or a read moved while this was pending ends here; one that
       // disagrees with the answer, and is not the write replayed over it, is read
       // again, as only a read says which is the newer (#499, #480).
+      const settledAt = model.mutations.order.get(message.requestId)
+      const earlier =
+        settledAt === undefined
+          ? undefined
+          : new Set(
+              [...settled.state.pending].filter(
+                id => (model.mutations.order.get(id) ?? Infinity) < settledAt,
+              ),
+            )
       const { kept, again } = model.mutations.applied.has(message.requestId)
         ? { kept: model.kept, again: [] }
         : layers.settleReplayed(
@@ -2239,6 +2248,7 @@ const reduceRemote = (
             answered,
             settled.state.pending,
             message.now,
+            earlier,
           )
       const repeated = model.mutations.applied.has(message.requestId)
       const written =
