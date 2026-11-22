@@ -9,6 +9,7 @@
     "paths": {
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-entity/laws": ["../../packages/entity/src/laws.ts"],
       "foldkit-entity/lowering": ["../../packages/entity/src/lowering.ts"],
       "foldkit-entity/transition": ["../../packages/entity/src/writeTransition.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
