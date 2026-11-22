@@ -1530,6 +1530,11 @@ rule compiles over a float4 `real` column) or put `entityChecks(Entity, t)`
 in the Drizzle table for `drizzle-kit`, never a CHECK written by hand; and,
 for a guarded writer's `revision` pin, `revisionTrigger(binding, 'revision')`, so a
 handler's write and raw SQL are held to the invariants and move the revision too.
+`writer(binding, { revision: 'revision' })` (and `RemoteServer.memoryWriter(store, E,
+{ revision })`) moves that column on by one in every update and answers it as the row's
+revision: a pending `add` whose answer is the newer value plus the amount, one revision
+after it, settles with no second read; without it the field is read again. A read answered
+beside a pending `add` shows its own value, not the value plus the amount: it may include it.
 
 ## Gotchas
 

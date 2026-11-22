@@ -79,4 +79,20 @@ export default [
     'Option.getOrNull(Option.map(link, ref => entityKey(ref.entity, ref.id))),',
     'Option.getOrNull(Option.map(link, ref => ref.id)),',
   ),
+  edit('the writer declares no revision', '    revision: revisionField,\n', ''),
+  edit(
+    'an update expecting none leaves the revision where it was',
+    '...(revisionField === undefined ? {} : movedOn(revisionField)),',
+    '',
+  ),
+  edit(
+    'an update does not answer the revision it moved',
+    '...(revisionField === undefined ? [] : [revisionField]),',
+    '',
+  ),
+  edit(
+    'a revision naming no field is taken',
+    'if (revisionField !== undefined && !Object.hasOwn(entity.fields, revisionField)) {',
+    'if (false) {',
+  ),
 ]

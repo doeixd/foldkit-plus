@@ -3248,6 +3248,17 @@ is read again (`Refreshing` meanwhile); the read's answer is what stays. An
 answer that agrees with the stream, or for a write started after the patch,
 reads nothing again. No protocol field is involved.
 
+A read answered while the write is pending may already include it, and
+nothing in the read says whether it does, so a relative layer does not add
+its amount to the read's value: with a pending `+1` over `likes: 10`, a read
+answering `11` shows `11`, the server's count, until the answer lands. An
+`add`'s answer that equals the read's value, or the read's value plus the
+amount at the revision right after the read's, settles the field with no
+second read. That second case needs a writer that answers the row's revision:
+`foldkit-remote-drizzle`'s `writer(binding, { revision })`, or
+`RemoteServer.memoryWriter(store, entity, { revision })`. Without a revision
+the field is read again.
+
 ### When a stream breaks
 
 A stream breaks when its transport fails or when an event arrives ahead of

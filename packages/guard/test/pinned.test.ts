@@ -284,6 +284,14 @@ describe('GuardServer.writer with a revision', () => {
     expect(row()).toMatchObject({ owner_id: 'grace', title: 'Mine' })
   })
 
+  it('answers the revision its write moved the row to', async () => {
+    const { mutate } = open()
+    expect(await mutate(ada, 'Edit', { id: 't1', title: 'Mine' })).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ entity: 'Todo', id: 't1', revision: 1 }] },
+    })
+  })
+
   it('keeps what the writer says its store guarantees', () => {
     const guarded = GuardServer.writer(Todo, Policy, writer(Db.Todo), { revision: 'revision' })
     expect(guarded.store).toEqual({

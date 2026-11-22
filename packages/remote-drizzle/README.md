@@ -636,6 +636,23 @@ A table whose revisions start again when a row is created again should send
 none: the client keeps a deleted row's revision, and holds a row of that
 revision or a lower one away.
 
+Give the writer the same column and every update it lands moves the revision
+on by one in its statement (once, beside `revisionTrigger` or an `expect` of
+it) and sends it with the answer. A client whose pending increment landed
+right after the row it read then takes the answer without reading the row
+again.
+
+<!-- docs-check standalone
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { entity, writer } from 'foldkit-remote-drizzle'
+const items = sqliteTable('items', { id: text('id').primaryKey(), name: text('name').notNull(), revision: integer('revision').notNull() })
+const Item = entity('Item', items)
+-->
+
+```ts
+const ItemWriter = writer(Item, { revision: 'revision' })
+```
+
 ### A collection read whole is bounded
 
 A collection relation read with no window (`comments: true`) comes back as the

@@ -922,6 +922,8 @@ export const GuardServer = {
       // With a revision every update lands over the row its rules read. Without one an
       // unpinned move is refused, so what the writer would say commutes is not passed on.
       ...(revision === undefined ? {} : { pins: true }),
+      // Every update it lets through expects the revision it pins, which the writer moves on.
+      revision: revision ?? writer.revision,
       ...(writer.ledger === true ? { ledger: true } : {}),
       // Invariants are the writer's to judge, over the row its statement writes.
       ...(writer.invariants === true ? { invariants: true } : {}),

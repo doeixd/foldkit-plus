@@ -35,13 +35,18 @@ import {
 } from './index.js'
 
 /** What `RemoteServer.memoryWriter` is made with. */
-export interface MemoryWriterOptions {
+export interface MemoryWriterOptions<E extends AnyEntity = AnyEntity> {
   /**
    * How the write's `when`, its computed fields and the Entity's invariants
    * run their primitive operators: the memory backend's own table, as a
    * Drizzle writer names its binding's. `Operators.kernel` when not given.
    */
   readonly operators?: MemoryOperators | undefined
+  /**
+   * The field holding the row's revision, a number: every update moves it on
+   * by one, whatever it `expect`s, and answers it (`EntityWriter.revision`).
+   */
+  readonly revision?: (keyof E['fields'] & string) | undefined
 }
 
 /**
@@ -89,7 +94,8 @@ const linkIds = (
  * A writer of `entity`'s rows in `store` (a memory backend's), for
  * `RemoteServer.write`: an update lands while the row is at the revision it
  * `expect`s, holds its `when`, and the row it would leave keeps every
- * invariant, and moves the revision on by one; an insert lands while its id is
+ * invariant, and moves the revision on by one (and the `revision` option's
+ * field, on every update, which it answers); an insert lands while its id is
  * free and its row keeps the state invariants; a delete while the row is at
  * its revision and holds its `when`. Each refusal is the writer's own error,
  * which `RemoteServer.write` answers as the mutation's `Conflict`, `Unmet`,
@@ -107,12 +113,18 @@ const linkIds = (
  * })
  * ```
  */
-export const memoryWriter = <P>(
+export const memoryWriter = <P, E extends AnyEntity = AnyEntity>(
   store: MemoryStore,
-  entity: AnyEntity,
-  options: MemoryWriterOptions = {},
+  entity: E,
+  options: MemoryWriterOptions<E> = {},
 ): EntityWriter<P> => {
   const operators = options.operators ?? Operators.kernel
+  const revisionField = options.revision
+  if (revisionField !== undefined && !Object.hasOwn(entity.fields, revisionField)) {
+    throw new Error(
+      `[foldkit-remote-server] RemoteServer.memoryWriter: ${entity.name} has no field "${revisionField}" for its revision`,
+    )
+  }
   const invariants = Entity.invariants(entity)
   // An invariant reads the row after the write (`next`), which a query does not.
   const unrun = Expr.unsupported(
@@ -219,6 +231,7 @@ export const memoryWriter = <P>(
     postconditions: true,
     // One synchronous step reads and writes the row: no other write lands between.
     pins: true,
+    revision: revisionField,
     // The same step, and one thread: every write runs alone.
     store: {
       name: 'memory',
@@ -271,6 +284,7 @@ export const memoryWriter = <P>(
               ...Object.keys(assignments),
               ...Object.keys(links),
               ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
+              ...(revisionField === undefined ? [] : [revisionField]),
             ]),
           )
         // A row a revision on could be another's increment or computation: only the
@@ -333,16 +347,16 @@ export const memoryWriter = <P>(
           return answer(row)
         }
         const moved = [...Object.keys(increments), ...Object.keys(assignments)]
+        const movedOn = (field: string) => {
+          const revision = row[field]
+          return { [field]: typeof revision === 'number' ? revision + 1 : revision }
+        }
         const next = {
           ...written,
           ...picked(after, moved),
-          ...Option.match(expect, {
-            onNone: () => ({}),
-            onSome: ({ field }) => {
-              const revision = row[field]
-              return { [field]: typeof revision === 'number' ? revision + 1 : revision }
-            },
-          }),
+          ...Option.match(expect, { onNone: () => ({}), onSome: ({ field }) => movedOn(field) }),
+          // The same field as `expect`'s moves once: both spread the one value.
+          ...(revisionField === undefined ? {} : movedOn(revisionField)),
         }
         store.write(entity.name, id, next)
         return answer({ ...row, ...next })

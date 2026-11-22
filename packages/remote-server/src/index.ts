@@ -466,6 +466,15 @@ export interface EntityWriter<P, R = never> {
    */
   readonly pins?: true
   /**
+   * The field holding the row's revision, which every `update` this writer
+   * lands moves on by one (the writer itself, or a database trigger such as
+   * `foldkit-remote-drizzle`'s `revisionTrigger`). `update` answers it with
+   * what it wrote, and `RemoteServer.write` sends it as the answered row's
+   * revision, so a client tells a write that landed right after the row it
+   * held from one another change came between.
+   */
+  readonly revision?: string | undefined
+  /**
    * Whether `assignment`, landed without `expect`, gives one result whatever
    * order concurrent writes land in: its operator `op(field, amount)`, with
    * commutativity and associativity tested for the implementations this
@@ -2932,7 +2941,20 @@ export const RemoteServer = {
               ),
             ),
           )
-        const answered = (bound: BoundWrite, values: Readonly<Record<string, unknown>>) => {
+        // The revision an update left the row at, as its writer answered it (`EntityWriter.revision`).
+        const revisionOf = (values: Readonly<Record<string, unknown>>): Option.Option<number> => {
+          const field = writer.revision
+          const revision =
+            field === undefined || !Object.hasOwn(values, field) ? undefined : values[field]
+          return typeof revision === 'number' && Number.isFinite(revision)
+            ? Option.some(revision)
+            : Option.none()
+        }
+        const answered = (
+          bound: BoundWrite,
+          values: Readonly<Record<string, unknown>>,
+          revision: Option.Option<number> = Option.none(),
+        ) => {
           const read = writer.read
           const shown =
             read === undefined
@@ -2949,7 +2971,18 @@ export const RemoteServer = {
               }),
               onSome: seen => ({
                 output: {},
-                entities: [{ entity: bound.entity, id: bound.id, values: seen }],
+                // A revision is the writer's, of the row it wrote: no field, so no read rule cuts it.
+                entities: [
+                  {
+                    entity: bound.entity,
+                    id: bound.id,
+                    values: seen,
+                    ...Option.match(revision, {
+                      onNone: () => ({}),
+                      onSome: revision => ({ revision }),
+                    }),
+                  },
+                ],
                 connections: [],
                 deleted: [],
               }),
@@ -3006,7 +3039,7 @@ export const RemoteServer = {
                   ),
                 )
                 if (Option.isSome(written))
-                  return naming(yield* answered(bound, written.value), [
+                  return naming(yield* answered(bound, written.value, revisionOf(written.value)), [
                     ...before,
                     ...(yield* pointedAt(bound.id, principal)),
                   ])
@@ -3646,10 +3679,12 @@ export const RemoteServer = {
 
         return {
           output,
+          // `sent` holds only rows the caller may read; a row's revision is no field, and goes with it.
           entities: sent.map(patch => ({
             entity: patch.entity,
             id: patch.id,
             values: patch.values,
+            ...(patch.revision === undefined ? {} : { revision: patch.revision }),
           })),
           connections: outcome.connections,
           deleted: outcome.deleted.map(gone => ({ entity: gone.entity, id: gone.id })),

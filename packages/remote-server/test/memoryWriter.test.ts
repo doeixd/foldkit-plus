@@ -5,7 +5,7 @@
  */
 import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity, Expr, Operators, Relation, Write } from 'foldkit-entity'
+import { Entity, Expr, Operators, Relation, Write, type AnyEntity } from 'foldkit-entity'
 import { Mutation, Refusal, Remote } from 'foldkit-remote'
 import { Law } from 'foldkit-remote/testing'
 import { Surface } from 'foldkit-surface'
@@ -348,6 +348,87 @@ describe('RemoteServer.memoryWriter', () => {
     const { postconditions: _, ...unjudging } = writer
     expect(() => RemoteServer.write(Take, unjudging)).toThrow(
       'write "Take" ensures becomes:Available, which enumeration could not prove where it was declared, but its writer for Stock does not judge one (postconditions)',
+    )
+  })
+})
+
+describe('a memory writer given the row’s revision', () => {
+  /** Sets the label with no revision to expect. */
+  const Mark = Mutation.write(
+    'Mark',
+    Write.update(Entity.input(Stock, Schema.Struct({ id: Schema.String, label: Schema.String })), {
+      id: 'id',
+    }),
+  )
+  const marking = [Mark, Relabel] as const
+  /** A server over s1 at revision 1, read by `principal` under `authorize` and `readable`. */
+  const serving = (
+    options: { readonly revision?: 'revision' },
+    principal: string,
+    authorize?: (who: string, fields: ReadonlyArray<string>) => ReadonlyArray<string>,
+  ) => {
+    const backend = RemoteServer.memory<string>({
+      domain: Remote.define({ entities: [Owner, Stock], mutations: [...marking] }),
+      rows: { Owner: [{ id: 'o1', name: 'Ada' }], Stock: [row('s1', 'published', 10, 5)] },
+      mutations: (store: MemoryStore) =>
+        marking.map(mutation =>
+          RemoteServer.write(mutation, RemoteServer.memoryWriter(store, Stock, options)),
+        ),
+      ...(authorize === undefined ? {} : { authorize: { Stock: authorize } }),
+      // Eve may read no Stock row.
+      readable: who => Effect.succeed(() => who !== 'eve'),
+    })
+    const send = (mutation: string, input: unknown) =>
+      Effect.runPromise(
+        RemoteServer.handlers(backend.server, principal).FoldkitRemoteMutate({
+          requestId: 'r',
+          mutation,
+          input,
+        }),
+      )
+    return { send, stock: () => backend.rows('Stock')[0] }
+  }
+
+  it.each([
+    ['an update that expects none', 'Mark', { id: 's1', label: 'nut' }],
+    ['an update that expects it', 'Relabel', { id: 's1', revision: 1, label: 'nut' }],
+  ])('moves it on once through %s, and answers the row at it', async (_, mutation, input) => {
+    const { send, stock } = serving({ revision: 'revision' }, 'ada')
+    expect((await send(mutation, input)).entities).toEqual([
+      { entity: 'Stock', id: 's1', values: { id: 's1', label: 'nut', revision: 2 }, revision: 2 },
+    ])
+    expect(stock()).toMatchObject({ label: 'nut', revision: 2 })
+  })
+
+  it('answers no revision when given none, and leaves the field where a write expects none', async () => {
+    const { send, stock } = serving({}, 'ada')
+    expect((await send('Mark', { id: 's1', label: 'nut' })).entities).toEqual([
+      { entity: 'Stock', id: 's1', values: { id: 's1', label: 'nut' } },
+    ])
+    expect(stock()).toMatchObject({ revision: 1 })
+  })
+
+  it('answers the revision of a row whose revision field the caller may not read, as a read does', async () => {
+    const { send } = serving({ revision: 'revision' }, 'ada', (_who, fields) =>
+      fields.filter(field => field !== 'revision'),
+    )
+    expect((await send('Mark', { id: 's1', label: 'nut' })).entities).toEqual([
+      { entity: 'Stock', id: 's1', values: { id: 's1', label: 'nut' }, revision: 2 },
+    ])
+  })
+
+  it('answers nothing of a row the caller may not read, its revision included', async () => {
+    const { send } = serving({ revision: 'revision' }, 'eve')
+    const answer = await send('Mark', { id: 's1', label: 'nut' })
+    expect(answer.entities).toEqual([])
+  })
+
+  it('refuses a revision that names no field', () => {
+    const store: MemoryStore = { rows: () => [], write: () => {}, remove: () => {} }
+    // Typed as any Entity, a name its fields lack reaches the check where the writer is made.
+    const unnamed: AnyEntity = Stock
+    expect(() => RemoteServer.memoryWriter(store, unnamed, { revision: 'version' })).toThrow(
+      'Stock has no field "version" for its revision',
     )
   })
 })

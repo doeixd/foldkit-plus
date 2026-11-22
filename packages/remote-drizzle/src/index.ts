@@ -1376,8 +1376,8 @@ const storeOf = (table: Table, serializable: boolean): StoreCapabilities =>
         parentRowLock: false,
       }
 
-export const writer = <P = unknown>(
-  binding: AnyEntityBinding,
+export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBinding>(
+  binding: B,
   options: {
     readonly ledger?: WriteLedger<P>
     /**
@@ -1387,6 +1387,13 @@ export const writer = <P = unknown>(
      * rows through, which it refuses on Postgres otherwise. SQLite needs none.
      */
     readonly isolation?: 'serializable'
+    /**
+     * The column holding the row's revision, a number: every update moves it
+     * on by one in its statement, whatever it `expect`s, and answers it
+     * (`EntityWriter.revision`). Beside `revisionTrigger` it moves once: the
+     * trigger leaves an update that moved the revision itself.
+     */
+    readonly revision?: (keyof B['fields'] & string) | undefined
   } = {},
 ): EntityWriter<P, DrizzleDatabase> => {
   const ledger = options.ledger
@@ -1398,6 +1405,23 @@ export const writer = <P = unknown>(
     const column = binding.columns[field]
     return column === undefined ? undefined : keys.get(column)
   }
+  const revisionField = options.revision
+  const revisionColumn = revisionField === undefined ? undefined : binding.columns[revisionField]
+  const revisionKey = revisionField === undefined ? undefined : keyOf(revisionField)
+  if (revisionField !== undefined && (revisionColumn === undefined || revisionKey === undefined)) {
+    throw new Error(
+      `[foldkit-remote-drizzle] writer: ${binding.name} has no column for its revision "${revisionField}"`,
+    )
+  }
+  if (revisionColumn !== undefined && !String(revisionColumn.dataType).startsWith('number')) {
+    throw new Error(
+      `[foldkit-remote-drizzle] writer: ${binding.name}'s revision "${revisionField}" is not a number column`,
+    )
+  }
+  const movesOn: Record<string, SQL> =
+    revisionColumn === undefined || revisionKey === undefined
+      ? {}
+      : { [revisionKey]: sql`${revisionColumn} + 1` }
   const missing = (what: string) =>
     new RemoteServerError({ message: `${binding.name} has no ${what}` })
   // The rows as a principal may read them, under the binding's `visible`. A
@@ -2263,6 +2287,7 @@ export const writer = <P = unknown>(
     increments: true,
     assignments: true,
     requires: true,
+    revision: revisionField,
     store: storeOf(binding.table, options.isolation === 'serializable'),
     // `when`, `requires`, invariants and the postcondition are clauses of the UPDATE or
     // DELETE; what a cascade or a cleared link must hold gates each statement of its batch.
@@ -2379,6 +2404,8 @@ export const writer = <P = unknown>(
           ...(yield* setOf(values, links)),
           ...(yield* incrementsOf(increments)),
           ...(yield* assignmentsOf(assignments)),
+          // An `expect` of the same column moves it by the same `+ 1`: once.
+          ...movesOn,
           ...bump,
         }
         // A row a revision on could be another's increment or computation: only the
@@ -2390,6 +2417,7 @@ export const writer = <P = unknown>(
           ...Object.keys(assignments),
           ...Object.keys(links),
           ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
+          ...(revisionField === undefined ? [] : [revisionField]),
         ]
         const answered = returning(binding, answeredFields)
         const writes = yield* drizzleWrites
