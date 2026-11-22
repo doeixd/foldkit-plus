@@ -41,7 +41,12 @@ import { record } from '../../../scripts/perf-report.mjs'
 // holding a document's laws to its journal's store. Code every server with writes runs. CI on Linux
 // read 4,666,028 before this change, over the old ceiling already, not traced. Ceiling: the local
 // reading plus 300.
-const CEILING = 4_660_517
+// +1,094 on 2026-11-22, estimated per module: the review of those findings had the memory writer check a
+// link through an onDelete relation (912) and the Drizzle writer leave unset columns to the table's own
+// defaults (182). The reading then was 4,664,580: the other 3,269 since 4,660,217 came with other
+// sessions' commits between (9bf8c0510, 1b401baa4), not this change, so not raised for. Ceiling: the
+// last ceiling plus this change's estimate.
+const CEILING = 4_661_611
 
 // The replica side of `foldkit-sync`. A server reaches `Sync` through the namespace
 // object, or a shared module does, and the bundler then keeps all of these.

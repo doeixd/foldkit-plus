@@ -96,7 +96,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // store (`EntityWriter.checksTargets` and `foreignKey`), and `metakit/store` judges a rule a
 // constraint holds. About 2,520 raw estimated per module. Code every server with writes runs.
 // Ceiling: the reading plus 300.
-const CEILING = 3_297_796
+// +966 on 2026-11-22: 3,298,462 measured after the review of those findings: `RemoteServer.memoryWriter`
+// checks a link through an onDelete relation points at a row in its store (about 912 raw estimated),
+// held by the namespace object this Worker reads `RemoteServer.write` through. Ceiling: the reading plus 300.
+const CEILING = 3_298_762
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))
