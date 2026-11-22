@@ -228,6 +228,17 @@ Data grid (100,000 rows), taken at `845d4b9c2`, 2026-11-21, Windows 11, Ryzen 7 
 | `packages/remote` | 6 | 1.290 s | 1,898,977 | 2.304 s | 2,836,837 | 3.484 s |
 | `examples/reference` | 50 | 2.098 s | 3,376,808 | 51.232 s | 24,267,193 | 51.183 s |
 
+Phase 1, step 10, read on 2026-11-22 the same way, before at `8c1dc9a7b` and after at `f5a752354`, on a machine short of memory with other sessions at work (the times vary by seconds; the counts do not):
+
+| Project | Its own check time | Its own instantiations | Aggregate check time | Aggregate instantiations |
+| --- | ---: | ---: | ---: | ---: |
+| `packages/entity`, before | 0.996 s | 911,679 | 1.230 s | 1,082,947 |
+| `packages/entity`, after | 0.610 s | 828,950 | 0.777 s | 1,000,734 |
+| `examples/reference`, before | not read | not read | 66.793 s | 23,692,274 |
+| `examples/reference`, after | not read | not read | 49.428 s | 23,862,964 |
+
+Entity's own instantiations fell 9%; reference's aggregate rose 0.7%. The note predicted about equal counts, and the plan's bar (15% over the recorded time) holds.
+
 ## Phase readings
 
 Add a row per phase and per budget it touches. Keep the earlier rows.
@@ -245,9 +256,11 @@ Add a row per phase and per budget it touches. Keep the earlier rows.
 | Lean judge (`103e5f790`) | the six Remote and entity page budgets | the step-5 readings below | 331 to 606 brotli lower each; ceilings lowered to reading +300 | the page judges without partial evaluation; see "After the lean judge" |
 | Phase 1, step 7 (`c02c2dcf1`) | registry, cms client, cms studio first load | 269,436, 171,569, 379,499 (`c02c2dcf1~1`'s entity, in the tree of `3a69bedb5`) | 269,417, 171,654, 379,607 (`c02c2dcf1`) | `Laws` left the main entry and `bounds.ts` was deleted; minified bytes identical, so no change to what a page runs; see "Laws on metakit's checker" |
 
+| Phase 1, step 10 (`207a36783` to `f5a752354`) | every Remote page, the cms routes, both Workers | the readings at `8c1dc9a7b` | 1,511 to 2,796 brotli lower each (todo-app +284); ceilings at reading +300, permanent | constructors build metakit nodes, the layer deleted, `Rows` reading on demand; see "Closed by step 10" |
+
 ## Owed by step 10
 
-Step 5 put entity's in-memory judge on metakit through a translation layer (`lower.ts`, `lowerEnv.ts`, `lowerOperator.ts`). Every page that reaches entity grew by about 7.4 kB brotli. The coordinator accepts the growth until step 10, because the layer is temporary. Each ceiling was raised on 2026-11-21 to the reading plus 300 bytes, with a dated comment in its budget test. **Step 10 must bring each back to its target.**
+**Closed on 2026-11-22: see "Closed by step 10" below.** Step 5 put entity's in-memory judge on metakit through a translation layer (`lower.ts`, `lowerEnv.ts`, `lowerOperator.ts`). Every page that reaches entity grew by about 7.4 kB brotli. The coordinator accepts the growth until step 10, because the layer is temporary. Each ceiling was raised on 2026-11-21 to the reading plus 300 bytes, with a dated comment in its budget test. **Step 10 must bring each back to its target.**
 
 | Budget | Pre-step-5 ceiling (target) | Reading at step 5 | Ceiling now | Forecast after step 10 (estimate) | Step 10 must remove |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -297,6 +310,41 @@ The Worker bundles, raw bytes, after (neither ceiling raised; the coordinator de
 Deleting guard's own joining did not shrink the pages that predict `may` (reference, auth): what replaced it (building one metakit expression of the guards, a stored row as a holder, the refusal of a malformed link) is larger than the `Match` over the condition it replaced, and the translation and judge it calls were on those pages already through entity's judge. Every budget still passed at `d78fa53c1`; reference had 23 bytes of headroom. After the review's fix (`528df1f53`, a principal's field no reader agrees on refuses the rule, so `Condition.holds` and `residual` read the guards' inputs) the pages read cloudflare 232,233, reference 259,946, registry 269,537 and auth 235,762: cloudflare, reference and auth over their ceilings by 74, 70 and 94 bytes. No ceiling was raised; the coordinator decides. Chirp read 252,667 against its 245,700 ceiling in the same run, not measured before this step, so not attributed. Step 10 owes these with the rest: `Condition.holds` and `Condition.residual` are server-side and sit on the page only because `Condition` is one exported object.
 
 **Forecast for step 10 on top**, from minified sizes at a 0.275 brotli ratio, not a build: deleting `lower`, `lowerEnv` and `lowerOperator` (6,927 minified in registry) returns 0.6 to 1.9 kB; the `Rows` reading off pages that do not call `exists`, once `expr.ts` is split, about 1.15 kB more. That leaves about 3.8 to 5.6 kB of each page's debt, unless the split of `expr.js` (27.7 kB minified) itself returns it.
+
+### Closed by step 10 (2026-11-22, `207a36783` to `f5a752354`)
+
+Entity's constructors build metakit nodes (`207a36783`), `lower.ts` and `lowerOperator.ts` are deleted and `lowerEnv.ts` is `environment.ts`; `Expr`, `Query` and `Order` are namespaces, so a page keeps only the members it calls; metakit's reading of `Rows` arrives with the first `Rows` node built (`e5eb986d4`, `2e15048c8`: `ops/rowsReading.ts`, `ops/rowsLoad.ts`), so a page that never asks `Expr.exists` keeps neither `ops/rows` nor `ops/partialRows`, and a page that runs list folds without judging keeps `ops/rows` alone. Each page read with `scripts/bundle-report.mjs`, one at a time, before at `8c1dc9a7b` and after at `f5a752354`, with fresh `dist`s (the before reading of `reference` after `pnpm --filter foldkit-plus build`, for the reason above). The tree also held commits of another session between the two (`f406360c3`, metakit's SQL `num.add`/`num.sub`; `c66424a55`, sync's README), which no client page measured here runs.
+
+| Budget | Target (pre-step-5) | Before | After | Change | Over target | Ceiling set |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| cloudflare | 224,500 | 232,300 | 229,539 | −2,761 | 5,039 | 229,839 |
+| cms | 164,500 | 171,585 | 169,356 | −2,229 | 4,856 | 169,656 |
+| cms studio first load | 372,500 | 379,562 | 377,768 | −1,794 | 5,268 | 378,068 |
+| cms site first load | 328,500 | 333,714 | 331,814 | −1,900 | 3,314 | 332,114 |
+| reference | 252,300 | 260,376 | 257,608 | −2,768 | 5,308 | 257,908 |
+| auth | 228,500 | 235,736 | 232,966 | −2,770 | 4,466 | 233,266 |
+| registry | 262,300 | 269,570 | 267,860 | −1,710 | 5,560 | 268,160 |
+| entity | 222,000 | 229,294 | 226,807 | −2,487 | 4,807 | 227,107 |
+| chirp | 245,700 | 252,677 | 250,791 | −1,886 | 5,091 | 251,091 |
+| todo-app | none (173,500 ceiling) | 172,648 | 172,932 | +284 | none | 173,500, unchanged |
+| domains-plus Worker (raw) | 3,277,700 | 3,331,100 | 3,292,063 | −39,037 | 14,363 | 3,292,363 |
+| cloudflare Worker (raw) | 4,577,000 | 4,645,318 | 4,639,160 | −6,158 | 62,160 | 4,639,460 |
+
+Minified, by package, before and after (`sizes` of each report):
+
+| Page | foldkit-entity | metakit |
+| --- | ---: | ---: |
+| cloudflare | 79,708 → 72,698 | 20,533 → 15,758 |
+| cms | 61,348 → 54,135 | 20,524 → 15,885 |
+| reference | 83,509 → 76,566 | 20,857 → 16,074 |
+| auth | 55,973 → 47,347 | 19,698 → 15,218 |
+| registry | 77,933 → 73,413 | 20,617 → 16,634 |
+| entity | 82,319 → 76,123 | 20,534 → 15,892 |
+| chirp | 83,473 → 76,531 | 22,941 → 18,182 |
+
+So of each page's fall, about 1.2 to 2.4 kB brotli is entity's (the layer gone, `expr.js`'s 27.6 kB replaced by modules a page keeps by name) and about 1.1 to 1.3 kB metakit's (the `Rows` reading). todo-app grew 284: its list folds read through the new indirection (260 minified, the slot and its message); with judgement loaded too it had grown 722, which is why a list fold loads evaluation alone.
+
+No page is back under its target. The ceilings are the reading plus 300, each with a permanent comment: what stays is metakit's evaluator and judge on every page that reaches entity (15.2 to 18.2 kB minified: `node`, `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on 2026-11-21. The Workers carry both readers (evaluation and the SQL lowering of step 8). "Owed by step 10" is closed.
 
 ## Laws on metakit's checker (Phase 1, step 7, `c02c2dcf1`)
 
