@@ -84,7 +84,11 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // reading plus 300.
 // +743 on 2026-11-22: CI on Linux read 3,292,806 after the Phase 1 gate fixes (an operand past the safe
 // range refused by every reader; ops/integerTerm). Ceiling: CI's reading plus 300.
-const CEILING = 3_293_106
+// +597 on 2026-11-22: 3,293,403 measured after Phase 5 items 2 and 4 (a store says how far its isolation
+// reaches and where a rule is judged, `metakit/store`; `RemoteServer.write` checks a writer's own rules
+// against its store), about 700 raw bytes estimated by their author. Code every server with writes runs.
+// Ceiling: the reading plus 300.
+const CEILING = 3_293_703
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))
