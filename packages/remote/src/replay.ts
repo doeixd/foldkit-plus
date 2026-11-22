@@ -30,6 +30,7 @@ import {
   type WayOfWriting,
   type WriteProperties,
 } from 'metakit'
+import { applyForeign, implementationsMeta, type OperationImplementations } from 'metakit/operation'
 import { noKept, type Kept, type KeptField } from './kept.js'
 import type { EntityLayer } from './optimistic.js'
 import { own } from './record.js'
@@ -149,17 +150,30 @@ const replays = (row: WriteProperties, way: WayOfWriting): boolean => {
 }
 
 /** Implementations of custom operations by `id@version`, for replaying pending `combine` writes. */
-export type ReplayForeign = Readonly<
-  Record<string, { readonly run: (args: ReadonlyArray<unknown>) => unknown }>
->
+export type ReplayForeign = OperationImplementations
+
+/** Apply one custom `combine` operation through `applyForeign` so null rules and Schema checks hold. */
+export const applyCombine = (
+  foreign: ReplayForeign | undefined,
+  opKey: string,
+  current: unknown,
+  value: unknown,
+): Option.Option<unknown> => {
+  if (foreign === undefined) return Option.none()
+  const entry = implementationsMeta(foreign).entries.get(opKey)
+  if (entry === undefined) return Option.none()
+  const next = applyForeign(entry.op.descriptor, [current, value], foreign)
+  return Node.isRefusal(next) ? Option.none() : Option.some(next)
+}
 
 /**
  * `layer`'s write of `field` of row `key` (the last patch's, as it shows)
  * replayed over `newer`: an amount added to it, a custom operation combined
- * with it (when `foreign` holds its implementation), or the value set,
- * absolute, computed or a link. None where its way does not replay, or the
- * value cannot be worked out (a computed one, an amount over what is not a
- * number, a combine with no implementation on the page).
+ * with it (when `foreign` holds its implementation and its claims prove
+ * commutativity and associativity), or the value set, absolute, computed or a
+ * link. None where its way does not replay, or the value cannot be worked out
+ * (a computed one, an amount over what is not a number, a combine with no
+ * implementation on the page, or a non-commutative/mismatched combine).
  */
 const replayed = (
   layer: EntityLayer | undefined,
@@ -171,6 +185,7 @@ const replayed = (
   let mode: 'none' | 'add' | 'combine' = 'none'
   let delta = 0
   let current = newer
+  let combineOp: string | undefined
   for (const patch of layer?.patches ?? []) {
     if (entityKey(patch.entity, patch.id) !== key) continue
     const sets = Object.hasOwn(patch.values, field)
@@ -197,19 +212,17 @@ const replayed = (
       delta += amount
     } else if (combined !== undefined) {
       if (mode === 'add' || !replays(combineWrites, 'combine')) return Option.none()
-      const impl =
-        foreign !== undefined && Object.hasOwn(foreign, combined.op)
-          ? foreign[combined.op]
-          : undefined
-      if (impl === undefined) return Option.none()
+      if (combineOp !== undefined && combineOp !== combined.op) return Option.none()
+      if (foreign === undefined) return Option.none()
+      const entry = implementationsMeta(foreign).entries.get(combined.op)
+      if (entry === undefined) return Option.none()
+      const claims = entry.op.descriptor.claims
+      if (claims.commutative !== true || claims.associative !== true) return Option.none()
+      const next = applyForeign(entry.op.descriptor, [current, combined.value], foreign)
+      if (Node.isRefusal(next)) return Option.none()
+      combineOp = combined.op
       mode = 'combine'
-      try {
-        const next = impl.run([current, combined.value])
-        if (Node.isRefusal(next)) return Option.none()
-        current = next
-      } catch {
-        return Option.none()
-      }
+      current = next
     }
   }
   if (mode === 'none') return Option.none()

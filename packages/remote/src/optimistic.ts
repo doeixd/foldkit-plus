@@ -13,7 +13,7 @@ import {
   type EntityRef,
   type MemoryOperators,
 } from 'foldkit-entity'
-import type { ReplayForeign } from './replay.js'
+import { applyCombine, type ReplayForeign } from './replay.js'
 import { type Connection, type Edge, edge, items } from './connection.js'
 import { connectionIdentity, type ConnectionIdentity } from './capability.js'
 import {
@@ -369,21 +369,15 @@ export const resolvedPatches = (
       }
       const combinedFields = unincluded(combines, kept.get(key), layer.id)
       for (const [field, spec] of Object.entries(combinedFields)) {
-        const impl =
-          foreign !== undefined && Object.hasOwn(foreign, spec.op) ? foreign[spec.op] : undefined
-        if (impl !== undefined && Object.hasOwn(row, field)) {
-          try {
-            const next = impl.run([row[field], spec.value])
-            if (!Node.isRefusal(next)) {
-              put(values, field, next)
-              unknown.delete(field)
-              continue
-            }
-          } catch {
-            // Fall through to mark unknown so the server's answer settles the field.
-          }
+        const next = Object.hasOwn(row, field)
+          ? applyCombine(foreign, spec.op, row[field], spec.value)
+          : Option.none()
+        if (Option.isSome(next)) {
+          put(values, field, next.value)
+          unknown.delete(field)
+        } else {
+          unknown.add(field)
         }
-        unknown.add(field)
       }
       shown.set(key, { ...earlier, ...values })
       unsure.set(key, unknown)
@@ -510,6 +504,9 @@ const superseded = (
         ...patch,
         values: withoutFields(patch.values, settled),
         ...(patch.adds === undefined ? {} : { adds: withoutFields(patch.adds, settled) }),
+        ...(patch.combines === undefined
+          ? {}
+          : { combines: withoutFields(patch.combines, settled) }),
         ...(patch.computes === undefined
           ? {}
           : { computes: withoutFields(patch.computes, settled) }),
@@ -517,6 +514,7 @@ const superseded = (
       const empty =
         Object.keys(kept.values).length === 0 &&
         Object.keys(kept.adds ?? {}).length === 0 &&
+        Object.keys(kept.combines ?? {}).length === 0 &&
         Object.keys(kept.computes ?? {}).length === 0
       return empty ? [] : [kept]
     })
