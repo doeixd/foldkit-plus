@@ -16,6 +16,7 @@ import { optionInner } from '../path.js'
 import type { Direction, OpProperties } from '../properties.js'
 import { equalsOp, isOp } from './eq.js'
 import { present } from './kind.js'
+import { wellFormed } from './str.js'
 import { EARLIEST_DAY, LATEST_DAY } from './time.js'
 
 /** The properties partial evaluation reads of an operation. */
@@ -44,7 +45,9 @@ export const opLaws: { readonly [Id in Node.CoreOpId]: OpLaws } = {
   'null.isNull': {},
   'null.coalesce': { identity: { value: null, side: 'both' }, idempotent: true },
   'str.lowerAscii': { idempotent: true },
+  'str.upperAscii': { idempotent: true },
   'str.trim': { idempotent: true },
+  'str.concat': { identity: { value: '', side: 'both', over: 'portableText' } },
   'str.lt': {},
   'str.lte': {},
   'str.gt': {},
@@ -69,6 +72,7 @@ export const opLaws: { readonly [Id in Node.CoreOpId]: OpLaws } = {
   'time.overlaps': {},
   'str.len': {},
   'str.startsWith': {},
+  'str.endsWith': {},
   'str.contains': {},
   'arr.count': {},
   'arr.isEmpty': {},
@@ -208,6 +212,24 @@ export const rewrite = <T>(
       const fitsIdentity = (operand: T): boolean => {
         if (!ofKind(operand)) return false
         if (over === undefined || over === 'all') return true
+        if (over === 'portableText') {
+          const known = view.known(operand)
+          if (Option.isSome(known)) {
+            if (known.value === null) return true
+            return (
+              typeof known.value === 'string' &&
+              !Node.holdsNul([known.value]) &&
+              wellFormed(known.value) === known.value
+            )
+          }
+          const inner = view.unary(operand)
+          return (
+            inner !== undefined &&
+            (inner.id === 'str.lowerAscii' ||
+              inner.id === 'str.upperAscii' ||
+              inner.id === 'str.trim')
+          )
+        }
         const known = view.known(operand)
         if (Option.isSome(known)) {
           if (known.value === null) return true

@@ -276,15 +276,18 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
     Result.flatMap(noFractionBesideInteger(args[0]!, args[1]!), () =>
       both(args, ctx, (value, fallback) => q`COALESCE(${value}, ${fallback})`),
     ),
-  // Postgres's `C` collation lowers A to Z alone, as SQLite's `lower` does.
+  // Postgres's `C` collation lowers/uppers A to Z alone, as SQLite's `lower`/`upper` do.
   'str.lowerAscii': (args, ctx) =>
     one(args, ctx, s => (ctx.dialect === 'postgres' ? q`lower(${s} COLLATE "C")` : q`lower(${s})`)),
+  'str.upperAscii': (args, ctx) =>
+    one(args, ctx, s => (ctx.dialect === 'postgres' ? q`upper(${s} COLLATE "C")` : q`upper(${s})`)),
   'str.trim': (args, ctx) =>
     one(args, ctx, s =>
       ctx.dialect === 'postgres'
         ? q`btrim(${s}, chr(32) || chr(9) || chr(10) || chr(13))`
         : q`trim(${s}, char(32, 9, 10, 13))`,
     ),
+  'str.concat': (args, ctx) => both(args, ctx, (a, b) => q`(${a} || ${b})`),
   'str.lt': textOrder('<'),
   'str.lte': textOrder('<='),
   'str.gt': textOrder('>'),
@@ -421,6 +424,12 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
       ctx.dialect === 'postgres'
         ? q`(LEFT(${s}, char_length(${prefix})) = ${prefix})`
         : q`(substr(${s}, 1, length(${prefix})) = ${prefix})`,
+    ),
+  'str.endsWith': (args, ctx) =>
+    both(args, ctx, (s, suffix) =>
+      ctx.dialect === 'postgres'
+        ? q`(RIGHT(${s}, char_length(${suffix})) = ${suffix})`
+        : q`(CASE WHEN (${s}) IS NULL OR (${suffix}) IS NULL THEN NULL ELSE (length(${suffix}) = 0 OR substr(${s}, -length(${suffix})) = ${suffix}) END)`,
     ),
   'str.contains': (args, ctx) =>
     both(

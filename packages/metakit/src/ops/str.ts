@@ -67,6 +67,14 @@ export const startsWithOp: Node.Op<'str.startsWith'> = {
   evaluate: textual('str.startsWith', ([text, part]) => text!.startsWith(part!)),
 }
 
+export const endsWithOp: Node.Op<'str.endsWith'> = {
+  id: 'str.endsWith',
+  returns: 'boolean',
+  nulls: 'strict',
+  refuses: nul('str.endsWith'),
+  evaluate: textual('str.endsWith', ([text, part]) => text!.endsWith(part!)),
+}
+
 export const containsOp: Node.Op<'str.contains'> = {
   id: 'str.contains',
   returns: 'boolean',
@@ -83,6 +91,24 @@ export const lowerAsciiOp: Node.Op<'str.lowerAscii'> = {
   evaluate: textual('str.lowerAscii', ([text]) =>
     text!.replace(/[A-Z]/g, letter => letter.toLowerCase()),
   ),
+}
+
+export const upperAsciiOp: Node.Op<'str.upperAscii'> = {
+  id: 'str.upperAscii',
+  returns: 'text',
+  nulls: 'strict',
+  refuses: nul('str.upperAscii'),
+  evaluate: textual('str.upperAscii', ([text]) =>
+    text!.replace(/[a-z]/g, letter => letter.toUpperCase()),
+  ),
+}
+
+export const concatOp: Node.Op<'str.concat'> = {
+  id: 'str.concat',
+  returns: 'text',
+  nulls: 'strict',
+  refuses: nul('str.concat'),
+  evaluate: textual('str.concat', ([left, right]) => left! + right!),
 }
 
 /** The white space every database trims alike: space, tab, line feed, carriage return. */
@@ -134,6 +160,13 @@ export const startsWith = <S extends NullableText, P extends NullableText>(
 ): Expr<EnvOfInput<S> & EnvOfInput<P>, boolean | NullOf<S> | NullOf<P>> =>
   call(startsWithOp, [value, prefix])
 
+/** True when `value` ends with `suffix`. */
+export const endsWith = <S extends NullableText, P extends NullableText>(
+  value: S,
+  suffix: P,
+): Expr<EnvOfInput<S> & EnvOfInput<P>, boolean | NullOf<S> | NullOf<P>> =>
+  call(endsWithOp, [value, suffix])
+
 /** True when `value` contains `substring`. */
 export const contains = <S extends NullableText, Sub extends NullableText>(
   value: S,
@@ -145,6 +178,18 @@ export const contains = <S extends NullableText, Sub extends NullableText>(
 export const lowerAscii = <S extends NullableText>(
   value: S,
 ): Expr<EnvOfInput<S>, string | NullOf<S>> => call(lowerAsciiOp, [value])
+
+/** `value` with a to z upper-cased and every other character kept: no locale's casing. */
+export const upperAscii = <S extends NullableText>(
+  value: S,
+): Expr<EnvOfInput<S>, string | NullOf<S>> => call(upperAsciiOp, [value])
+
+/** Concatenate two strings. */
+export const concat = <A extends NullableText, B extends NullableText>(
+  left: A,
+  right: B,
+): Expr<EnvOfInput<A> & EnvOfInput<B>, string | NullOf<A> | NullOf<B>> =>
+  call(concatOp, [left, right])
 
 /** `value` without leading or trailing space, tab, line feed or carriage return. */
 export const trim = <S extends NullableText>(value: S): Expr<EnvOfInput<S>, string | NullOf<S>> =>

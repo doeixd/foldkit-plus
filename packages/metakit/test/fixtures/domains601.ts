@@ -5,7 +5,8 @@
  * and Z3.
  */
 import { Schema } from 'effect'
-import { Bool, Num, Ord, Path, Time } from '../../src/index.js'
+import * as Text from '../../src/domain/text.js'
+import { Bool, Num, Ord, Path, Str, Time } from '../../src/index.js'
 
 const Cents = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 1_000_000 }))
 const SignedCents = Schema.Int.check(Schema.isBetween({ minimum: -1_000_000, maximum: 1_000_000 }))
@@ -17,6 +18,7 @@ export const BankAccount = Schema.Struct({
   correction: SignedCents,
   rawFee: MilliCents,
   lastFeeOn: DayIn2020s,
+  accountCode: Text.schema,
 })
 
 const $bank = Path.forSchema(BankAccount)
@@ -32,6 +34,8 @@ export const bankMonthlyFee = Num.round($bank.rawFee, {
 export const bankNextFeeOn = Time.addMonths($bank.lastFeeOn, 1)
 /** First day of the month in which `lastFeeOn` fell. */
 export const bankFeeMonth = Time.startOfMonth($bank.lastFeeOn)
+/** Whether the account code ends with the checking suffix `-CHK`. */
+export const bankAccountIsChecking = Str.endsWith($bank.accountCode, '-CHK')
 
 export const Booking = Schema.Struct({
   dayNumber: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 365 })),
@@ -71,9 +75,15 @@ export const Order = Schema.Struct({
   rawDiscount: Cents,
   maxDiscount: Cents,
   unitDollars: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 10_000 })),
+  code: Text.schema,
+  currency: Text.schema,
 })
 
 const $order = Path.forSchema(Order)
+/** Order display reference `ORD-<code>`. */
+export const orderDisplayRef = Str.concat('ORD-', $order.code)
+/** Currency code normalized to ASCII uppercase. */
+export const orderCurrencyUpper = Str.upperAscii($order.currency)
 /** Price split evenly across 4 lines, rounded half-even. */
 export const orderQuarterSplit = Num.div($order.totalCents, 4, { rounding: 'half-even' })
 /** Price split across a dynamic line count (`onZero: 'null'`). */

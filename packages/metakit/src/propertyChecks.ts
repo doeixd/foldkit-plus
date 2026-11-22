@@ -7,8 +7,9 @@
  */
 import { Equal } from 'effect'
 import * as Node from './node.js'
-import { EARLIEST_DAY, LATEST_DAY } from './ops/time.js'
 import { isSafeNumber } from './ops/kind.js'
+import { wellFormed } from './ops/str.js'
+import { EARLIEST_DAY, LATEST_DAY } from './ops/time.js'
 import type { Domain, OpProperties, Side } from './properties.js'
 
 const MAX = Number.MAX_SAFE_INTEGER
@@ -50,7 +51,7 @@ const ofKind = (op: Node.Op): ReadonlyArray<unknown> => {
 
 /** The values of `values` in `domain`: over the integers, the safe integers, null and a refusal. */
 const within = (
-  domain: Domain | 'calendarDays',
+  domain: Domain | 'calendarDays' | 'portableText',
   values: ReadonlyArray<unknown>,
 ): ReadonlyArray<unknown> =>
   domain === 'all'
@@ -61,7 +62,11 @@ const within = (
             typeof value !== 'number' ||
             (Number.isSafeInteger(value) && value >= EARLIEST_DAY && value <= LATEST_DAY),
         )
-      : values.filter(value => typeof value !== 'number' || Number.isSafeInteger(value))
+      : domain === 'portableText'
+        ? values.filter(
+            value => typeof value !== 'string' || (!holdsNul(value) && wellFormed(value) === value),
+          )
+        : values.filter(value => typeof value !== 'number' || Number.isSafeInteger(value))
 
 const holdsNul = (value: unknown): boolean => typeof value === 'string' && value.includes('\u0000')
 

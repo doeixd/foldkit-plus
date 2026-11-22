@@ -60,7 +60,7 @@ export interface OpProperties {
   readonly identity?: {
     readonly value: unknown
     readonly side: Side
-    readonly over?: Domain | 'calendarDays'
+    readonly over?: Domain | 'calendarDays' | 'portableText'
   }
   /**
    * `op(x, value)` is `result`, on `side`, for every `x`; `unlessRefused`:

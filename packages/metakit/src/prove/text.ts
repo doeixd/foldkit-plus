@@ -95,7 +95,7 @@ export const textReading = (kit: TextKit) => {
 
   /** A text predicate the solver cannot read: free, but for the lengths it implies. */
   const search =
-    (op: Node.Op<'str.startsWith' | 'str.contains'>): Lowerer =>
+    (op: Node.Op<'str.startsWith' | 'str.endsWith' | 'str.contains'>): Lowerer =>
     ([text, part], [textNode, partNode]) => {
       const a = knownText(textNode!)
       const b = knownText(partNode!)
@@ -134,7 +134,7 @@ export const textReading = (kit: TextKit) => {
 
   /** Text a text operation gives: computed for each text the operand may be, free otherwise. */
   const transform =
-    (op: Node.Op<'str.lowerAscii' | 'str.trim'>): Lowerer =>
+    (op: Node.Op<'str.lowerAscii' | 'str.upperAscii' | 'str.trim'>): Lowerer =>
     ([text], [node]) => {
       const key = `${op.id}:${Node.key(node!)}`
       const results = Option.map(choicesOf(node!), choices =>
@@ -183,11 +183,29 @@ export const textReading = (kit: TextKit) => {
       )
     }
 
+  const concat: Lowerer = ([left, right], [a, b]) => {
+    const x = knownText(a!)
+    const y = knownText(b!)
+    if (Option.isSome(x) && Option.isSome(y)) {
+      const out = Node.apply(Str.concatOp, [x.value, y.value])
+      if (typeof out === 'string') return literal(out)
+    }
+    const key = `str.concat:${Node.key(a!)}:${Node.key(b!)}`
+    return strict(
+      'text',
+      [left!, right!],
+      free(key, () => z3.Int.const(key)),
+    )
+  }
+
   const rows = {
     'str.startsWith': search(Str.startsWithOp),
+    'str.endsWith': search(Str.endsWithOp),
     'str.contains': search(Str.containsOp),
     'str.lowerAscii': transform(Str.lowerAsciiOp),
+    'str.upperAscii': transform(Str.upperAsciiOp),
     'str.trim': transform(Str.trimOp),
+    'str.concat': concat,
     'str.lt': order(Str.ltOp, false),
     'str.lte': order(Str.lteOp, true),
     'str.gt': order(Str.gtOp, false),

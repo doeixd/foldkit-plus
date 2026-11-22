@@ -524,7 +524,9 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     },
   },
   'str.lowerAscii': text,
+  'str.upperAscii': text,
   'str.trim': text,
+  'str.concat': text,
   'str.lt': textOrder(Str.ltOp, false),
   'str.lte': textOrder(Str.lteOp, true),
   'str.gt': textOrder(Str.gtOp, false),
@@ -729,6 +731,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   },
   'str.len': length,
   'str.startsWith': search(Str.startsWithOp),
+  'str.endsWith': search(Str.endsWithOp),
   'str.contains': search(Str.containsOp),
   'arr.count': measure,
   'arr.isEmpty': {
