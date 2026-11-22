@@ -2664,6 +2664,10 @@ export const RemoteServer = {
       )
     }
     const judged = [...declared, ...Option.toArray(write.ensures)]
+    // Writers that judge in-statement do so in UPDATE/DELETE statements; Insert checks its
+    // invariants in memory before executing INSERT, so an Insert's rules are always read-first.
+    const judgedWhere =
+      !kind.inserts && writer.judgesInStatement === true ? 'in-statement' : 'read-first'
     // Two writes can each read other rows that admit them and together break the rule.
     const reaching: ReadonlyArray<StoreRequirement<`${Name} ${string}`>> = [
       ...Option.match(write.when, {
@@ -2677,7 +2681,7 @@ export const RemoteServer = {
       rule: `${mutation.name} ${rule}` as const,
       needs: 'parent-serialized',
       because: 'it reads other rows',
-      judged: writer.judgesInStatement === true ? 'in-statement' : 'read-first',
+      judged: judgedWhere,
     }))
     const needed = [
       ...reaching,

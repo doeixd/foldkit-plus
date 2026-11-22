@@ -270,3 +270,62 @@ describe('a writer that names no store', () => {
     },
   )
 })
+
+describe('an insert with a cross-row invariant', () => {
+  const fields = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
+  const Related = Entity.relate(
+    { Board: ProjectFields, Item: Entity.define('Item', fields) },
+    { Item: { board: Relation.one(ProjectFields) } },
+  )
+  const Guarded = Related.Item.pipe(
+    Entity.invariant(
+      'boardOpen',
+      ({ after }) =>
+        Expr.or(
+          Expr.eq(after.done, true),
+          Expr.eq(Expr.path(Related.Item.relations.board, Related.Board.fields.status), 'open'),
+        ),
+      { message: 'The board is closed', path: ['title'] },
+    ),
+  )
+  const AddItem = Mutation.write(
+    'AddItem',
+    Write.insert(
+      Entity.input(
+        Guarded,
+        Schema.Struct({
+          id: Schema.String,
+          title: Schema.String,
+          done: Schema.Boolean,
+          boardId: Schema.String,
+        }),
+        { boardId: Relation.input(Related.Item.relations.board) },
+      ),
+      { id: 'id' },
+    ),
+  )
+  const Plain = Entity.define('Item', fields)
+  const insertDomain = Remote.define({ entities: [Related.Board, Guarded], mutations: [AddItem] })
+  const registerInsert = (store: StoreCapabilities, judgesInStatement: boolean) =>
+    RemoteServer.memory({
+      domain: insertDomain,
+      rows: { Project: [], Item: [] },
+      mutations: (rows: MemoryStore) => {
+        const { refuses: _, ...base } = RemoteServer.memoryWriter<undefined>(rows, Plain)
+        return [
+          RemoteServer.write(AddItem, {
+            ...base,
+            store,
+            ...(judgesInStatement ? { judgesInStatement: true } : {}),
+          }),
+        ]
+      },
+    })
+
+  it('is always judged read-first, so a statement-isolated store refuses it even when the writer declares judgesInStatement', () => {
+    expect(() => registerInsert(stores.statement, true)).toThrow(
+      '"AddItem invariant "boardOpen"" needs parent-serialized (writers of the rows under one parent run one at a time), judged from a read before the write: it reads other rows',
+    )
+    expect(() => registerInsert(stores.serializable, true)).not.toThrow()
+  })
+})

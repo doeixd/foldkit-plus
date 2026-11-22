@@ -900,7 +900,18 @@ export const GuardServer = {
           ({ rule, key }) => require([rule], { ...after, [key]: before[key] }, principal),
           { discard: true },
         )
-        return requires
+        return Option.match(requires, {
+          onNone: () => leaving,
+          onSome: req =>
+            Option.match(leaving, {
+              onNone: () => Option.some(req),
+              onSome: left =>
+                Option.some({
+                  holds: RowRequirement.All({ of: [req.holds, left.holds] }),
+                  reason: Option.orElse(req.reason, () => left.reason),
+                }),
+            }),
+        })
       })
     const guarded: EntityWriter<Option.Option<User>, R | RW> = {
       entity: writer.entity,

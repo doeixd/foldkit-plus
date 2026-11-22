@@ -333,3 +333,100 @@ describe('two requests racing against guards over each other’s rows, on SQLite
     }
   })
 })
+
+describe('a post-update guard over another row (leaving)', () => {
+  const client = new DatabaseSync(':memory:')
+  client.exec('create table projects (id text primary key, open integer not null)')
+  client.exec(
+    'create table tasks (id text primary key, active integer not null, project_id text not null)',
+  )
+  afterAll(() => client.close())
+
+  // Update is allowed if the row is inactive OR its project is open.
+  // A task that starts inactive on a closed project passes the `before` check (Always),
+  // so the `after` check (active = true -> needs project.open = true) MUST still be
+  // enforced by the statement and refuse the update.
+  const Base = {
+    Project: Entity.define('Project', Schema.Struct({ id: Schema.String, open: Schema.Boolean })),
+    Task: Entity.define('Task', Schema.Struct({ id: Schema.String, active: Schema.Boolean })),
+  }
+  const Linked = Entity.relate(Base, { Task: { project: Relation.one(Base.Project) } })
+  const OrGuard = Guards.declare(
+    'OrGuard',
+    User,
+    guard => ({
+      inactiveOrOpen: guard.row(Linked.Task, () =>
+        Expr.or(
+          Expr.eq(Linked.Task.fields.active, false),
+          Expr.eq(Expr.path(Linked.Task.relations.project, Linked.Project.fields.open), true),
+        ),
+      ),
+    }),
+    { key: user => user.id, unguarded: 'allow' },
+  )
+  const GuardedProject = Linked.Project.pipe(Guards.attach(OrGuard, { row: {} }))
+  const GuardedTask = Linked.Task.pipe(
+    Guards.attach(OrGuard, { row: { Update: [OrGuard.inactiveOrOpen] } }),
+  )
+  const OrPolicy = OrGuard.implement({})
+  const ActivateOr = Mutation.write(
+    'Activate',
+    Write.update(
+      Entity.input(GuardedTask, Schema.Struct({ id: Schema.String, active: Schema.Boolean })),
+      { id: 'id' },
+    ),
+  )
+  const projects = sqliteTable('projects', {
+    id: text('id').primaryKey(),
+    open: integer('open', { mode: 'boolean' }).notNull(),
+  })
+  const tasks = sqliteTable('tasks', {
+    id: text('id').primaryKey(),
+    active: integer('active', { mode: 'boolean' }).notNull(),
+    projectId: text('project_id').notNull(),
+  })
+  const visible = GuardDrizzle.visible(OrPolicy, [GuardedProject, GuardedTask])
+  const db = bind(
+    { Project: GuardedProject, Task: GuardedTask },
+    {
+      Project: { table: projects, visible: visible.Project },
+      Task: {
+        table: tasks,
+        visible: visible.Task,
+        relations: { project: { field: tasks.projectId } },
+      },
+    },
+  )
+
+  it('refuses an update that leaves a row violating a cross-row guard even when before satisfied it locally', async () => {
+    client.exec("insert into projects values ('p1', 0)")
+    client.exec("insert into tasks values ('t1', 0, 'p1')")
+    const server = RemoteServer.handlers(
+      RemoteServer.make<Option.Option<{ readonly id: string }>, DrizzleDatabase>({
+        entities: [],
+        mutations: [
+          RemoteServer.write(
+            ActivateOr,
+            GuardServer.writer(GuardedTask, OrPolicy, writer(db.Task)),
+          ),
+        ],
+      }),
+      Option.some({ id: 'ada' }),
+    )
+    const answer = await Effect.runPromise(
+      server
+        .FoldkitRemoteMutate({
+          requestId: 'r1',
+          mutation: 'Activate',
+          input: { id: 't1', active: true },
+        })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client })))),
+    )
+    expect(Result.isFailure(answer)).toBe(true)
+    if (Result.isFailure(answer)) expect(answer.failure._tag).toBe('Forbidden')
+    const row = client.prepare("select active from tasks where id = 't1'").get() as {
+      active: number
+    }
+    expect(row.active).toBe(0)
+  })
+})
