@@ -324,8 +324,8 @@ export default [
     nullStrict,
     'a guard that is null fires',
     transition,
-    'if (evalNode(transition.when.node, env) !== true) {',
-    'if (evalNode(transition.when.node, env) === false) {',
+    'if (evalNode(transition.when.node, env, options?.foreign) !== true) {',
+    'if (evalNode(transition.when.node, env, options?.foreign) === false) {',
   ),
   mutation(
     nullStrict,

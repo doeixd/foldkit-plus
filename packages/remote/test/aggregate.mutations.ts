@@ -87,7 +87,7 @@ export default [
   ),
   edit(
     'sum and count do not take a row away',
-    '    remove: row => void (total += aggregate.deleteDelta(row)),',
+    '    remove: row => void (total = aggregate.apply(total, aggregate.deleteDelta(row))),',
     '    remove: () => {},',
   ),
   edit(
