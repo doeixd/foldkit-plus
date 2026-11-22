@@ -279,7 +279,8 @@ Pass `Operators.kernel` to give the checker the arithmetic used by
 `increment` and `decrement`. Run it on the bank account above:
 
 ```ts
-import { Laws, Operators } from 'foldkit-entity'
+import { Operators } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 
 export const report = Laws.show(
   Laws.check({ writes: [OpenAccount, DepositMoney, WithdrawMoney, CloseAccount], operators: Operators.kernel }),

@@ -1566,11 +1566,13 @@ const Publish = Write.update(
 
 `Laws.check` judges each write against each invariant of its Entity, and
 reports the arrows the writes make between its states. It is pure, needs no
-database, and reads declarations only:
+database, and reads declarations only. It is its own entry, `foldkit-entity/laws`,
+because it carries metakit's checker, which a page never loads:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
-import { Entity, Footprint, Laws, Write } from 'foldkit-entity'
+import { Entity, Footprint, Write } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 
 const Product = Entity.define(
   'Product',
@@ -1658,9 +1660,8 @@ of these that decides it:
 | --- | --- |
 | State invariant; write changes none of its fields | `Kept`, by disjointness |
 | Finite fields set directly by the write | Enumerated: `Kept`, or `Refused` with witness |
-| Rule holds vacuously for non-enumerable fields | `Kept`, `vacuous` |
-| Bounded numbers decide the inequality | `Kept`, `bounds`; or `Refused` with witness |
-| Unbounded text, links, or > 4,096 combinations | `Undecided`, with reason and `obligation` |
+| Numbers, or members the write computes | metakit's checker: `Kept`, by the tier of its proof (`concrete`, `interval`, `zone`); or `Refused` with witness |
+| Text, links, another row, or > 4,096 combinations | `Undecided`, with reason and `obligation` |
 
 A transition invariant is never kept by disjointness: `after.count >
 before.count` is broken by every write that leaves `count` alone. Rows are not
@@ -1668,34 +1669,46 @@ filtered by the invariants before enumeration, since a row may be invalid
 before a write; a row the write's `when` (and `from`) definitely refuses is
 dropped, and one it cannot judge stays.
 
-#### Numbers, by their bounds
+#### Numbers, by metakit's checker
 
-A number member or input key the check cannot enumerate gets an interval:
-its Schema's checks (`isGreaterThanOrEqualTo`, `isBetween`, `Schema.Int`…),
-narrowed by the write's `from` and `when` where they compare it with a value,
-and by the Entity's state invariants, assumed to hold of the row before the
-write. That assumption is what makes the proof inductive: a write that keeps a
-rule from every row the rules allow keeps it on every row the writes make,
-starting from rows that held it. The write's effect is carried through the
-intervals (a set, an increment, a `compute` through operators that declare
-`Law.monotonic` for each argument), and the rule is judged over the result in
-SQL's three values. `Kept` by `bounds` holds for every row and input within
-those bounds.
+A pair whose members enumeration cannot list (a number, a member the write
+computes) goes to metakit's checker, `Abstract.checkGoal`, over the write read
+as a transition (`transitionOf`, [`foldkit-entity/transition`](#a-write-as-a-metakit-transition-foldkit-entitytransition)).
+It asks whether the rule holds of the row the write leaves, for every row the
+Entity's state invariants allow (assumed to hold of the row before, which is
+what makes the proof inductive: a write that keeps a rule from every row the
+rules allow keeps it on every row the writes make) and every input within its
+Schema, where the write's `from` and `when` hold, once for each combination of
+the finite members' values. It relates two unknowns: a `when` of
+`balance >= amount` over a `compute` of `Expr.sub(balance, amount)` keeps
+`balance >= 0`. `Kept` names the tier of the checker's proof in `by`.
 
-It is deliberately non-relational: a `when` comparing two unknowns
-(`amount <= balance`) narrows each only by the other's interval, so it keeps
-nothing on its own, and the pair is `Undecided`: "it rests on comparing
-balance with amount". A refusal is never inferred from intervals: the check
-tries the values nearest 0 and at each interval's ends, and refuses only with
-a row and input the reference judge refuses, within every Schema, meeting the
-`when`, and keeping every state invariant they hold the members of. The
-numbers are the judge's (JavaScript's, rounding monotone); a store that rounds
-otherwise is outside what it proves.
+What the checker leaves `Undecided` follows evaluation's own rules, which
+refuse what a database refuses:
+
+- **A plain `Schema.Number` may be NaN or infinite**, and a comparison or an
+  arithmetic operation over one is refused, so no write is proved to keep a
+  rule over it. `Schema.Finite` and `Schema.Int` decide it; a sum or a
+  difference of two numbers that nothing bounds may pass the safe integer
+  range, so a rule over one wants a bound on each (`Schema.isBetween`).
+- **A strict comparison of a number that is not an integer.** The checker's
+  intervals are closed: "below zero" reads as "at most zero", which a row at
+  zero meets. Over `Schema.Int` the same rule is decided.
+- **Another row.** A rule or a write that reads a related row is `Undecided`,
+  saying so; the checker sees one row.
+
+A refusal is never taken from the checker's answer: where it cannot prove a pair
+the check tries the values nearest 0, the numbers the rule and the write name
+and those beside them, and the ends of each Schema, and refuses only with a row
+and input the reference judge refuses, within every Schema, meeting the `when`,
+and keeping every state invariant they hold the members of. The numbers are the
+judge's (JavaScript's, rounding monotone); a store that rounds otherwise is
+outside what it proves.
 
 An `Undecided` pair of a declared write carries an `obligation`: the `write`,
-the `rule`, the state invariants `assumed` before it and the `cases` (values
-of the finite members) left, all as declared, for a later pass, such as a
-solver, to prove without reading the source again.
+the `rule`, the state invariants `assumed` before it and the `cases` the
+enumeration left (none where the checker decided), all as declared, for a later
+pass, such as a solver, to prove without reading the source again.
 
 The findings (`holds`, `enforced`, `undeclared`, `refused`, `unmeetable`,
 `unreached`, `terminal`) are reports, never faults: a write an invariant can
@@ -1729,9 +1742,9 @@ is a declared write's own.
 #### Evidence, and the graph's facts
 
 A pair the check keeps by reading the declarations carries a record in
-`evidence`, issued by `foldkit-entity/laws`: `Bounded` for one the numbers'
-bounds decided, `Enumerated` for the rest (by disjointness, by enumeration,
-`vacuous`, a create against a transition invariant, a delete). A pair
+`evidence`, issued by `foldkit-entity/laws`: `Bounded` for one metakit's checker
+proved, `Enumerated` for the rest (by disjointness, by enumeration, a create
+against a transition invariant, a delete). A pair
 kept on its author's word (`declared`), refused or undecided carries none:
 for those, the evidence is a walk through the writer, a scenario, or
 `Evidence.runtimeOnly` with its reason. These records are
@@ -1740,7 +1753,7 @@ operator law's (`Tested`, `Proven`, [below](#laws-and-holding-an-implementation-
 
 ```ts
 import { Option } from 'effect'
-import { lawFactsOf } from 'foldkit-entity'
+import { lawFactsOf } from 'foldkit-entity/laws'
 import { Evidence } from 'foldkit-metadata'
 
 const records = report.pairs.flatMap(pair => Option.toArray(pair.evidence))

@@ -41,7 +41,8 @@ This short example declares an `Item` entity with a stock invariant and a `Hold`
 
 ```ts
 import { Schema } from 'effect'
-import { Entity, Expr, Laws } from 'foldkit-entity'
+import { Entity, Expr } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { Mutation } from 'foldkit-remote'
 
 const Item = Entity.define(
@@ -79,7 +80,8 @@ The sections below walk a single catalog domain from Entity definition through s
 
 ```ts
 import { Schema } from 'effect'
-import { Derived, Entity, Expr, Laws, Order, Query as Body, Relation, Write } from 'foldkit-entity'
+import { Derived, Entity, Expr, Order, Query as Body, Relation, Write } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 
 const ProductFields = Entity.define(
   'Product',

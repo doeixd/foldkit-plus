@@ -394,11 +394,12 @@ How the declaration, its guard, its writer and the client fit together:
 
 A state is a named predicate over the row, a value declared once on the Entity
 (never a second descriptor, which every reader of an Entity would have to tell
-apart). A write starts from one and leaves another; `Laws.check` enumerates
-what every write does to every invariant and state.
+apart). A write starts from one and leaves another; `Laws.check` (`foldkit-entity/laws`, its own
+entry so a page never loads the checker) judges what every write does to every invariant and state.
 
 ```ts
-import { Footprint, Laws } from 'foldkit-entity'
+import { Footprint } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 
 const Draft = Entity.refine(Product, 'Draft', { status: 'draft' }) // literal form: one eq per field
 const Published = Entity.refine(Product, 'Published', { status: 'published' })
@@ -433,8 +434,11 @@ Laws.show(report)
   `local`, so no `from` or `becomes` and no `inState`. `build` gets `row` only: no past.
 - **Verdicts.** A state invariant the write writes nothing of is `Kept` by disjointness; a transition
   invariant never is. All-finite members changed only by `set` are enumerated (`Kept` or `Refused` with
-  rows; the `when` drops rows it definitely refuses). Anything else (a number, an increment, a computed
-  field, a link, a missing operator, over 4,096 rows) is `Undecided` with a reason. Findings (`holds`,
+  rows; the `when` drops rows it definitely refuses). A number, an increment or a computed field goes to
+  metakit's checker: `Kept` with `by` the tier of its proof (`concrete`, `interval`, `zone`), `Refused`
+  with a row the reference judge refuses, or `Undecided` with its reason (a plain `Schema.Number` may be
+  NaN: `Schema.Finite` or `Schema.Int` decide it). A link, another row, a missing operator or over 4,096
+  rows is `Undecided` with a reason. Findings (`holds`,
   `enforced` for a `becomes` held where it commits, `undeclared`, `refused`, `unreached`, `terminal`)
   are reports, not faults.
 - **Footprints.** An entry that is no declared write is `{ name, entity, footprint }`:

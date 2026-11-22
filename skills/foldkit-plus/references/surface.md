@@ -327,8 +327,8 @@ a `Metadata` per node (`Metadata.empty` by default) and merges its parts with
 rejects copies and hand-built values.
 
 `foldkit-metadata` also holds `Evidence`, records that a transition keeps a law
-(`Enumerated` from `Laws.check`, or `Bounded` when it decided a pair from the
-numbers' declared bounds; `Walked` from `Walk.run`; `Scenario` from
+(`Enumerated` from `Laws.check`, or `Bounded` when metakit's checker proved a
+pair; `Walked` from `Walk.run`; `Scenario` from
 `Scenario.run`; `RuntimeOnly` by hand with a reason). A match over every kind
 (`Evidence.$match`) needs an arm for each. `Evidence.issuedBy(record)` is the producer, none for a record
 typed by hand or spread from an issued one (or issued through another copy of
