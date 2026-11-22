@@ -82,6 +82,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-remote`: in a domain with writes and no live read, a read answered while a write is pending is read again when the write's late answer brings a different value; before, the answer overwrote the read and the field stayed on the older value. A pending relative write (an add, such as a predicted `Derived.count`) now shows over the value a read answered beside it brought, in every domain; in a domain that reads live it used to show over the value from before that read. `keepRead`, `settleKept` and `AgainRow`, exported by accident with the live-read code, are no longer exported.
 - `foldkit-entity/transition`: `transitionOf(write)` keeps a field whose optional key decodes to an empty `Option`, as `Write.bind` does; it wrote null.
 - `foldkit-remote`: a durable write stored by 0.43.0 whose layer computes a field by a call that carried a collation still reads after the upgrade. A binary collation is dropped, an ASCII-folding one folds the call's text as a write does now (`text.lowerAscii`), and one a write cannot say (a backend locale, or an operator that does not compare text itself) is kept in the store and shown as unreadable with its reason, instead of being lost.
 - `foldkit-guard/drizzle`: `GuardDrizzle.visible` accepts a rule calling `Expr.add`, `Expr.sub` or `Text.startsWith` again; it refused them after those operators moved to metakit.

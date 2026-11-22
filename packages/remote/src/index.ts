@@ -32,7 +32,6 @@ export * from './inspect.js'
 export * from './liveState.js'
 export * from './liveEvents.js'
 // Exported from `liveEvents.js` until every domain with writes kept a read's values.
-export { keepRead, settleKept, type AgainRow } from './keeping.js'
 export * from './matching.js'
 export { placeIn, RowPlace } from './placement.js'
 export {
