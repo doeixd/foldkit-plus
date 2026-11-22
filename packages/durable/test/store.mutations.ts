@@ -25,6 +25,18 @@ export default [
     d1,
   ),
   edit(
+    'the D1 journal is said to isolate a read and a later write',
+    "  isolation: 'read-committed',\n  isolates: 'statement',",
+    "  isolation: 'read-committed',\n  isolates: 'transaction',",
+    d1,
+  ),
+  edit(
+    'the SQLite journal is said to isolate one statement',
+    "  isolation: 'serializable',\n  isolates: 'transaction',",
+    "  isolation: 'serializable',\n  isolates: 'statement',",
+    race,
+  ),
+  edit(
     'a journal over D1 says what a journal over SQLite does',
     'store: d1 ? D1_STORE : SQLITE_STORE,',
     'store: SQLITE_STORE,',

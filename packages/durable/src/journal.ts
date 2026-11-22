@@ -354,12 +354,15 @@ export interface Cursors {
  * shape of `StoreCapabilities` in `metakit/store`, which this package does not
  * depend on: `isolation` is `'serializable'` (as if one at a time),
  * `'read-committed'` (each statement reads what has committed) or
- * `'eventual'` (replicas merge later); `parentRowLock` is whether a write
- * locks the row its rows hang on.
+ * `'eventual'` (replicas merge later); `isolates` is how far that reaches,
+ * `'transaction'` (a read and a later write in one transaction) or
+ * `'statement'` (one statement or batch, taken when not said);
+ * `parentRowLock` is whether a write locks the row its rows hang on.
  */
 export interface JournalStore {
   readonly name: string
   readonly isolation: 'eventual' | 'read-committed' | 'serializable'
+  readonly isolates?: 'transaction' | 'statement'
   readonly parentRowLock: boolean
 }
 
@@ -819,6 +822,7 @@ const atomically = <A, E, R>(
 const SQLITE_STORE: JournalStore = {
   name: 'SQLite journal',
   isolation: 'serializable',
+  isolates: 'transaction',
   parentRowLock: false,
 }
 
@@ -830,11 +834,13 @@ const SQLITE_STORE: JournalStore = {
  * (`commitDurably`'s retry), which keeps the order but is not a lock. A Durable
  * Object routing the appends runs one request at a time only until it awaits
  * I/O other than its own storage, which a D1 call is, so it is not claimed to
- * serialize them either.
+ * serialize them either. Its reads and its write are separate round trips,
+ * so what it isolates is one statement.
  */
 const D1_STORE: JournalStore = {
   name: 'D1 journal',
   isolation: 'read-committed',
+  isolates: 'statement',
   parentRowLock: false,
 }
 

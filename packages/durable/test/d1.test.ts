@@ -177,6 +177,7 @@ describe('durable over D1', () => {
     expect((await openJournal()).store).toEqual({
       name: 'D1 journal',
       isolation: 'read-committed',
+      isolates: 'statement',
       parentRowLock: false,
     })
   })

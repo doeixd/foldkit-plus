@@ -57,6 +57,7 @@ describe('a journal over SQLite, declared serializable', () => {
             expect((yield* open(file)).store).toEqual({
               name: 'SQLite journal',
               isolation: 'serializable',
+              isolates: 'transaction',
               parentRowLock: false,
             })
           }),
