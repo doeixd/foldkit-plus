@@ -5,8 +5,8 @@
  * `writeProperties` says of it:
  * - one that commutes with any change to the field (an `add`) shows over what
  *   the field held, and replayed over the newer value gives the server's value
- *   after both, so an answer that is exactly that replay settles the field
- *   with no second read;
+ *   after both, so an answer that is that replay, and whose revision shows it
+ *   landed right on the newer value, settles the field with no second read;
  * - one that does not (a `set`: an absolute value, a computed one, a link)
  *   shows its value over the newer one, and the two cannot be ordered from
  *   themselves, so an answer that disagrees reads the field again (#499,
@@ -25,7 +25,7 @@ import { addWrites, setWrites, type WayOfWriting, type WriteProperties } from 'm
 import { noKept, type Kept, type KeptField } from './kept.js'
 import type { EntityLayer } from './optimistic.js'
 import { own } from './record.js'
-import { entityKey, type EntityKey, type EntityStore } from './store.js'
+import { entityKey, type EntityEntry, type EntityKey, type EntityStore } from './store.js'
 
 /** Long past any stream's lag behind an answer: it only bounds what the Model keeps (echoes and `kept` alike). */
 export const echoKept = 60_000
@@ -34,6 +34,7 @@ export interface Row {
   readonly entity: string
   readonly id: string
   readonly values: Readonly<Record<string, unknown>>
+  readonly revision?: number | undefined
 }
 
 /** A row's fields to read again. */
@@ -154,14 +155,32 @@ const replayed = (
 }
 
 /**
+ * Whether an answer at `revision` is the change right after the row `held`,
+ * whose `field` was written at the held revision: nothing landed between the
+ * two. Every change moves a revision forward, so a whole step of one leaves
+ * room for no other. An answer equal to the replay is not enough alone: a like
+ * after ours and an unlike after that make it equal while the server holds the
+ * newer value. With no revision to go by, the field is read again.
+ */
+const rightAfter = (
+  held: EntityEntry | undefined,
+  revision: number | undefined,
+  field: string,
+): boolean =>
+  held?.revision !== undefined &&
+  Number.isInteger(held.revision) &&
+  revision === held.revision + 1 &&
+  held.revisionFields?.has(field) === true
+
+/**
  * What `requestId`'s answer, `entities`, does to the values kept, and what it
  * reads again. `layer` is the request's, and `pending` the requests still in
  * flight after it; with none, nothing is kept.
  *
  * The answer takes from `kept` the fields it writes. One a newer value moved
  * while the request was pending, to other than the answer's value, is read
- * again, unless the write's way replays and the answer is the write replayed
- * over that value: then the answer is the next value after it.
+ * again, unless the write's way replays, the answer is the write replayed over
+ * that value, and it landed right after it (`rightAfter`).
  */
 export const settleReplayed = (
   kept: Kept,
@@ -174,13 +193,14 @@ export const settleReplayed = (
 ): { readonly kept: Kept; readonly again: ReadonlyArray<AgainRow> } => {
   const held = unexpired(kept, now)
   const asked = new Map<EntityKey, { entity: string; id: string; fields: Set<string> }>()
-  for (const { entity, id, values } of entities) {
+  for (const { entity, id, values, revision } of entities) {
     const key = entityKey(entity, id)
     for (const [field, { by }] of held.get(key) ?? []) {
       if (!by.has(requestId) || !Object.hasOwn(values, field)) continue
       const newer = own(store[key]?.values, field)
       if (Equal.equals(newer, values[field])) continue
       if (
+        rightAfter(store[key], revision, field) &&
         Option.exists(replayed(layer, key, field, newer), value =>
           Equal.equals(value, values[field]),
         )

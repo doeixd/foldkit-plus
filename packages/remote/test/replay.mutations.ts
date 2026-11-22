@@ -38,6 +38,25 @@ export default [
     'Option.some(newer)',
   ),
   edit(
+    'an answer equal to the replay settles whatever the revisions say',
+    replay,
+    'rightAfter(store[key], revision, field) &&',
+    '',
+  ),
+  edit(
+    'an answer at any later revision is taken for the next',
+    replay,
+    'revision === held.revision + 1',
+    'revision !== undefined && revision > held.revision',
+  ),
+  edit('a revision steps by less than one', replay, 'Number.isInteger(held.revision) &&', ''),
+  edit(
+    'the row revision vouches for a field it did not carry',
+    replay,
+    'held.revisionFields?.has(field) === true',
+    'true',
+  ),
+  edit(
     'an answer that is the replay is read again',
     replay,
     'Option.exists(replayed(layer, key, field, newer), value =>',
