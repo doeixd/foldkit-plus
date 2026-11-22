@@ -17,8 +17,8 @@ const edit = (name: string, find: string, replace: string) => ({
 export default [
   edit(
     'a link through an onDelete relation is written whatever row it points at',
-    "member._tag === 'Relation' && Option.isSome(member.onDelete)",
-    'false',
+    'Option.isSome(relation.onDelete) ? [{ key, target: relation.target().name }] : []',
+    '[]',
   ),
   edit(
     'an update writes a link whatever row it points at',
