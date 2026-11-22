@@ -1,5 +1,5 @@
 /**
- * A bound translation as Drizzle SQL: metakit's lowering, with what only a
+ * A bound expression's nodes as Drizzle SQL: metakit's lowering, with what only a
  * binding knows rendered here. A column is the binding's, a hop of a path is a
  * subquery under each table's visibility, the rows pointing at a row are a
  * correlated subquery, a text comparison of a column names its collation for
@@ -15,7 +15,7 @@ import {
   type OneRelation,
   type OperatorDescriptor,
 } from 'foldkit-entity'
-import { type Lowered, type RelatedSlot } from 'foldkit-entity/lowering'
+import { type Reading, type RelatedSlot } from 'foldkit-entity/lowering'
 import { Node } from 'metakit'
 import {
   lowerNode,
@@ -388,9 +388,9 @@ export const toSql = (node: Node.Node, frame: Frame): SQL => {
   return render(isConnective(wrote) ? pieces : unparenthesized(pieces), frame)
 }
 
-/** A frame for what `lowered` read. */
+/** A frame for what `reading` read. */
 export const frameOf = (
-  lowered: Pick<Lowered, 'viewers' | 'related' | 'foreign'>,
+  reading: Pick<Reading, 'viewers' | 'related' | 'foreign'>,
   target: CompileTarget,
   entity: AnyEntity | undefined,
   query: string,
@@ -399,9 +399,9 @@ export const frameOf = (
 ): Frame => ({
   target,
   entity,
-  viewers: lowered.viewers,
-  related: lowered.related,
-  foreign: lowered.foreign,
+  viewers: reading.viewers,
+  related: reading.related,
+  foreign: reading.foreign,
   query,
   subject,
   castNumbers,

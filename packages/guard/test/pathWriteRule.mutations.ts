@@ -70,14 +70,14 @@ export default [
   edit(
     "every row of the viewer's Entity is taken for theirs",
     condition,
-    'Option.exists(viewerIdOf(start, context), id => id === written.id)',
-    'Option.exists(viewerIdOf(start, context), () => true)',
+    'Option.exists(viewerIdOf(viewer, context), id => id === written.id)',
+    'Option.exists(viewerIdOf(viewer, context), () => true)',
   ),
   edit(
     "a row of another Entity is taken for the viewer's",
     condition,
-    'return start.name === written.entity &&',
-    'return true &&',
+    'viewer.name === written.entity &&',
+    'true &&',
   ),
   edit(
     'what the rule reads of the row by a path is not read before the write',

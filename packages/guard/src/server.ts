@@ -17,6 +17,7 @@ import {
   type AnyEntity,
   type AnyQuery,
   type Invariant,
+  type Reach,
 } from 'foldkit-entity'
 import {
   Diagnostics,
@@ -90,9 +91,7 @@ interface ReachedMember {
  * path ends at, and an exists' pointing relation and filter. SQL reads such a
  * row under its `visible` rule alone, never its members'.
  */
-const reachedMembers = (
-  reaches: ReturnType<typeof dependenciesOf>['reaches'],
-): ReadonlyArray<ReachedMember> =>
+const reachedMembers = (reaches: ReadonlyArray<Reach>): ReadonlyArray<ReachedMember> =>
   reaches.flatMap(reached => {
     const via = reached.via.map(relation => ({ entity: relation.owner.name, key: relation.key }))
     return Match.valueTags(reached, {

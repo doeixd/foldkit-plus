@@ -13,7 +13,8 @@ import { PgDialect, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { SQLiteDialect, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Schema } from 'effect'
 import { Conformance, type Runner } from 'foldkit-entity/conformance'
-import { Expr, Law, Operators, Text, isPredicate } from 'foldkit-entity'
+import { Expr, Law, Operators, Text } from 'foldkit-entity'
+import { Node } from 'metakit'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { DrizzleOperators, compileCall, entity, type CompileTarget } from '../src/index.js'
 
@@ -60,7 +61,8 @@ const selecting =
     const query = render(sql`select ${compileCall(call, binding, 'conformance')} as value`)
     const value = await run(query.sql, query.params)
     // SQLite answers a truth as 1 or 0.
-    return isPredicate(call) && typeof value === 'number' ? value === 1 : value
+    const truth = Node.$is('Call')(call.node) && call.node.op.returns === 'boolean'
+    return truth && typeof value === 'number' ? value === 1 : value
   }
 
 const databases = {

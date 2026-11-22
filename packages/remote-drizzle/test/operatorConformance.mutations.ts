@@ -12,8 +12,9 @@ export default [
     edits: [
       {
         file: compile,
-        find: "call._tag !== 'Test' && call._tag !== 'Call'",
-        replace: "call._tag !== 'Call'",
+        find: 'if (!callsAnOperator(call)) {',
+        replace:
+          "if (!callsAnOperator(call) || (Node.$is('Call')(call.node) && call.node.op.returns === 'boolean')) {",
       },
     ],
     tests,
@@ -23,8 +24,9 @@ export default [
     edits: [
       {
         file: compile,
-        find: "call._tag !== 'Test' && call._tag !== 'Call'",
-        replace: "call._tag !== 'Test'",
+        find: 'if (!callsAnOperator(call)) {',
+        replace:
+          "if (!callsAnOperator(call) || (Node.$is('Call')(call.node) && call.node.op.returns !== 'boolean')) {",
       },
     ],
     tests,

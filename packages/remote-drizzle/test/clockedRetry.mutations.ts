@@ -13,7 +13,7 @@ export default [
   },
   {
     name: 'a binding names no field set from the clock',
-    edits: [{ file: '../src/bind.ts', find: "set.value._tag === 'Now'", replace: 'false' }],
+    edits: [{ file: '../src/bind.ts', find: "set.value.term === 'now'", replace: 'false' }],
     tests,
   },
 ]

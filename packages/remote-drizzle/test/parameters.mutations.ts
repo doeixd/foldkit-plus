@@ -44,8 +44,8 @@ export default [
     name: 'a number term keeps the collation it inherits',
     edits: [
       {
-        file: '../../entity/src/expr.ts',
-        find: "const number = sideKind(expr) === 'number'",
+        file: '../../entity/src/expr/order.ts',
+        find: "const number = kindOf(expr.node) === 'number'",
         replace: 'const number = false',
       },
     ],
@@ -70,7 +70,7 @@ export default [
     edits: [
       {
         file: '../src/compile.ts',
-        find: 'localeOnSqlite(columnFor(target, expr.key, query), expr.key, collation, query)',
+        find: 'localeOnSqlite(columnFor(target, key, query), key, collation, query)',
         replace: 'void collation',
       },
     ],

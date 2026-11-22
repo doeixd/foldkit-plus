@@ -28,7 +28,7 @@ export default [
     name: 'a rule over another Entity is declared',
     edits: [
       {
-        file: '../../entity/src/expr.ts',
+        file: '../../entity/src/expr/query.ts',
         find: "checkOwnership('where', 'a predicate', self.entity, predicates)",
         replace: '',
       },

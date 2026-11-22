@@ -5,7 +5,7 @@
  */
 import { Match, Option, Schema, SchemaAST } from 'effect'
 import { Entity, type AnyEntity, type Predicate } from 'foldkit-entity'
-import { lower } from 'foldkit-entity/lowering'
+import { readingOf } from 'foldkit-entity/lowering'
 import { Expr, Node, type Verdict } from 'metakit'
 import { readsOfNode, wrap } from 'metakit/build'
 import * as Policy from 'metakit/policy'
@@ -42,8 +42,8 @@ const unknownRule = (name: string): Term =>
  * checker reads every key as present (the plan's Phase 1 item 9).
  */
 const predicateOf = (entity: AnyEntity, predicate: Predicate): Option.Option<Node.Node> => {
-  const lowered = lower([predicate])
-  const node = Node.mapPaths(lowered.nodes[0]!, path =>
+  const reading = readingOf([predicate])
+  const node = Node.mapPaths(predicate.node, path =>
     path.segments[0] === 'next'
       ? Node.Path({ segments: ['row', ...path.segments.slice(1)], ast: path.ast })
       : path,
@@ -57,7 +57,7 @@ const predicateOf = (entity: AnyEntity, predicate: Predicate): Option.Option<Nod
   const ownRow = Option.exists(readsOfNode(node), reads =>
     reads.every(segments => segments.length === 2 && segments[0] === 'row' && exact(segments[1]!)),
   )
-  return lowered.foreign.size === 0 && lowered.related.size === 0 && ownRow
+  return reading.foreign.size === 0 && reading.related.size === 0 && ownRow
     ? Option.some(node)
     : Option.none()
 }

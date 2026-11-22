@@ -260,22 +260,20 @@ describe('A primitive operator in SQL', () => {
     const Localized = Item.pipe(
       Entity.annotateMembers({ code: Collation.of(Collation.locale('en_US')) }),
     )
-    const sort = Expr.input(
-      'sort',
-      Schema.NullOr(
-        Schema.Struct({
-          by: Schema.Literals(['code']),
-          direction: Schema.Literals(['asc', 'desc']),
-        }),
-      ),
+    const Sort = Schema.NullOr(
+      Schema.Struct({
+        by: Schema.Literals(['code']),
+        direction: Schema.Literals(['asc', 'desc']),
+      }),
     )
+    const sort = Expr.input('sort', Sort)
     for (const ordering of [
       Order.asc(Localized.fields.code),
       Order.chosen(sort, { code: Localized.fields.code }),
     ]) {
       const descriptor = {
         ...Query.make('ByCode', {
-          Input: { sort: sort.schema },
+          Input: { sort: Sort },
           Result: Query.connection(Localized),
         }),
         body: Relational.from(Localized).pipe(Relational.orderBy(ordering)),

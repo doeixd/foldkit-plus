@@ -5,8 +5,8 @@
  * Principal guards never reach it, so their bodies stay on the server that
  * decided them.
  *
- * In memory a condition is one metakit expression: each row guard's body
- * translated by `foldkit-entity/lowering` and judged over the row, joined by
+ * In memory a condition is one metakit expression: each row guard's body, a
+ * metakit node read by `foldkit-entity/lowering`, judged over the row, joined by
  * metakit's `and` and `or`. So null and a refusal mean here what they mean in
  * every reader: a refused guard (text holding a NUL, NaN, a sum past the safe
  * integer range, an operator that throws) refuses the whole condition, which
@@ -25,7 +25,7 @@ import {
   type HeldRows,
   type MemoryOperators,
 } from 'foldkit-entity'
-import { envOf, foreignOf, lower, type Lowered } from 'foldkit-entity/lowering'
+import { envOf, foreignOf, readingOf, type Reading } from 'foldkit-entity/lowering'
 import { Bool, Node, Verdict } from 'metakit'
 import { Settled, judgeNode, settleNode } from 'metakit/build'
 import {
@@ -82,18 +82,19 @@ const or = (conditions: ReadonlyArray<Condition>): Condition => {
 type RowCondition = Extract<Condition, { readonly _tag: 'Row' }>
 type Row = Readonly<Record<string, unknown>>
 
-const lowerings = new WeakMap<RowGuard<any, AnyEntity>, Lowered>()
+const readings = new WeakMap<RowGuard<any, AnyEntity>, Reading>()
 
 /**
- * A row guard's body as metakit nodes, translated once. `Guards.declare`
- * asks it of each row guard, so a body no reader can hold (two relations of
- * one name) refuses where it is declared, not when a request reads it.
+ * What a row guard's body reads past its own nodes, read once.
+ * `Guards.declare` asks it of each row guard, so a body no reader can hold
+ * (two relations of one name) refuses where it is declared, not when a
+ * request reads it.
  */
-export const loweredOf = (guard: RowGuard<any, AnyEntity>): Lowered => {
-  const known = lowerings.get(guard)
+export const readingOfGuard = (guard: RowGuard<any, AnyEntity>): Reading => {
+  const known = readings.get(guard)
   if (known !== undefined) return known
-  const made = lower([guard.body])
-  lowerings.set(guard, made)
+  const made = readingOf([guard.body])
+  readings.set(guard, made)
   return made
 }
 
@@ -117,17 +118,17 @@ const settleGuard = (
     readonly operators: MemoryOperators
   },
 ): Settled => {
-  const lowered = loweredOf(guard)
+  const reading = readingOfGuard(guard)
   return settleNode(
-    lowered.nodes[0]!,
-    envOf(lowered, {
+    guard.body.node,
+    envOf(reading, {
       row,
       owner: guard.entity.identity,
       input: over.input,
       context,
       rows: over.rows,
     }),
-    foreignOf(lowered, over.operators),
+    foreignOf(reading, over.operators),
   )
 }
 
@@ -335,13 +336,11 @@ export const Condition = {
               Match.valueTags(reach, {
                 Path: ({ via }) => [via[0]!.key],
                 Exists: ({ via }) => via.slice(0, 1).map(relation => relation.key),
-                ViewerPath: ({ viewer, via, field }) => {
-                  const start = viewer.target()
-                  return start.name === written.entity &&
-                    Option.exists(viewerIdOf(start, context), id => id === written.id)
+                ViewerPath: ({ viewer, via, field }) =>
+                  viewer.name === written.entity &&
+                  Option.exists(viewerIdOf(viewer, context), id => id === written.id)
                     ? [via[0]?.key ?? field.key]
-                    : []
-                },
+                    : [],
               }),
             ),
           ]

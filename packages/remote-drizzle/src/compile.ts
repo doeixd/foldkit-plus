@@ -21,32 +21,32 @@ import { Match, Option } from 'effect'
 import {
   Computation,
   Expr,
+  Order,
   Query,
   dependenciesOf,
   lowerAsciiName,
   type AnyEntity,
   type Collation,
   type EntityIdentity,
-  type ExistsPredicate,
-  type OperatorDescriptor,
-  type PathExpr,
-  type ViewerPathExpr,
+  type Reach,
 } from 'foldkit-entity'
 import type {
   AnyExpr,
   AnyQuery,
+  EntityEnv,
   OrderTerm as ExprOrderTerm,
-  Operandish,
   Operation,
   Predicate,
   Ordering,
 } from 'foldkit-entity'
 import { Node, Str } from 'metakit'
+import { wrap } from 'metakit/build'
 import type { OrderTerm } from './cursor.js'
 import { isKernelOperator } from './kernel.js'
 import { isPostgresColumn } from './dialect.js'
-import { callOperator, lower } from 'foldkit-entity/lowering'
-import { bindNode, decided, envFor, translated } from './lowering.js'
+import { callOperator, readingOf, type Reading } from 'foldkit-entity/lowering'
+import { bindNode, decided, envFor, readingFor } from './lowering.js'
+import { ownFieldKey } from './nodes.js'
 import { frameOf, toSql } from './render.js'
 import {
   QueryCompileError,
@@ -81,24 +81,31 @@ const predicate = (
   query: string,
   entity: AnyEntity | undefined,
 ): SQL => {
-  const lowered = translated(node)
-  const residual = decided(lowered.nodes[0]!, lowered, target, input, query)
+  const reading = readingFor(node)
+  const residual = decided(node.node, reading, target, input, query)
   return Node.$is('Lit')(residual)
     ? constant(residual.value, query)
-    : toSql(residual, frameOf(lowered, target, entity, query))
+    : toSql(residual, frameOf(reading, target, entity, query))
 }
+
+/** Whether `expr` is a call that calls an operator: what `compileCall` selects. */
+const callsAnOperator = (expr: AnyExpr): boolean =>
+  Node.$is('Call')(expr.node) && dependenciesOf(expr).operators.length > 0
+
+/**
+ * Whether an order term's `expr`, no field, is an operator's call: one that
+ * gives a value, since `Order` refuses a call giving a truth, so a truth here
+ * is a predicate, which orders nowhere.
+ */
+const ordersByCall = (expr: AnyExpr): boolean =>
+  callsAnOperator(expr) && Node.$is('Call')(expr.node) && expr.node.op.returns !== 'boolean'
 
 /**
  * A computed assignment, as data, as a node: a field its column, a value
  * itself, a call by the operator the binding's tables name (text a collation
  * compares arrives folded, as a call of `lowerAsciiName`).
  */
-const computedNode = (
-  computation: Computation,
-  target: CompileTarget,
-  query: string,
-  foreign: Map<string, OperatorDescriptor>,
-): Node.Node =>
+const computedNode = (computation: Computation, target: CompileTarget, query: string): Node.Node =>
   Computation.$match(computation, {
     Field: ({ key }) => Node.Path({ segments: ['row', key], ast: Option.none() }),
     Value: ({ value }) => Node.Lit({ value }),
@@ -106,7 +113,7 @@ const computedNode = (
       if (operator === lowerAsciiName) {
         return Node.Call({
           op: Str.lowerAsciiOp,
-          args: args.map(arg => computedNode(arg, target, query, foreign)),
+          args: args.map(arg => computedNode(arg, target, query)),
         })
       }
       const tables = operatorsOf(target)
@@ -119,9 +126,8 @@ const computedNode = (
       )
       return callOperator(
         descriptor,
-        args.map(arg => computedNode(arg, target, query, foreign)),
+        args.map(arg => computedNode(arg, target, query)),
         Option.none(),
-        foreign,
       )
     },
   })
@@ -136,19 +142,10 @@ export const computationSql = (
   target: CompileTarget,
   query: string,
 ): SQL => {
-  const foreign = new Map<string, OperatorDescriptor>()
-  const node = computedNode(computation, target, query, foreign)
-  return toSql(
-    node,
-    frameOf(
-      { viewers: new Map(), related: new Map(), foreign },
-      target,
-      undefined,
-      query,
-      true,
-      query,
-    ),
-  )
+  const node = computedNode(computation, target, query)
+  // The foreign operations it calls, which its frame renders by the binding's SQL.
+  const reading = readingOf([wrap<EntityEnv, unknown>(node)])
+  return toSql(node, frameOf(reading, target, undefined, query, true, query))
 }
 
 /**
@@ -186,7 +183,7 @@ export const reachedEntities = (body: AnyQuery): ReadonlyArray<EntityIdentity<st
   for (const reached of Query.dependencies(body).reaches) {
     const through = reached.via.map(relation => relation.target().identity)
     const met = Match.valueTags(reached, {
-      ViewerPath: ({ viewer }) => [viewer.entity, ...through],
+      ViewerPath: ({ viewer }) => [viewer.identity, ...through],
       Path: () => through,
       Exists: ({ relation }) => [...through, relation.owner],
     })
@@ -201,11 +198,7 @@ export const reachedEntities = (body: AnyQuery): ReadonlyArray<EntityIdentity<st
  * not bound beside this one, a field with no column, or a table met twice,
  * which would need SQL aliases this compiler does not write.
  */
-const checkReach = (
-  reached: PathExpr<unknown> | ExistsPredicate | ViewerPathExpr<unknown>,
-  target: CompileTarget,
-  query: string,
-): void => {
+const checkReach = (reached: Reach, target: CompileTarget, query: string): void => {
   // A path from the viewer reads no column of the judged row, so its table may meet it.
   const met: Array<CompileTarget['table']> = Match.valueTags(reached, {
     ViewerPath: () => [],
@@ -215,15 +208,15 @@ const checkReach = (
   const meet = (table: CompileTarget, owner: EntityIdentity<string>): void => {
     if (met.includes(table.table)) {
       throw new QueryCompileError(
-        `query "${query}" reaches ${owner.name}'s table twice in ${Expr.show(reached)}, which this compiler cannot alias yet`,
+        `query "${query}" reaches ${owner.name}'s table twice in ${Expr.show(reached.expr)}, which this compiler cannot alias yet`,
       )
     }
     met.push(table.table)
   }
   let at = target
   if (reached._tag === 'ViewerPath') {
-    at = reachedTable(target, reached.viewer.entity, query)
-    meet(at, reached.viewer.entity)
+    at = reachedTable(target, reached.viewer.identity, query)
+    meet(at, reached.viewer.identity)
   }
   for (const relation of reached.via) {
     const owner = relation.target().identity
@@ -260,13 +253,15 @@ export const checkFields = (body: AnyQuery, target: CompileTarget, query: string
   const ordered = body.orderBy.flatMap(ordering =>
     Match.valueTags(ordering, {
       Term: ({ expr, collation }) => [{ expr, collation }],
+      // Each alternative's collation as the term it resolves to would carry it.
       Chosen: ({ choices }) =>
-        Object.values(choices).map(expr => ({ expr, collation: expr.collation })),
+        Object.values(choices).map(expr => ({ expr, collation: Order.asc(expr).collation })),
     }),
   )
   for (const { expr, collation } of ordered) {
-    if (expr._tag === 'Field')
-      localeOnSqlite(columnFor(target, expr.key, query), expr.key, collation, query)
+    Option.map(ownFieldKey(expr.node), key =>
+      localeOnSqlite(columnFor(target, key, query), key, collation, query),
+    )
   }
 }
 
@@ -357,13 +352,13 @@ export const compilePredicates = (
  * to ask the database one question (`select <call>`). Never decided in memory,
  * though its arguments read no row; anything that is not a call is refused.
  */
-export const compileCall = (call: Operandish, target: CompileTarget, query: string): SQL => {
-  if (call._tag !== 'Test' && call._tag !== 'Call') {
+export const compileCall = (call: AnyExpr, target: CompileTarget, query: string): SQL => {
+  if (!callsAnOperator(call)) {
     throw new QueryCompileError(`${query}: only a call of an operator compiles alone`)
   }
-  const lowered = translated(call)
-  const node = bindNode(lowered.nodes[0]!, envFor(lowered.nodes[0]!, lowered, target, {}))
-  return toSql(node, frameOf(lowered, target, undefined, query, true))
+  const reading = readingFor(call)
+  const node = bindNode(call.node, envFor(call.node, reading, target, {}))
+  return toSql(node, frameOf(reading, target, undefined, query, true))
 }
 
 /**
@@ -386,34 +381,38 @@ export const compileOrderBy = (
   }
   return terms.map(term => {
     const { direction, nulls } = term
-    // The term made sure a call orders: a number, or text under binary or asciiFold.
-    if (term.expr._tag === 'Call') {
-      const lowered = lowerKey(term, query)
-      // The key is the call folded under the term's collation; the node alone would order unfolded.
-      const key = lowered.keys[0]!
-      const bound = bindNode(key, envFor(key, lowered, target, input))
-      return { key: toSql(bound, frameOf(lowered, target, body.entity, query)), direction, nulls }
-    }
-    if (term.expr._tag !== 'Field') {
-      throw new QueryCompileError(
-        `query "${query}" orders by something that is neither a field nor a call`,
-      )
-    }
-    const column = columnFor(target, term.expr.key, query)
-    localeOnSqlite(column, term.expr.key, term.collation, query)
-    return { key: column, direction, nulls, collation: Option.getOrUndefined(term.collation) }
+    return Option.match(ownFieldKey(term.expr.node), {
+      onSome: key => {
+        const column = columnFor(target, key, query)
+        localeOnSqlite(column, key, term.collation, query)
+        return { key: column, direction, nulls, collation: Option.getOrUndefined(term.collation) }
+      },
+      onNone: () => {
+        if (!ordersByCall(term.expr)) {
+          throw new QueryCompileError(
+            `query "${query}" orders by something that is neither a field nor a call`,
+          )
+        }
+        // The term made sure a call orders: a number, or text under binary or asciiFold.
+        const reading = keyReading(term, query)
+        // The key is the call folded under the term's collation; the node alone would order unfolded.
+        const key = reading.keys[0]!
+        const bound = bindNode(key, envFor(key, reading, target, input))
+        return { key: toSql(bound, frameOf(reading, target, body.entity, query)), direction, nulls }
+      },
+    })
   })
 }
 
-/** An order term's key as metakit nodes, folded under its collation; a locale is the backend's, so it cannot be one. */
-const keyTranslations = new WeakMap<ExprOrderTerm, ReturnType<typeof lower>>()
+/** An order term's key, folded under its collation, with its reading; a locale is the backend's, so it cannot be one. */
+const keyReadings = new WeakMap<ExprOrderTerm, Reading>()
 
-const lowerKey = (term: ExprOrderTerm, query: string) => {
-  const known = keyTranslations.get(term)
+const keyReading = (term: ExprOrderTerm, query: string): Reading => {
+  const known = keyReadings.get(term)
   if (known !== undefined) return known
   try {
-    const made = lower([term.expr], [term])
-    keyTranslations.set(term, made)
+    const made = readingOf([term.expr], [term])
+    keyReadings.set(term, made)
     return made
   } catch (error) {
     throw new QueryCompileError(`query "${query}": ${(error as Error).message}`)

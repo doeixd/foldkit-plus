@@ -9,7 +9,7 @@ const tests = [
   'packages/remote-server/test/evaluate.test.ts',
   'packages/remote-drizzle/test/conformance.test.ts',
 ]
-const expr = '../../entity/src/expr.ts'
+const expr = '../../entity/src/expr/order.ts'
 const evaluate = '../../entity/src/rowOrder.ts'
 const cursor = '../src/cursor.ts'
 

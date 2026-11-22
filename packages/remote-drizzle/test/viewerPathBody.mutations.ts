@@ -25,7 +25,7 @@ export default [
   },
   edit(
     'the path starts at the judged row',
-    '    at = reachedTable(target, reached.viewer.entity, query)\n    meet(at, reached.viewer.entity)\n',
+    '    at = reachedTable(target, reached.viewer.identity, query)\n    meet(at, reached.viewer.identity)\n',
     '',
   ),
   edit(
@@ -35,7 +35,7 @@ export default [
   ),
   edit(
     "the viewer's table's visibility is not resolved",
-    'ViewerPath: ({ viewer }) => [viewer.entity, ...through],',
+    'ViewerPath: ({ viewer }) => [viewer.identity, ...through],',
     'ViewerPath: () => through,',
   ),
   {

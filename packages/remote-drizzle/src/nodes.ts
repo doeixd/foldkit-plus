@@ -1,6 +1,12 @@
-/** Walking and rewriting metakit nodes, for what the SQL compiler does to a translation before it writes SQL. */
+/** Walking and rewriting metakit nodes, for what the SQL compiler does to an expression's nodes before it writes SQL. */
 import { Option } from 'effect'
 import { Node } from 'metakit'
+
+/** The key of the judged row's own field `node` reads (`row.<key>`), if it is one. */
+export const ownFieldKey = (node: Node.Node): Option.Option<string> =>
+  Node.$is('Path')(node) && node.segments.length === 2 && node.segments[0] === 'row'
+    ? Option.some(node.segments[1]!)
+    : Option.none()
 
 /** The nodes directly under `node`, a `Rows` node's source and body included. */
 export const children = (node: Node.Node): ReadonlyArray<Node.Node> =>

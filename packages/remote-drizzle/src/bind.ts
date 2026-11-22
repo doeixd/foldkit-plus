@@ -612,7 +612,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       computed,
       invariants: Domain.Entity.invariants(entity),
       clocked: Object.entries(entity.sets)
-        .filter(([, set]) => set.value._tag === 'Now')
+        .filter(([, set]) => set.value.term === 'now')
         .map(([field]) => field),
       operators,
       reach,

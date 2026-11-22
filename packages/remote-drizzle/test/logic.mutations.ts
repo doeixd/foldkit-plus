@@ -16,11 +16,11 @@ const rewrites = '../src/rewrites.ts'
 
 export default [
   {
-    name: 'nothing is settled: the request is not bound into the translation',
+    name: 'nothing is settled: the request is not bound into the nodes',
     edits: [
       {
         file: lowering,
-        find: '    envFor(node, lowered, target, input),\n    readsStored',
+        find: '    envFor(node, reading, target, input),\n    readsStored',
         replace: '    {},\n    readsStored',
       },
     ],

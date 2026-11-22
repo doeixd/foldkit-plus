@@ -2,7 +2,7 @@
  * The differential test of the SQL lowering (step 8 of the kernel convergence
  * note): every entity conformance case run through the SQL a binding compiles,
  * on a real SQLite and a real Postgres (PGlite), and through metakit's
- * evaluator over the translation of the same body and the same rows. The
+ * evaluator over the nodes of the same body and the same rows. The
  * three answers (both dialects, and memory) must be one list of ids in one
  * order; a case where they part is either named in `differences`, with why, or
  * a bug.
@@ -18,7 +18,7 @@ import { Effect } from 'effect'
 import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Held, Operators, Query as Body, type AnyEntity, type HeldRows } from 'foldkit-entity'
-import { envOf, foreignOf, lower } from 'foldkit-entity/lowering'
+import { envOf, foreignOf, readingOf } from 'foldkit-entity/lowering'
 import {
   Relational,
   Subject,
@@ -233,33 +233,33 @@ const sqlIds = async (
   }
 }
 
-// --- the memory side: metakit's evaluator over the translation ---
+// --- the memory side: metakit's evaluator over the body's nodes ---
 
 const idOf = (row: ReturnType<HeldRows['rows']>[number]): string =>
   Held.match(row.field('id'), { onHeld: String, onUnheld: () => '?' })
 
-/** The ids the translation keeps, in the order the translated keys give. */
+/** The ids the body's nodes keep, in the order its keys give. */
 const memoryIds = (
   c: { readonly body: ConformanceCase['body']; readonly input: ConformanceCase['input'] },
   holder: HeldRows,
   context?: ReturnType<typeof relationalContext>,
 ): ReadonlyArray<string> | 'refused' => {
   const terms = Body.orderFor(c.body, c.input)
-  const lowered = lower(c.body.where, terms)
-  const foreign = foreignOf(lowered, Operators.kernel)
+  const reading = readingOf(c.body.where, terms)
+  const foreign = foreignOf(reading, Operators.kernel)
   const kept: Array<{ readonly id: string; readonly keys: ReadonlyArray<unknown> }> = []
   for (const row of holder.rows(c.body.entity)) {
-    const env = envOf(lowered, {
+    const env = envOf(reading, {
       row,
       owner: c.body.entity.identity,
       input: c.input,
       context,
       rows: holder,
     })
-    const answers = lowered.nodes.map(node => evalNode(node, env, foreign))
+    const answers = reading.nodes.map(node => evalNode(node, env, foreign))
     if (answers.some(Node.isRefusal)) return 'refused'
     if (answers.every(answer => answer === true)) {
-      kept.push({ id: idOf(row), keys: lowered.keys.map(key => evalNode(key, env, foreign)) })
+      kept.push({ id: idOf(row), keys: reading.keys.map(key => evalNode(key, env, foreign)) })
     }
   }
   const order = (left: unknown, right: unknown, index: number): number => {

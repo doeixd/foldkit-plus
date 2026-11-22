@@ -14,16 +14,8 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { SQLiteDialect, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import {
-  Collation,
-  Entity,
-  Evidence,
-  Expr,
-  Law,
-  Operators,
-  Write,
-  isPredicate,
-} from 'foldkit-entity'
+import { Collation, Entity, Evidence, Expr, Law, Operators, Write } from 'foldkit-entity'
+import { Node } from 'metakit'
 import { Conformance } from 'foldkit-entity/conformance'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -301,7 +293,9 @@ const selectingSqlite =
         value: unknown
       }
     ).value
-    return isPredicate(call) && typeof value === 'number' ? value === 1 : value
+    // SQLite answers a truth as 1 or 0.
+    const truth = Node.$is('Call')(call.node) && call.node.op.returns === 'boolean'
+    return truth && typeof value === 'number' ? value === 1 : value
   }
 
 describe('A computed assignment without a revision, under a ledger', () => {

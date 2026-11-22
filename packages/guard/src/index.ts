@@ -12,7 +12,7 @@ import { Attaching, enforced, type InteractionKey } from './attach.js'
 import {
   Condition,
   deciding,
-  loweredOf,
+  readingOfGuard,
   readsPrincipal,
   type MemberRead,
   type RowRule,
@@ -447,8 +447,8 @@ export const Guards = {
             // Checks the body reads only this Entity's fields, where it is declared.
             query: Query.from(entity).pipe(Query.where(body)),
           })
-          // Translated here, so a body no reader in memory can hold refuses where it is written.
-          loweredOf(made)
+          // Read here, so a body no reader in memory can hold refuses where it is written.
+          readingOfGuard(made)
           return made
         },
       })

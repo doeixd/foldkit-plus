@@ -85,13 +85,18 @@ export default [
     'true &&',
     drizzleTests,
   ),
-  edit(
-    'any shape of assignment commutes',
-    writerFile,
-    'if (own.key !== field.key || dependenciesOf(amount).fields.length > 0) return false',
-    '',
-    drizzleTests,
-  ),
+  {
+    name: 'any shape of assignment commutes',
+    edits: [
+      {
+        file: writerFile,
+        find: 'if (!Option.contains(ownFieldKey(own), field.key)) return false',
+        replace: '',
+      },
+      { file: writerFile, find: 'if (amountReads.fields.length > 0) return false', replace: '' },
+    ],
+    tests: drizzleTests,
+  },
 
   // ---- SQL evidence
   edit(

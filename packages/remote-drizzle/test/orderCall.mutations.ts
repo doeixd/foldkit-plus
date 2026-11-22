@@ -13,8 +13,8 @@ export default [
     edits: [
       {
         file: compile,
-        find: 'const key = lowered.keys[0]!',
-        replace: 'const key = lowered.nodes[0]!',
+        find: 'const key = reading.keys[0]!',
+        replace: 'const key = reading.nodes[0]!',
       },
     ],
     tests,

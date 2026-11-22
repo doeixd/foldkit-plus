@@ -38,10 +38,10 @@ import {
   Write,
   dependenciesOf,
   evaluate,
-  isPredicate,
   viewerIdOf,
   type AnyQuery,
   type Computation,
+  type EntityEnv,
   type EntityIdentity,
   type EntityRef,
   type Change,
@@ -49,6 +49,8 @@ import {
   type Invariant,
   type WriteAssignment,
 } from 'foldkit-entity'
+import { Node } from 'metakit'
+import { wrap } from 'metakit/build'
 import type { ConnectionSpec, NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Diagnostics, Entity } from 'foldkit-remote'
 import {
@@ -86,6 +88,7 @@ import {
   requireOperators,
   supported,
 } from './compile.js'
+import { ownFieldKey } from './nodes.js'
 import {
   cursorSelection,
   idCursor,
@@ -1444,9 +1447,16 @@ export const writer = <P = unknown>(
         next,
         operators: binding.operators,
       }
+      // A field the write sets is its value; any other `next` field is the target's `next`.
+      const setValues = (node: Node.Node): Node.Node =>
+        Node.substitutePaths(node, segments =>
+          segments[0] === 'next' && segments.length === 2 && Object.hasOwn(values, segments[1]!)
+            ? Option.some(Node.Lit({ value: values[segments[1]!] }))
+            : Option.none(),
+        )
       return judged.flatMap(held =>
         compilePredicates(
-          [Expr.substituteNext(held.predicate, values)],
+          [wrap<EntityEnv, boolean | null>(setValues(held.predicate.node))],
           target,
           {},
           invariantName(held),
@@ -1474,16 +1484,19 @@ export const writer = <P = unknown>(
    */
   const commutes = (assignment: WriteAssignment): boolean => {
     const { expr, field } = assignment
-    if (expr._tag !== 'Call' || expr.args.length !== 2) return false
-    const [own, amount] = expr.args
-    if (own === undefined || amount === undefined || isPredicate(own) || own._tag !== 'Field') {
-      return false
-    }
-    if (own.key !== field.key || dependenciesOf(amount).fields.length > 0) return false
-    const name =
-      expr.operator.version === 1
-        ? expr.operator.id
-        : `${expr.operator.id}@${expr.operator.version}`
+    const { node } = expr
+    if (!Node.$is('Call')(node) || node.args.length !== 2) return false
+    const [own, amount] = node.args
+    if (own === undefined || amount === undefined) return false
+    if (!Option.contains(ownFieldKey(own), field.key)) return false
+    const amountReads = dependenciesOf(wrap<EntityEnv, unknown>(amount))
+    if (amountReads.fields.length > 0) return false
+    // The operator the call is of: the one it calls that its amount does not, when one is.
+    const [operator, ...others] = dependenciesOf(expr).operators.filter(
+      each => !amountReads.operators.includes(each),
+    )
+    if (operator === undefined || others.length > 0) return false
+    const name = operator.version === 1 ? operator.id : `${operator.id}@${operator.version}`
     const tested = (evidence: ReadonlyArray<Evidence>, kind: string) =>
       evidence.some(
         record =>

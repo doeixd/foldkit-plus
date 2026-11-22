@@ -1,29 +1,29 @@
 /**
- * What a request makes of the translation of an expression
+ * What a request makes of an expression's nodes and their reading
  * (`foldkit-entity/lowering`) before any SQL is written: its input, viewer and
- * time bound into it, and what reads no column decided by metakit's partial
+ * time bound into them, and what reads no column decided by metakit's partial
  * evaluation (`render.ts` writes what is left).
  */
 import { Option } from 'effect'
-import { type Operandish } from 'foldkit-entity'
-import { ASKER, foreignOf, lower, type Lowered } from 'foldkit-entity/lowering'
+import { type AnyExpr } from 'foldkit-entity'
+import { ASKER, foreignOf, readingOf, type Reading } from 'foldkit-entity/lowering'
 import { Node } from 'metakit'
 import { residualizeNode } from 'metakit/build'
 import { walk, rewrite } from './nodes.js'
 import { QueryCompileError, operatorsOf, type CompileTarget } from './target.js'
 
-/** The translation of `node`, once: an expression is translated for every request that compiles it. */
-const translations = new WeakMap<object, Lowered>()
+/** The reading of `expr`, once: an expression is read for every request that compiles it. */
+const readings = new WeakMap<AnyExpr, Reading>()
 
-export const translated = (node: Operandish): Lowered => {
-  const known = translations.get(node)
+export const readingFor = (expr: AnyExpr): Reading => {
+  const known = readings.get(expr)
   if (known !== undefined) return known
-  const made = lower([node])
-  translations.set(node, made)
+  const made = readingOf([expr])
+  readings.set(expr, made)
   return made
 }
 
-// --- binding the request into the translation ---
+// --- binding the request into the nodes ---
 
 /** The value of `segments` in `env`; a null on the way reads null, a missing key is not known. */
 const readEnv = (env: unknown, segments: ReadonlyArray<string>): Option.Option<unknown> => {
@@ -45,7 +45,7 @@ const readEnv = (env: unknown, segments: ReadonlyArray<string>): Option.Option<u
  */
 export const envFor = (
   node: Node.Node,
-  lowered: Pick<Lowered, 'viewers'>,
+  reading: Pick<Reading, 'viewers'>,
   target: CompileTarget,
   input: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> => {
@@ -61,7 +61,7 @@ export const envFor = (
   if (context === undefined) return env
   if (Option.isSome(context.now)) env.now = context.now.value
   const viewers: Record<string, unknown> = {}
-  for (const name of lowered.viewers.keys()) {
+  for (const name of reading.viewers.keys()) {
     viewers[name] = Option.match(
       Option.filter(context.viewer, ref => ref.entity === name),
       // A visitor, or a viewer of another Entity, reads null.
@@ -120,15 +120,15 @@ const readsStored = (node: Node.Node): boolean =>
  */
 export const decided = (
   node: Node.Node,
-  lowered: Lowered,
+  reading: Reading,
   target: CompileTarget,
   input: Readonly<Record<string, unknown>>,
   query: string,
 ): Node.Node => {
   const residual = residualizeNode(
     node,
-    envFor(node, lowered, target, input),
-    readsStored(node) ? {} : foreignOf(lowered, operatorsOf(target).memory),
+    envFor(node, reading, target, input),
+    readsStored(node) ? {} : foreignOf(reading, operatorsOf(target).memory),
   )
   const refused = refusalIn(residual)
   if (refused !== undefined) throw new QueryCompileError(`query "${query}": ${refused.message}`)
