@@ -16,9 +16,10 @@ import type { EntityKey } from './store.js'
 export interface KeptField {
   /**
    * The requests pending when a newer value wrote the field, each with the
-   * base's value from before the newest such value it was pending beside (none
-   * when the row did not hold the field): a request started after one cannot
-   * be echoed by it. Their answers are compared with what was written.
+   * value a relative layer of it resolves over: for a patch, the base's value
+   * from before it (none when the row did not hold the field); for a read, the
+   * read's own. A request started after a newer value cannot be echoed by it.
+   * Their answers are compared with what was written.
    */
   readonly by: ReadonlyMap<string, Option.Option<unknown>>
   /** When the first newer value was heard: a kept value older than the bound is dropped. */
