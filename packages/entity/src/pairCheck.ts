@@ -62,11 +62,10 @@ const underStates = (node: Node.Node, after: 'next' | 'state', before: boolean):
     const [slice, key, ...rest] = segments
     const plain = key !== undefined && rest.length === 0 && !/^[@<#]/.test(key)
     if (!plain) throw new Unreadable(`it reads ${segments.join('.')}, another row than its own`)
-    const original = Node.Path({ segments, ast: Option.none() })
     if (slice === 'next')
-      return Option.some(Node.Path({ segments: [after, 'row', key], ast: original.ast }))
+      return Option.some(Node.Path({ segments: [after, 'row', key], ast: Option.none() }))
     if (slice === 'row' && before)
-      return Option.some(Node.Path({ segments: ['state', 'row', key], ast: original.ast }))
+      return Option.some(Node.Path({ segments: ['state', 'row', key], ast: Option.none() }))
     throw new Unreadable(`it reads ${segments.join('.')}`)
   })
 

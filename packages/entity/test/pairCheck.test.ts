@@ -1,7 +1,7 @@
 /**
  * What `Laws.check` asks of metakit's checker (`pairCheck.ts`): the pairs it
  * leaves open and why, and what restores them. Each case is one reason a pair
- * the old interval pass kept is now undecided, beside the Schema that decides it.
+ * is undecided, beside the Schema that decides it.
  */
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
@@ -18,9 +18,7 @@ const verdictOf = (
 }
 
 describe('A comparison of a number that may be NaN', () => {
-  const gauge = (level: Schema.Top) => {
-    const Fields = Entity.define('Gauge', Schema.Struct({ id: Schema.String, name: Schema.String }))
-    // `level` is added below, so each case names its own Schema for it.
+  const gauge = (level: Schema.Codec<number>) => {
     const Gauge = Entity.define(
       'Gauge',
       Schema.Struct({ id: Schema.String, name: Schema.String, level }),
@@ -29,7 +27,6 @@ describe('A comparison of a number that may be NaN', () => {
         message: 'A level never falls',
       }),
     )
-    void Fields
     const Rename = Write.update(
       Entity.input(Gauge, Schema.Struct({ id: Schema.String, name: Schema.String })),
       { id: 'id' },
@@ -51,7 +48,7 @@ describe('A comparison of a number that may be NaN', () => {
 
 describe('A write over a rule the row before already breaks', () => {
   // The rule holds of every row before, so a guard of "below zero" meets none: a proof by contradiction.
-  const room = (free: Schema.Top) => {
+  const room = (free: Schema.Codec<number>) => {
     const Room = Entity.define('Room', Schema.Struct({ id: Schema.String, free })).pipe(
       Entity.invariant('nonNegative', ({ after }) => Expr.gte(after.free, 0), { message: 'free' }),
     )

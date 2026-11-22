@@ -48,9 +48,8 @@ export default [
     edits: [
       {
         file: '../src/pairCheck.ts',
-        find: "return Option.some(Node.Path({ segments: [after, 'row', key], ast: original.ast }))",
-        replace:
-          "return Option.some(Node.Path({ segments: ['state', 'row', key], ast: original.ast }))",
+        find: "Node.Path({ segments: [after, 'row', key], ast: Option.none() })",
+        replace: "Node.Path({ segments: ['state', 'row', key], ast: Option.none() })",
       },
     ],
     tests: [account, bounds],

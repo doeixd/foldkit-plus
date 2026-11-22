@@ -333,6 +333,28 @@ test('a page reaching the main entry of foldkit-entity keeps no writeTransition 
 }, 240_000)
 
 /**
+ * `Laws.check` runs metakit's checker, so it is `foldkit-entity/laws`: a
+ * page reaching the main entry keeps neither the check nor its witness
+ * search, built or source.
+ */
+test('a page reaching the main entry of foldkit-entity keeps no laws or pairCheck module, built or source', async () => {
+  const root = scratchIn('entity', 'published-')
+  made.push(root)
+  const page = `import { Write } from 'pkg'\nexport const used = Write.update`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('entity', root))
+  const source = await kept(join(packages, 'entity', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/write\.js$/.test(id))).toBe(true)
+  expect(source.some(id => id.endsWith('/entity/src/write.ts'))).toBe(true)
+  expect(
+    [...built, ...source].filter(id =>
+      /\/entity\/(src|dist)\/(laws|pairCheck)\.(m?js|ts)$/.test(id),
+    ),
+  ).toEqual([])
+}, 240_000)
+
+/**
  * Declared writes are read through `foldkit-surface/writes`, so a page with a
  * Surface and no declared writes keeps no metakit and no lazy slot; and the
  * development check is a file of its own, which a page that reaches it only

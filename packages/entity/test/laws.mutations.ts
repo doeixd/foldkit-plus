@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: '../src/laws.ts',
-        find: 'LawVerdict.Undecided({ reason, obligation: obligation(cases) }),',
-        replace: "kept('enumeration'),",
+        find: 'Undecided: ({ reason }) => LawVerdict.Undecided({ reason, obligation: obligation([]) }),',
+        replace: "Undecided: () => kept('enumeration'),",
       },
     ],
     tests: [laws, account],
@@ -217,8 +217,8 @@ export default [
     edits: [
       {
         file: '../src/laws.ts',
-        find: 'issuer.issue(',
-        replace: '(',
+        find: 'issuer.issue(\n          by ===',
+        replace: '((record: Evidence) => record)(\n          by ===',
       },
     ],
     tests: [laws],
