@@ -1,5 +1,5 @@
 /**
- * `num.add` and `num.sub` over integer columns on a database: for every row,
+ * `num.add`, `num.sub` and `num.mul` over integer columns on a database: for every row,
  * the value SQL stores or filters on is what `Expr.evalResult` gives, a refusal
  * (a result past ±(2^53−1)) being NULL, on Postgres (PGlite) and SQLite
  * (`node:sqlite`), as text and through Drizzle. SQLite would return such a sum
@@ -122,6 +122,9 @@ const sums = {
   '(a + b) - c': <E>({ a, b, c }: Columns<E>) => Num.sub(Num.add(a, b), c),
   'a - (b - c)': <E>({ a, b, c }: Columns<E>) => Num.sub(a, Num.sub(b, c)),
   '(-a) + b': <E>({ a, b }: Columns<E>) => Num.add(Num.neg(a), b),
+  'a * b': <E>({ a, b }: Columns<E>) => Num.mul(a, b),
+  'a * 100000': <E>({ a }: Columns<E>) => Num.mul(a, 100_000),
+  '(a * b) - c': <E>({ a, b, c }: Columns<E>) => Num.sub(Num.mul(a, b), c),
 } as const
 const names = Object.keys(sums) as ReadonlyArray<keyof typeof sums>
 
@@ -151,6 +154,8 @@ const conditions = {
   '(a + b) + c >= 0': Expr.in({ row: State }, ({ row }) =>
     Ord.gte(Num.add(Num.add(row.a, row.b), row.c), 0),
   ),
+  'a * 100000 > 0': Expr.in({ row: State }, ({ row }) => Ord.gt(Num.mul(row.a, 100_000), 0)),
+  'a * b < 0': Expr.in({ row: State }, ({ row }) => Ord.lt(Num.mul(row.a, row.b), 0)),
 } as const
 const conditionNames = Object.keys(conditions) as ReadonlyArray<keyof typeof conditions>
 
@@ -289,6 +294,40 @@ describe('Postgres stores and filters as Expr.evalResult does', () => {
     await pg.query(fragment.text, [...fragment.params])
     const found = await pg.query<{ r: unknown }>(`SELECT "r" FROM "small"`)
     expect(found.rows.map(row => Number(row.r))).toEqual([4_294_967_294])
+  })
+
+  it('multiplies an int4 column past int4 without raising, and filters on it as memory does', async () => {
+    const Small = Schema.Struct({
+      id: Schema.String,
+      a: Schema.Int,
+      b: Schema.Int,
+      r: Schema.NullOr(Schema.Int),
+    })
+    await pg.exec(`DELETE FROM "small"`)
+    await pg.exec(
+      `INSERT INTO "small" VALUES ('x', 2147483647, 2147483647, NULL), ('y', -2147483648, 3, NULL)`,
+    )
+    const product = Transition.make({
+      state: Small,
+      input: Schema.Struct({}),
+      apply: ({ state }) => [Transition.set(state.r, Num.mul(state.a, state.b))],
+    })
+    const fragment = Result.getOrThrow(Sql.toUpdate('small', product, {}))
+    await pg.query(fragment.text, [...fragment.params])
+    const found = await pg.query<{ r: unknown }>(`SELECT "r" FROM "small" ORDER BY "id"`)
+    // (2^31 − 1)^2 is past 2^53, refused in memory and NULL here.
+    expect(found.rows.map(row => (row.r === null ? null : Number(row.r)))).toEqual([
+      null,
+      -6_442_450_944,
+    ])
+    const scaled = Expr.in({ row: Small }, ({ row }) => Ord.gt(Num.mul(row.a, 100_000), 0))
+    const where = Result.getOrThrow(Sql.toWhere(scaled))
+    const held = await pg.query<{ id: string }>(
+      `SELECT "id" FROM "small" WHERE ${where.text} ORDER BY "id"`,
+      [...where.params],
+    )
+    expect(held.rows.map(row => row.id)).toEqual(['x'])
+    expect(Expr.holds(scaled, { row: { id: 'x', a: 2_147_483_647, b: 0, r: null } })).toBe(true)
   })
 })
 

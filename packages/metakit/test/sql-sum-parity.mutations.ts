@@ -16,13 +16,18 @@ const mutation = (name: string, find: string, replace: string) => ({
 export default [
   mutation(
     'an addition is left unguarded',
-    "'num.add': sum('+'),",
+    "'num.add': exact('+'),",
     "'num.add': numeric(() => '+'),",
   ),
   mutation(
     'a subtraction is left unguarded',
-    "'num.sub': sum('-'),",
+    "'num.sub': exact('-'),",
     "'num.sub': numeric(() => '-'),",
+  ),
+  mutation(
+    'a product is left unguarded',
+    "'num.mul': exact('*'),",
+    "'num.mul': numeric(() => '*'),",
   ),
   mutation(
     'a sum of fractions or of a fraction and a column is guarded too',

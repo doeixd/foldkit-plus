@@ -164,17 +164,18 @@ const numeric =
 const PAST_SAFE = String(Number.MAX_SAFE_INTEGER + 1)
 
 /**
- * `+` or `-` over integers as evaluation gives it: NULL where the result leaves
- * ±(2^53−1), which SQL would return as a float (SQLite) or a bigint past the
- * range (Postgres, which raises on an overflow of its own integer sum, so the
- * sum is formed as `numeric`). The result is clamped to ±2^53 and that value
- * made NULL, so the sum is written once; a NULL sum clamps to -2^53 on
- * Postgres (`GREATEST` ignores NULL) and is NULL again. Only a sum with an
- * integer term the row decides is guarded: sums of request values are folded
- * and refused before SQL is written.
+ * `+`, `-` or `*` over integers as evaluation gives it: NULL where the result
+ * leaves ±(2^53−1), which SQL would return as a float (SQLite) or a bigint past
+ * the range (Postgres, which raises on an overflow of its own integer sum or
+ * product, an `int4` one well inside the range, so the result is formed as
+ * `numeric`). The result is clamped to ±2^53 and that value made NULL, so the
+ * operation is written once; a NULL result clamps to -2^53 on Postgres
+ * (`GREATEST` ignores NULL) and is NULL again. Only a result with an integer
+ * term the row decides is guarded: results of request values are folded and
+ * refused before SQL is written.
  */
-const sum =
-  (operator: '+' | '-'): SqlLowerer =>
+const exact =
+  (operator: '+' | '-' | '*'): SqlLowerer =>
   (args, ctx) => {
     const left = args[0]!
     const right = args[1]!
@@ -286,9 +287,9 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'ord.lte': numeric(() => '<='),
   'ord.gt': numeric(() => '>'),
   'ord.gte': numeric(() => '>='),
-  'num.add': sum('+'),
-  'num.sub': sum('-'),
-  'num.mul': numeric(() => '*'),
+  'num.add': exact('+'),
+  'num.sub': exact('-'),
+  'num.mul': exact('*'),
   'num.neg': (args, ctx) => one(args, ctx, inner => q`(- ${inner})`),
   'num.mulScaled': (args, ctx) => {
     const shift = args[2]
