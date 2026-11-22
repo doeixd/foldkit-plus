@@ -1491,8 +1491,8 @@ const makeShape = <
       )
     return d1
       ? unit.pipe(
-          Effect.tapError(error =>
-            error._tag === 'SqlError' && isConstraintViolation(error) ? healCursor : Effect.void,
+          Effect.tapErrorTag('SqlError', error =>
+            isConstraintViolation(error) ? healCursor : Effect.void,
           ),
           Effect.retry({
             while: error => error._tag === 'SqlError' && isConstraintViolation(error),

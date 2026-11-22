@@ -163,9 +163,12 @@ export const memoryWriter = <P, E extends AnyEntity = AnyEntity>(
   // Each relation declared onDelete, by key, with the Entity it points at: its link is
   // written only while that row is there (`EntityWriter.checksTargets`).
   const guarded = Object.entries(relations).flatMap(([key, member]) =>
-    member._tag === 'Relation' && Option.isSome(member.onDelete)
-      ? [{ key, target: member.target().name }]
-      : [],
+    Match.value(member).pipe(
+      Match.tag('Relation', relation =>
+        Option.isSome(relation.onDelete) ? [{ key, target: relation.target().name }] : [],
+      ),
+      Match.orElse(() => []),
+    ),
   )
   /** Refuses the first link of `links` to a row that is not there, named by the relation alone. */
   const refuseGone = (
