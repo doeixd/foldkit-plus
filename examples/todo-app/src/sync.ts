@@ -39,9 +39,10 @@ import {
   type ReplicaError,
   type Sync as SyncContract,
 } from 'foldkit-sync'
+import { fromMachine } from 'foldkit-sync/metakit'
 import { Message, type Model, type Shared } from './app.js'
 import { isOwner, type SyncPrincipal } from './principal.js'
-import { App, ListMeta, Todos } from './surface.js'
+import { App, ListMeta, Todos, todoMachine } from './surface.js'
 
 const TodoApp = forApplication(App).withPrincipal<SyncPrincipal>()
 
@@ -65,9 +66,25 @@ export const ListMetaFragment = TodoApp.fragment({
   durable: MessageSet.make(App, [Message.RenamedList]),
 })
 
+const composed = TodoApp.compose(TodosFragment, ListMetaFragment)
+
 const definition = TodoApp.make({
   documentId: DocumentId.make('todos'),
-  ...TodoApp.compose(TodosFragment, ListMetaFragment),
+  ...composed,
+  transitions: fromMachine(
+    todoMachine,
+    [
+      'SubmittedTodo',
+      'ToggledTodo',
+      'RenamedTodo',
+      'PrioritySet',
+      'DeletedTodo',
+      'RestoredTodo',
+      'ClearedCompleted',
+      'RenamedList',
+    ],
+    composed.shared,
+  ),
   authorize: {
     // Destructive, list-wide operations are the owner's. `principal` is typed
     // from `withPrincipal`, so a rule cannot read a field the transport does
