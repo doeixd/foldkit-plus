@@ -78,7 +78,7 @@ Scope:
 
 - [x] **L1 — Dead `Path` branch in `cannotRefuse` for `eq.in` / `eq.among`** (`656c4a32e`) (`packages/metakit/src/ops/kind.ts:169-176`): removed unreachable `Path` branch.
 - [x] **L2 — `replayed` `setWrites` branch** *(intentional — verified against `packages/remote/test/replay.mutations.ts:17-20`, which mutates `setWrites` to verify `replay.ts` reads `metakit`'s `setWrites` rather than hardcoding)*.
-- [ ] **L3 — Doc-claim mismatch on `EntityWriter.checksTargets`** (`packages/remote-server/src/index.ts:544-548` vs `packages/remote-drizzle/src/index.ts:1640`): doc says `answering Unmet`, whereas `remote-drizzle` returns `Invalid` (`RemoteServer.invalid`). *(Left uncommitted because another session is actively editing `packages/remote-server/src/index.ts` lines 531–563.)*
+- [x] **L3 — Doc-claim mismatch on `EntityWriter.checksTargets`** (`packages/remote-server/src/index.ts:544-548` vs `packages/remote-drizzle/src/index.ts:1640`): doc now says `answering Invalid` matching `remote-drizzle` (`RemoteServer.invalid`).
 - [x] **L4 — Sync docs understate which pairs `convergence` lists** (`ba5902969`) (`packages/sync/README.md`, `skills/foldkit-plus/references/sync.md`): updated to read/write overlap.
 - [x] **L5 — `convergence` does not validate unknown or duplicate `tags`** (`ba5902969`) (`packages/sync/src/convergence.ts:63-86`): deduplicates `tags` and throws explicitly on unknown tags + test in `packages/sync/test/convergenceRead.test.ts`.
 - [x] **L6 — `overlaps` in `temporal.ts` does not handle `*` wildcard segments** (`656c4a32e`) (`packages/metakit/src/temporal.ts:124-126`): delegates to `Path.meets`.

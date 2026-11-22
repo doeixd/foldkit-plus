@@ -8,9 +8,10 @@ Independent third-pass adversarial review of:
 
 ## Critical
 
-- [x] **C1 — Partial-delete / partial-clear data corruption in `withCascade` on read-committed Postgres** (`9bf8c0510`)
-  - **Files:** `packages/remote-drizzle/src/index.ts:1783-1825`
-  - **Fix:** Throw a `rolledBack` sentinel inside `database.transaction` (both Postgres async and SQLite sync) whenever the final root `DELETE` returns 0 rows (`deleted === false`), rolling back all prior child `clearing` `UPDATE`s and `steps` `DELETE`s. Verified with 105/105 tests in `cascade`, `restrict`, and `setNull`.
+- [x] **C1 — Partial-delete / partial-clear data corruption & unlocked child/intermediate rows in `withCascade` on read-committed Postgres** (`9bf8c0510`, `3315deff5`)
+  - **Files:** `packages/remote-drizzle/src/index.ts:1793-1875`, `packages/remote-server/src/index.ts:2707-2730`
+  - **Fix (part 1, `9bf8c0510`):** Throw a `rolledBack` sentinel inside `database.transaction` (both Postgres async and SQLite sync) whenever the final root `DELETE` returns 0 rows (`deleted === false`), rolling back all prior child `clearing` `UPDATE`s and `steps` `DELETE`s.
+  - **Fix (part 2, `3315deff5`):** On Postgres, lock the root row `FOR UPDATE`, then lock all cascade steps top-down (`[...steps].reverse()`, with a fixpoint loop for self-cascades) and all cleared child tables' matching rows `FOR UPDATE` before running `statements(tx)`, blocking both concurrent new links to intermediate parents (via FK `FOR KEY SHARE`) and concurrent updates to non-FK columns checked by `cascading`, `clearing`, or `clearBreaks`. In `RemoteServer.write`, also require `parent-serialized` (not `constraint`) when a cleared child Entity has a cross-row invariant (`reaches.length > 0`). Verified with 129/129 tests in `cascade`, `restrict`, `setNull`, and `store` (+ 29/29 in `guard/{cascade,setNull}`).
 
 - [x] **C2 — Split non-atomic reads in `materialize` on D1 corrupt snapshots and can falsely reject valid operations** (`1b401baa4`)
   - **Files:** `packages/durable/src/journal.ts:974-1015`
