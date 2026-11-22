@@ -508,7 +508,11 @@ why). Before writing one:
   `row.@relation.<key>`, `Expr.exists` is a `Rows` node), so metakit's
   evaluator, judge, checker and SQL lowering read it as it is. There is no
   `_tag` per kind of predicate to branch on, and two built separately are
-  compared by `Node.key(a.node)`, not `toEqual`.
+  compared by `Node.key(a.node)`, not `toEqual`. The types are `Expr<T>`,
+  `Predicate` (`Expr<boolean | null>`, so a boolean field is one) and
+  `InputExpr<T>`; the per-kind node types, `isPredicate`, `Expr.expanded` and
+  `Expr.substituteNext` are gone. `Expr`, `Query` and `Order` are namespaces,
+  so a page keeps only the members it calls.
 - A path or exists reads other rows: it is in `Query.dependencies(q).reaches`
   (each a `Path`, `ViewerPath` or `Exists` description with its `expr`), not
   `fields`; `evaluate` refuses it, `Judge` and SQL run it; a list never orders
