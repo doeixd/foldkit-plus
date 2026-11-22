@@ -211,19 +211,16 @@ const literals = (wa: AnyWrite, wb: AnyWrite): Option.Option<readonly [unknown, 
 }
 
 /**
- * Two members a set compares as different: two texts unequal as the set
- * compares them (`Node.textIdentity`), neither holding a NUL, or two unequal
- * finite numbers. Two of different kinds (`1` and `'1'`) do not decide: the
- * set refuses whichever meets a member of the other kind, so the order shows.
+ * Two members a set compares as different: two texts or two numbers unequal
+ * as the set compares them (`Node.textIdentity`). Two of different kinds (`1`
+ * and `'1'`) do not decide: the set refuses whichever meets a member of the
+ * other kind, so the order shows. Text holding a NUL and a number that is not
+ * finite are refused before the set is read, whatever the order.
  */
 const differ = (x: unknown, y: unknown): boolean =>
-  typeof x === 'string' && typeof y === 'string'
-    ? !Node.holdsNul([x, y]) && Node.textIdentity(x) !== Node.textIdentity(y)
-    : typeof x === 'number' &&
-      typeof y === 'number' &&
-      Number.isFinite(x) &&
-      Number.isFinite(y) &&
-      x !== y
+  typeof x === typeof y &&
+  (typeof x === 'string' || typeof x === 'number') &&
+  Node.textIdentity(x) !== Node.textIdentity(y)
 
 /** The Schema of field `key` of the elements of the list a write changes, where the list's Schema says it. */
 const elementField = (write: AnyWrite, key: string): Option.Option<SchemaAST.AST> => {

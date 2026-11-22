@@ -31,7 +31,13 @@ const commuting = [
     'Node.textIdentity(x) !== Node.textIdentity(y)',
     'x !== y',
   ),
-  mutation(gateTests, 'different texts may hold a NUL', commutes, '!Node.holdsNul([x, y]) && ', ''),
+  mutation(
+    gateTests,
+    'literals of different kinds differ',
+    commutes,
+    'typeof x === typeof y &&\n',
+    '\n',
+  ),
   mutation(
     gateTests,
     'two includes or two excludes commute whatever their kinds',
