@@ -243,6 +243,7 @@ Add a row per phase and per budget it touches. Keep the earlier rows.
 | Phase 3 gate (`examples/foldkit/domains-plus`) | Counted Message gap list | none | 41 own Messages (`21bbb5355`) | 19 pure declarable (13 no-op/completion + 3 Command-emitting + 3 state/list) + 22 confined `Transition.opaque` (13 widget-delegating + 9 search/URL/remote); >=3/4 gate holds with widget/opaque transitions |
 | Phase 1, step 5 (`66d25a4ed`, `b61064cb4`, `12a8b4f7b`) | the six Remote and entity page budgets | pre-step-5 ceilings below | raised by the readings below (+300) | entity's judge on metakit through the translation layer; see "Owed by step 10" |
 | Lean judge (`103e5f790`) | the six Remote and entity page budgets | the step-5 readings below | 331 to 606 brotli lower each; ceilings lowered to reading +300 | the page judges without partial evaluation; see "After the lean judge" |
+| Phase 1, step 7 (`c02c2dcf1`) | registry, cms client, cms studio first load | 269,436, 171,569, 379,499 (`c02c2dcf1~1`'s entity, in the tree of `3a69bedb5`) | 269,417, 171,654, 379,607 (`c02c2dcf1`) | `Laws` left the main entry and `bounds.ts` was deleted; minified bytes identical, so no change to what a page runs; see "Laws on metakit's checker" |
 
 ## Owed by step 10
 
@@ -283,3 +284,44 @@ Not removed: `ops/rows` (2,773) and the `Rows` reading. Registering them from th
 The Worker bundles, raw bytes, after (neither ceiling raised; the coordinator decides those): `examples/foldkit/domains-plus` 3,328,366 against 3,277,700 (it read about 3,333,078 after step 5); `examples/cloudflare` 4,636,820 against 4,577,000 (it read 4,636,226 before this change in another tree, with about 19 kB of step 8's `remote-drizzle` lowering in it; not measured before and after in one tree here, so the +594 is not attributed). A Worker carries both readers.
 
 **Forecast for step 10 on top**, from minified sizes at a 0.275 brotli ratio, not a build: deleting `lower`, `lowerEnv` and `lowerOperator` (6,927 minified in registry) returns 0.6 to 1.9 kB; the `Rows` reading off pages that do not call `exists`, once `expr.ts` is split, about 1.15 kB more. That leaves about 3.8 to 5.6 kB of each page's debt, unless the split of `expr.js` (27.7 kB minified) itself returns it.
+
+## Laws on metakit's checker (Phase 1, step 7, `c02c2dcf1`)
+
+`Laws` moved to `foldkit-entity/laws` and `bounds.ts` (1,127 lines) was deleted. A page never loaded either: the main entry's `Laws` export was tree-shaken from any page that did not use it, so the byte reading is a check that nothing changed, not a saving. `examples/registry` and `examples/cms` were each read twice in one tree (HEAD `3a69bedb5`; the working tree held only docs and tests that no page imports), once with `packages/entity/src/{index,laws,bounds}.ts` as of `c02c2dcf1~1` (before) and once as committed (after), each with `scripts/bundle-report.mjs`, then `pnpm --filter foldkit-entity build`.
+
+| Reading | Before | After | Ceiling | Minified, before and after |
+| --- | ---: | ---: | ---: | ---: |
+| registry client | 269,436 | 269,417 | 269,671 | 980,392 and 980,392 |
+| cms client | 171,569 | 171,654 | 171,880 | 593,002 and 593,002 |
+| cms studio first load | 379,499 | 379,607 | 372,500 | not read |
+
+The minified bytes of both clients are equal to the byte. The brotli differences (-19, +85, +108) come from the names of the chunk files a bundle writes (a hash of the modules each reaches), which are the same length and not the same text; no code a page runs changed. The studio first load is over its ceiling by 6,999 before and 7,107 after: the step-5 growth recorded under "Owed by step 10", which that table does not list for this route. Neither budget shrank, because nothing left a page.
+
+### The differential, before `bounds.ts` was deleted
+
+Every write the entity tests and the examples declare (577 writes, 679 pairs of a write and an invariant), run through `Laws.check` as it was (`bounds.ts`) and as it is (metakit's `Abstract.checkGoal` over `transitionOf(write)`, in each case of the finite members' values, with a witness search behind it). The bank fixture is `packages/entity/test/accountFixture.ts`; `examples/writes` and `writes-domain` declare 13 pairs; `examples/chirp` declares writes and no invariant, and `examples/cms` declares neither, so they hold no pair. 400 more pairs are the random domains of `lawsBounds.test.ts`. The differential's own file read the fixtures as they were at the time, with the plain `Schema.Number` fields; the table below is that run, before the fixtures named under (b) were changed.
+
+| Class | Pairs |
+| --- | ---: |
+| Unchanged: no number to decide (disjointness, enumeration, create, delete) | 143 |
+| Both decided alike: kept (`bounds` or `vacuous` became `zone`) | 186 |
+| Both decided alike: refused (the witnesses differ) | 278 |
+| Both undecided | 34 |
+| (a) metakit decides what `bounds` left open: kept | 11 |
+| (a) the same: refused, with a row the reference judge refuses | 8 |
+| (b) `bounds` kept it, metakit says Unknown | 19 |
+| (b) `bounds` refused it, metakit and the search say Unknown | 0 |
+| (c) opposite answers | 0 |
+
+The searches for a refusal were widened (values near each Schema's ends, near the numbers the rule and the write name, and one past each other member's) until the refusals the old pass found were found again: before that, 56 pairs it refused read Undecided. Each of the 19 in (b), by its reason:
+
+| Pairs | Where | Why | The Schema that decides it |
+| ---: | --- | --- | --- |
+| 8 | `Product`, `soldNeverFalls` (`after.sold >= before.sold`), writes of `name`, `status`, `stock` | `sold: Schema.Number` may be NaN, and NaN is not at least itself; evaluation refuses it | `sold: Schema.Finite` (done in `laws.test.ts`; now kept by `zone`) |
+| 1 | `LedgerDoc`, `archivedKeepsTen` | `score: Schema.Number` may be NaN, and a comparison is refused before `or` is settled by its other side | `score: Schema.Finite` (checked: kept by `zone`) |
+| 1 | random `Prop1126`, `x + amount` | two numbers that nothing bounds may sum past the safe range, or to NaN | a bound on each (`Schema.isBetween`), as well as `Schema.Finite` |
+| 9 | random `Prop1027`, `1045`, `1056`, `1088`, `1130`, `1136`, `1141`, `1169`, `1225` | a strict comparison of a number that is not an integer: the checker's intervals are closed, so below zero reads as at most zero, which a row at zero meets, and it cannot see that `x < 0` and `x >= 0` contradict | `Schema.Int` where the number is one (the generator picks a non-integer domain for these); otherwise the checker |
+
+The same cause costs 10 `Unmeetable` findings (a write no row can meet): `x < 0` against a state invariant of `x >= 0` is not seen to be empty. The bank fixture's `Overdraw` test now guards with `balance <= -1`, which the closed intervals do decide. No (c) was found, so `bounds.ts` is deleted.
+
+What the checker does not do, for the person who owns it: (1) a strict comparison over a non-integer number should narrow by the next double (`hi = nextDown(m)` for `x < m`), which is exact for doubles and would restore the 9 pairs and the 10 findings; (2) `Write.update`'s `decrement` is `add` of a negated amount, and the zone does not relate `x + (-y)` to `x - y`, so a `when: balance >= amount` over `decrement: { balance: 'amount' }` is Unknown where `compute: Expr.sub(row.balance, input.amount)` is kept by `zone`; `transitionOf` could write a decrement as `num.sub`.
