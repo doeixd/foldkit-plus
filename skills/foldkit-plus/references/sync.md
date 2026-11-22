@@ -368,6 +368,15 @@ Message whose guard is false is refused, so `replica.submit` fails with
 `ReplayError`; do not submit a durable Message the application's own guard
 refuses.
 
+To see what the server's order can change, `convergence(machine, tags)` from
+`foldkit-sync/metakit` reads the declared transitions: per pair of durable
+Messages that write one path, `rebase: 'never'` (`Transition.commutes` true) or
+`'possible'`; per Message, `copy: 'harmless'` (every way it writes is
+idempotent, by `Transition.idempotent`) or `'removed by id'`.
+`settleConvergence(machine, tags, { owner, walkPair, walkRedelivery })` files
+each `possible` pair and each copy as a `metakit/temporal` obligation and
+discharges it with the two-replica walks you pass. Development and test only.
+
 The journal judges every operation after `reduce` (`journalContract()` carries
 `judge`), `appendAsServer` and reactions included; a broken law is
 `OperationRejectedError` with `rule`, sent as `Invalid` with the law's id, and
@@ -563,6 +572,9 @@ Server side, `Sync.presence.serve(socket, hub, { peerId, opens? })` stamps the
 connection's id and joins only a connection `opens` lets (the exchange's own).
 `Sync.lww.register` (experimental) makes one field last-writer-wins. Allocate
 stamps with `Sync.lww.openClock` before dispatch, never in `update`.
+At one logical time the greater replica id wins, so replicas agree whichever
+reaches the server first. No example application uses it; a two-replica
+walk checks that on a fixture.
 
 ## Server-only Messages and reactions
 

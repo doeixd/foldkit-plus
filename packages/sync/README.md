@@ -763,6 +763,79 @@ Message whose guard is false is refused: `replica.submit` fails with
 `ReplayError`, so an application should not submit a durable Message its own
 guard refuses.
 
+### Which edits can the server's order change?
+
+Two replicas edit at once. Each shows its own edit at the moment it is made;
+when the server has put the edits in one order, each replays its own after the
+other's (a rebase). If the two edits commute, nothing a person saw changes.
+`convergence(machine, tags)` reads which pairs of durable Messages might
+change it, from the transitions you already declared:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
+const Model = Schema.Struct({
+  title: Schema.String,
+  tags: Schema.Array(Schema.String),
+  items: Schema.Array(Schema.Struct({ id: Schema.String, done: Schema.Boolean })),
+})
+const Input = Schema.Struct({ text: Schema.String })
+-->
+```ts
+import { convergence } from 'foldkit-sync/metakit'
+
+const machine = Machine.make({
+  state: Model,
+  transitions: {
+    Titled: Transition.make({
+      state: Model,
+      input: Input,
+      apply: ({ state, input }) => [Transition.set(state.title, input.text)],
+    }),
+    Tagged: Transition.make({
+      state: Model,
+      input: Input,
+      apply: ({ state, input }) => [Transition.append(state.tags, input.text)],
+    }),
+    Cleared: Transition.make({
+      state: Model,
+      input: Input,
+      apply: ({ state }) => [Transition.removeWhere(state.items, item => item.done)],
+    }),
+  },
+})
+
+const { pairs, redelivery } = convergence(machine, ['Titled', 'Tagged', 'Cleared'])
+for (const pair of pairs) console.log(`${pair.name}: ${pair.rebase}`)
+for (const entry of redelivery) console.log(`${entry.tag}: ${entry.copy}`)
+```
+
+It prints:
+
+```text
+Titled/Titled: possible
+Tagged/Tagged: possible
+Cleared/Cleared: never
+Titled: harmless
+Tagged: removed by id
+Cleared: harmless
+```
+
+A pair is listed when both Messages write one path; a pair left out writes
+different state and never changes the other. `never` is
+`Transition.commutes` answering true (two clears of the done items), and
+`possible` is it not deciding (two titles: the later one stays, so the order
+shows). A copy of a Message delivered twice is `harmless` when every way it
+writes is idempotent (`Transition.idempotent`: a `set` from the input, an
+`insert`, a `remove`), and `removed by id` otherwise (an `append` would list
+twice, so the operation's id removes the copy). The answers say what the
+declaration lets a rebase do; they run nothing. `settleConvergence(machine,
+tags, { owner, walkPair, walkRedelivery })` files each `possible` pair and each
+copy as an obligation of `metakit/temporal`, and discharges them with the
+two-replica walks you give it. `examples/todo-app/test/sync.convergence.ts` is
+one, over the real replica and journal.
+
 ### Stamp what only the commit decides
 
 A fact carries its own nondeterminism, but a client cannot know where its

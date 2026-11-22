@@ -9,6 +9,16 @@ import { fromMachine } from './machine.js'
 import { messageTag, tagOf, type DeclaredTransition, type Law } from './make.js'
 
 export { fromMachine }
+// Named, not on `SyncDeclared`: a page that reads `SyncDeclared` keeps none of the walk tooling.
+export {
+  convergence,
+  settleConvergence,
+  type Convergence,
+  type PairWalk,
+  type RebasePair,
+  type Redelivery,
+  type SettleOptions,
+} from './convergence.js'
 
 type Model<Shared> = { readonly model: Shared }
 
