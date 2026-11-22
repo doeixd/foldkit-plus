@@ -1420,7 +1420,9 @@ export const GuardServer = {
                 ? [`write ${mutation} expects ${name}'s ${expected}, which has a Read rule`]
                 : []),
               ...(revField !== undefined && revField !== expected && readRuled(attachment, revField)
-                ? [`write ${mutation} carries ${name}'s revision ${revField}, which has a Read rule`]
+                ? [
+                    `write ${mutation} carries ${name}'s revision ${revField}, which has a Read rule`,
+                  ]
                 : []),
               ...(expected !== undefined &&
               pin !== undefined &&
