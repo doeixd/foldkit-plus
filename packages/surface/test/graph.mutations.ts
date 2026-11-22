@@ -76,4 +76,19 @@ export default [
     '    if (!lawsOf(graph).includes(law))\n      throw new Error(`Graph.breakersOf: the graph holds no law ${law}`)\n',
     '',
   ),
+  edit(
+    'a Message that sends another affects only what it writes itself',
+    '      for (const each of reached(tag))',
+    '      for (const each of [tag])',
+  ),
+  edit(
+    'a Message affects what the Message it sends writes, and not what that one sends',
+    '      for (const next of seen) for (const to of sentBy.get(next) ?? []) seen.add(to)',
+    '      for (const to of sentBy.get(tag) ?? []) seen.add(to)',
+  ),
+  edit(
+    'a Sends edge names a Message the graph has no node for',
+    '    node(GraphNode.Message({ id: `message:${sent.to}` }))\n',
+    '',
+  ),
 ]

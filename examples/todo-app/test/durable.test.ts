@@ -5,8 +5,11 @@
  * durable Message.
  */
 import { Effect, Option } from 'effect'
+import { Graph } from 'foldkit-surface'
+import { modelPath } from 'metakit/graph'
 import { afterEach, describe, expect, it } from 'vitest'
 import { initialModel, Message } from '../src/app.js'
+import { TodoModule } from '../src/module.js'
 import { declared, todoMachine } from '../src/surface.js'
 import { contract, footprints, liveModel } from '../src/sync.js'
 import { closeStorages, openReplica } from './helpers.js'
@@ -17,10 +20,9 @@ describe('the durable transitions', () => {
   it('declare a footprint for every durable Message, from the machine', () => {
     const present = Option.getOrThrow(Option.fromUndefinedOr(footprints))
     expect(Object.keys(present).sort()).toEqual([...contract.messages].sort())
-    for (const [tag, expected] of Object.entries(todoMachine.footprints)) {
-      if (contract.messages.includes(tag))
-        expect(present[tag]?.writes, tag).toEqual(expected.writes)
-    }
+    const machine = new Map(Object.entries(todoMachine.footprints))
+    for (const [tag, footprint] of Object.entries(present))
+      expect(footprint?.writes, tag).toEqual(machine.get(tag)?.writes)
   })
 
   it('give the live Model for a durable Message, and none for a local one', () => {
@@ -56,5 +58,15 @@ describe('the durable transitions', () => {
     expect(declared.step(initialModel, Message.ListRenameRequested({ title: '' })).model).toBe(
       initialModel,
     )
+  })
+
+  it('lists a Message that sends a durable one among the writers of what that one writes', () => {
+    const graph = Graph.of(TodoModule, { machine: todoMachine, sends: declared.messageEdges })
+    const writers = graph.dependencies.writersOf(modelPath(['todos']))
+    // DeleteRequested's Command sends DeletedTodo, which removes the todo.
+    expect(writers).toContain('message:DeletedTodo')
+    expect(writers).toContain('message:DeleteRequested')
+    // A Message that sends nothing and writes the draft only is not one.
+    expect(writers).not.toContain('message:DraftChanged')
   })
 })

@@ -45,6 +45,12 @@ export type GraphNode = Data.TaggedEnum<{
   }
   /** An Entity's invariant (`Product.reservedWithinStock`), a document's law, or a closed Surface's closure. */
   Law: { readonly id: string }
+  /**
+   * A Message of the application (`message:DeleteRequested`) that a `Sends`
+   * edge names. Its writes, where its Machine declares them, are in
+   * `graph.dependencies`; it is no transition a law's evidence can name.
+   */
+  Message: { readonly id: string }
   /** A declared state of an Entity. */
   State: { readonly entity: string; readonly name: string }
   /** A Surface declared `closed: true`. */
@@ -135,7 +141,10 @@ export interface GraphOptions {
   readonly machine?: GraphMachine | undefined
   /**
    * Message-to-Message edges from `Declared.of(...).messageEdges` (which
-   * emitted Commands may send which Messages back into the application).
+   * emitted Commands may send which Messages back into the application). A
+   * Message that sends another affects what that one writes, and what the
+   * Messages it sends affect in turn: `graph.dependencies` lists it among the
+   * writers of those paths.
    */
   readonly sends?:
     | ReadonlyArray<{ readonly from: string; readonly emit: string; readonly to: string }>
@@ -294,6 +303,7 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
           return Option.some(`transition:${id}`)
         },
         Law: ({ id }) => Option.some(`law:${id}`),
+        Message: () => Option.none<string>(),
         State: ({ entity }) => {
           contractEntities.add(entity)
           return Option.none<string>()
@@ -363,13 +373,28 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
     })
   }
   if (options.machine !== undefined) {
-    for (const [tag, footprint] of Object.entries(options.machine.footprints)) {
+    const { footprints } = options.machine
+    const sentBy = new Map<string, Array<string>>()
+    for (const { from, to } of options.sends ?? [])
+      sentBy.set(from, [...(sentBy.get(from) ?? []), to])
+    // The Message and every one its Commands send, and those send: a cycle is walked once.
+    const reached = (tag: string): ReadonlySet<string> => {
+      const seen = new Set([tag])
+      // A Set is iterated through what is added to it meanwhile.
+      for (const next of seen) for (const to of sentBy.get(next) ?? []) seen.add(to)
+      return seen
+    }
+    for (const tag of Object.keys(footprints)) {
       const id = `message:${tag}`
       if (depWritersMap.has(id)) continue
+      const paths = new Map<string, ReadonlyArray<string>>()
+      for (const each of reached(tag))
+        if (Object.hasOwn(footprints, each))
+          for (const path of footprints[each]!.writes) paths.set(keyOf(path), path)
       depWritersMap.set(id, {
         id,
         kind: 'transition',
-        writes: footprint.writes.map(path => knownEdge(modelPath(path), 'derived')),
+        writes: [...paths.values()].map(path => knownEdge(modelPath(path), 'derived')),
       })
     }
   }
@@ -441,6 +466,9 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
   }
   for (const record of options.evidence ?? []) admit(record)
   for (const sent of options.sends ?? []) {
+    // An edge never names a node the graph lacks.
+    node(GraphNode.Message({ id: `message:${sent.from}` }))
+    node(GraphNode.Message({ id: `message:${sent.to}` }))
     edge(
       GraphEdge.Sends({
         from: `message:${sent.from}`,

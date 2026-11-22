@@ -206,11 +206,28 @@ const of = <
     writers: config?.writers,
   })
 
-  // Validate `sends` target tags against `app.Message` at definition time.
+  /** The record tags a transition emits, from its declared `emits`. */
+  const emittedBy = (transition: unknown): ReadonlyArray<string> => {
+    if (!Predicate.hasProperty(transition, 'emits')) return []
+    const specs: unknown = transition.emits
+    return Array.isArray(specs)
+      ? specs.flatMap(spec =>
+          Predicate.hasProperty(spec, 'tag') && typeof spec.tag === 'string' ? [spec.tag] : [],
+        )
+      : []
+  }
+  const emittedTags = new Set(Object.values(machine.transitions).flatMap(emittedBy))
+
+  // Validate `sends` against the machine's emitted records and `app.Message` at definition time.
   const messages: Readonly<Record<string, unknown>> = app.Message
   const validatedSends: Record<string, ReadonlyArray<string>> = Object.create(null)
   for (const [emitTag, targetTags] of Object.entries(config?.sends ?? {})) {
     if (targetTags === undefined) continue
+    if (!emittedTags.has(emitTag)) {
+      throw new Error(
+        `Declared.of: sends["${emitTag}"] names a record no transition of the machine emits`,
+      )
+    }
     for (const target of targetTags) {
       if (!Object.hasOwn(messages, target) || messageTag(messages[target]) !== target) {
         throw new Error(
@@ -222,6 +239,7 @@ const of = <
   }
 
   const declaredTags = new Set<string>(Object.keys(machine.transitions))
+  const isTag = (key: string): key is Tag => declaredTags.has(key)
   const appTags = Object.keys(messages).filter(key => messageTag(messages[key]) === key)
   const undeclared = appTags.filter(tag => !declaredTags.has(tag))
   const fallback = config?.fallback
@@ -236,15 +254,13 @@ const of = <
   const messageEdges: Array<MessageEdge<Tag>> = []
   const seenEdges = new Set<string>()
   for (const [from, transition] of Object.entries(machine.transitions)) {
-    const emits = (transition as { readonly emits?: ReadonlyArray<{ readonly tag: string }> }).emits
-    if (!Array.isArray(emits)) continue
-    for (const spec of emits) {
-      const targets = Object.hasOwn(validatedSends, spec.tag) ? validatedSends[spec.tag]! : []
-      for (const to of targets) {
-        const key = `${from}\u0000${spec.tag}\u0000${to}`
+    if (!isTag(from)) continue
+    for (const emit of emittedBy(transition)) {
+      for (const to of Object.hasOwn(validatedSends, emit) ? (validatedSends[emit] ?? []) : []) {
+        const key = `${from}\u0000${emit}\u0000${to}`
         if (seenEdges.has(key)) continue
         seenEdges.add(key)
-        messageEdges.push({ from: from as Tag, emit: spec.tag, to })
+        messageEdges.push({ from, emit, to })
       }
     }
   }

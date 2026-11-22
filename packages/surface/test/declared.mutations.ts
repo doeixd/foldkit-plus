@@ -62,4 +62,14 @@ export default [
     '    if (declaresSupplied(transition) && !Object.hasOwn(supplyTable, tag)) {',
     '    if (false) {',
   ),
+  edit(
+    'an edge is drawn to every Message any record sends',
+    'Object.hasOwn(validatedSends, emit) ? (validatedSends[emit] ?? []) : []',
+    'Object.values(validatedSends).flat()',
+  ),
+  edit(
+    'sends keyed by a record no transition emits is accepted',
+    '    if (!emittedTags.has(emitTag)) {',
+    '    if (false) {',
+  ),
 ]

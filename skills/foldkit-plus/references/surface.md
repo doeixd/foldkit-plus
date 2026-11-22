@@ -449,8 +449,14 @@ const update = writes.track(
   Messages with no transition (required while any has none). A missing
   `supply` entry or `fallback` also throws when `Declared.of` runs. `record`
   receives each step's supplied values and `declared.replay(model, step)` runs
-  the step with them again; `declared.messageEdges` is what `Graph.of` takes
-  as `sends`.
+  the step with them again. `sends` maps each emitted record to the Messages
+  its Command may send back; `Declared.of` throws for a key no transition
+  emits or a value that is not a Message of the application.
+  `declared.messageEdges` is what `Graph.of` takes as `sends` (with
+  `machine`): a Message that sends another is then among the writers of what
+  that one writes, and of what the Messages it sends write in turn
+  (`graph.dependencies.writersOf`, `affectedBy`). A `Sends` edge's ends are
+  `Message` nodes (`message:<tag>`), which no law's evidence names.
 
 ## Gotchas
 

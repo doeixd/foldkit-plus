@@ -67,7 +67,7 @@ describe('Declared.of', () => {
       },
       sends: {
         LogTitle: ['Saved'],
-        Persist: ['Saved'],
+        Persist: ['Noted'],
       },
       fallback: (model, message) =>
         message._tag === 'Noted' ? { model: { ...model, note: message.note } } : { model },
@@ -94,10 +94,10 @@ describe('Declared.of', () => {
 
     // 5. Introspection: undeclared list, validated sends map, and derived messageEdges.
     expect(declared.undeclared).toEqual(['Saved', 'Noted'])
-    expect(declared.sends).toEqual({ LogTitle: ['Saved'], Persist: ['Saved'] })
+    expect(declared.sends).toEqual({ LogTitle: ['Saved'], Persist: ['Noted'] })
     expect(declared.messageEdges).toEqual([
       { from: 'Renamed', emit: 'LogTitle', to: 'Saved' },
-      { from: 'Renamed', emit: 'Persist', to: 'Saved' },
+      { from: 'Renamed', emit: 'Persist', to: 'Noted' },
     ])
   })
 
@@ -193,6 +193,16 @@ describe('Declared.of', () => {
         sends: { LogTitle: ['constructor'] },
       }),
     ).toThrow(/not a Message of this application/)
+  })
+
+  it('refuses sends keyed by a record no transition emits, at definition time', () => {
+    expect(() =>
+      Declared.of(App, PartialMachine, {
+        commands: { LogTitle: () => [], Persist: () => [] },
+        // @ts-expect-error `Typo` is not a record the machine emits
+        sends: { Typo: ['Saved'] },
+      }),
+    ).toThrow(/sends\["Typo"\] names a record no transition of the machine emits/)
   })
 
   it('confines an opaque child Bundle to its path: skips unrelated reads and catches stray writes', () => {

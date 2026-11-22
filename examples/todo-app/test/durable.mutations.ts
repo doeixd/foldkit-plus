@@ -37,6 +37,17 @@ export default [
     tests: durable,
   },
   {
+    name: 'a Message that sends a durable one is no writer of what that one writes',
+    edits: [
+      {
+        file: '../../../packages/surface/src/graph.ts',
+        find: '      for (const each of reached(tag))',
+        replace: '      for (const each of [tag])',
+      },
+    ],
+    tests: durable,
+  },
+  {
     name: 'a blank list title becomes a durable rename',
     edits: [
       {
