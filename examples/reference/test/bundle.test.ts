@@ -56,7 +56,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // metakit's evaluator and judge on every page that reaches entity (16.1 kB minified, `node`,
 // `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
 // 2026-11-21. Ceiling: the reading plus 300.
-const CEILING = 257_908
+// +1,152 on 2026-11-22: CI on Linux read 258,760 after the Phase 1 gate fixes (an operand past the safe
+// range refused by every reader, 63fac3ae0; ops/integerTerm and guard's condition), part of the
+// accepted Phase 1 cost. Ceiling: CI's reading plus 300.
+const CEILING = 259_060
 
 clientBudget({
   name: 'reference',

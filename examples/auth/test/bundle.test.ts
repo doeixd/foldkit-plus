@@ -42,7 +42,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // metakit's evaluator and judge on every page that reaches entity (15.2 kB minified, `node`,
 // `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
 // 2026-11-21. Ceiling: the reading plus 300.
-const CEILING = 233_266
+// +875 on 2026-11-22: CI on Linux read 233,841 after the Phase 1 gate fixes, which every page that
+// evaluates carries: an operand past the safe range refused by every reader (63fac3ae0: ops/judge,
+// ops/kind, ops/laws, ops/num) and a fraction beside an integer term refused (ops/integerTerm, guard's
+// condition). Part of the Phase 1 cost the maintainer accepted. Ceiling: CI's reading plus 300.
+const CEILING = 234_141
 
 clientBudget({
   name: 'auth',

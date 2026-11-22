@@ -55,7 +55,9 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   // pulling `jsonSchema.ts` via `Law`): `Expr.add`/`sub`/`implies`, `in:` and `Entity.transition` (#600).
   ['form', 151_853], // 151,553 bytes
   ['job-application', 191_170], // 190,870 bytes
-  ['kanban', 137_600], // 137,517 bytes
+  // kanban +350 on 2026-11-22: CI on Linux read 137,650 after Phase 1 (its Surface module and the
+  // evaluator modules the gate fixes touched). Ceiling: CI's reading plus 300.
+  ['kanban', 137_950], // 137,650 bytes
   // pixel-art +200 on 2026-11-15 (#560 review): 155,275 without the review's focus fixes and 155,637
   // with them in one tree, +362 (its dialogs' FocusReturn: the way back split from the trail, a
   // frame's own trail held weakly, the realm check); ceiling raised to the reading, rounded up.

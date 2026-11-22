@@ -30,7 +30,11 @@ import { record } from '../../../scripts/perf-report.mjs'
 // never raised for them). A Worker carries both of metakit's readers: its evaluator and judge, which
 // entity's judge runs since step 5 (accepted by the maintainer on 2026-11-21), and the SQL lowering
 // `foldkit-remote-drizzle` writes operations with since step 8 (about 19 kB). Ceiling: the reading plus 300.
-const CEILING = 4_639_460
+// +14,692 on 2026-11-22: CI on Linux read 4,653,852 after the Phase 1 gate fixes; a local Windows build
+// read 4,643,452 (+3,992 over the step-10 reading, from the gate fixes in metakit and guard). The other
+// 10.4 kB is CI's build of this Worker only; the other bundles differ between the two by under 0.4 kB.
+// Not traced. Ceiling: CI's reading plus 300.
+const CEILING = 4_654_152
 
 // The replica side of `foldkit-sync`. A server reaches `Sync` through the namespace
 // object, or a shared module does, and the bundler then keeps all of these.

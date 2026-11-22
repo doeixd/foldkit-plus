@@ -82,7 +82,9 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // on every page and server since step 5 (accepted by the maintainer on 2026-11-21), and its SQL lowering.
 // Step 10 took the translation layer and, with the related-rows reading, about 39 kB off it. Ceiling: the
 // reading plus 300.
-const CEILING = 3_292_363
+// +743 on 2026-11-22: CI on Linux read 3,292,806 after the Phase 1 gate fixes (an operand past the safe
+// range refused by every reader; ops/integerTerm). Ceiling: CI's reading plus 300.
+const CEILING = 3_293_106
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))
