@@ -8,7 +8,7 @@
  * with its own column and bind strategy.
  */
 import { Data, Option, Result } from 'effect'
-import { isFraction, isIntegerLiteral, isIntegerTerm } from './integerTerm.js'
+import { isFraction, isIntegerLiteral, isIntegerTerm } from './ops/integerTerm.js'
 import * as Node from './node.js'
 import { isShift } from './ops/mulScaled.js'
 import * as Path from './path.js'

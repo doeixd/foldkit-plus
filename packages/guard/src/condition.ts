@@ -27,13 +27,7 @@ import {
 } from 'foldkit-entity'
 import { envOf, foreignOf, readingOf, type Reading } from 'foldkit-entity/lowering'
 import { Bool, Node, Verdict } from 'metakit'
-import {
-  Settled,
-  fractionBesideInteger,
-  judgeNode,
-  residualizeNode,
-  settleNode,
-} from 'metakit/build'
+import { Settled, fractionBesideInteger, judgeNode, settleNode } from 'metakit/build'
 import {
   attached,
   defaultDeny,
@@ -200,6 +194,19 @@ const unportable = (value: unknown): boolean =>
       : Array.isArray(value) && value.some(unportable)
 
 /**
+ * `node` with each principal field it reads put in as a literal, and nothing
+ * folded: partial evaluation stays off a page. Where SQL's folding would
+ * drop the field (`isAdmin or rank >= level`, an admin asking) this refuses
+ * what SQL would compile: memory is then the stricter reader.
+ */
+const withInput = (node: Node.Node, input: Row): Node.Node =>
+  Node.substitutePaths(node, ([slice, key]) =>
+    slice === 'input' && key !== undefined && Object.hasOwn(input, key)
+      ? Option.some(Node.Lit({ value: input[key] }))
+      : Option.none(),
+  )
+
+/**
  * Whether a row guard of `condition` reads a principal's field holding a
  * value no two readers agree on. Metakit refuses NUL text and NaN and orders
  * ±Infinity; SQL refuses all three, and a guard kept for the statement is
@@ -216,9 +223,7 @@ const refusesInput = (condition: Condition, input: Row): boolean =>
       Query.dependencies(guard.query).inputs.some(
         key => Object.hasOwn(input, key) && unportable(input[key]),
       ) ||
-      guard.query.where.some(predicate =>
-        fractionBesideInteger(residualizeNode(predicate.node, { input })),
-      ),
+      guard.query.where.some(predicate => fractionBesideInteger(withInput(predicate.node, input))),
     Inherit: () => false,
     And: ({ conditions }) => conditions.some(each => refusesInput(each, input)),
     Or: ({ conditions }) => conditions.some(each => refusesInput(each, input)),

@@ -5,14 +5,16 @@
  * what a reader that must refuse as SQL does asks first.
  */
 import { Option, SchemaAST } from 'effect'
-import { isIntCheck } from './intCheck.js'
-import * as Node from './node.js'
+import * as Node from '../node.js'
+import { declares } from './kind.js'
+
+const INT: ReadonlySet<string> = new Set(['effect/schema/isInt'])
 
 const isIntAst = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isUnion(ast)
     ? ast.types.some(isIntAst) &&
       ast.types.every(t => isIntAst(t) || SchemaAST.isNull(t) || SchemaAST.isUndefined(t))
-    : SchemaAST.isNumber(ast) && (ast.checks ?? []).some(isIntCheck)
+    : SchemaAST.isNumber(ast) && declares(ast.checks, INT)
 
 const integerOps: ReadonlySet<string> = new Set<Node.CoreOpId>([
   'num.add',

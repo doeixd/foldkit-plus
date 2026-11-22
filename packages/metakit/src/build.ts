@@ -15,7 +15,7 @@
  */
 export { call, isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
 export { evalNode, type ForeignImplementation, type ForeignImplementations } from './ops/eval.js'
-export { fractionBesideInteger } from './integerTerm.js'
+export { fractionBesideInteger } from './ops/integerTerm.js'
 export { judgeNode, settleNode, Settled } from './ops/judge.js'
 export { readsOfNode } from './ops/reads.js'
 export { loadRows } from './ops/rowsLoad.js'
