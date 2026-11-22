@@ -160,6 +160,7 @@ export interface LayerCapability {
     readonly store: EntityStore
     readonly state: MutationState
     readonly optimistic: OptimisticState
+    readonly applied: ReadonlyArray<NormalizedPatch>
   }
   readonly settleFailure: (optimistic: OptimisticState, requestId: string) => OptimisticState
   /** What an answer or a failure does to the values kept from a newer patch or read, and what it reads again (#498, #499, #480). */

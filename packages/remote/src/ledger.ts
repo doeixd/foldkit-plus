@@ -221,6 +221,8 @@ export const mutationStatus = (state: MutationState, requestId: string): Mutatio
 export interface Reconciled {
   readonly store: EntityStore
   readonly state: MutationState
+  /** The entities and fields actually written (not dropped as repeated or superseded). */
+  readonly applied: ReadonlyArray<NormalizedPatch>
 }
 
 /** What a settled mutation wrote, as `MutationSucceeded` carries it. */
@@ -268,8 +270,9 @@ export const reconcileMutation = (
 ): Reconciled => {
   const repeated = state.applied.has(requestId)
   if (repeated && !state.pending.has(requestId) && !state.failed.has(requestId))
-    return { store, state }
+    return { store, state, applied: [] }
   const { newer, rewritten } = settledLater(state, requestId)
+  const appliedEntities: Array<NormalizedPatch> = []
   const writes = repeated
     ? []
     : answer.entities.flatMap(entity => {
@@ -278,29 +281,30 @@ export const reconcileMutation = (
         const held = store[key]
         const values = Object.fromEntries(
           Object.entries(entity.values).filter(([field]) => {
-            // When both the held row and this answer carry server revisions for the field,
-            // server execution order decides: a strictly newer revision lands even if a
-            // later-sent request settled earlier, and a strictly older revision is dropped.
-            if (
-              entity.revision !== undefined &&
-              held?.revision !== undefined &&
-              held.revisionFields?.has(field) === true
-            ) {
+            // A strictly higher row revision is newer than every revisioned field in `held`,
+            // even after an intervening partial write on another field reset `revisionFields`.
+            if (entity.revision !== undefined && held?.revision !== undefined) {
               if (entity.revision > held.revision) return true
-              if (entity.revision < held.revision) return false
+              if (entity.revision < held.revision && held.revisionFields?.has(field) === true)
+                return false
             }
             return !newer(`${key}\u0000${field}`)
           }),
         )
-        return Object.keys(values).length === 0
-          ? []
-          : [
-              {
-                key,
-                values,
-                ...(entity.revision === undefined ? {} : { revision: entity.revision }),
-              },
-            ]
+        if (Object.keys(values).length === 0) return []
+        appliedEntities.push({
+          entity: entity.entity,
+          id: entity.id,
+          values,
+          ...(entity.revision === undefined ? {} : { revision: entity.revision }),
+        })
+        return [
+          {
+            key,
+            values,
+            ...(entity.revision === undefined ? {} : { revision: entity.revision }),
+          },
+        ]
       })
   const deleted = repeated
     ? []
@@ -321,6 +325,7 @@ export const reconcileMutation = (
   // A retry that applies is no longer a failure to list.
   return {
     store: next,
+    applied: appliedEntities,
     state: {
       ...forgetFailure(state, requestId),
       applied,

@@ -2218,13 +2218,15 @@ const reduceRemote = (
           ? undefined
           : unsettledRead(message.read, settledLater(model.mutations, message.requestId))
       const answered = [...message.entities, ...(read?.result.entities ?? [])]
+      const applied = [...settled.applied, ...(read?.result.entities ?? [])]
       // A live stream may still send what was committed before this write;
       // until it sends the answer's values back, it does not overwrite them.
+      // Only fields actually applied by reconcileMutation await echoes.
       const echoes = model.mutations.applied.has(message.requestId)
         ? model.echoes
         : Option.match(capabilities.live, {
             onNone: () => model.echoes,
-            onSome: live => live.awaitEchoes(model.echoes, answered, message.now),
+            onSome: live => live.awaitEchoes(model.echoes, applied, message.now),
           })
       // What a patch or a read moved while this was pending ends here; one that
       // disagrees with the answer, and is not the write replayed over it, is read
@@ -2249,6 +2251,7 @@ const reduceRemote = (
             settled.state.pending,
             message.now,
             earlier,
+            applied,
           )
       const repeated = model.mutations.applied.has(message.requestId)
       const written =

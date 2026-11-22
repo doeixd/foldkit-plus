@@ -216,6 +216,7 @@ export const settleReplayed = (
   pending: ReadonlySet<string>,
   now: number,
   earlier?: ReadonlySet<string>,
+  applied: ReadonlyArray<Row> = entities,
 ): { readonly kept: Kept; readonly again: ReadonlyArray<AgainRow> } => {
   const held = unexpired(kept, now)
   const asked = new Map<EntityKey, { entity: string; id: string; fields: Set<string> }>()
@@ -240,7 +241,7 @@ export const settleReplayed = (
   const again = [...asked.values()].map(row => ({ ...row, fields: [...row.fields] }))
   if (pending.size === 0) return { kept: noKept, again }
   const next = new Map(held)
-  for (const { entity, id, values } of entities) {
+  for (const { entity, id, values } of applied) {
     const key = entityKey(entity, id)
     const row = next.get(key)
     if (row === undefined) continue

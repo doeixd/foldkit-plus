@@ -401,4 +401,126 @@ describe('concurrent pending writes, slow answers, and multi-patch layers', () =
     const settled = settle(afterAbaRead, [answered({ likes: 11 })])
     expect(settled).toMatchObject({ rereads: true })
   })
+
+  it('Pass 3 H1: strictly newer revision lands even after an intervening partial write on another field', () => {
+    const r1 = Posts.mutate(
+      known,
+      Edit,
+      { id: 'p1' },
+      { requestId: 'r1', optimistic: [Post.patch('p1', { title: 'A' })] },
+    ).model
+    const r2 = Posts.mutate(
+      r1,
+      Edit,
+      { id: 'p1' },
+      { requestId: 'r2', optimistic: [Post.patch('p1', { title: 'B' })] },
+    ).model
+    const r3 = Posts.mutate(
+      r2,
+      Edit,
+      { id: 'p1' },
+      { requestId: 'r3', optimistic: [Post.patch('p1', { likes: 11 })] },
+    ).model
+    // r2 (rev 2) -> r3 (rev 4, resets revisionFields to {'likes'}) -> r1 (rev 5, title: 'A').
+    const settled = settle(r3, [
+      {
+        _tag: 'MutationSucceeded',
+        requestId: 'r2',
+        entities: [{ entity: 'Post', id: 'p1', values: { title: 'B' }, revision: 2 }],
+        now: 10,
+      },
+      {
+        _tag: 'MutationSucceeded',
+        requestId: 'r3',
+        entities: [{ entity: 'Post', id: 'p1', values: { likes: 11 }, revision: 4 }],
+        now: 20,
+      },
+      {
+        _tag: 'MutationSucceeded',
+        requestId: 'r1',
+        entities: [{ entity: 'Post', id: 'p1', values: { title: 'A' }, revision: 5 }],
+        now: 30,
+      },
+    ])
+    expect(settled.value).toEqual({ likes: 11, title: 'A' })
+  })
+
+  it('Pass 3 H2: dropped stale answers do not overwrite awaited echoes or rebase pending writes downward', () => {
+    const r1 = Posts.mutate(
+      known,
+      Edit,
+      { id: 'p1' },
+      { requestId: 'r1', optimistic: [Post.patch('p1', { title: 'A' })] },
+    ).model
+    const r2 = Posts.mutate(
+      r1,
+      Edit,
+      { id: 'p1' },
+      { requestId: 'r2', optimistic: [Post.patch('p1', { title: 'B' })] },
+    ).model
+    // r2 settles first ('B', rev 2), then stale r1 ('A', rev 1) is dropped by reconcileMutation.
+    const afterR2 = Posts.reduce(r2, {
+      _tag: 'MutationSucceeded',
+      requestId: 'r2',
+      entities: [{ entity: 'Post', id: 'p1', values: { title: 'B' }, revision: 2 }],
+      now: 10,
+    })
+    const afterR1 = Posts.reduce(afterR2, {
+      _tag: 'MutationSucceeded',
+      requestId: 'r1',
+      entities: [{ entity: 'Post', id: 'p1', values: { title: 'A' }, revision: 1 }],
+      now: 20,
+    })
+    // Awaited echo for title must still be 'B', so r2's live echo 'B' settles cleanly with no reread.
+    expect(afterR1.remote.echoes['Post:p1']?.values['title']).toBe('B')
+    const afterEcho = settle(afterR1, [patched({ title: 'B' }, 1, 2)])
+    expect(afterEcho).toEqual({ tag: 'Ready', value: { likes: 10, title: 'B' }, rereads: false })
+  })
+
+  it('Pass 3 H3: hearing one awaited field on a stream does not clear other awaited fields on the same row', () => {
+    const r1 = Posts.mutate(
+      known,
+      Edit,
+      { id: 'p1' },
+      { requestId: 'r1', optimistic: [Post.patch('p1', { title: 'New' })] },
+    ).model
+    const r2 = Posts.mutate(
+      r1,
+      Edit,
+      { id: 'p1' },
+      {
+        requestId: 'r2',
+        optimistic: [{ entity: 'Post', id: 'p1', values: {}, adds: { likes: 1 } }],
+      },
+    ).model
+    const settled1 = Posts.reduce(r2, {
+      _tag: 'MutationSucceeded',
+      requestId: 'r1',
+      entities: [{ entity: 'Post', id: 'p1', values: { title: 'New' } }],
+      now: 10,
+    })
+    const settled2 = Posts.reduce(settled1, {
+      _tag: 'MutationSucceeded',
+      requestId: 'r2',
+      entities: [{ entity: 'Post', id: 'p1', values: { likes: 11 } }],
+      now: 15,
+    })
+    // Live patch delivers r1's echo { title: 'New' }, then a pre-r2 stale patch { likes: 10 }.
+    const afterTitleEcho = Posts.reduce(settled2, patched({ title: 'New' }, 1))
+    const afterStaleLikes = settle(afterTitleEcho, [patched({ likes: 10 }, 2)])
+    // Must NOT overwrite likes: 11 with stale 10, and must schedule a reread.
+    expect(afterStaleLikes.value).toEqual({ likes: 11, title: 'New' })
+    expect(afterStaleLikes.rereads).toBe(true)
+  })
+
+  it('Pass 3 M2: a pending relative add over a tombstoned row does not resurrect the deleted row', () => {
+    const deleted: RemoteMessage = {
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: { _tag: 'EntityDeleted', cursor: 1, ref: { entity: 'Post', id: 'p1' } },
+      now: 11,
+    }
+    const afterDelete = Posts.reduce(liked, deleted)
+    expect(post.read(afterDelete)._tag).toBe('NotFound')
+  })
 })

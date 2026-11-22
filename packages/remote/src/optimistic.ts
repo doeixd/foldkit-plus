@@ -227,17 +227,19 @@ export const visibleStore = (
     tombstone,
     writeEntities(
       base,
-      resolvedPatches(base, optimistic, kept, operators).map(patch => {
-        const key = entityKey(patch.entity, patch.id)
-        const under = base[key]
-        return {
-          key,
-          values: patch.values,
-          updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
-          // A pending write is no read: the row stays as fresh as the server last made it.
-          oldestAt: under === undefined || under.tombstone ? Infinity : under.oldestAt,
-        }
-      }),
+      resolvedPatches(base, optimistic, kept, operators)
+        .filter(patch => Object.keys(patch.values).length > 0)
+        .map(patch => {
+          const key = entityKey(patch.entity, patch.id)
+          const under = base[key]
+          return {
+            key,
+            values: patch.values,
+            updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
+            // A pending write is no read: the row stays as fresh as the server last made it.
+            oldestAt: under === undefined || under.tombstone ? Infinity : under.oldestAt,
+          }
+        }),
     ),
   )
 
@@ -424,11 +426,13 @@ export const settleSuccess = (
   readonly store: EntityStore
   readonly state: MutationState
   readonly optimistic: OptimisticState
+  readonly applied: ReadonlyArray<NormalizedPatch>
 } => {
   const reconciled = reconcileMutation(base, state, requestId, answer)
   return {
     store: reconciled.store,
     state: reconciled.state,
+    applied: reconciled.applied,
     optimistic: state.applied.has(requestId)
       ? release(optimistic, requestId)
       : superseded(
@@ -443,7 +447,7 @@ export const settleSuccess = (
           (answer.deleted ?? [])
             .map(gone => entityKey(gone.entity, gone.id))
             .filter(key => isTombstone(reconciled.store, key)),
-          answer.entities,
+          reconciled.applied,
         ),
   }
 }

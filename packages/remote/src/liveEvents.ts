@@ -100,19 +100,20 @@ const heardBack = (
   readonly echo: AwaitedEcho
 } => {
   if (echo.heard.includes(stream)) return { values, contradicted: [], echo }
-  const named = Object.keys(values).filter(field => Object.hasOwn(echo.values, field))
+  const fieldMark = (field: string) => `${stream}\u0000${field}`
+  const named = Object.keys(values).filter(
+    field => Object.hasOwn(echo.values, field) && !echo.heard.includes(fieldMark(field)),
+  )
   const contradicted = named.filter(field => !Equal.equals(values[field], echo.values[field]))
-  if (contradicted.length === 0)
-    return {
-      values,
-      contradicted,
-      echo: named.length === 0 ? echo : { ...echo, heard: [...echo.heard, stream] },
-    }
+  const matched = named.filter(field => Equal.equals(values[field], echo.values[field]))
+  const nextEcho =
+    matched.length === 0 ? echo : { ...echo, heard: [...echo.heard, ...matched.map(fieldMark)] }
+  if (contradicted.length === 0) return { values, contradicted, echo: nextEcho }
   const out = new Set(contradicted)
   return {
     values: Object.fromEntries(Object.entries(values).filter(([field]) => !out.has(field))),
     contradicted,
-    echo,
+    echo: nextEcho,
   }
 }
 
@@ -179,20 +180,23 @@ export const applyEntityEvent = (
   const heard =
     awaited === undefined ? undefined : heardBack(awaited, context.stream ?? '', event.values)
   const written = heard?.values ?? event.values
-  const patched = writeEntities(
-    store,
-    [
-      {
-        key,
-        values: written,
-        ...(event.revision === undefined ? {} : { revision: event.revision }),
-      },
-    ],
-    context.now ?? 0,
-  )
+  const hasWritten = Object.keys(written).length > 0
+  const patched = hasWritten
+    ? writeEntities(
+        store,
+        [
+          {
+            key,
+            values: written,
+            ...(event.revision === undefined ? {} : { revision: event.revision }),
+          },
+        ],
+        context.now ?? 0,
+      )
+    : store
   return {
     state: next,
-    store: floor === undefined ? patched : clearFloors(patched, [key]),
+    store: !hasWritten || floor === undefined ? patched : clearFloors(patched, [key]),
     outcome,
     written,
     echoes:
