@@ -7,16 +7,23 @@
  * an answer that disagrees reads the field again. A failed write of either
  * way is dropped with its layer, and the newer value shows.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { Computation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Entity, Mutation, Remote, type RemoteMessage } from '../src/index.js'
+import { layers } from '../src/layers.js'
 import { live } from '../src/live.js'
 
 const Post = Entity.make(
   'Post',
-  Schema.Struct({ id: Schema.String, likes: Schema.Number, title: Schema.String }),
+  Schema.Struct({
+    id: Schema.String,
+    likes: Schema.Number,
+    title: Schema.String,
+    score: Schema.Number,
+  }),
 )
 const Edit = Mutation.make('Edit', { Input: { id: Schema.String }, Output: {} })
 const Model = Schema.Struct({ remote: Remote.Model })
@@ -155,6 +162,69 @@ describe('an add pending under a newer value', () => {
     expect(settled).toMatchObject({ tag: 'Refreshing', rereads: true })
   })
 
+  it.each([
+    // The read included our like: its answer is the read's count.
+    ['one that includes the add', answered({ likes: 11 }, 2), 11],
+    // Someone else's like: ours lands right after it.
+    ['one that does not', answered({ likes: 12 }, 3), 12],
+  ])(
+    "shows a read's count as it is, since the read may include the add, then settles on %s",
+    (_name, answer, settled) => {
+      const during = Posts.reduce(liked, read({ likes: 11 }, 3, 2))
+      expect(settle(during, [])).toEqual({
+        tag: 'Ready',
+        value: { likes: 11, title: 'Draft' },
+        rereads: false,
+      })
+      expect(settle(during, [answer])).toEqual({
+        tag: 'Ready',
+        value: { likes: settled, title: 'Draft' },
+        rereads: false,
+      })
+    },
+  )
+
+  it('works out a field computed from the count over the count as the read gave it', () => {
+    const scored = Posts.mutate(
+      known,
+      Edit,
+      { id: 'p1' },
+      {
+        requestId: 'a',
+        optimistic: [
+          {
+            entity: 'Post',
+            id: 'p1',
+            values: {},
+            adds: { likes: 1 },
+            computes: { score: Computation.Field({ key: 'likes' }) },
+          },
+        ],
+      },
+    ).model
+    const { entities, optimistic, kept } = Posts.reduce(scored, read({ likes: 11 }, 3, 2)).remote
+    expect(layers.visible(entities, optimistic, kept, Option.none())['Post:p1']?.values).toEqual(
+      expect.objectContaining({ likes: 11, score: 11 }),
+    )
+  })
+
+  it('keeps showing the count as the read gave it while another add is still pending', () => {
+    const both = Posts.mutate(
+      liked,
+      Edit,
+      { id: 'p1' },
+      {
+        requestId: 'b',
+        optimistic: [{ entity: 'Post', id: 'p1', values: {}, adds: { likes: 1 } }],
+      },
+    ).model
+    // Someone else's like and our two: the read may include either of ours, or both.
+    const during = Posts.reduce(both, read({ likes: 13 }, 3, 4))
+    expect(settle(during, [])).toMatchObject({ value: { likes: 13 } })
+    // The first's answer is 11 at revision 2: the read is newer and may still include the second.
+    expect(settle(during, [answered({ likes: 11 }, 2)])).toMatchObject({ value: { likes: 13 } })
+  })
+
   it('is undone by dropping it when it fails: the newer value shows, and nothing is read', () => {
     expect(settle(liked, [patched({ likes: 11 }, 1, 2), failed])).toEqual({
       tag: 'Ready',
@@ -215,11 +285,12 @@ describe('concurrent pending writes, slow answers, and multi-patch layers', () =
     expect(afterB).toMatchObject({ tag: 'Refreshing', rereads: true })
   })
 
-  it('H7: a second read while pending updates the optimistic base of a relative add', () => {
+  it('H7: a second read while pending shows its count, not the first read with the add on top', () => {
+    // Each read may include the pending like, so each shows the server's count as it is.
     const afterRead1 = Posts.reduce(liked, read({ likes: 11 }, 10, 2))
-    expect(post.read(afterRead1)).toMatchObject({ _tag: 'Ready', value: { likes: 12 } })
+    expect(post.read(afterRead1)).toMatchObject({ _tag: 'Ready', value: { likes: 11 } })
     const afterRead2 = Posts.reduce(afterRead1, read({ likes: 15 }, 20, 3))
-    expect(post.read(afterRead2)).toMatchObject({ _tag: 'Ready', value: { likes: 16 } })
+    expect(post.read(afterRead2)).toMatchObject({ _tag: 'Ready', value: { likes: 15 } })
   })
 
   it('M3: revisions at or above Number.MAX_SAFE_INTEGER are not treated as rightAfter', () => {

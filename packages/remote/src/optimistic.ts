@@ -22,7 +22,7 @@ import {
   type PendingDelete,
   type PendingPatch,
 } from './ledger.js'
-import { overKept, type Kept } from './kept.js'
+import { overKept, unincluded, type Kept } from './kept.js'
 import { put } from './record.js'
 import { isPatch } from './shown.js'
 import {
@@ -312,7 +312,9 @@ export const goneIn = (
 /**
  * Every pending patch in order, each amount added and each computed field
  * worked out over the row under it (the store's, a field `kept` says a live
- * patch wrote as it was before, and earlier layers over it) by `Write.apply`, with the client's table (the kernel's when not
+ * patch wrote as it was before, and earlier layers over it) by `Write.apply`;
+ * a field a read wrote that may include the write is left as the read gave it.
+ * With the client's table (the kernel's when not
  * given). A prediction, so only over
  * what the client holds: a field it has not read, an amount over anything
  * but a number, or a computation by an operator its table lacks keeps what
@@ -345,7 +347,11 @@ export const resolvedPatches = (
           ...earlier,
         }).filter(([field]) => !unknown.has(field)),
       )
-      const moved = { values: {}, increments: adds ?? {}, assignments: computes ?? {} }
+      const moved = {
+        values: {},
+        increments: unincluded(adds, kept.get(key), layer.id),
+        assignments: unincluded(computes, kept.get(key), layer.id),
+      }
       const predicted = predicting(() => Write.apply(row, moved, { operators }))
       for (const field of [...Object.keys(moved.increments), ...Object.keys(moved.assignments)]) {
         if (predicted !== undefined && !predicted.unknown.includes(field)) {

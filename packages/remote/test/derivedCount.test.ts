@@ -113,7 +113,8 @@ describe('a Derived.count while a write is pending', () => {
     expect(Data.storeOf(model)['Post:p3']).toBeUndefined()
   })
 
-  it('adds to a count read while the write is pending', () => {
+  // The read may already count the pending like: it shows as read, never past the server's count.
+  it('shows a count read while the write is pending as the read gave it', () => {
     const { model } = Data.mutate(held, LikePost, { id: 'l9', postId: 'p1' })
     const reread = Data.reduce(model, {
       _tag: 'ReadReceived',
@@ -121,7 +122,7 @@ describe('a Derived.count while a write is pending', () => {
       result: { settled: [], entities: [{ entity: 'Post', id: 'p1', values: { likeCount: 5 } }] },
       now: 1,
     })
-    expect(count(reread, 'p1')).toBe(6)
+    expect(count(reread, 'p1')).toBe(5)
   })
 
   it('lets the server’s count replace the prediction when the answer lands', () => {

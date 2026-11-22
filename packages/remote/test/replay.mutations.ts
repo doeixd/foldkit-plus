@@ -4,6 +4,7 @@
  * value. `pnpm mutate packages/remote/test/replay.mutations.ts`.
  */
 const replay = '../src/replay.ts'
+const optimistic = '../src/optimistic.ts'
 const ways = '../../metakit/src/ops/ways.ts'
 const tests = ['packages/remote/test/replay.test.ts', 'packages/remote/test/temporal.test.ts']
 const edit = (name: string, file: string, find: string, replace: string) => ({
@@ -55,6 +56,24 @@ export default [
     replay,
     'held.revisionFields?.has(field) === true',
     'true',
+  ),
+  edit(
+    'a read is taken to leave out every pending write, and the add is shown over it',
+    replay,
+    "included: from === 'read' ? new Set([...(was?.included ?? []), ...ids]) : was?.included,",
+    'included: was?.included,',
+  ),
+  edit(
+    'a layer adds its amount over a read that may include it',
+    optimistic,
+    'increments: unincluded(adds, kept.get(key), layer.id),',
+    'increments: adds ?? {},',
+  ),
+  edit(
+    'an answer forgets which pending writes the read may include',
+    replay,
+    'if (by.size > 0) rest.set(field, { since: entry.since, by, included })',
+    'if (by.size > 0) rest.set(field, { since: entry.since, by })',
   ),
   edit(
     'an answer that is the replay is read again',

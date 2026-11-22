@@ -4,7 +4,8 @@
  * flight. The write's way of writing for that field decides, as metakit's
  * `writeProperties` says of it:
  * - one that commutes with any change to the field (an `add`) shows over what
- *   the field held, and replayed over the newer value gives the server's value
+ *   the field held before a patch, or as a read left it, since the read may
+ *   include it; replayed over the newer value it gives the server's value
  *   after both, so an answer that is that replay, and whose revision shows it
  *   landed right on the newer value, settles the field with no second read;
  * - one that does not (a `set`: an absolute value, a computed one, a link)
@@ -62,11 +63,15 @@ export const unexpired = (kept: Kept, now: number): Kept => {
  * requests in `pending` are in flight. A patch may be a pending write's own
  * echo: every field it names is kept at what the store held before it (none
  * where the row did not hold it), so a relative layer resolving over that
- * does not count the write twice (#498). A read is no likelier an echo than
- * not: each field it moves is kept at its own value, so a relative layer
- * resolves over the newest value the server sent (#480). A request new to a
- * field began after the values it already has, and is kept over what the
- * store held before this one.
+ * does not count the write twice (#498). A read may include any write in
+ * flight while it was answered, and nothing in it says which: when it was sent
+ * does not decide, since the server may land a write sent after a read before
+ * it runs the read. So each field it moves is kept at its own value for every
+ * pending request, and marked `included`: a relative layer shows the read's
+ * value as it is, never past the server's count, and the request's answer
+ * settles the field or reads it again (#480). A request new to a field began
+ * after the values it already has, and is kept over what the store held
+ * before this one.
  */
 export const replayOver = (
   kept: Kept,
@@ -104,6 +109,7 @@ export const replayOver = (
       row.set(field, {
         since: was?.since ?? now,
         by: new Map([...(was?.by ?? []), ...ids.map(id => [id, over] as const)]),
+        included: from === 'read' ? new Set([...(was?.included ?? []), ...ids]) : was?.included,
       })
     }
     if (changed) next = new Map(next).set(key, row)
@@ -241,7 +247,9 @@ export const settleReplayed = (
           .filter(([pendingId]) => pendingId !== requestId && pending.has(pendingId))
           .map(([pendingId]) => [pendingId, rebased] as const),
       )
-      if (by.size > 0) rest.set(field, { since: entry.since, by })
+      // A request the read may include still may: the answer is no word on its write.
+      const included = entry.included && new Set([...entry.included].filter(id => by.has(id)))
+      if (by.size > 0) rest.set(field, { since: entry.since, by, included })
     }
     if (rest.size === 0) next.delete(key)
     else next.set(key, rest)

@@ -23,6 +23,12 @@ export interface KeptField {
    * Their answers are compared with what was written.
    */
   readonly by: ReadonlyMap<string, Option.Option<unknown>>
+  /**
+   * The requests of `by` a read moved the field under. The read may already
+   * include their write, so a relative layer of theirs shows the read's value
+   * as it is, never past the server's count, until their answer settles it.
+   */
+  readonly included?: ReadonlySet<string> | undefined
   /** When the first newer value was heard: a kept value older than the bound is dropped. */
   readonly since: number
 }
@@ -47,3 +53,15 @@ export const overKept = (
   }
   return next
 }
+
+/** `moves` (a layer's amounts or computations) without the fields a read that may include `id` wrote. */
+export const unincluded = <A>(
+  moves: Readonly<Record<string, A>> | undefined,
+  kept: ReadonlyMap<string, KeptField> | undefined,
+  id: string,
+): Readonly<Record<string, A>> =>
+  moves === undefined || kept === undefined
+    ? (moves ?? {})
+    : Object.fromEntries(
+        Object.entries(moves).filter(([field]) => kept.get(field)?.included?.has(id) !== true),
+      )

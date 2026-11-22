@@ -31,7 +31,7 @@ export default [
     tests,
   },
   {
-    // A relative layer then resolves over the count from before the read.
+    // A field the layer computes from the count is then worked out over the count from before the read.
     name: 'a read keeps the value it replaced, not its own',
     edits: [
       {
@@ -40,6 +40,6 @@ export default [
         replace: 'const over = held(field)',
       },
     ],
-    tests: ['packages/remote/test/derivedCount.test.ts'],
+    tests: ['packages/remote/test/derivedCount.test.ts', 'packages/remote/test/replay.test.ts'],
   },
 ]
