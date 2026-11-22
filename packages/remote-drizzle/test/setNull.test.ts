@@ -468,3 +468,26 @@ describe('The law over a delete that clears links', () => {
     )
   })
 })
+
+describe('Postgres row locking during a clear', () => {
+  it('locks root folder and cleared docs for update before updating or deleting', async () => {
+    await pglite.exec("set default_transaction_isolation to 'read committed'")
+    await pglite.exec('drop table if exists users, folders, docs')
+    for (const statement of SCHEMA) await pglite.exec(statement)
+    const queries: Array<string> = []
+    const db = drizzlePg({ client: pglite, logger: { logQuery: query => queries.push(query) } })
+    const Db = bindOn(pgTables, false, Filed)
+    const outcome = await Effect.runPromise(
+      writer(Db.Folder)
+        .delete({ id: 'f2', expect: Option.none(), when: Option.none(), principal: 'ada' })
+        .pipe(Effect.provide(databaseLayer(db))),
+    )
+    expect(outcome).toMatchObject({ _tag: 'Deleted' })
+    const locks = queries.filter(q => q.toLowerCase().includes('for update'))
+    const firstUpdate = queries.findIndex(q => q.toLowerCase().startsWith('update '))
+    expect(locks).toHaveLength(2)
+    expect(locks[0]).toMatch(/from "folders".*for update/i)
+    expect(locks[1]).toMatch(/from "docs".*for update/i)
+    expect(queries.indexOf(locks[1]!)).toBeLessThan(firstUpdate)
+  })
+})

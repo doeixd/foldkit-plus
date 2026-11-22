@@ -2704,6 +2704,13 @@ export const RemoteServer = {
     const judgedWhere =
       !kind.inserts && writer.judgesInStatement === true ? 'in-statement' : 'read-first'
     // Two writes can each read other rows that admit them and together break the rule.
+    const clearedEntities = kind.deletes
+      ? [
+          ...new Map(
+            Entity.clearing(write.input.entity).map(({ owner }) => [owner.name, owner]),
+          ).values(),
+        ]
+      : []
     const reaching: ReadonlyArray<StoreRequirement<`${Name} ${string}`>> = [
       ...Option.match(write.when, {
         onNone: () => [],
@@ -2712,6 +2719,11 @@ export const RemoteServer = {
       ...judged
         .filter(held => dependenciesOf(held.predicate).reaches.length > 0)
         .map(held => `invariant "${held.id}"`),
+      ...clearedEntities.flatMap(owner =>
+        Entity.invariants(owner)
+          .filter(held => dependenciesOf(held.predicate).reaches.length > 0)
+          .map(held => `clear invariant "${owner.name}.${held.id}"`),
+      ),
     ].map(rule => ({
       rule: `${mutation.name} ${rule}` as const,
       needs: 'parent-serialized',

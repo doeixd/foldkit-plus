@@ -1793,6 +1793,15 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
       const failed = 'Database write failed'
       const rootIndex = seen.length + 2 * clearing.length + steps.length
       const rolledBack = Symbol('withCascade.rollback')
+      const lockedCount = (result: unknown): number =>
+        Array.isArray(result)
+          ? result.length
+          : typeof result === 'object' &&
+              result !== null &&
+              'rows' in result &&
+              Array.isArray(result.rows)
+            ? result.rows.length
+            : 0
       const results: ReadonlyArray<ReadonlyArray<Record<string, unknown>>> | undefined = isD1(
         database,
       )
@@ -1820,12 +1829,45 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
               () =>
                 database
                   .transaction(async tx => {
-                    // Postgres: hold the row named until this transaction ends, so
-                    // what the leaf gate read is what the root delete sees.
+                    // Postgres: lock the root row first, then every row the cascade takes
+                    // (parents before children) and every row whose link it clears, all
+                    // `for update`, before any statement reads or writes. With a foreign key
+                    // on each edge, locking a parent blocks new children from linking to it;
+                    // locking children blocks concurrent updates to non-FK columns checked
+                    // by `cascading`, `clearing`, or `clearBreaks`.
                     if (!is(binding.table, SQLiteTable)) {
-                      await tx.execute(
-                        sql`select 1 from ${binding.table} where ${rootWhere ?? sql`1 = 1`} for update`,
+                      const rootLocked = lockedCount(
+                        await tx.execute(
+                          sql`select 1 from ${binding.table} where ${eq(idColumn(binding), id)} for update`,
+                        ),
                       )
+                      if (rootLocked === 0) throw rolledBack
+                      for (const step of [...steps].reverse()) {
+                        const lockStep = () =>
+                          tx.execute(
+                            sql`select 1 from ${step.binding.table} where ${idColumn(step.binding)} in (${removedBy(step)}) order by ${idColumn(step.binding)} for update`,
+                          )
+                        if (step.self.length === 0) {
+                          await lockStep()
+                        } else {
+                          // A self-cascade can grow while deeper rows are not yet locked; repeat
+                          // until the locked set stops growing (locked rows cannot be modified
+                          // or deleted, so the count is monotonically non-decreasing).
+                          let locked = lockedCount(await lockStep())
+                          while (locked > 0) {
+                            const next = lockedCount(await lockStep())
+                            if (next === locked) break
+                            locked = next
+                          }
+                        }
+                      }
+                      for (const edges of Object.values(Arr.groupBy(clears, edge => edge.entity))) {
+                        const owner = edges[0].owner
+                        const pointing = or(...edges.map(edge => sql`${edge.column} = ${id}`))
+                        await tx.execute(
+                          sql`select 1 from ${owner.table} where ${pointing} order by ${idColumn(owner)} for update`,
+                        )
+                      }
                     }
                     const done: Array<ReadonlyArray<Record<string, unknown>>> = []
                     for (const each of statements(tx)) done.push(await each)

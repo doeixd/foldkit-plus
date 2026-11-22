@@ -329,3 +329,64 @@ describe('an insert with a cross-row invariant', () => {
     expect(() => registerInsert(stores.serializable, true)).not.toThrow()
   })
 })
+
+describe('a delete clearing a child whose invariant reads another row', () => {
+  const TeamFields = Entity.define(
+    'Team',
+    Schema.Struct({ id: Schema.String, locked: Schema.Boolean }),
+  )
+  const FolderFields = Entity.define('Folder', Schema.Struct({ id: Schema.String }))
+  const DocFields = Entity.define('Doc', Schema.Struct({ id: Schema.String }))
+  const Related = Entity.relate(
+    { Team: TeamFields, Folder: FolderFields, Doc: DocFields },
+    {
+      Doc: {
+        folder: Relation.one(FolderFields, { optional: true, onDelete: 'setNull' }),
+        team: Relation.one(TeamFields),
+      },
+    },
+  )
+  const Doc = Related.Doc.pipe(
+    Entity.invariant(
+      'unlockedTeam',
+      ({ after }) =>
+        Expr.or(
+          Expr.isNotNull(after.folder),
+          Expr.eq(Expr.path(Related.Doc.relations.team, Related.Team.fields.locked), false),
+        ),
+      { message: 'Team is locked' },
+    ),
+  )
+  const DeleteFolder = Mutation.write(
+    'DeleteFolder',
+    Write.delete(Entity.input(Related.Folder, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+  )
+  const clearDomain = Remote.define({
+    entities: [Related.Team, Related.Folder, Doc],
+    mutations: [DeleteFolder],
+  })
+  const registerDelete = (store: StoreCapabilities) =>
+    RemoteServer.memory({
+      domain: clearDomain,
+      rows: { Team: [], Folder: [], Doc: [] },
+      mutations: (rows: MemoryStore) => {
+        const { refuses: _, ...base } = RemoteServer.memoryWriter<undefined>(rows, FolderFields)
+        return [
+          RemoteServer.write(DeleteFolder, {
+            ...base,
+            clears: true,
+            foreignKey: () => true,
+            judgesInStatement: true,
+            store,
+          }),
+        ]
+      },
+    })
+
+  it('is refused on read-committed Postgres even when a foreign key holds the cleared link', () => {
+    expect(() => registerDelete(stores.readCommitted)).toThrow(
+      '"DeleteFolder clear invariant "Doc.unlockedTeam"" needs parent-serialized',
+    )
+    expect(() => registerDelete(stores.serializable)).not.toThrow()
+  })
+})
