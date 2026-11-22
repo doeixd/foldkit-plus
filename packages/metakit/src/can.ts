@@ -9,6 +9,7 @@ import { Option } from 'effect'
 import type * as Expr from './expr.js'
 import type { InputOf, Machine } from './machine.js'
 import { judgeNode } from './ops/judge.js'
+import { loadRows } from './ops/rowsLoad.js'
 import type { Transition, TransitionEnv } from './transition.js'
 import * as Verdict from './verdict.js'
 
@@ -19,7 +20,11 @@ import * as Verdict from './verdict.js'
 export const can = <State, Input, Emit, Supplied>(
   transition: Transition<State, Input, Emit, Supplied>,
   partial: Expr.PartialEnv<TransitionEnv<State, Input, Supplied>>,
-): Verdict.Verdict<never> => judgeNode(transition.when.node, partial)
+): Verdict.Verdict<never> => {
+  // A list fold loads only its evaluation; a guard judged in part needs its judgement too.
+  loadRows()
+  return judgeNode(transition.when.node, partial)
+}
 
 // A tag may come from outside the types (an agent's tool call): `constructor`
 // names a member of `Object.prototype`, not a transition.

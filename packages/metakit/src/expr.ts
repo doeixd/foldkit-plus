@@ -27,6 +27,7 @@ import { present } from './ops/kind.js'
 import { gtOp, gteOp, ltOp, lteOp } from './ops/ord.js'
 import { readsOfNode } from './ops/reads.js'
 import { judgeNode } from './ops/judge.js'
+import { loadRows } from './ops/rowsLoad.js'
 import { residualizeNode } from './ops/residualize.js'
 import * as Path from './path.js'
 import type { Expr as ExprType, Path as PathType, PathAccessor } from './path.js'
@@ -459,7 +460,11 @@ export const judge = <Env>(
   expr: ExprType<Env, boolean | null>,
   partialEnv: PartialEnv<Env>,
   options?: ReaderOptions,
-): Verdict<never> => judgeNode(expr.node, partialEnv, options?.foreign)
+): Verdict<never> => {
+  // A list fold loads only its evaluation; judging one in part needs its judgement too.
+  loadRows()
+  return judgeNode(expr.node, partialEnv, options?.foreign)
+}
 
 /**
  * Static read footprint of `expr`. Returns `Option.some(paths)` when every

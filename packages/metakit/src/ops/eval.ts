@@ -10,7 +10,7 @@
 import { Option } from 'effect'
 import * as Node from '../node.js'
 import { readable } from '../path.js'
-import { rowsReading } from './rowsReading.js'
+import { rowsEvaluation } from './rowsReading.js'
 
 /** The value at `segments`: null where a step is absent, and an `Option` read as its value or null. */
 const readSegments = (env: unknown, segments: ReadonlyArray<string>): unknown => {
@@ -153,7 +153,7 @@ export const evalNode = (
     },
     // Read by `rowsLoad.ts`, which whatever built the node loaded.
     Rows: rows =>
-      rowsReading().evaluate(
+      rowsEvaluation()(
         rows,
         evalNode(Node.rowsSource(rows.over), env, foreign),
         env,

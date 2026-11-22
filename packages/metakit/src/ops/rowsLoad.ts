@@ -5,7 +5,7 @@
 import * as Node from '../node.js'
 import { partialRows } from './partialRows.js'
 import { answersBy, Elements, elementsOf, foldAnswers } from './rows.js'
-import { provideRows } from './rowsReading.js'
+import { provideEvaluation, provideJudgement } from './rowsReading.js'
 
 /** A `Rows` node over a whole environment, its source's value already read. */
 const evaluate = (
@@ -28,5 +28,11 @@ const evaluate = (
           }),
   })
 
+/** Loads the evaluation of `Rows` nodes alone: what a list fold a transition runs needs. */
+export const loadRowsEvaluation = (): void => provideEvaluation(evaluate)
+
 /** Loads the reading of `Rows` nodes for evaluation and judgement; once is enough. */
-export const loadRows = (): void => provideRows({ evaluate, partial: partialRows })
+export const loadRows = (): void => {
+  provideEvaluation(evaluate)
+  provideJudgement(partialRows)
+}
