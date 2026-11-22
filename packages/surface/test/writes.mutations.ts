@@ -65,7 +65,7 @@ export default [
   ),
   edit(
     'store contracts passed to Writes.of are ignored',
-    '  for (const contract of options?.contracts ?? []) {\n    for (const tag of contract.messages) addWrites(tag, contract.owns)\n    registeredPaths.push(...contract.owns)\n  }',
+    '  for (const contract of options?.contracts ?? []) {\n    for (const tag of contract.messages) addElsewhere(tag, contract.owns, \'a contract\')\n    registeredPaths.push(...contract.owns)\n  }',
     '  for (const _contract of []) {}',
   ),
   edit(
