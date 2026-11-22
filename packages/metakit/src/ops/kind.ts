@@ -171,9 +171,8 @@ export const cannotRefuse = (node: Node.Node): boolean =>
         ? args.length === 2 &&
           cannotRefuse(args[0]!) &&
           cannotRefuse(args[1]!) &&
-          ((Node.$is('Lit')(args[1]!) && Array.isArray(args[1]!.value)) ||
-            (Node.$is('Path')(args[1]!) &&
-              Option.exists(args[1]!.ast, ast => present(ast).every(SchemaAST.isArrays))))
+          Node.$is('Lit')(args[1]!) &&
+          Array.isArray(args[1]!.value)
         : callCannotRefuse(
             op,
             args.map(arg => [cannotRefuse(arg), kindOf(arg)]),

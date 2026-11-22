@@ -190,4 +190,62 @@ describe('Phase 1 & 5 adversarial review regressions', () => {
     })
     expect(Transition.commutes(Pos, Neg)._tag).not.toBe('True')
   })
+
+  it('H2 (deep review 2): Transition.idempotent rejects patchWhere writing a field read by a fallible test', () => {
+    const State = Schema.Struct({
+      list: Schema.Array(Schema.Struct({ id: Schema.String, n: Schema.Int })),
+    })
+    const Risky = Transition.make({
+      state: State,
+      input: Schema.Struct({}),
+      apply: ({ state }) => [
+        Transition.patchWhere(
+          state.list,
+          each => Ord.gt(Num.add(each.n, 1), 0),
+          () => ({ n: Number.MAX_SAFE_INTEGER }),
+        ),
+      ],
+    })
+    expect(Transition.idempotent(Risky)._tag).not.toBe('True')
+    const r1 = Transition.run(Risky, { list: [{ id: '1', n: 5 }] }, {})
+    expect(Result.isSuccess(r1)).toBe(true)
+    if (Result.isSuccess(r1)) {
+      expect(Result.isFailure(Transition.run(Risky, r1.success, {}))).toBe(true)
+    }
+  })
+
+  it('H3 (deep review 2): Transition.insert refuses a NUL key on an empty list, keeping idempotence sound', () => {
+    const State = Schema.Struct({
+      list: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+    })
+    const Add = Transition.make({
+      state: State,
+      input: Schema.Struct({ id: Schema.String }),
+      apply: ({ state, input }) => [Transition.insert(state.list, { id: input.id, title: 'x' })],
+    })
+    expect(Transition.idempotent(Add)._tag).toBe('True')
+    // Both run 1 (empty list) and run 2 must agree on NUL keys (both refused).
+    expect(Result.isFailure(Transition.run(Add, { list: [] }, { id: '\0' }))).toBe(true)
+  })
+
+  it('M4 (deep review 2): Temporal.walkAsync rejects duplicate step names and unknown after references', async () => {
+    await expect(
+      Temporal.walkAsync({
+        initial: async () => 0,
+        steps: [
+          { name: 'a', run: async () => {} },
+          { name: 'a', run: async () => {} },
+        ],
+        holds: async () => Option.none(),
+      }),
+    ).rejects.toThrow(/two steps are named "a"/)
+
+    await expect(
+      Temporal.walkAsync({
+        initial: async () => 0,
+        steps: [{ name: 'a', after: ['missing' as 'a'], run: async () => {} }],
+        holds: async () => Option.none(),
+      }),
+    ).rejects.toThrow(/which is no step/)
+  })
 })

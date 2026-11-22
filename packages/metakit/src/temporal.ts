@@ -18,6 +18,7 @@ import { Data, Option } from 'effect'
 import type { Aggregate } from './aggregates.js'
 import * as Expr from './expr.js'
 import type { Machine } from './machine.js'
+import * as Path from './path.js'
 import type { Requirement } from './store.js'
 import * as Transition from './transition.js'
 import type * as Verdict from './verdict.js'
@@ -121,11 +122,9 @@ const footprintsOf = <State, Transitions extends Readonly<Record<string, unknown
     }),
   )
 
-/** Whether one path is the other or lies inside it. */
+/** Whether one path is the other or lies inside it (respecting `*` wildcards). */
 const overlaps = (left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean =>
-  left.length <= right.length
-    ? left.every((segment, at) => segment === right[at])
-    : overlaps(right, left)
+  Path.meets(left, right)
 
 /** Whether what `writer` writes is something `other` reads or writes. */
 const disturbs = (writer: Footprint, other: Footprint): boolean =>
@@ -361,6 +360,21 @@ export const walkAsync = async <World, Name extends string>(
 ): Promise<WalkResult<Name>> => {
   type S = AsyncStep<World, Name>
   const { steps } = scenario
+  const names = new Set<Name>()
+  for (const step of steps) {
+    if (names.has(step.name)) {
+      throw new Error(`[metakit] Temporal.walkAsync: two steps are named "${step.name}"`)
+    }
+    names.add(step.name)
+  }
+  for (const step of steps) {
+    const unknown = (step.after ?? []).find(name => !names.has(name))
+    if (unknown !== undefined) {
+      throw new Error(
+        `[metakit] Temporal.walkAsync: step "${step.name}" runs after "${unknown}", which is no step`,
+      )
+    }
+  }
 
   const orderOf = (seed: number): ReadonlyArray<S> => {
     const next = generator(seed)

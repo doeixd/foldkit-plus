@@ -407,13 +407,17 @@ export const idempotent = <State, Input, Emit, Supplied>(
     if (condition === undefined) {
       return walk(`${ofWay(tag)} of "${Path.format(write.target)}" twice is not once`)
     }
-    if (
-      condition === 'sets-unread' &&
-      touches(setValues(write).flatMap(fieldsRead), fieldsSet(write))
-    ) {
-      return walk(
-        `${ofWay(tag)} of "${Path.format(write.target)}" sets a field from the field itself`,
-      )
+    if (condition === 'sets-unread') {
+      if (touches(setValues(write).flatMap(fieldsRead), fieldsSet(write))) {
+        return walk(
+          `${ofWay(tag)} of "${Path.format(write.target)}" sets a field from the field itself`,
+        )
+      }
+      if (touches(elementFieldsRead(write), fieldsSet(write)) && !steady(write)) {
+        return walk(
+          `${ofWay(tag)} of "${Path.format(write.target)}" writes a field its selection reads, which may refuse on a second run`,
+        )
+      }
     }
   }
   return Verdict.True()

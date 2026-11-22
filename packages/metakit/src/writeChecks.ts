@@ -82,7 +82,7 @@ const writesOf = (
         write(state => Transition.append(state.list, { id, a: true, b: 1, c: true })),
       )
     case 'insert':
-      return literals.map(id =>
+      return [...literals, '\0'].map(id =>
         write(state => Transition.insert(state.list, { id, a: true, b: 1, c: true })),
       )
     case 'remove':

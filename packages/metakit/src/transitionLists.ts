@@ -21,6 +21,7 @@ import {
   type Each,
   type EachEnv,
 } from './ops/arr.js'
+import { andOp } from './ops/bool.js'
 import { isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
 import { isNotOp, isOp } from './ops/eq.js'
 import * as Path from './path.js'
@@ -167,13 +168,20 @@ export const insert = <
 ): WriteEquation<State, Input, ReadonlyArray<E>, Supplied, 'insert'> => {
   const key = options?.key ?? 'id'
   const made = appended(list.node, element, 'insert')
+  const keyValue = made.field(key)
   const present = rowsOver('any', list.node, {
-    where: Node.Call({ op: isOp, args: [keyOf(key), made.field(key)] }),
+    where: Node.Call({ op: isOp, args: [keyOf(key), keyValue] }),
+  })
+  // Validate the inserted key even when the list is empty (`any` runs 0 iterations),
+  // so an uncomparable key (e.g. holding a NUL) refuses on the first run as on the second.
+  const cond = Node.Call({
+    op: andOp,
+    args: [Node.Call({ op: isOp, args: [keyValue, keyValue] }), present],
   })
   return write(
     list,
     'insert',
-    Node.If({ cond: present, then: list.node, otherwise: made.node }),
+    Node.If({ cond, then: list.node, otherwise: made.node }),
     Way.insert({ element: made.parts, key }),
   )
 }
