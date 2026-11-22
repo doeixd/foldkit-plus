@@ -19,21 +19,21 @@ export default [
     race,
   ),
   edit(
-    'the D1 journal is said to be serializable',
-    "  name: 'D1 journal',\n  isolation: 'read-committed',",
+    'the D1 journal is said to be read-committed',
     "  name: 'D1 journal',\n  isolation: 'serializable',",
+    "  name: 'D1 journal',\n  isolation: 'read-committed',",
     d1,
   ),
   edit(
     'the D1 journal is said to isolate a read and a later write',
-    "  isolation: 'read-committed',\n  isolates: 'statement',",
-    "  isolation: 'read-committed',\n  isolates: 'transaction',",
+    "  name: 'D1 journal',\n  isolation: 'serializable',\n  isolates: 'statement',",
+    "  name: 'D1 journal',\n  isolation: 'serializable',\n  isolates: 'transaction',",
     d1,
   ),
   edit(
     'the SQLite journal is said to isolate one statement',
-    "  isolation: 'serializable',\n  isolates: 'transaction',",
-    "  isolation: 'serializable',\n  isolates: 'statement',",
+    "  name: 'SQLite journal',\n  isolation: 'serializable',\n  isolates: 'transaction',",
+    "  name: 'SQLite journal',\n  isolation: 'serializable',\n  isolates: 'statement',",
     race,
   ),
   edit(

@@ -173,10 +173,10 @@ describe('durable over D1', () => {
     expect(meta.results).toEqual([{ value: '7' }])
   }, 30_000)
 
-  it('declares read-committed: it holds no lock a policy could count on', async () => {
+  it('declares serializable per statement: nothing spans its read and its append', async () => {
     expect((await openJournal()).store).toEqual({
       name: 'D1 journal',
-      isolation: 'read-committed',
+      isolation: 'serializable',
       isolates: 'statement',
       parentRowLock: false,
     })

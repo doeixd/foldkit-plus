@@ -426,7 +426,7 @@ How D1 mode behaves:
 - Snapshot reads replay only up to their target cursor and reject inconsistent mid-compaction reads.
 - `vacuum` succeeds as a no-op since D1 manages compaction and storage automatically.
 - Route appends through a single Durable Object writer for exact read-your-commit consistency.
-- `journal.store` says `read-committed` here: each statement reads what has committed, and nothing holds the snapshot still while `validate` or `authorize` decides. Over SQLite it says `serializable` (appends commit as if one at a time). Its fields are those of `StoreCapabilities` in `metakit/store` (`name`, `isolation`, `parentRowLock`).
+- `journal.store` says `serializable` per statement here (`isolates: 'statement'`): D1 runs one statement or batch at a time, but `validate` and `authorize` read in one round trip and the append lands in another, and nothing holds the snapshot still between them, so a rule judged from that read is not held. Over SQLite it says `serializable` per transaction (appends commit as if one at a time). Its fields are those of `StoreCapabilities` in `metakit/store` (`name`, `isolation`, `parentRowLock`).
 
 `Journal.make` (the Node file entrypoint) refuses `d1: true`; use `foldkit-durable/core` with `D1Client` instead.
 

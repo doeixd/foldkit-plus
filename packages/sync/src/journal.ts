@@ -26,7 +26,7 @@ import {
 } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Diagnostic, ReportDiagnostic } from 'foldkit-surface'
-import type { StoreCapabilities } from 'metakit/store'
+import { mount, type Requirement, type StoreCapabilities } from 'metakit/store'
 import {
   Cursor,
   DocumentId as JournalDocumentId,
@@ -70,6 +70,34 @@ export {
   type ServerJournalOptions,
   type Trigger,
 } from './serverJournal.js'
+
+/**
+ * Throws `StoreRefused` (`metakit/store`) where `journal`'s store cannot hold
+ * the document's laws. A law judges the document an operation leaves
+ * (`journalContract().judge`), so it holds only where that judgement and the
+ * append are one step. A durable journal appends only at the sequence after
+ * the snapshot it judged, and its store's uniqueness constraint on that
+ * sequence refuses a second writer, who decides again over the new snapshot:
+ * a constraint holds the laws, on any store but one whose replicas accept
+ * appends apart and merge them later.
+ */
+const holdsLaws = <Message, Shared>(
+  sync: Sync<Message, Shared>,
+  journal: { readonly store: StoreCapabilities },
+): void => {
+  const laws: ReadonlyArray<Requirement> =
+    sync.journalContract().judge === undefined
+      ? []
+      : [
+          {
+            rule: `the laws of document "${sync.documentId}"`,
+            needs: 'row-atomic',
+            because: 'each judges the document an operation leaves, before it is appended',
+            judged: 'constraint',
+          },
+        ]
+  mount(journal.store, laws)
+}
 
 export interface JournalExchangeOptions<Message, Shared, Principal> {
   /** The document's contract: its codecs, and the snapshot a checkpoint encodes. */
@@ -203,6 +231,7 @@ export const journalExchange = <Message, Shared, Principal>(
   options: JournalExchangeOptions<Message, Shared, Principal>,
 ): TransportClient => {
   const { sync, journal, principal } = options
+  holdsLaws(sync, journal)
   const limit = options.limit ?? 500
   const key = JournalDocumentId.make(sync.documentId)
   const contract = sync.journalContract()
@@ -687,8 +716,9 @@ export interface Accepted {
   /**
    * What the store under this host's journal guarantees of concurrent writes:
    * the host is the authoritative replica, and takes its declaration from the
-   * journal it runs on (`Journal.store`), serializable over SQLite and
-   * read-committed over D1.
+   * journal it runs on (`Journal.store`), serializable over SQLite per
+   * transaction and over D1 per statement. The host refuses a store that
+   * cannot hold the document's laws before it accepts (a 500).
    */
   readonly store: StoreCapabilities
   readonly serve: (socket: HostSocket) => void
@@ -869,6 +899,8 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
     // An application's `opens` or `settle` may throw: a 500, before any socket opens.
     let exchange: JournalExchangeOptions<Message, Shared, Principal>
     try {
+      // A store that cannot hold the document's laws is refused before any socket opens.
+      holdsLaws(options.sync, journal.success)
       const { admit, settle, opens } = options
       exchange = {
         sync: options.sync,

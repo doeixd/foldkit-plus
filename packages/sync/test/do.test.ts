@@ -18,7 +18,7 @@ import type { Diagnostic } from 'foldkit-surface'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Sync, documentId, replicaId, type Operation } from '../src/index.js'
 import { armAlarm, defineDocumentHost, type AcceptingWebSocket } from '../src/do.js'
-import { documentHost, reaction } from '../src/journal.js'
+import { documentHost, journalExchange, reaction } from '../src/journal.js'
 import { memoryStorage } from './memoryStorage.js'
 import { workerSocket } from '../src/transport.js'
 import { Message, Todos, closeScopes, openJournal, openScope, pendingOf } from './fixtures/todos.js'
@@ -610,6 +610,66 @@ describe('documentHost, for a runtime of its own', () => {
       parentRowLock: false,
     })
     accepted.abandon()
+  })
+
+  describe("holds the document's laws to its journal's store", () => {
+    /** The todo list with a law: one that always holds, since only its being declared is read. */
+    const Lawful: typeof Todos = {
+      ...Todos,
+      journalContract: () => ({ ...Todos.journalContract(), judge: () => true }),
+    }
+    const over = (store: TestJournal['store']) => async () => ({ ...(await openJournal()), store })
+    const hosting = (sync: typeof Todos, store: TestJournal['store']) => {
+      const reported: Array<Diagnostic> = []
+      const host = documentHost({
+        sync,
+        journal: over(store),
+        resolvePrincipal: () => Effect.succeed('ada'),
+        diagnostics: diagnostic => Effect.sync(() => void reported.push(diagnostic)),
+      })
+      return { answer: host(asking('ada')), reported }
+    }
+    const replica = {
+      name: 'replica journal',
+      isolation: 'eventual',
+      parentRowLock: false,
+    } as const
+
+    it('refuses a store whose replicas merge later, before any socket opens, with a 500', async () => {
+      const { answer, reported } = hosting(Lawful, replica)
+      const response = Result.match(await answer, { onFailure: r => r, onSuccess: () => undefined })
+      expect(response?.status).toBe(500)
+      expect(reported).toEqual([expect.objectContaining({ _tag: 'HostDefect', stage: 'Exchange' })])
+      expect(reported[0]!.message).toContain(
+        'store "replica journal" (eventual per statement, does not lock the parent row) cannot hold',
+      )
+      expect(reported[0]!.message).toContain(
+        `"the laws of document "${Todos.documentId}"" needs row-atomic`,
+      )
+    })
+
+    it.each([
+      ['over SQLite', { ...replica, isolation: 'serializable', isolates: 'transaction' }],
+      ['over D1, by the uniqueness of its sequence', { ...replica, isolation: 'serializable' }],
+    ] as const)('accepts it %s', async (_, store) => {
+      const accepted = Result.getOrUndefined(await hosting(Lawful, store).answer)
+      expect(accepted?.store).toEqual(store)
+      accepted?.abandon()
+    })
+
+    it('refuses it where any host joins the document to its journal', async () => {
+      const journal = await over(replica)()
+      expect(() => journalExchange({ sync: Lawful, journal, principal: 'ada' })).toThrow(
+        'cannot hold',
+      )
+      expect(() => journalExchange({ sync: Todos, journal, principal: 'ada' })).not.toThrow()
+    })
+
+    it('asks nothing of the store for a document with no laws', async () => {
+      const accepted = Result.getOrUndefined(await hosting(Todos, replica).answer)
+      expect(accepted?.store).toEqual(replica)
+      accepted?.abandon()
+    })
   })
 
   it('releases what an accepted upgrade built once it is abandoned, a socket never opened', async () => {

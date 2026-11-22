@@ -369,9 +369,10 @@ export interface JournalStore {
 export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unknown> {
   /**
    * What this journal's store guarantees of concurrent appends: serializable
-   * over SQLite (one transaction per append), read-committed over D1 (no
-   * transactions; the uniqueness constraints keep the order). A journal over
-   * another store says its own.
+   * over SQLite, isolating a transaction (one per append); serializable over
+   * D1 isolating one statement, since a read and the append that follows are
+   * two round trips (the uniqueness constraints keep the order). A journal
+   * over another store says its own.
    */
   readonly store: JournalStore
   readonly load: (
@@ -827,19 +828,22 @@ const SQLITE_STORE: JournalStore = {
 }
 
 /**
- * Read-committed, no more: D1 has no transactions (`atomically` runs the unit
- * directly), so `validate`, `authorize` and `judge` read the latest committed
- * snapshot and nothing holds it still. The `sequence`, replica and operation
- * uniqueness constraints make a commit that lost a race fail and decide again
- * (`commitDurably`'s retry), which keeps the order but is not a lock. A Durable
- * Object routing the appends runs one request at a time only until it awaits
- * I/O other than its own storage, which a D1 call is, so it is not claimed to
- * serialize them either. Its reads and its write are separate round trips,
- * so what it isolates is one statement.
+ * Serializable, per statement. D1 is SQLite behind one writer, so each
+ * statement, and each batch, which is one transaction, runs as if alone; the
+ * Drizzle writer declares D1 the same way. But D1 has no transaction a read
+ * and a later write share (`atomically` runs the unit directly), so
+ * `validate`, `authorize` and `judge` read the latest committed snapshot in
+ * one round trip and the append lands in another: nothing spans the two, and
+ * a rule judged from that read is refused (`isolates: 'statement'`). The
+ * `sequence`, replica and operation uniqueness constraints make a commit that
+ * lost a race fail and decide again (`commitDurably`'s retry), which keeps
+ * the order but is not a lock. A Durable Object routing the appends runs one
+ * request at a time only until it awaits I/O other than its own storage,
+ * which a D1 call is, so it is not claimed to serialize them either.
  */
 const D1_STORE: JournalStore = {
   name: 'D1 journal',
-  isolation: 'read-committed',
+  isolation: 'serializable',
   isolates: 'statement',
   parentRowLock: false,
 }
