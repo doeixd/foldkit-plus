@@ -12,6 +12,7 @@ import { TodoSync } from '../src/sync.js'
 const memoryStorage = (): Storage => {
   let state: unknown
   return {
+    store: { name: 'memory replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next =>
       Effect.sync(() => {

@@ -68,6 +68,7 @@ const socketLike = (socket: WebSocket): SocketLike => ({
 const memory = (): Storage => {
   let state: unknown
   return {
+    store: { name: 'memory replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next =>
       Effect.sync(() => {

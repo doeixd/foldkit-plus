@@ -48,6 +48,7 @@ afterEach(() => {
 const memoryStorage = (): Storage => {
   let stored: unknown
   return {
+    store: { name: 'memory replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => stored),
     save: next => Effect.sync(() => (stored = structuredClone(next))),
     close: Effect.void,
