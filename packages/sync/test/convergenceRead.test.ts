@@ -144,6 +144,29 @@ describe('settleConvergence', () => {
     expect(report.ok).toBe(false)
   })
 
+  it('leaves a pair open when the replicas diverged, even where the order matters', async () => {
+    const diverged = Temporal.WalkResult.Broken({
+      seed: 4,
+      interleaving: ['Titled', 'Titled'],
+      minimal: ['Titled', 'Titled'],
+      reason: 'the replicas ended on different documents',
+    })
+    const registry = Temporal.makeRegistry()
+    await settleConvergence(machine, durable, {
+      owner: 'fixture',
+      where: 'convergenceRead.test.ts',
+      registry,
+      walkPair: async over => ({
+        result: over[0] === 'Titled' ? diverged : held,
+        orderMatters: true,
+      }),
+      walkRedelivery: async () => held,
+    })
+    const report = registry.report()
+    expect(report.open.map(({ obligation }) => obligation.name)).toEqual(['rebase Titled/Titled'])
+    expect(report.ok).toBe(false)
+  })
+
   it('leaves a copy open while its walk breaks', async () => {
     const report = await settle({
       orderMatters: () => false,

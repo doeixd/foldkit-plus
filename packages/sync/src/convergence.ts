@@ -110,7 +110,8 @@ export interface SettleOptions<Tag extends string> extends Temporal.Scope {
  * pair that `never` rebases is a decision checked by its walk, refuted if the
  * order changed the document. A pair that `possible` rebases is an obligation
  * a walk that converged discharges, answering `order-matters` where the two
- * orders left different documents. Each Message's copy is an obligation of
+ * orders left different documents on replicas that still agreed. A walk that
+ * broke (the replicas diverged) leaves it open. Each Message's copy is an obligation of
  * its own.
  */
 export const settleConvergence = async <
@@ -149,7 +150,10 @@ export const settleConvergence = async <
       registry.record(options, {
         obligation: rebasing(pair),
         result,
-        ...(orderMatters ? { answer: 'order-matters' as const } : {}),
+        // Only a walk whose replicas converged answers; `Broken` is a divergence and stays open.
+        ...(orderMatters && Temporal.WalkResult.$is('Held')(result)
+          ? { answer: 'order-matters' as const }
+          : {}),
       })
     } else {
       registry.decide(options, {

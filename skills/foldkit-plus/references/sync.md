@@ -375,7 +375,7 @@ Messages that write one path, `rebase: 'never'` (`Transition.commutes` true) or
 idempotent, by `Transition.idempotent`) or `'removed by id'`.
 `settleConvergence(machine, tags, { owner, walkPair, walkRedelivery })` files
 each `possible` pair and each copy as a `metakit/temporal` obligation and
-discharges it with the two-replica walks you pass. Development and test only.
+discharges it with the two-replica walks you pass. A `possible` pair closes when its walk is `Held`, answering "the order matters" if `orderMatters` is true; a `Broken` walk (the replicas ended on different documents) leaves it open even where `orderMatters`, and a `never` pair whose orders differ is refuted. Development and test only.
 
 The journal judges every operation after `reduce` (`journalContract()` carries
 `judge`), `appendAsServer` and reactions included; a broken law is

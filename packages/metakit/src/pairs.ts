@@ -308,11 +308,14 @@ export const walkPair = <State, Transitions extends Readonly<Record<string, unkn
       seed: firstSeed,
       interleaving: [first, second],
       minimal: [first, second],
-      reason: 'no state was sampled for this pair',
+      reason: unsampled,
     })
   }
   return Temporal.WalkResult.Held({ seed: firstSeed, runs })
 }
+
+/** Why a walk that drew no state is `Broken`: it ran no case, so it answers nothing about the order. */
+const unsampled = 'no state was sampled for this pair'
 
 /** What a machine's pairs ask of the registry that holds them. */
 export interface SettleOptions extends Temporal.Scope {
@@ -344,8 +347,9 @@ export const declare = <State, Transitions extends Readonly<Record<string, unkno
 
 /**
  * `declare`, then walk every pair. An `Unknown` pair is discharged by its walk
- * whatever it finds: held, the pair commutes over the cases tried; broken, the
- * order matters and the discharge carries a seed and the case. A `True` pair
+ * when it sampled a state: held, the pair commutes over the cases tried;
+ * broken, the order matters and the discharge carries a seed and the case. A
+ * walk that sampled no state discharges nothing and the pair stays open. A `True` pair
  * is walked too, and a walk that breaks is a decision the report refutes.
  */
 export const settle = <State, Transitions extends Readonly<Record<string, unknown>>>(
@@ -364,10 +368,12 @@ export const settle = <State, Transitions extends Readonly<Record<string, unknow
       })
     } else {
       const result = walkPair(machine, pair.over, { ...walking, runs: options.runs ?? 100 })
+      // A walk that sampled nothing answers nothing: it stays open.
+      const answers = Temporal.WalkResult.$is('Broken')(result) && result.reason !== unsampled
       target.record(options, {
         obligation: pair.name,
         result,
-        ...(Temporal.WalkResult.$is('Broken')(result) ? { answer: 'order-matters' as const } : {}),
+        ...(answers ? { answer: 'order-matters' as const } : {}),
       })
     }
   }

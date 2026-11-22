@@ -44,15 +44,15 @@ export default [
     readTests,
     'a walk that found the order mattering discharges its pair without saying so',
     '../src/convergence.ts',
-    "...(orderMatters ? { answer: 'order-matters' as const } : {}),",
-    '...{},',
+    "? { answer: 'order-matters' as const }",
+    '? {}',
   ),
   mutation(
     readTests,
     'a pair declared never to rebase is not refuted by a walk whose orders differ',
     '../src/convergence.ts',
-    "orderMatters && Temporal.WalkResult.$is('Held')(result)",
-    "false && Temporal.WalkResult.$is('Held')(result)",
+    "checked:\n          orderMatters && Temporal.WalkResult.$is('Held')(result)",
+    "checked:\n          false && Temporal.WalkResult.$is('Held')(result)",
   ),
   mutation(
     readTests,
@@ -74,5 +74,12 @@ export default [
     '../src/sync.ts',
     '              if (operation.serverSequence <= cursor) continue\n',
     '',
+  ),
+  mutation(
+    readTests,
+    'a pair whose replicas diverged is closed as "the order matters"',
+    '../src/convergence.ts',
+    "...(orderMatters && Temporal.WalkResult.$is('Held')(result)",
+    '...(orderMatters',
   ),
 ]

@@ -126,4 +126,15 @@ export default [
     "Option.isSome(checked) && WalkResult.$is('Broken')(checked.value),",
     "Option.isSome(checked) && WalkResult.$is('Held')(checked.value),",
   ),
+  {
+    name: 'a pair whose walk sampled no state is closed as "the order matters"',
+    edits: [
+      {
+        file: pairs,
+        find: "Temporal.WalkResult.$is('Broken')(result) && result.reason !== unsampled",
+        replace: "Temporal.WalkResult.$is('Broken')(result)",
+      },
+    ],
+    tests: ['packages/metakit/test/pairs.unsampled.test.ts'],
+  },
 ]
