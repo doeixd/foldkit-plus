@@ -58,8 +58,8 @@ export default [
     edits: [
       {
         file: drizzle,
-        find: '          at.where,\n          ...required,\n          ...(yield* holdingInvariants(',
-        replace: '          at.where,\n          ...(yield* holdingInvariants(',
+        find: '          at.where,\n          ...required,\n          ...targets.map(({ exists }) => exists),\n          ...(yield* holdingInvariants(',
+        replace: '          at.where,\n          ...targets.map(({ exists }) => exists),\n          ...(yield* holdingInvariants(',
       },
     ],
     tests: ['packages/remote-drizzle/test/parentRace.test.ts'],
