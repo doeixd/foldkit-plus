@@ -827,9 +827,10 @@ const SQLITE_STORE: JournalStore = {
  * directly), so `validate`, `authorize` and `judge` read the latest committed
  * snapshot and nothing holds it still. The `sequence`, replica and operation
  * uniqueness constraints make a commit that lost a race fail and decide again
- * (`commitDurably`'s retry), which keeps the order but is not a lock; a Durable
- * Object routing the appends opens its input gate while a D1 call is awaited,
- * so it does not serialize them either.
+ * (`commitDurably`'s retry), which keeps the order but is not a lock. A Durable
+ * Object routing the appends runs one request at a time only until it awaits
+ * I/O other than its own storage, which a D1 call is, so it is not claimed to
+ * serialize them either.
  */
 const D1_STORE: JournalStore = {
   name: 'D1 journal',
