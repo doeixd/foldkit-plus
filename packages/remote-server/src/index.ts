@@ -541,7 +541,8 @@ export interface EntityWriter<P, R = never> {
    * Whether every rule `update`, `insert` and `delete` are handed (`when`,
    * `requires`, invariants, a postcondition, cascading and clearing
    * requirements) is judged inside the statement, or the one batch, that
-   * writes, never from a read made before it. A rule over other rows then
+   * writes, never from a row read before it (an insert's invariants may be
+   * judged over its own values, which reads no row). A rule over other rows then
    * holds on a store whose isolation reaches one statement (D1, `isolates:
    * 'statement'`); `RemoteServer.write` refuses one there through a writer
    * without it.
