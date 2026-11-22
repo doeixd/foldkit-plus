@@ -493,10 +493,15 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       }) as RelationBinding
     }
 
+    const guards: Array<string> = []
+    const keyed: Array<string> = []
     for (const [field, relation] of Object.entries(members))
       if (relation._tag === 'Relation') {
         const link = relations[field]
-        if (link?.kind === 'one') agreesOnDelete(config.table, relation, link.field, name, field)
+        if (link?.kind !== 'one') continue
+        agreesOnDelete(config.table, relation, link.field, name, field)
+        if (Option.isSome(relation.onDelete)) guards.push(field)
+        if (Option.isSome(onDeleteOf(config.table, link.field))) keyed.push(field)
       }
 
     // Each relation of an Entity bound beside this one that a delete of its row cascades
@@ -619,6 +624,8 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       cascades,
       restricts,
       clears,
+      guards,
+      keyed,
       ...(config.visible === undefined ? {} : { visible: config.visible }),
     } as unknown as EntityBinding<string, DrizzleTable>
   }

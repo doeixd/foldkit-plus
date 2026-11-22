@@ -124,6 +124,8 @@ interface Backend {
   readonly layer: Layer.Layer<DrizzleDatabase>
   readonly tables: Tables
   readonly rows: (statement: string) => Promise<ReadonlyArray<string>>
+  /** What the writer is told of the database: Postgres here runs serializable. */
+  readonly writing: { readonly isolation?: 'serializable' }
 }
 
 let pglite: PGlite
@@ -147,12 +149,15 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
         layer: databaseLayer(drizzle({ client: sqlite })),
         tables: sqliteTables,
         rows: async statement => joined(sqlite.prepare(statement).all()),
+        writing: {},
       }
     },
   ],
   [
     'Postgres',
     async () => {
+      // Without a foreign key, only serializable Postgres holds a clear against a new link.
+      await pglite.exec("set default_transaction_isolation to 'serializable'")
       await pglite.exec('drop table if exists folders, docs')
       for (const statement of SCHEMA) await pglite.exec(statement)
       return {
@@ -160,6 +165,7 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
         tables: pgTables,
         rows: async statement =>
           joined((await pglite.query<Record<string, unknown>>(statement)).rows),
+        writing: { isolation: 'serializable' },
       }
     },
   ],
@@ -172,7 +178,7 @@ const sent = (backend: Backend, domain: typeof ByRow, id: string) => {
     mutations: [
       RemoteServer.write(
         domain.DeleteFolder,
-        GuardServer.writer(domain.Folder, domain.Policy, writer(Db.Folder), {
+        GuardServer.writer(domain.Folder, domain.Policy, writer(Db.Folder, backend.writing), {
           children: [domain.Doc],
         }),
       ),

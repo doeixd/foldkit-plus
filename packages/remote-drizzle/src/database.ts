@@ -56,6 +56,11 @@ export interface DrizzleWrites {
       /** Inserts nothing where the row's key is already taken. */
       onConflictDoNothing(): DrizzleWrite
     }
+    /** Inserts what `query` selects, a value for every column the table inserts, in its order. */
+    select(query: SQL): DrizzleWrite & {
+      /** Inserts nothing where the row's key is already taken. */
+      onConflictDoNothing(): DrizzleWrite
+    }
   }
   update<T extends Table>(
     table: T,

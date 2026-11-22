@@ -189,6 +189,15 @@ export interface EntityBinding<
    * 'setNull' })`). `bind` sets it; a binding made with `entity` clears nothing.
    */
   readonly clears?: ReadonlyArray<PointerEdge> | undefined
+  /**
+   * The keys of this Entity's own `one` relations declared `onDelete`, whose
+   * links the writer refuses to point at a row that is not there. `bind` sets
+   * it; a binding made with `entity` knows no `onDelete`, so its writer does
+   * not say it checks a link (`EntityWriter.checksTargets`).
+   */
+  readonly guards?: ReadonlyArray<string> | undefined
+  /** The keys of this Entity's own `one` relations whose table declares a foreign key on their column. `bind` sets it. */
+  readonly keyed?: ReadonlyArray<string> | undefined
 }
 
 /**

@@ -1301,15 +1301,23 @@ foresaw. One that refuses the delete (`restrict`, `no action`, or no
 the delete then fails as a database error, not `Referenced`, so declare
 `onDelete: 'restrict'` to have it answered.
 
-**On Postgres, keep the foreign key.** A cascade, a restriction or a clear
-the writer holds alone sees what had committed when its statements ran. On
-SQLite and D1, which write one transaction at a time, that is everything. On
-Postgres a transaction that links a row to the one being deleted, committed
-while the delete runs, is not seen, and the link outlives its target; under
-`serializable` too, since the link's write reads nothing the delete writes.
-Only a foreign key holds there: `on delete cascade`, `restrict` (or `no
-action`) or `set null`, as the relation declares, which `bind` checks
-against it.
+**A link through such a relation points at a row.** An insert or update
+that sets a link through a relation declared `onDelete` writes it only while
+the row it points at is there, in the statement that writes
+(`checksTargets`), and otherwise answers `Invalid` with the relation's key
+as the path. A taken id is still answered as taken.
+
+**On Postgres, keep the foreign key.** A cascade, a restriction, a clear or
+a link the writer holds alone sees what had committed when its statement
+ran. On SQLite and D1, which write one transaction at a time, that is
+everything. On Postgres at read committed a link committed while the delete
+runs is not seen, and would outlive its target, so `RemoteServer.write`
+refuses such a delete, and such a link, through `writer(binding)` there,
+naming the relation, what it needs and the store. It registers where the
+table's foreign key holds the relation (`on delete cascade`, `restrict` or
+`no action`, or `set null`, as the relation declares, which `bind` checks
+against it), or with `isolation: 'serializable'`, where the link's write
+reads the row the delete removes, so one of the two is refused.
 
 **A cascade takes no row its deleter may not delete.** `delete` takes
 `cascading`, each Entity's `Delete` rule as a `CascadeRequirement` (Guard's

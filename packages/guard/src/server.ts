@@ -945,6 +945,9 @@ export const GuardServer = {
       ...(writer.restricts === true ? { restricts: true } : {}),
       // So is clearing a link to it; the guard hands over each such row's Update rules.
       ...(writer.clears === true ? { clears: true } : {}),
+      // So is refusing a link to a row that is gone, and saying where a foreign key holds one.
+      ...(writer.checksTargets === true ? { checksTargets: true } : {}),
+      ...(writer.foreignKey === undefined ? {} : { foreignKey: writer.foreignKey }),
       // What its store guarantees of concurrent writes is the writer's to say.
       store: writer.store,
       // So is where it judges the rules a write declares, which the guard hands on.

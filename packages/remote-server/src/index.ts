@@ -39,6 +39,7 @@ import {
   type Computation,
   type EntityMember,
   type EntityRef,
+  type EntityRelation,
   type Invariant,
   type Row,
   type WriteAssignment,
@@ -99,7 +100,12 @@ import {
   publishFailed,
   type InternalFailure,
 } from './diagnostics.js'
-import { mount, type Requirement as StoreRequirement, type StoreCapabilities } from 'metakit/store'
+import {
+  mount,
+  type Judged,
+  type Requirement as StoreRequirement,
+  type StoreCapabilities,
+} from 'metakit/store'
 import { unauthenticatedAnswer } from './refusal.js'
 import { memoryWriter } from './memoryWriter.js'
 
@@ -425,6 +431,9 @@ export type DeleteOutcome = Data.TaggedEnum<{
 }>
 export const DeleteOutcome = Data.taggedEnum<DeleteOutcome>()
 
+/** A `one` relation: what a row links through, and what a delete may act through. */
+export type LinkRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
+
 export interface EntityWriter<P, R = never> {
   readonly entity: string
   /**
@@ -531,6 +540,23 @@ export interface EntityWriter<P, R = never> {
    * delete of an Entity something clears through a writer without it.
    */
   readonly clears?: true
+  /**
+   * Whether `insert` and `update` refuse, in the statement that writes, a link
+   * through a relation declared `onDelete` (`restrict`, `cascade` or
+   * `setNull`) to a row that is not there, answering `Invalid` with the
+   * relation's key as its path: such a relation
+   * promises that no row points at a row that is gone. `RemoteServer.write`
+   * refuses a write setting one through a writer without it, unless the
+   * database's own foreign key holds that link (`foreignKey`).
+   */
+  readonly checksTargets?: true
+  /**
+   * Whether the database holds the links of `relation` by a foreign key it
+   * enforces, which locks the row pointed at against its deleters at any
+   * isolation. What a delete or a link through `relation` needs of `store` is
+   * then held by that constraint (`metakit/store`'s `constraint`).
+   */
+  readonly foreignKey?: (relation: LinkRelation) => boolean
   /**
    * Why this writer cannot land `write`, each a sentence; none when it can.
    * `RemoteServer.write` asks once, where the write is registered, for what
@@ -2692,8 +2718,59 @@ export const RemoteServer = {
       because: 'it reads other rows',
       judged: judgedWhere,
     }))
+    // A relation declared onDelete promises that no row points at a row that is gone. A
+    // delete reads the rows pointing at its row, and a link reads the row it points at:
+    // a link written while that row is deleted breaks the promise unless writers of the
+    // row run one at a time, or the database's foreign key holds the link.
+    const constrained = (relation: LinkRelation) => writer.foreignKey?.(relation) === true
+    const linking = (relation: LinkRelation, judged: Judged) =>
+      constrained(relation) ? 'constraint' : judged
+    const linkName = ({ owner, key }: LinkRelation) => `${owner.name}.${key}`
+    const links = kind.deletes
+      ? []
+      : [
+          ...write.links.map(({ relation }) => relation),
+          ...write.context.flatMap(({ member }) => (member._tag === 'Relation' ? [member] : [])),
+        ].filter(relation => Option.isSome(relation.onDelete))
+    const unchecked = links.filter(relation => !constrained(relation))
+    if (unchecked.length > 0 && writer.checksTargets !== true) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" links ${unchecked.map(linkName).join(', ')}, declared onDelete, but its writer for ${writer.entity} does not refuse a link to a row that is not there (checksTargets)`,
+      )
+    }
+    /** Each relation a delete of `entity` acts through: rows it takes, refuses over, or clears. */
+    const actsThrough = (
+      entity: AnyEntity,
+      seen: Set<string>,
+    ): ReadonlyArray<{ readonly does: string; readonly relation: LinkRelation }> => [
+      ...Entity.restricting(entity).map(({ relation }) => ({ does: 'restrict', relation })),
+      ...Entity.clearing(entity).map(({ relation }) => ({ does: 'clear', relation })),
+      ...Entity.cascading(entity).flatMap(({ relation, owner }) => {
+        if (seen.has(owner.name)) return [{ does: 'cascade', relation }]
+        seen.add(owner.name)
+        return [{ does: 'cascade', relation }, ...actsThrough(owner, seen)]
+      }),
+    ]
+    const pointing: ReadonlyArray<StoreRequirement<`${Name} ${string}`>> = [
+      ...links.map(relation => ({
+        rule: `${mutation.name} link ${linkName(relation)}` as const,
+        needs: 'parent-serialized' as const,
+        because: `the ${relation.target().name} it points at may be deleted while it is written`,
+        judged: linking(relation, 'in-statement'),
+      })),
+      ...(kind.deletes
+        ? actsThrough(write.input.entity, new Set([write.input.entity.name]))
+        : []
+      ).map(({ does, relation }) => ({
+        rule: `${mutation.name} ${does} ${linkName(relation)}` as const,
+        needs: 'parent-serialized' as const,
+        because: `a ${relation.owner.name} may come to point at the row while it is deleted`,
+        judged: linking(relation, judgedWhere),
+      })),
+    ]
     const needed = [
       ...reaching,
+      ...pointing,
       ...(writer.needs?.(write) ?? []).map(need => ({
         ...need,
         rule: `${mutation.name} ${need.rule}`,

@@ -71,6 +71,61 @@ export default [
     '  restrict: new WeakMap(),\n  setNull: new WeakMap(),\n}',
     '  restrict: new WeakMap(),\n  setNull: new WeakMap(),\n}\npointing.restrict.set = pointing.cascade.set.bind(pointing.cascade) as never',
   ),
+  edit(
+    'a delete needs nothing of the store for what points at its row',
+    server,
+    '      ...pointing,\n',
+    '',
+  ),
+  edit(
+    'a link is not held to the store',
+    server,
+    "        judged: linking(relation, 'in-statement'),\n      })),",
+    "        judged: linking(relation, 'in-statement'),\n      })).filter(() => false),",
+  ),
+  edit(
+    'a foreign key is not read as holding a link',
+    server,
+    "constrained(relation) ? 'constraint' : judged",
+    'judged',
+  ),
+  edit(
+    'a writer that does not check a link is let through',
+    server,
+    'if (unchecked.length > 0 && writer.checksTargets !== true) {',
+    'if (false) {',
+  ),
+  edit(
+    'an insert lands whether its topic is there or not',
+    index,
+    'targets.length === 0\n              ? into.values(set)',
+    'true\n              ? into.values(set)',
+  ),
+  edit(
+    'an update relinks whether its topic is there or not',
+    index,
+    '          ...targets.map(({ exists }) => exists),\n',
+    '',
+  ),
+  edit(
+    'a missed link reads as taken',
+    index,
+    'if (inserted.length === 0) yield* refuseGone(id, targets)',
+    '',
+  ),
+  edit('bind guards no link', bind, '      guards,\n', '      guards: [],\n'),
+  edit(
+    'the writer reads no foreign key',
+    bind,
+    'if (Option.isSome(onDeleteOf(config.table, link.field))) keyed.push(field)',
+    '',
+  ),
+  edit(
+    'a SQLite foreign key is taken to hold',
+    index,
+    '      !is(owner.table, SQLiteTable) &&\n',
+    '',
+  ),
   {
     name: "a delete's refusals leave referenced out",
     edits: [

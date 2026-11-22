@@ -180,6 +180,8 @@ interface Backend {
   readonly Own: ReturnType<typeof bindOn>
   readonly Parented: ReturnType<typeof bindParented>
   readonly exec: (statement: string) => Promise<void>
+  /** What the writer is told of the database: Postgres here runs serializable. */
+  readonly writing: { readonly isolation?: 'serializable' }
 }
 
 const sqliteBackend = (): Backend => {
@@ -199,6 +201,7 @@ const sqliteBackend = (): Backend => {
     Own: bindOn(sqliteTables, true),
     Parented: bindParented(sqliteTables),
     exec: async statement => void sqlite.exec(statement),
+    writing: {},
   }
 }
 
@@ -220,6 +223,8 @@ afterAll(async () => {
 })
 
 const pgBackend = async (): Promise<Backend> => {
+  // Without a foreign key, only serializable Postgres holds a cascade against a new link.
+  await pglite.exec("set default_transaction_isolation to 'serializable'")
   await pglite.exec('drop table if exists users, posts, likes')
   for (const statement of SCHEMA) await pglite.exec(statement)
   return {
@@ -232,6 +237,7 @@ const pgBackend = async (): Promise<Backend> => {
     Own: bindOn(pgTables, true),
     Parented: bindParented(pgTables),
     exec: async statement => void (await pglite.exec(statement)),
+    writing: { isolation: 'serializable' },
   }
 }
 
@@ -252,6 +258,7 @@ const d1Backend = async (): Promise<Backend> => {
     Own: bindOn(sqliteTables, true),
     Parented: bindParented(sqliteTables),
     exec: async statement => void (await db.prepare(statement).run()),
+    writing: {},
   }
 }
 
@@ -261,20 +268,20 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
   ['D1', d1Backend],
 ]
 
-const serverOf = (Db: Backend['Db']) =>
+const serverOf = (Db: Backend['Db'], writing: Backend['writing']) =>
   RemoteServer.make<string, DrizzleDatabase>({
     entities: [source(Db.User), source(Db.Post), source(Db.Like)],
     queries: [query(Everything, { entity: Db.Post })],
     mutations: [
-      RemoteServer.write(DeletePost, writer(Db.Post)),
-      RemoteServer.write(DeleteUnpinned, writer(Db.Post)),
+      RemoteServer.write(DeletePost, writer(Db.Post, writing)),
+      RemoteServer.write(DeleteUnpinned, writer(Db.Post, writing)),
     ],
     viewer: principal => Option.some({ entity: 'User', id: principal }),
   })
 
 const sent = (backend: Backend, mutation: string, input: unknown) =>
   Effect.runPromise(
-    RemoteServer.handlers(serverOf(backend.Db), 'ada')
+    RemoteServer.handlers(serverOf(backend.Db, backend.writing), 'ada')
       .FoldkitRemoteMutate({ requestId: 'r1', mutation, input })
       .pipe(Effect.result, Effect.provide(backend.layer)),
   )
@@ -295,7 +302,7 @@ describe.each(backends)('A declared cascade, on %s', (_, open) => {
   it('names only the rows its asker may see, and removes the rest unnamed', async () => {
     const backend = await open()
     const answer = await Effect.runPromise(
-      RemoteServer.handlers(serverOf(backend.Own), 'ada')
+      RemoteServer.handlers(serverOf(backend.Own, backend.writing), 'ada')
         .FoldkitRemoteMutate({ requestId: 'r1', mutation: 'DeletePost', input: { id: 'p1' } })
         .pipe(Effect.result, Effect.provide(backend.layer)),
     )
@@ -479,9 +486,9 @@ describe('The law over a cascading delete', () => {
         now: 1,
       }).pipe(
         Effect.provide(
-          Remote.clientLayer(RemoteServer.handlers(serverOf(backend.Db), 'ada')).pipe(
-            Layer.provide(backend.layer),
-          ),
+          Remote.clientLayer(
+            RemoteServer.handlers(serverOf(backend.Db, backend.writing), 'ada'),
+          ).pipe(Layer.provide(backend.layer)),
         ),
       ),
     )

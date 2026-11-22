@@ -1490,6 +1490,15 @@ writers one at a time: Postgres at read committed with no parent lock, or a stor
 statement (D1) through a writer that reads first and writes in a second round trip. Both shipped
 writers refuse a precondition or invariant over other rows before that, since neither runs a path
 or an exists in one; a guard's rule over other rows they do run.
+A relation declared `onDelete` (`restrict`, `cascade`, `setNull`) promises that no row points at a
+row that is gone, so a delete of its target, and a write setting a link through it, need the same
+(`"DeleteTopic restrict Note.topic"`, `"AddNote link Note.topic"` in the refusal). Postgres at read
+committed holds them only where the table's own foreign key holds the link
+(`EntityWriter.foreignKey`, judged as `'constraint'`): there `writer(binding)` is refused for them
+unless the table declares the foreign key or you say `isolation: 'serializable'`. The Drizzle writer
+writes such a link only while its row is there, in the statement that writes
+(`checksTargets: true`), and otherwise answers `Invalid` with the relation's key as the path; a
+writer without `checksTargets` is refused for such a link unless a foreign key holds it.
 A row already holding what the write sets answers as written (taken for the retry of one that
 landed), unless it increments or a ledger was consulted for it: a ledger answers a retry itself, so
 under one a new write is judged by its `when` and transition invariants. An insert's values are judged before it is written, by its state invariants

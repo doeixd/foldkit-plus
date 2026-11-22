@@ -23,8 +23,9 @@ import {
   lt,
   lte,
   sql,
+  SQL,
   type AnyColumn,
-  type SQL,
+  type Column,
   type Table,
 } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
@@ -64,6 +65,7 @@ import {
   type EntityRecord,
   type EntityWriter,
   type LiveHub,
+  type LinkRelation,
   type EntitySource,
   type EntitySourceContext,
   type QuerySource,
@@ -1359,12 +1361,14 @@ const writeOperations = supported.filter(operation => operation !== 'viewer' && 
  * What the database behind `table` guarantees of concurrent writes, as the
  * writer uses it. SQLite runs one writing transaction at a time. A SQLite
  * table may be D1's, which the writer learns only per request: D1 is SQLite
- * behind one writer, and a batch is one transaction, but it has no
- * transaction a read and a later write share, so the isolation reaches one
- * statement or batch. That is all the writer uses: it judges every rule in
- * the statement, or the batch, that writes (`judgesInStatement`). Postgres
- * runs transactions at once under READ COMMITTED unless it is set otherwise,
- * each transaction one unit, and the writer locks no row but the one it writes.
+ * behind one writer, so a statement, and a batch, which is one transaction,
+ * runs as if alone: serializable. But D1 has no transaction a read and a
+ * later write share, so that isolation reaches one statement or batch, and
+ * nothing spans two round trips. That is all the writer uses: it judges every
+ * rule in the statement, or the batch, that writes (`judgesInStatement`). The
+ * durable journal declares D1 the same way. Postgres runs transactions at
+ * once under READ COMMITTED unless it is set otherwise, each transaction one
+ * unit, and the writer locks no row but the one it writes.
  */
 const storeOf = (table: Table, serializable: boolean): StoreCapabilities =>
   is(table, SQLiteTable)
@@ -1571,6 +1575,102 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
       edge,
       exists: sql`exists (select 1 from ${edge.owner.table} where ${edge.column} = ${id})`,
     }))
+
+  /**
+   * For each link a write sets through a relation declared `onDelete`, to a
+   * row: whether that row is there. The statement that writes holds each, so
+   * a link never points at a row that is gone (`EntityWriter.checksTargets`).
+   */
+  const targetsOf = (links: Readonly<Record<string, Option.Option<EntityRef>>>) =>
+    (binding.guards ?? []).flatMap(key => {
+      const relation = binding.relations[key]
+      const link = Object.hasOwn(links, key) ? links[key] : undefined
+      if (relation?.kind !== 'one' || link === undefined || Option.isNone(link)) return []
+      const target = relation.entity
+      const at = eq(idColumn(target), link.value.id)
+      return [{ key, target, at, exists: sql`exists (select 1 from ${target.table} where ${at})` }]
+    })
+
+  /**
+   * The row `set` makes as a select that yields it only while `targets` hold:
+   * an insert that lands with its links pointing at rows, or lands nothing, in
+   * one statement. A column `set` leaves out takes what Drizzle's own insert
+   * gives it.
+   */
+  const insertedWhile = (set: Readonly<Record<string, unknown>>, targets: ReadonlyArray<SQL>) => {
+    const columns: Readonly<Record<string, Column>> = getTableColumns(binding.table as Table)
+    const cells = Object.entries(columns)
+      // What Drizzle's `shouldDisableInsert` says, which its types keep internal.
+      .filter(
+        ([, column]) =>
+          !(column.generated !== undefined && column.generated.type !== 'byDefault') &&
+          !(
+            column.generatedIdentity !== undefined && column.generatedIdentity.type !== 'byDefault'
+          ),
+      )
+      .map(([key, column]): SQL => {
+        const value =
+          set[key] !== undefined
+            ? set[key]
+            : column.defaultFn !== undefined
+              ? column.defaultFn()
+              : column.default !== null && column.default !== undefined
+                ? column.default
+                : column.onUpdateFn !== undefined
+                  ? column.onUpdateFn()
+                  : sql`null`
+        return is(value, SQL) ? value : sql`${sql.param(value, column)}`
+      })
+    return sql`select ${sql.join(cells, sql`, `)} where ${and(...targets)}`
+  }
+
+  /**
+   * Read after a write of row `id` missed: refuses the first link of `targets`
+   * whose row is not there, named by the relation alone.
+   */
+  const refuseGone = (id: string, targets: ReturnType<typeof targetsOf>) =>
+    Effect.gen(function* () {
+      const database = yield* DrizzleDatabase
+      for (const { key, target, at } of targets) {
+        const found = yield* selectRows(
+          database,
+          target.table,
+          { id: idColumn(target) },
+          { where: at, limit: 1 },
+        )
+        if (found.length === 0)
+          return yield* RemoteServer.invalid(
+            `${binding.name} ${id} links "${key}" to a row that is not there`,
+            Option.none(),
+            [key],
+          )
+      }
+    })
+
+  /**
+   * Whether a foreign key holds the links of `relation` (`EntityWriter.foreignKey`):
+   * its table declares one on the link's column, and is Postgres's, which always
+   * enforces one. SQLite enforces one only under a pragma the writer cannot see.
+   */
+  const foreignKey = (relation: LinkRelation): boolean => {
+    const reached = new Set<AnyEntityBinding>([binding])
+    const reach = (at: AnyEntityBinding): void => {
+      for (const { owner } of at.cascades ?? [])
+        if (!reached.has(owner)) {
+          reached.add(owner)
+          reach(owner)
+        }
+    }
+    reach(binding)
+    for (const { owner } of [...(binding.restricts ?? []), ...(binding.clears ?? [])])
+      reached.add(owner)
+    const owner = [...reached].find(at => at.name === relation.owner.name)
+    return (
+      owner !== undefined &&
+      !is(owner.table, SQLiteTable) &&
+      (owner.keyed ?? []).includes(relation.key)
+    )
+  }
 
   // What a delete takes with it (`onDelete: 'cascade'`), worked out once: a cycle is refused here.
   const plan =
@@ -2299,6 +2399,9 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
     cascades: true,
     restricts: true,
     clears: true,
+    // A link through a relation declared onDelete is written only while its row is there.
+    ...(binding.guards === undefined ? {} : { checksTargets: true }),
+    foreignKey,
     // A fraction added to an integer column splits the dialects: Postgres refuses the
     // statement, SQLite stores the fraction. A field declared Schema.Number hides the column.
     refuses: write => [
@@ -2389,9 +2492,11 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
         const judged = judging(ensures)
         const at = yield* rowOf(id, expect, when)
         const required = yield* requiredOf(requires)
+        const targets = targetsOf(links)
         const where = and(
           at.where,
           ...required,
+          ...targets.map(({ exists }) => exists),
           ...(yield* holdingInvariants(
             judged,
             { ...values, ...linkIds(links) },
@@ -2468,7 +2573,8 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
           Option.isSome(expect) ||
           Option.isSome(when) ||
           judged.length > 0 ||
-          requires !== undefined
+          requires !== undefined ||
+          targets.length > 0
         if (Option.isSome(written) || !conditioned) return written
         // The write missed. Why is read from the row as it is now: gone, moved
         // past the expected revision, not holding the precondition, or else
@@ -2494,6 +2600,7 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
         if (Option.isNone(whole)) return whole
         // Who may write it is refused first, as a guard refuses before all else.
         yield* refusedBy(id, requires, required)
+        yield* refuseGone(id, targets)
         const row = whole.value
         // The same row with only what this write answers with: a patch keeps every column read.
         const answers = new Set(['id', ...answeredFields])
@@ -2580,12 +2687,22 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
         if (idKey === undefined) return yield* missing('id column to insert')
         const set = { ...(yield* setOf(values, links)), [idKey]: id }
         const answered = returning(binding, [...Object.keys(values), ...Object.keys(links)])
-        const statement = (database: unknown) =>
-          (database as DrizzleWrites)
-            .insert(binding.table)
-            .values(set)
+        const targets = targetsOf(links)
+        const statement = (database: unknown) => {
+          const into = (database as DrizzleWrites).insert(binding.table)
+          return (
+            targets.length === 0
+              ? into.values(set)
+              : into.select(
+                  insertedWhile(
+                    set,
+                    targets.map(({ exists }) => exists),
+                  ),
+                )
+          )
             .onConflictDoNothing()
             .returning(answered.columns)
+        }
         // Only the ledger tells a retry from another create of a taken id. The row
         // there is never compared with this one, since it may hold what the asker
         // may not read, and a different answer per value would tell them.
@@ -2606,7 +2723,9 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
           const writes = yield* drizzleWrites
           inserted = yield* runStatement(() => statement(writes), 'Database write failed')
         }
-        // Nothing inserted: the id is taken, and every such create is answered alike.
+        // Nothing inserted: a row it links to is gone, named by the relation alone, or else
+        // the id is taken, and every such create is answered alike.
+        if (inserted.length === 0) yield* refuseGone(id, targets)
         return yield* Option.match(answeredOf(inserted, answered), {
           onNone: () => Effect.fail(RemoteServer.taken(`${binding.name} ${id} is already taken`)),
           onSome: Effect.succeed,

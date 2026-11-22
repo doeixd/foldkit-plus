@@ -121,6 +121,8 @@ interface Backend {
   readonly layer: Layer.Layer<DrizzleDatabase>
   readonly tables: Tables
   readonly ids: (table: 'posts' | 'likes') => Promise<ReadonlyArray<string>>
+  /** What the writer is told of the database: Postgres here runs serializable. */
+  readonly writing: { readonly isolation?: 'serializable' }
 }
 
 let pglite: PGlite
@@ -145,12 +147,15 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
             .prepare(`select id from ${table} order by id`)
             .all()
             .map(row => String(row['id'])),
+        writing: {},
       }
     },
   ],
   [
     'Postgres',
     async () => {
+      // Without a foreign key, only serializable Postgres holds a cascade against a new link.
+      await pglite.exec("set default_transaction_isolation to 'serializable'")
       await pglite.exec('drop table if exists posts, likes')
       for (const statement of SCHEMA) await pglite.exec(statement)
       return {
@@ -160,6 +165,7 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
           (await pglite.query<{ id: string }>(`select id from ${table} order by id`)).rows.map(
             row => row.id,
           ),
+        writing: { isolation: 'serializable' },
       }
     },
   ],
@@ -178,7 +184,7 @@ const sent = (
     mutations: [
       RemoteServer.write(
         DeletePost(domain.Post),
-        GuardServer.writer(domain.Post, domain.Policy, writer(Db.Post), options),
+        GuardServer.writer(domain.Post, domain.Policy, writer(Db.Post, backend.writing), options),
       ),
     ],
   })
