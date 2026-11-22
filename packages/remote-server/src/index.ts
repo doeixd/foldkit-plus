@@ -2730,7 +2730,14 @@ export const RemoteServer = {
       ? []
       : [
           ...write.links.map(({ relation }) => relation),
-          ...write.context.flatMap(({ member }) => (member._tag === 'Relation' ? [member] : [])),
+          ...write.context.flatMap(({ member }) =>
+            Match.value(member).pipe(
+              Match.tagsExhaustive({
+                Field: (): ReadonlyArray<LinkRelation> => [],
+                Relation: relation => [relation],
+              }),
+            ),
+          ),
         ].filter(relation => Option.isSome(relation.onDelete))
     const unchecked = links.filter(relation => !constrained(relation))
     if (unchecked.length > 0 && writer.checksTargets !== true) {

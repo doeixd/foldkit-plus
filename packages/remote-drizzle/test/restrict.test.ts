@@ -340,6 +340,35 @@ describe('What a restriction needs of its store', () => {
     refusedOn(() => RemoteServer.write(MoveNote, writer(Pg.Note)), 'MoveNote link Note.topic')
   })
 
+  it("holds a link the write's context sets as it holds one the input gives", () => {
+    const MemberFields = Entity.define('Member', Schema.Struct({ id: Schema.String }))
+    const MarkFields = Entity.define('Mark', Schema.Struct({ id: Schema.String }))
+    const Marks = Entity.relate(
+      { Member: MemberFields, Mark: MarkFields },
+      { Mark: { member: Relation.one(MemberFields, { onDelete: 'cascade' }) } },
+    )
+    const Mark = Marks.Mark.pipe(
+      Entity.sets({ member: Expr.viewer(MemberFields) }, { on: 'create' }),
+    )
+    const members = pgTable('members', { id: pgText('id').primaryKey() })
+    const marks = pgTable('marks', {
+      id: pgText('id').primaryKey(),
+      memberId: pgText('member_id').notNull(),
+    })
+    const Db = bind(
+      { Member: Marks.Member, Mark },
+      {
+        Member: { table: members },
+        Mark: { table: marks, relations: { member: { field: marks.memberId } } },
+      },
+    )
+    const AddMark = Mutation.write(
+      'AddMark',
+      Write.insert(Entity.input(Mark, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+    )
+    refusedOn(() => RemoteServer.write(AddMark, writer(Db.Mark)), 'AddMark link Mark.member')
+  })
+
   it('a delete of a note restricts nothing, and needs nothing of the store', () => {
     expect(() => RemoteServer.write(DeleteNote, writer(Pg.Note))).not.toThrow()
   })

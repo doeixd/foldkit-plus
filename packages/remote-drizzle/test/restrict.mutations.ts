@@ -90,6 +90,12 @@ export default [
     'judged',
   ),
   edit(
+    "a link the write's context sets is not held to the store",
+    server,
+    'Relation: relation => [relation],',
+    'Relation: (): ReadonlyArray<LinkRelation> => [],',
+  ),
+  edit(
     'a writer that does not check a link is let through',
     server,
     'if (unchecked.length > 0 && writer.checksTargets !== true) {',
