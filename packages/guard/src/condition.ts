@@ -1,16 +1,22 @@
 /**
  * What an attachment's read rules come to for one principal, once its
  * principal guards are decided: a condition over the row, which an
- * interpreter runs (`evaluate` in memory, SQL in a binding). Principal guards
- * never reach it, so their bodies stay on the server that decided them.
+ * interpreter runs (metakit's evaluator in memory, SQL in a binding).
+ * Principal guards never reach it, so their bodies stay on the server that
+ * decided them.
+ *
+ * In memory a condition is one metakit expression: each row guard's body
+ * translated by `foldkit-entity/lowering` and judged over the row, joined by
+ * metakit's `and` and `or`. So null and a refusal mean here what they mean in
+ * every reader: a refused guard (text holding a NUL, NaN, a sum past the safe
+ * integer range, an operator that throws) refuses the whole condition, which
+ * then does not hold, whatever the other guards say.
  */
 import { Effect, Match, Option } from 'effect'
-import { Verdict } from 'metakit'
 import {
   Held,
-  Judge,
+  Operators,
   Query,
-  evaluateEach,
   viewerIdOf,
   type AnyEntity,
   type EntityRef,
@@ -19,6 +25,9 @@ import {
   type HeldRows,
   type MemoryOperators,
 } from 'foldkit-entity'
+import { envOf, foreignOf, lower, type Lowered } from 'foldkit-entity/lowering'
+import { Bool, Node, Verdict } from 'metakit'
+import { Settled, judgeNode, settleNode } from 'metakit/build'
 import {
   attached,
   defaultDeny,
@@ -70,6 +79,113 @@ const or = (conditions: ReadonlyArray<Condition>): Condition => {
   return Object.freeze({ _tag: 'Or', conditions: Object.freeze(kept) })
 }
 
+type RowCondition = Extract<Condition, { readonly _tag: 'Row' }>
+type Row = Readonly<Record<string, unknown>>
+
+const lowerings = new WeakMap<RowGuard<any, AnyEntity>, Lowered>()
+
+/**
+ * A row guard's body as metakit nodes, translated once. `Guards.declare`
+ * asks it of each row guard, so a body no reader can hold (two relations of
+ * one name) refuses where it is declared, not when a request reads it.
+ */
+export const loweredOf = (guard: RowGuard<any, AnyEntity>): Lowered => {
+  const known = lowerings.get(guard)
+  if (known !== undefined) return known
+  const made = lower([guard.body])
+  lowerings.set(guard, made)
+  return made
+}
+
+/** One stored row as a holder of it alone: a key it lacks is null, as SQL binds it. */
+const flatRow = (values: Row): HeldRow => ({
+  field: key => Held.of(Object.hasOwn(values, key) ? (values[key] ?? null) : null),
+  follow: relation => Held.unheld(`${relation.owner.name}.${relation.key} leads to another row`),
+  pointing: relation => ({
+    rows: [],
+    missing: Option.some(`${relation.owner.name}.${relation.key} is read from other rows`),
+  }),
+})
+
+/** What a row guard comes to over `row`: its value (null or a `Refusal` among them), or open. */
+const settleGuard = (
+  { guard, context }: RowCondition,
+  row: HeldRow,
+  over: {
+    readonly input?: Row | undefined
+    readonly rows?: HeldRows | undefined
+    readonly operators: MemoryOperators
+  },
+): Settled => {
+  const lowered = loweredOf(guard)
+  return settleNode(
+    lowered.nodes[0]!,
+    envOf(lowered, {
+      row,
+      owner: guard.entity.identity,
+      input: over.input,
+      context,
+      rows: over.rows,
+    }),
+    foreignOf(lowered, over.operators),
+  )
+}
+
+/** A row guard over one stored row, its links held as ref keys, which the rule reads as ids. */
+const settleStored = (
+  each: RowCondition,
+  values: Row,
+  input: Row,
+  operators: MemoryOperators,
+): Settled => {
+  let read: Row
+  try {
+    read = Held.fromRefs(each.guard.query, values)
+  } catch {
+    // A link that is no ref key: no reader can say what the rule makes of it.
+    return Settled.Known({ value: Node.illTyped(each.guard.name, 'a ref key', values) })
+  }
+  return settleGuard(each, flatRow(read), { input, operators })
+}
+
+/**
+ * `condition` as one metakit expression: each row guard as `leaf` gives it,
+ * each inherited Read as `inherit` does, and an open part as a read of
+ * nothing, so it stays open. A part left open is never taken to hold, and
+ * neither is one beside it that may be refused (`Bool.or(true, x)` is refused
+ * where `x` is).
+ */
+const nodeOf = (
+  condition: Condition,
+  leaf: (each: RowCondition) => Settled,
+  inherit: (relation: string) => Settled,
+): Node.Node => {
+  let opened = 0
+  const part = (settled: Settled): Node.Node =>
+    Settled.$match(settled, {
+      Known: ({ value }) => Node.Lit({ value: value === undefined ? null : value }),
+      Open: () => Node.Path({ segments: ['open', String(opened++)], ast: Option.none() }),
+    })
+  const joined = (op: Node.Op, parts: ReadonlyArray<Condition>): Node.Node =>
+    parts.map(build).reduce((left, right) => Node.Call({ op, args: [left, right] }))
+  const build = (each: Condition): Node.Node =>
+    Match.valueTags(each, {
+      Always: () => Node.Lit({ value: true }),
+      Never: () => Node.Lit({ value: false }),
+      Row: row => part(leaf(row)),
+      Inherit: ({ relation }) => part(inherit(relation)),
+      And: ({ conditions }) => joined(Bool.andOp, conditions),
+      Or: ({ conditions }) => joined(Bool.orOp, conditions),
+    })
+  return build(condition)
+}
+
+/** A part a client cannot judge: a rule over who asks, or an inherited Read. */
+const open: Settled = Settled.Open({
+  reads: Option.none(),
+  verdict: Verdict.Unknown('the client cannot judge it'),
+})
+
 export const Condition = {
   always,
   never,
@@ -82,9 +198,12 @@ export const Condition = {
    * row a relation points at is readable, which only the caller can look up.
    * `operators` runs the guards' primitive operators: the policy's.
    *
-   * A row guard the row's own values make an operator refuse (text holding a
-   * NUL, an implementation that throws) does not hold: what a write supplies
-   * can deny it, never end the request.
+   * It holds only where it is true. A row guard the row's own values make
+   * metakit refuse (text holding a NUL, NaN, a sum past the safe integer
+   * range, an operator that throws or that `operators` lacks) refuses the
+   * whole condition, as a database refuses a whole statement: what a write
+   * supplies can deny it, never end the request. So does a part it cannot
+   * judge over one row (a path to another row).
    */
   holds: (
     condition: Condition,
@@ -92,30 +211,27 @@ export const Condition = {
     input: Readonly<Record<string, unknown>>,
     inherit: (relation: string) => boolean,
     operators: MemoryOperators,
-  ): boolean => {
-    const holds = (each: Condition): boolean =>
-      Match.valueTags(each, {
-        Always: () => true,
-        Never: () => false,
-        // A row as a Source reads it holds its links as ref keys; the rule reads ids.
-        Row: ({ guard, context }) =>
-          evaluateEach(guard.query, input, [Held.fromRefs(guard.query, values)], {
-            operators,
-            context,
-          }).matched.length === 1,
-        Inherit: ({ relation }) => inherit(relation),
-        And: ({ conditions }) => conditions.every(holds),
-        Or: ({ conditions }) => conditions.some(holds),
-      })
-    return holds(condition)
-  },
+  ): boolean =>
+    Settled.$match(
+      settleNode(
+        nodeOf(
+          condition,
+          each => settleStored(each, values, input, operators),
+          relation => Settled.Known({ value: inherit(relation) }),
+        ),
+        {},
+      ),
+      { Known: ({ value }) => value === true, Open: () => false },
+    ),
 
   /**
    * `condition` decided over one row as far as one row can: each row guard
-   * over the row alone judged (`holds`), an inherited Read refused, as a
-   * writer refuses one, and each row guard that reads another row (a path, an
-   * exists) kept for a statement to judge. `Always` or `Never` when the row
-   * alone decides it.
+   * over the row alone judged, an inherited Read refused, as a writer refuses
+   * one, and each row guard that reads another row (a path, an exists) kept
+   * for a statement to judge. `Always` or `Never` when the row alone decides
+   * it. A guard the row alone makes metakit refuse, or cannot judge, refuses
+   * the whole condition (`Never`): no part kept for the statement can make a
+   * refused one hold.
    */
   residual: (
     condition: Condition,
@@ -123,21 +239,30 @@ export const Condition = {
     input: Readonly<Record<string, unknown>>,
     operators: MemoryOperators,
   ): Condition => {
+    let refused = false
     const decided = (each: Condition): Condition =>
       Match.valueTags(each, {
         Always: () => each,
         Never: () => each,
-        Row: row =>
-          reachesOther(row.guard)
-            ? each
-            : Condition.holds(each, values, input, () => false, operators)
-              ? always
-              : never,
+        Row: row => {
+          if (reachesOther(row.guard)) return each
+          return Settled.$match(settleStored(row, values, input, operators), {
+            Known: ({ value }) => {
+              if (Node.isRefusal(value)) refused = true
+              return value === true ? always : never
+            },
+            Open: () => {
+              refused = true
+              return never
+            },
+          })
+        },
         Inherit: () => never,
         And: ({ conditions }) => and(conditions.map(decided)),
         Or: ({ conditions }) => or(conditions.map(decided)),
       })
-    return decided(condition)
+    const left = decided(condition)
+    return refused ? never : left
   },
 
   /** `Always` and `Never` as what one row decided; none where a statement must judge the rest. */
@@ -195,33 +320,27 @@ export const Condition = {
   },
 
   /**
-   * Whether a row a client holds meets `condition`, a part it cannot decide
-   * taken to be `assumed`: a row guard over the principal's fields, which a
-   * client is not given, an inherited Read, and a rule over a row or field
-   * the holder lacks. A row guard reads the holder's rows (`rows`) where it
-   * follows a path from the viewer. Run once assuming each way, it is decided
-   * where both agree, since no part of a condition is negated.
+   * Whether a row a client holds meets `condition`, as metakit judges it:
+   * `True` or `False` only where what the client cannot know cannot change
+   * the answer, `Unknown` otherwise. A client cannot know a row guard over
+   * the principal's fields, which it is not given, an inherited Read, a rule
+   * over a row or field the holder lacks, or an operator only the server
+   * runs. A row guard reads the holder's rows (`rows`) where it follows a path
+   * from the viewer. A refusal is `Unknown`: the server refuses the request,
+   * and a hint does not say so before it does.
    */
-  judge: (condition: Condition, row: HeldRow, rows: HeldRows, assumed: boolean): boolean => {
-    const judge = (each: Condition): boolean =>
-      Match.valueTags(each, {
-        Always: () => true,
-        Never: () => false,
-        Row: ({ guard, context }) =>
-          readsPrincipal(guard)
-            ? assumed
-            : Verdict.match(Judge.predicate(guard.body, row, { context, rows }), {
-                True: () => true,
-                // SQL's null is a `False` here, and leaves a row out as false does.
-                False: () => false,
-                Unknown: () => assumed,
-              }),
-        Inherit: () => assumed,
-        And: ({ conditions }) => conditions.every(judge),
-        Or: ({ conditions }) => conditions.some(judge),
-      })
-    return judge(condition)
-  },
+  judge: (condition: Condition, row: HeldRow, rows: HeldRows): Verdict.Verdict<never> =>
+    judgeNode(
+      nodeOf(
+        condition,
+        each =>
+          readsPrincipal(each.guard)
+            ? open
+            : settleGuard(each, row, { rows, operators: Operators.kernel }),
+        () => open,
+      ),
+      {},
+    ),
 
   /**
    * `condition` with every row guard that reads one of `unset`, and every

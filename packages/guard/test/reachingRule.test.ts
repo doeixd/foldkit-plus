@@ -9,7 +9,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Query, QueryEvaluateError, Relation } from 'foldkit-entity'
+import { Entity, Expr, Query, Relation } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { bind, databaseLayer, source, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -115,8 +115,9 @@ describe('the fixtures', () => {
       expect(Query.dependencies(guard.query).reaches.map(reach => reach._tag)).toEqual(reaches)
       const Ruled = Related.Note.pipe(Guards.attach(G, { row: { Update: [guard] } }))
       const { condition } = Effect.runSync(Policy.writable(Ruled, as('ada'), 'Update'))
-      // Why such a rule is refused where the check is made: judged per request, it throws.
-      expect(() =>
+      // Why such a rule is refused where the check is made: one row cannot judge it, so
+      // judged per request it never holds, even where the row would let the asker.
+      expect(
         Condition.holds(
           condition,
           { id: 'n1', orgId: 'acme', title: 'Plans', author: 'Member:ada', team: 'Team:t1' },
@@ -124,7 +125,7 @@ describe('the fixtures', () => {
           () => false,
           Policy.operators,
         ),
-      ).toThrow(QueryEvaluateError)
+      ).toBe(false)
     },
   )
 

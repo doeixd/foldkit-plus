@@ -4,8 +4,10 @@
  * tool, apart from the main entry so no page carries the prover.
  */
 import { Match, Option, Schema, SchemaAST } from 'effect'
-import { Entity, type AnyEntity, type Operandish, type Predicate } from 'foldkit-entity'
-import { Eq, Expr, Num, Path, type Verdict } from 'metakit'
+import { Entity, type AnyEntity, type Predicate } from 'foldkit-entity'
+import { lower } from 'foldkit-entity/lowering'
+import { Expr, Node, type Verdict } from 'metakit'
+import { readsOfNode, wrap } from 'metakit/build'
 import * as Policy from 'metakit/policy'
 import { enforced, reachesOther, type AnyRule, type Surface } from './attach.js'
 
@@ -28,50 +30,41 @@ const unknownRule = (name: string): Term =>
     throw new Error(`Guard "${name}" needs an enforcement context`)
   })
 
-// Numeric comparisons on encoded row fields that always hold a number have the
-// same truth value in Entity and metakit. Keep a predicate opaque when its SQL
-// semantics (nulls, absent keys, collations, related rows or custom operators)
-// need another interpreter: no comparison holds of an absent value, so neither
-// `x >= 0` nor `x < 0` does, which a prover over numbers takes for impossible.
-const numeric = (
-  operand: Operandish,
-  prefix: readonly string[],
-): Option.Option<Expr.Expr<unknown, number>> => {
-  if (
-    operand._tag === 'Literal' &&
-    typeof operand.value === 'number' &&
-    Number.isFinite(operand.value)
+/**
+ * A predicate over one row as metakit reads it (`foldkit-entity/lowering`),
+ * its fields under `row`: none where it reads anything else (the principal's
+ * fields, who asks, another row) or calls an operator only an implementation
+ * runs, which the checker would know nothing of. An invariant's row after a
+ * write (`next`) is the stored row it holds of.
+ *
+ * None, too, where it reads a field that may be absent or hold NaN: no
+ * comparison holds of either, so neither `x >= 0` nor `x < 0` does, and the
+ * checker reads every key as present (the plan's Phase 1 item 9).
+ */
+const predicateOf = (entity: AnyEntity, predicate: Predicate): Option.Option<Node.Node> => {
+  const lowered = lower([predicate])
+  const node = Node.mapPaths(lowered.nodes[0]!, path =>
+    path.segments[0] === 'next'
+      ? Node.Path({ segments: ['row', ...path.segments.slice(1)], ast: path.ast })
+      : path,
   )
-    return Option.some(Expr.lit(operand.value))
-  if (operand._tag === 'Next') return numeric(operand.field, prefix)
-  if (operand._tag === 'Field' && !operand.key.includes('.')) {
-    const schema = Schema.toEncoded(operand.schema)
-    if (
-      SchemaAST.isNumber(schema.ast) &&
-      !SchemaAST.isOptional(schema.ast) &&
-      !Schema.is(schema)(NaN)
-    )
-      return Option.some(Path.make([...prefix, operand.key]))
+  const fields: Readonly<Record<string, Schema.Top>> = entity.schema.fields
+  const exact = (key: string) => {
+    if (!Object.hasOwn(fields, key)) return false
+    const stored = Schema.toEncoded(fields[key]!)
+    return !SchemaAST.isOptional(stored.ast) && !Schema.is(stored)(NaN)
   }
-  return Option.none()
+  const ownRow = Option.exists(readsOfNode(node), reads =>
+    reads.every(segments => segments.length === 2 && segments[0] === 'row' && exact(segments[1]!)),
+  )
+  return lowered.foreign.size === 0 && lowered.related.size === 0 && ownRow
+    ? Option.some(node)
+    : Option.none()
 }
 
-const predicateOf = (predicate: Predicate, prefix: readonly string[]): Option.Option<Term> => {
-  const each = (operands: ReadonlyArray<Predicate>) =>
-    Option.all(operands.map(p => predicateOf(p, prefix)))
-  const sides = (left: Operandish, right: Operandish) =>
-    Option.all([numeric(left, prefix), numeric(right, prefix)])
-  return Match.value(predicate).pipe(
-    Match.tags({
-      And: ({ operands }) => Option.map(each(operands), (terms): Term => Expr.all(...terms)),
-      Or: ({ operands }) => Option.map(each(operands), (terms): Term => Expr.any(...terms)),
-      Eq: ({ left, right }) => Option.map(sides(left, right), ([l, r]): Term => Eq.is(l, r)),
-      Compare: ({ left, right, operator }) =>
-        Option.map(sides(left, right), ([l, r]): Term => Num[operator](l, r)),
-    }),
-    Match.orElse(() => Option.none<Term>()),
-  )
-}
+/** `node`, read over the row itself rather than under `row`, as a row Schema's rule is. */
+const overRow = (node: Node.Node): Node.Node =>
+  Node.mapPaths(node, path => Node.Path({ segments: path.segments.slice(1), ast: path.ast }))
 
 /** Check whether row Update is reachable and implies Read of the named member, on a valid row. */
 const policy = <E extends AnyEntity>(
@@ -86,7 +79,12 @@ const policy = <E extends AnyEntity>(
       Expr.all(
         ...Entity.invariants(entity)
           .filter(inv => !Entity.readsBefore(inv))
-          .map(inv => Option.getOrElse(predicateOf(inv.predicate, []), () => unknownRule(inv.id))),
+          .map(inv =>
+            Option.match(predicateOf(entity, inv.predicate), {
+              onNone: () => unknownRule(inv.id),
+              onSome: node => wrap<unknown, boolean>(overRow(node)),
+            }),
+          ),
       ),
     ),
   )
@@ -105,9 +103,10 @@ const policy = <E extends AnyEntity>(
           if (reachesOther(guard)) return unknownRule(guard.name)
           const known = rowTerms.get(guard)
           if (known !== undefined) return known
-          const built = Option.getOrElse(predicateOf(guard.body, ['row']), () =>
-            unknownRule(guard.name),
-          )
+          const built = Option.match(predicateOf(entity, guard.body), {
+            onNone: () => unknownRule(guard.name),
+            onSome: node => wrap<unknown, boolean>(node),
+          })
           rowTerms.set(guard, built)
           return built
         },

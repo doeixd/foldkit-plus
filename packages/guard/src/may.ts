@@ -187,16 +187,17 @@ export const answerOf = (
 }
 
 /**
- * `may` foreseen for a row the client writes. A principal guard's body is
- * the server's, and the principal's fields are not the client's to know, so
- * each is unknown, as is a rule over a row or field the store lacks. Every
- * rule is a conjunction and disjunction of its parts, so it is decided when
- * it comes out the same with every unknown part taken to hold and taken not
- * to: the answer is foreseen only when the whole of it is.
+ * `may` foreseen for a row the client writes, foreseen only when the whole
+ * of it is. What the client cannot know (the principal's fields, a rule over
+ * a row or field the store lacks, a refusal the server would meet) leaves a
+ * rule `Unknown` in metakit's judgement (`Condition.judge`). A principal
+ * guard's body is the server's: it is decided both ways, and the answer
+ * stands only where both agree, which settles it, since no part of a
+ * condition is negated.
  */
 const predict: Predict = ({ entity, row, rows, context }) => {
   // Never a visitor here: a client without a viewer may be one that was not told it.
-  const answerAssuming = (assumed: boolean): MayAnswer => {
+  const answerAssuming = (assumed: boolean): Option.Option<MayAnswer> => {
     const decide = (interaction: string) =>
       deciding(() => Effect.succeed(assumed), false, interaction, context)
     const rules = Effect.runSync(
@@ -206,10 +207,23 @@ const predict: Predict = ({ entity, row, rows, context }) => {
         relation: (relation, interaction) => decide(interaction).relation(entity, relation),
       }),
     )
-    return answerOf(rules, condition => Option.some(Condition.judge(condition, row, rows, assumed)))
+    const decided = new Map(
+      mayConditions(rules).map(condition => [
+        condition,
+        Verdict.match(Condition.judge(condition, row, rows), {
+          True: () => Option.some(true),
+          False: () => Option.some(false),
+          Unknown: () => Option.none<boolean>(),
+        }),
+      ]),
+    )
+    return [...decided.values()].every(Option.isSome)
+      ? Option.some(answerOf(rules, condition => decided.get(condition) ?? Option.none()))
+      : Option.none()
   }
-  const held = answerAssuming(true)
-  return sameMay(held, answerAssuming(false)) ? Option.some(held) : Option.none()
+  return Option.flatMap(answerAssuming(true), held =>
+    Option.filter(answerAssuming(false), other => sameMay(held, other)).pipe(Option.as(held)),
+  )
 }
 
 /**
