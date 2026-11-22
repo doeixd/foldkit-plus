@@ -173,6 +173,14 @@ describe('durable over D1', () => {
     expect(meta.results).toEqual([{ value: '7' }])
   }, 30_000)
 
+  it('declares read-committed: it holds no lock a policy could count on', async () => {
+    expect((await openJournal()).store).toEqual({
+      name: 'D1 journal',
+      isolation: 'read-committed',
+      parentRowLock: false,
+    })
+  })
+
   it('appends, loads, and reads committed operations', async () => {
     const journal = await openJournal()
     const first = await Effect.runPromise(journal.append(key, note(1), 'ada'))

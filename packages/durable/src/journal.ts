@@ -349,7 +349,28 @@ export interface Cursors {
   readonly unpark: (key: DocumentId, name: string, opId: OpId) => Effect.Effect<void, JournalError>
 }
 
+/**
+ * What the store under a journal guarantees of concurrent writes. It has the
+ * shape of `StoreCapabilities` in `metakit/store`, which this package does not
+ * depend on: `isolation` is `'serializable'` (as if one at a time),
+ * `'read-committed'` (each statement reads what has committed) or
+ * `'eventual'` (replicas merge later); `parentRowLock` is whether a write
+ * locks the row its rows hang on.
+ */
+export interface JournalStore {
+  readonly name: string
+  readonly isolation: 'eventual' | 'read-committed' | 'serializable'
+  readonly parentRowLock: boolean
+}
+
 export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unknown> {
+  /**
+   * What this journal's store guarantees of concurrent appends: serializable
+   * over SQLite (one transaction per append), read-committed over D1 (no
+   * transactions; the uniqueness constraints keep the order). A journal over
+   * another store says its own.
+   */
+  readonly store: JournalStore
   readonly load: (
     key: DocumentId,
   ) => Effect.Effect<{ readonly snapshot: Snapshot; readonly cursor: Cursor }, JournalError>
@@ -787,6 +808,34 @@ const atomically = <A, E, R>(
   d1: boolean,
   unit: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | SqlError, R> => (d1 ? unit : sql.withTransaction(unit))
+
+/**
+ * Serializable: every append, and every unit that reads and writes, runs in
+ * `sql.withTransaction` (`atomically`, `commitDurably`), and SQLite lets one
+ * connection write at a time; a second connection whose snapshot went stale
+ * fails with SQLITE_BUSY rather than commit over it. `validate`, `authorize`,
+ * `reduce` and `judge` all run inside that transaction.
+ */
+const SQLITE_STORE: JournalStore = {
+  name: 'SQLite journal',
+  isolation: 'serializable',
+  parentRowLock: false,
+}
+
+/**
+ * Read-committed, no more: D1 has no transactions (`atomically` runs the unit
+ * directly), so `validate`, `authorize` and `judge` read the latest committed
+ * snapshot and nothing holds it still. The `sequence`, replica and operation
+ * uniqueness constraints make a commit that lost a race fail and decide again
+ * (`commitDurably`'s retry), which keeps the order but is not a lock; a Durable
+ * Object routing the appends opens its input gate while a D1 call is awaited,
+ * so it does not serialize them either.
+ */
+const D1_STORE: JournalStore = {
+  name: 'D1 journal',
+  isolation: 'read-committed',
+  parentRowLock: false,
+}
 
 /**
  * How many times a D1 commit retries on a uniqueness conflict before failing.
@@ -1833,6 +1882,7 @@ const makeShape = <
   const subscribe: Shape['subscribe'] = Stream.fromPubSub(changes)
 
   return {
+    store: d1 ? D1_STORE : SQLITE_STORE,
     load,
     cursor,
     epoch,

@@ -49,6 +49,7 @@ export {
   type EffectRecord,
   type EffectStatus,
   type JournalOptions,
+  type JournalStore,
   type JournalStoreOptions,
   type JudgeDecision,
   type JudgeRequest,
