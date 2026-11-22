@@ -16,15 +16,27 @@
  *   `keep` leaves is no longer); `metakit/aggregates` keeps a total by
  *   deltas only over the domain where `sum` is commutative, associative and
  *   invertible, and starts it at `identity`;
- * - of a way of writing, `Transition.commutes` reads `commutes`.
+ * - of a way of writing, `Transition.commutes` reads `commutes`, and
+ *   `foldkit-remote` reads `commutes` and `invertible` to replay a pending
+ *   write over a newer value or take back a failed one.
  *
  * What partial evaluation reads is declared in `ops/laws.ts`, which a page
- * that judges carries; this module adds the rest, which only the checker,
+ * that judges carries; the ways of writing, and `num.add`'s row they derive
+ * from, in `ops/ways.ts`, which a page that replays a pending write carries
+ * (`foldkit-remote`); this module adds the rest, which only the checker,
  * `metakit/aggregates` and transitions read.
  */
 import { Record } from 'effect'
 import type * as Node from './node.js'
 import { foldLaws, opLaws } from './ops/laws.js'
+import { added as addAlgebra } from './ops/ways.js'
+
+export {
+  writeProperties,
+  type CommuteCondition,
+  type WayOfWriting,
+  type WriteProperties,
+} from './ops/ways.js'
 
 /** Which argument a value stands in: the first, the second, or either. */
 export type Side = 'left' | 'right' | 'both'
@@ -82,12 +94,7 @@ const algebra: {
     'commutative' | 'associative' | 'invertible' | 'monotone'
   >
 } = {
-  'num.add': {
-    commutative: true,
-    associative: { over: 'integers', unlessRefused: true },
-    invertible: { inverse: 'num.sub', over: 'integers' },
-    monotone: ['up', 'up'],
-  },
+  'num.add': addAlgebra,
   'num.sub': { monotone: ['up', 'down'] },
   'num.neg': { monotone: ['down'] },
 }
@@ -150,75 +157,4 @@ export const foldProperties: { readonly [Fold in Node.RowsFold]: FoldProperties 
   find: {},
   keep: {},
   patch: {},
-}
-
-/** How a transition changes one path. */
-export type WayOfWriting =
-  | 'set'
-  | 'add'
-  | 'append'
-  | 'insert'
-  | 'remove'
-  | 'removeWhere'
-  | 'patch'
-  | 'patchWhere'
-  | 'include'
-  | 'exclude'
-
-/**
- * When two writes to one path give one state in either order:
- * - `always`;
- * - `one-kind`: both values are known to be text, or both numbers (a set
- *   refuses a member of the other kind, at whichever write meets it first);
- * - `same-literal`: both values are one literal;
- * - `different-literals`: the two values are literals that differ;
- * - `in-range`: the total and both amounts are integers, and the checker
- *   shows each total either order passes through stays in the safe range;
- * - `disjoint-fields`: the two set different fields, and neither's key, test
- *   or `set` reads a field the other sets;
- * - `steady`: no element can refuse either write (each key, key field, test
- *   and set is a value no operation refuses, as its Schema says), so neither
- *   removing what the other reads changes whether it is refused;
- * - `reads-no-set-field`: the removal's key or test reads no field the
- *   patch sets, and the patch is steady.
- */
-export type CommuteCondition =
-  | 'always'
-  | 'one-kind'
-  | 'same-literal'
-  | 'different-literals'
-  | 'in-range'
-  | 'disjoint-fields'
-  | 'steady'
-  | 'reads-no-set-field'
-
-export interface WriteProperties {
-  /** The ways a write of this way commutes with on one path, and on what condition; any other does not decide. */
-  readonly commutes: { readonly [Way in WayOfWriting]?: CommuteCondition }
-}
-
-/** Two `add`s commute where `num.add` is commutative and associative, over the integers it is associative over. */
-const adds: WriteProperties['commutes'] =
-  added.commutative === true && added.associative !== undefined ? { add: 'in-range' } : {}
-
-const removals = { remove: 'steady', removeWhere: 'steady' } as const
-const patches = { patch: 'reads-no-set-field', patchWhere: 'reads-no-set-field' } as const
-const patchesEach = { patch: 'disjoint-fields', patchWhere: 'disjoint-fields' } as const
-
-export const writeProperties: { readonly [Way in WayOfWriting]: WriteProperties } = {
-  set: { commutes: { set: 'same-literal' } },
-  add: { commutes: adds },
-  // Order shows: an appended list says which came first.
-  append: { commutes: {} },
-  insert: { commutes: {} },
-  remove: { commutes: { ...removals, ...patches } },
-  removeWhere: { commutes: { ...removals, ...patches } },
-  patch: {
-    commutes: { ...patchesEach, remove: 'reads-no-set-field', removeWhere: 'reads-no-set-field' },
-  },
-  patchWhere: {
-    commutes: { ...patchesEach, remove: 'reads-no-set-field', removeWhere: 'reads-no-set-field' },
-  },
-  include: { commutes: { include: 'one-kind', exclude: 'different-literals' } },
-  exclude: { commutes: { exclude: 'one-kind', include: 'different-literals' } },
 }

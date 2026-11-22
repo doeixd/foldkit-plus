@@ -9,7 +9,7 @@
  */
 const pairs = '../src/pairs.ts'
 const temporal = '../src/temporal.ts'
-const properties = '../src/properties.ts'
+const properties = '../src/ops/ways.ts'
 const tests = ['packages/metakit/test/pairs.test.ts']
 
 const mutation = (name: string, file: string, find: string, replace: string) => ({

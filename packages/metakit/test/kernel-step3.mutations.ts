@@ -106,7 +106,7 @@ export default [
   mutation(
     [...transitionTests, ...propertyTests],
     'num.add is not commutative, so no two adds commute',
-    properties,
+    '../src/ops/ways.ts',
     '    commutative: true,\n    associative: { over: ',
     '    associative: { over: ',
   ),

@@ -27,13 +27,16 @@ export * as Abstract from './abstract/check.js'
 export {
   foldProperties,
   opProperties,
-  writeProperties,
-  type CommuteCondition,
   type Direction,
   type Domain,
   type FoldProperties,
   type OpProperties,
   type Side,
+} from './properties.js'
+// From its own module, so a page reading it loads no other table.
+export {
+  writeProperties,
+  type CommuteCondition,
   type WayOfWriting,
   type WriteProperties,
-} from './properties.js'
+} from './ops/ways.js'

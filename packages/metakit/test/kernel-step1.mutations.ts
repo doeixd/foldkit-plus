@@ -37,7 +37,7 @@ const table = [
   mutation(
     propertyTests,
     'addition declares no direction, so the checker bounds it by nothing',
-    properties,
+    '../src/ops/ways.ts',
     "monotone: ['up', 'up'],",
     '',
   ),

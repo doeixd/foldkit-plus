@@ -70,4 +70,14 @@ describe('writeProperties', () => {
   ] as const)('a false listing is caught: %s', (_, way, commutes) => {
     expect(Conformance.checkWriteProperties(way, { commutes }).ok).toBe(false)
   })
+
+  it('undoes an add by the opposite amount, and catches a set listed invertible', () => {
+    const undone = Conformance.checkWriteProperties('add', { commutes: {}, invertible: true })
+    expect(undone).toMatchObject({ ok: true, failures: [] })
+    expect(undone.checked).toBeGreaterThan(50)
+    expect(writeProperties.add.invertible).toBe(true)
+    expect(Conformance.checkWriteProperties('set', { commutes: {}, invertible: true }).ok).toBe(
+      false,
+    )
+  })
 })
