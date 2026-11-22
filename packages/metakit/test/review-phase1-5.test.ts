@@ -1,4 +1,4 @@
-import { Option, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   Abstract,
@@ -150,5 +150,44 @@ describe('Phase 1 & 5 adversarial review regressions', () => {
       args: [Node.Opaque({ name: 'undef', reads: Option.some([]), run: () => undefined })],
     })
     expect(Judge.judgeNode(opaqueIsNull, {}, {})._tag).toBe('True')
+  })
+
+  it('H4: include and exclude commute even on unsorted arrays', () => {
+    const State = Schema.Struct({ tags: Schema.Array(Schema.String) })
+    const AddB = Transition.make({
+      state: State,
+      input: Schema.Struct({}),
+      apply: ({ state }) => [Transition.include(state.tags, 'b')],
+    })
+    const DropC = Transition.make({
+      state: State,
+      input: Schema.Struct({}),
+      apply: ({ state }) => [Transition.exclude(state.tags, 'c')],
+    })
+    expect(Transition.commutes(AddB, DropC)._tag).toBe('True')
+    const start = { tags: ['c', 'a'] }
+    const ab = Result.getOrThrow(
+      Transition.run(DropC, Result.getOrThrow(Transition.run(AddB, start, {})), {}),
+    )
+    const ba = Result.getOrThrow(
+      Transition.run(AddB, Result.getOrThrow(Transition.run(DropC, start, {})), {}),
+    )
+    expect(ab).toEqual({ tags: ['a', 'b'] })
+    expect(ba).toEqual({ tags: ['a', 'b'] })
+  })
+
+  it('L4: Transition.commutes does not treat +0 and -0 as the same literal', () => {
+    const State = Schema.Struct({ n: Schema.Number })
+    const Pos = Transition.make({
+      state: State,
+      input: Schema.Struct({}),
+      apply: ({ state }) => [Transition.set(state.n, 0)],
+    })
+    const Neg = Transition.make({
+      state: State,
+      input: Schema.Struct({}),
+      apply: ({ state }) => [Transition.set(state.n, -0)],
+    })
+    expect(Transition.commutes(Pos, Neg)._tag).not.toBe('True')
   })
 })

@@ -116,18 +116,46 @@ const setOp = <Id extends 'arr.include' | 'arr.exclude'>(id: Id): Node.Op<Id> =>
     const value = scalarOf(id, raw)
     if (Node.isRefusal(value)) return value
     let at = list.length
+    let found = false
+    let sorted = true
+    let prev: string | number | undefined
+    const seen: Array<string | number> = []
     for (let index = 0; index < list.length; index++) {
       const held = scalarOf(id, list[index])
       if (Node.isRefusal(held)) return held
       const sign = compare(id, held, value)
       if (Node.isRefusal(sign)) return sign
-      if (sign === 0) {
-        return id === 'arr.include' ? list : [...list.slice(0, index), ...list.slice(index + 1)]
+      if (prev !== undefined) {
+        const order = compare(id, prev, held)
+        if (Node.isRefusal(order)) return order
+        if (order >= 0) sorted = false
       }
-      if (sign > 0 && at === list.length) at = index
+      prev = held
+      if (sign === 0) {
+        found = true
+        if (id === 'arr.exclude') continue
+      } else if (sign > 0 && at === list.length) {
+        at = index
+      }
+      seen.push(held)
     }
-    // The text as the set compares it, so two includes of text that compare alike agree in either order.
-    return id === 'arr.include' ? [...list.slice(0, at), value, ...list.slice(at)] : list
+    if (sorted) {
+      if (id === 'arr.include') {
+        return found ? list : [...list.slice(0, at), value, ...list.slice(at)]
+      }
+      return found ? seen : list
+    }
+    // Unsorted or duplicate input: canonicalize to ascending unique order so
+    // include/exclude agree in either order on any array.
+    if (id === 'arr.include' && !found) seen.push(value)
+    seen.sort((a, b) => compare(id, a, b) as number)
+    const canonical: Array<string | number> = []
+    for (const item of seen) {
+      if (canonical.length === 0 || compare(id, canonical.at(-1)!, item) !== 0) {
+        canonical.push(item)
+      }
+    }
+    return canonical
   },
 })
 

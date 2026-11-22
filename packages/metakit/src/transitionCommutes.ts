@@ -284,7 +284,11 @@ const holds = (
         return Option.isSome(kx) && Option.isSome(ky) && kx.value === ky.value
       })
     case 'same-literal':
-      return Option.exists(literals(wa, wb), ([x, y]) => sameAnswer(x, y))
+      return Option.exists(
+        literals(wa, wb),
+        ([x, y]) =>
+          sameAnswer(x, y) && !(typeof x === 'number' && typeof y === 'number' && !Object.is(x, y)),
+      )
     case 'different-literals':
       return Option.exists(literals(wa, wb), ([x, y]) => differ(x, y))
     case 'in-range':
