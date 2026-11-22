@@ -8,7 +8,6 @@ import { Option } from 'effect'
 import {
   exprOf,
   inputKeyOf,
-  kindOf,
   made,
   toNode,
   type InputExpr,
@@ -18,6 +17,7 @@ import {
   type ReadsOf,
   type TextOperand,
 } from './operand.js'
+import { kindOf } from './kind.js'
 import { show } from './show.js'
 
 /** What `Expr.contains` searches for: a value or an input, never a row's own. */

@@ -28,7 +28,6 @@ import type {
 import { dependenciesOf, type Operation } from './expr/dependencies.js'
 import {
   exprOf,
-  kindOf,
   originOf,
   originTagged,
   toNode,
@@ -38,6 +37,7 @@ import {
   type Reads,
 } from './expr/operand.js'
 import { add, sub } from './expr/arithmetic.js'
+import { kindOf } from './expr/kind.js'
 import { field as fieldExpr, input as inputExpr } from './expr/value.js'
 import { callOperator, foldsArgument } from './expr/primitive.js'
 import {

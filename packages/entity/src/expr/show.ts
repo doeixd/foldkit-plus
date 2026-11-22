@@ -15,7 +15,8 @@
 import { Option } from 'effect'
 import { Node } from 'metakit'
 import { isExpr } from 'metakit/build'
-import { ASKER, kindOf, originOf, type CompareOperator } from './operand.js'
+import { kindOf } from './kind.js'
+import { ASKER, originOf, type CompareOperator } from './operand.js'
 import { operatorName } from './table.js'
 
 const infixes: Readonly<Record<string, string>> = { 'num.add': '+', 'num.sub': '-' }

@@ -15,7 +15,6 @@ import {
   fieldOrigin,
   fieldRead,
   folded,
-  kindOf,
   originTagged,
   originOf,
   toNode,
@@ -26,6 +25,7 @@ import {
   type Reads,
   type ReadsOf,
 } from './operand.js'
+import { kindOf } from './kind.js'
 import { show } from './show.js'
 
 /** One term of an ordering: an expression and the direction to read it in. */

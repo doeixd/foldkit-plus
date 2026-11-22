@@ -13,7 +13,6 @@ import {
   collationOf,
   exprOf,
   inputKeyOf,
-  kindOf,
   made,
   toNode,
   type AnyExpr,
@@ -22,6 +21,7 @@ import {
   type Reads,
   type ReadsOf,
 } from './operand.js'
+import { kindOf } from './kind.js'
 import { lawProblem } from './operatorLaws.js'
 import { callOperator, kernel, storedKindOf, type KernelBuild } from './primitive.js'
 import { show } from './show.js'

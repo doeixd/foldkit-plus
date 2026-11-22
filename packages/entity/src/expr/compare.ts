@@ -14,7 +14,6 @@ import {
   collationOf,
   exprOf,
   folded,
-  kindOf,
   made,
   originOf,
   toNode,
@@ -26,6 +25,7 @@ import {
   type ReadsOf,
   type ValueOf,
 } from './operand.js'
+import { kindOf } from './kind.js'
 import { show } from './show.js'
 
 const numberOrder: { readonly [K in CompareOperator]: Node.Op } = {

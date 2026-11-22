@@ -4,9 +4,9 @@
  * `null.isNull`, and Kleene's `bool.and`, `bool.or`, `bool.not`.
  */
 import { Bool, Eq, Node, Null } from 'metakit'
+import { kindOf } from './kind.js'
 import {
   exprOf,
-  kindOf,
   made,
   maxQueryNodes,
   originOf,

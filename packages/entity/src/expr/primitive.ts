@@ -12,7 +12,8 @@ import { Node, type OpProperties } from 'metakit'
 import type { Collation } from '../collation.js'
 import type { Law } from '../law.js'
 import { Laws } from '../lawCore.js'
-import { folded, kindOfAst } from './operand.js'
+import { kindOfAst } from './kind.js'
+import { folded } from './operand.js'
 import type { OperatorDescriptor } from './operator.js'
 
 /** What a schema stores, null aside: one kind an argument is checked by, or `other`. */

@@ -19,7 +19,6 @@ import {
   asOne,
   exprOf,
   fieldNode,
-  kindOf,
   made,
   originOf,
   originTagged,
@@ -35,6 +34,7 @@ import {
   type ReadsOf,
   type ValueOf,
 } from './operand.js'
+import { kindOf } from './kind.js'
 import { show } from './show.js'
 
 /**
