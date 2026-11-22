@@ -287,8 +287,9 @@ export const kindOf = (node: Node.Node): Option.Option<Node.ValueKind> =>
     Match: ({ cases, otherwise }) =>
       sameKind([...cases.map(([, arm]) => arm), ...Option.toArray(otherwise)].map(kindOf)),
     Opaque: () => Option.none(),
-    Rows: ({ fold }) => {
+    Rows: ({ fold, op }) => {
       if (fold === 'any' || fold === 'every') return Option.some('boolean' as const)
+      if (fold === 'reduce') return op === undefined ? Option.none() : Option.some(op.returns)
       // `min` and `max` of no element are null, which a kind does not rule out.
       return fold === 'count' || fold === 'sum' || fold === 'min' || fold === 'max'
         ? Option.some('number' as const)

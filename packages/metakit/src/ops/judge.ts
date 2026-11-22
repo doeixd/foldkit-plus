@@ -263,11 +263,14 @@ const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): 
                 readsOfRows(kept.over, from, read),
               ),
               opaqueIn([source, ...body]),
-              unsupportedIn([source, ...body]),
+              kept.op !== undefined && !Object.hasOwn(foreign, Node.foreignName(kept.op))
+                ? kept.op
+                : unsupportedIn([source, ...body]),
             )
           },
         },
         segments => lookupPartial(env, segments, Option.none(), true),
+        foreign,
       ),
   })
 

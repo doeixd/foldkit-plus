@@ -9,6 +9,8 @@
 import { Option, Result } from 'effect'
 import type { Schema } from 'effect'
 import type * as Expr from './expr.js'
+import * as Node from './node.js'
+import { isForeignLowerings, type ForeignLowerings } from './operationSql.js'
 import { SqlPiece, SqlUnsupportedError, type Sql, type SqlDialect } from './sqlLowering.js'
 import { lowerCheck, lowerUpdate, lowerWhere } from './sqlStatements.js'
 import {
@@ -74,7 +76,7 @@ export interface SqlOptions {
   readonly rowPrefix?: ReadonlyArray<string>
   readonly column?: ColumnName
   readonly env?: Readonly<Record<string, unknown>>
-  readonly foreign?: ForeignSqlTable
+  readonly foreign?: ForeignSqlTable | ForeignLowerings
   /** The table of the row the predicate is asked of, which a subquery over its related rows names. */
   readonly table?: string
   readonly relations?: RelationTables
@@ -89,7 +91,7 @@ const renderer = (options: {
   readonly dialect: SqlDialect
   readonly column: ColumnName
   readonly inline: boolean
-  readonly foreign: ForeignSqlTable
+  readonly foreign: ForeignSqlTable | ForeignLowerings
   readonly table?: string | undefined
   readonly relations?: RelationTables | undefined
 }) => {
@@ -110,10 +112,17 @@ const renderer = (options: {
           return Result.succeed(options.dialect === 'postgres' ? `$${params.length}` : '?')
         },
         // Pieces, not text: a parameter keeps its place however the entry orders the arguments.
-        Foreign: ({ op, args }) =>
-          Result.flatMap(foreignSql(options.foreign, op), entry =>
+        Foreign: ({ op, args }) => {
+          const table = options.foreign
+          if (isForeignLowerings(table)) {
+            return Result.flatMap(Result.all(args.map(arg => render(arg, related))), rendered =>
+              table.renderCall(options.dialect, op, rendered, parts => parts.join('')),
+            )
+          }
+          return Result.flatMap(foreignSql(table, op), entry =>
             render(entry.sql(args, options.dialect), related),
-          ),
+          )
+        },
         Each: ({ segments }) =>
           related === undefined
             ? Result.fail(
@@ -168,6 +177,30 @@ const renderer = (options: {
               matches: `${quoteIdent(related.table)}.${quoteIdent(related.foreignKey)} = ${quoteIdent(outer)}.${quoteIdent(related.key ?? 'id')}`,
               where,
               value,
+              aggregate:
+                piece.fold === 'reduce' && piece.op !== undefined
+                  ? val => {
+                      const op = piece.op!
+                      if (!isForeignLowerings(options.foreign)) {
+                        return Result.fail(
+                          new SqlUnsupportedError({
+                            reason: `[metakit/sql] Arr.reduce over "${Node.foreignName(op)}" has no ${options.dialect} aggregate; declare lowering(${op.id}, { aggregate: { ${options.dialect} } }) or read the rows into memory.`,
+                          }),
+                        )
+                      }
+                      const identity = op.claims?.identity?.value
+                      return Result.flatMap(
+                        options.foreign.renderAggregate(options.dialect, op, val, parts =>
+                          parts.join(''),
+                        ),
+                        agg =>
+                          Result.map(
+                            render([SqlPiece.Value({ value: identity })], related),
+                            idSql => `COALESCE(${agg}, ${idSql})`,
+                          ),
+                      )
+                    }
+                  : undefined,
             },
             text => text,
             chunks => chunks.join(''),

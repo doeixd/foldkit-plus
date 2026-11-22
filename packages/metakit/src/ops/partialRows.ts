@@ -7,6 +7,7 @@
  */
 import { Option } from 'effect'
 import * as Node from '../node.js'
+import type { ForeignImplementations } from './eval.js'
 import { foldLaws } from './laws.js'
 import { Elements, elementsOf, foldAnswers, passing, withEach } from './rows.js'
 
@@ -63,6 +64,7 @@ export const partialRows = <T>(
   partialEnv: unknown,
   reader: RowsReader<T>,
   lookup: (segments: ReadonlyArray<string>) => Option.Option<unknown>,
+  foreign?: ForeignImplementations,
 ): T => {
   const source = reader.judge(Node.rowsSource(rows.over), partialEnv)
   const outer = withoutEach(partialEnv)
@@ -103,11 +105,16 @@ export const partialRows = <T>(
     const valueOf = (judged: T | undefined): unknown =>
       judged === undefined ? null : Option.getOrNull(reader.known(judged))
     return reader.value(
-      foldAnswers(rows, elements, {
-        where: index => valueOf(tests[index]),
-        value: index => valueOf(values[index]),
-        set: (index, field) => valueOf(sets[index]!.find(([name]) => name === field)?.[1]),
-      }),
+      foldAnswers(
+        rows,
+        elements,
+        {
+          where: index => valueOf(tests[index]),
+          value: index => valueOf(values[index]),
+          set: (index, field) => valueOf(sets[index]!.find(([name]) => name === field)?.[1]),
+        },
+        foreign,
+      ),
     )
   }
   return Option.match(decidedBy(rows, whole, tests, reader.known), {

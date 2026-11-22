@@ -126,12 +126,30 @@ export interface ForeignLowerings {
     dialect: SqlDialect,
     op: Node.ForeignOp,
   ) => Result.Result<(arg: SqlPiece) => SqlPiece, SqlUnsupportedError>
+  /** Render a scalar call lowering into `S` for `dialect`, or fail with an actionable message. */
+  readonly renderCall: <S>(
+    dialect: SqlDialect,
+    op: Node.ForeignOp,
+    args: ReadonlyArray<S>,
+    combine: (parts: ReadonlyArray<string | S>) => S,
+  ) => Result.Result<S, SqlUnsupportedError>
+  /** Render an aggregate lowering into `S` for `dialect`, or fail with an actionable message. */
+  readonly renderAggregate: <S>(
+    dialect: SqlDialect,
+    op: Node.ForeignOp,
+    arg: S,
+    combine: (parts: ReadonlyArray<string | S>) => S,
+  ) => Result.Result<S, SqlUnsupportedError>
   /** Convert into a `ForeignSql<S>` table for `metakit/sql` or `metakit/drizzle`. */
   readonly toForeignSql: <S>(
     dialect: SqlDialect,
     combine: (parts: ReadonlyArray<string | S>) => S,
   ) => Readonly<Record<string, ForeignSql<S>>>
 }
+
+/** Whether `value` is a `ForeignLowerings` table built by `lowerings(...)`. */
+export const isForeignLowerings = (value: unknown): value is ForeignLowerings =>
+  typeof value === 'object' && value !== null && 'aggregateForDialect' in value
 
 /** Collect SQL lowerings, refusing duplicates for one `id@version`. */
 export const lowerings = (...list: ReadonlyArray<SqlLowering>): ForeignLowerings => {
@@ -177,6 +195,22 @@ export const lowerings = (...list: ReadonlyArray<SqlLowering>): ForeignLowerings
     return Result.succeed(entry)
   }
 
+  const renderCall = <S>(
+    dialect: SqlDialect,
+    op: Node.ForeignOp,
+    args: ReadonlyArray<S>,
+    combine: (parts: ReadonlyArray<string | S>) => S,
+  ): Result.Result<S, SqlUnsupportedError> =>
+    Result.map(forDialect(dialect, op), fn => renderPiece(fn(...args.map(rawPiece)), combine))
+
+  const renderAggregate = <S>(
+    dialect: SqlDialect,
+    op: Node.ForeignOp,
+    arg: S,
+    combine: (parts: ReadonlyArray<string | S>) => S,
+  ): Result.Result<S, SqlUnsupportedError> =>
+    Result.map(aggregateForDialect(dialect, op), fn => renderPiece(fn(rawPiece(arg)), combine))
+
   const toForeignSql = <S>(
     dialect: SqlDialect,
     combine: (parts: ReadonlyArray<string | S>) => S,
@@ -192,5 +226,5 @@ export const lowerings = (...list: ReadonlyArray<SqlLowering>): ForeignLowerings
     return table
   }
 
-  return { entries, forDialect, aggregateForDialect, toForeignSql }
+  return { entries, forDialect, aggregateForDialect, renderCall, renderAggregate, toForeignSql }
 }

@@ -113,10 +113,11 @@ export const checkFoldProperties = (
     if (!holds) failures.push({ property, operands: label(list), claim })
   }
   // The operation a total combines its parts by, and the one that undoes it.
-  const combined = Option.flatMap(Option.fromUndefinedOr(properties.from), id =>
+  const coreFrom = typeof properties.from === 'string' ? properties.from : undefined
+  const combined = Option.flatMap(Option.fromUndefinedOr(coreFrom), id =>
     Option.fromUndefinedOr(operations[id]),
   )
-  const undone = Option.flatMap(Option.fromUndefinedOr(properties.from), id =>
+  const undone = Option.flatMap(Option.fromUndefinedOr(coreFrom), id =>
     Option.flatMap(Option.fromUndefinedOr(opProperties[id].invertible), ({ inverse }) =>
       Option.fromUndefinedOr(operations[inverse]),
     ),

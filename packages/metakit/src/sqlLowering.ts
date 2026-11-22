@@ -42,11 +42,15 @@ export type SqlPiece = Data.TaggedEnum<{
     readonly of: ReadonlyArray<string>
     readonly where: Option.Option<ReadonlyArray<SqlPiece>>
     readonly value: Option.Option<ReadonlyArray<SqlPiece>>
+    readonly op?: Node.ForeignOp | undefined
   }
 }>
 
 /** The folds SQL asks of related rows: the others answer in an order, or with a list. */
-export type RelatedFold = Extract<Node.RowsFold, 'any' | 'every' | 'count' | 'sum' | 'min' | 'max'>
+export type RelatedFold = Extract<
+  Node.RowsFold,
+  'any' | 'every' | 'count' | 'sum' | 'min' | 'max' | 'reduce'
+>
 
 const relatedFolds: ReadonlySet<string> = new Set<RelatedFold>([
   'any',
@@ -55,6 +59,7 @@ const relatedFolds: ReadonlySet<string> = new Set<RelatedFold>([
   'sum',
   'min',
   'max',
+  'reduce',
 ])
 
 const isRelatedFold = (fold: Node.RowsFold): fold is RelatedFold => relatedFolds.has(fold)
@@ -444,6 +449,7 @@ const lowerRows = (
             of: of.segments.slice(options.rowPrefix.length),
             where,
             value,
+            ...(rows.op === undefined ? {} : { op: rows.op }),
           }),
         ]),
       )

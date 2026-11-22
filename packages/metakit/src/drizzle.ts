@@ -11,6 +11,8 @@ import { getTableColumns, sql, type SQL, type SQLChunk, type Table } from 'drizz
 import { Option, Result } from 'effect'
 import type { Schema } from 'effect'
 import type * as Expr from './expr.js'
+import * as Node from './node.js'
+import { isForeignLowerings, type ForeignLowerings } from './operationSql.js'
 import { SqlPiece, SqlUnsupportedError, type Sql, type SqlDialect } from './sqlLowering.js'
 import { lowerCheck, lowerUpdate, lowerWhere } from './sqlStatements.js'
 import {
@@ -50,7 +52,7 @@ export interface DrizzleOptions {
   /** As `SqlOptions.rowPrefix`: default `['row']`, and `[]` reads every path as a column. */
   readonly rowPrefix?: ReadonlyArray<string>
   readonly env?: Readonly<Record<string, unknown>>
-  readonly foreign?: ForeignDrizzle
+  readonly foreign?: ForeignDrizzle | ForeignLowerings
   readonly relations?: DrizzleRelations
 }
 
@@ -68,7 +70,7 @@ const renderer = (
   options: {
     readonly dialect: SqlDialect
     readonly inline: boolean
-    readonly foreign: ForeignDrizzle
+    readonly foreign: ForeignDrizzle | ForeignLowerings
     readonly relations?: DrizzleRelations | undefined
   },
 ) => {
@@ -90,12 +92,21 @@ const renderer = (
           options.inline
             ? Result.map(inlineLiteral(value), text => sql.raw(text))
             : Result.succeed(sql`${bound(value, options.dialect)}`),
-        Foreign: ({ op, args }) =>
-          Result.flatMap(foreignSql(options.foreign, op), entry =>
+        Foreign: ({ op, args }) => {
+          const table = options.foreign
+          if (isForeignLowerings(table)) {
+            return Result.flatMap(Result.all(args.map(arg => render(arg, related))), rendered =>
+              table.renderCall(options.dialect, op, rendered, parts =>
+                sql.join(parts.map(part => (typeof part === 'string' ? sql.raw(part) : part))),
+              ),
+            )
+          }
+          return Result.flatMap(foreignSql(table, op), entry =>
             Result.map(Result.all(args.map(arg => render(arg, related))), rendered =>
               entry.sql(rendered, options.dialect),
             ),
-          ),
+          )
+        },
         Each: ({ segments }) =>
           related === undefined
             ? Result.fail(
@@ -138,7 +149,40 @@ const renderer = (
             Result.flatMap(body(piece.value), value =>
               relatedSubquery<SQL>(
                 piece.fold,
-                { from: sql`${related.table}`, matches: sql`${foreign} = ${own}`, where, value },
+                {
+                  from: sql`${related.table}`,
+                  matches: sql`${foreign} = ${own}`,
+                  where,
+                  value,
+                  aggregate:
+                    piece.fold === 'reduce' && piece.op !== undefined
+                      ? val => {
+                          const op = piece.op!
+                          if (!isForeignLowerings(options.foreign)) {
+                            return Result.fail(
+                              new SqlUnsupportedError({
+                                reason: `[metakit/sql] Arr.reduce over "${Node.foreignName(op)}" has no ${options.dialect} aggregate; declare lowering(${op.id}, { aggregate: { ${options.dialect} } }) or read the rows into memory.`,
+                              }),
+                            )
+                          }
+                          const identity = op.claims?.identity?.value
+                          return Result.flatMap(
+                            options.foreign.renderAggregate(options.dialect, op, val, parts =>
+                              sql.join(
+                                parts.map(part =>
+                                  typeof part === 'string' ? sql.raw(part) : part,
+                                ),
+                              ),
+                            ),
+                            agg =>
+                              Result.map(
+                                render([SqlPiece.Value({ value: identity })], related),
+                                idSql => sql`COALESCE(${agg}, ${idSql})`,
+                              ),
+                          )
+                        }
+                      : undefined,
+                },
                 text => sql.raw(text),
                 parts => sql.join([...parts]),
               ),

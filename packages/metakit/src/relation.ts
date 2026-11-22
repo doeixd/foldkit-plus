@@ -19,7 +19,13 @@
 import { Option } from 'effect'
 import type { Schema } from 'effect'
 import * as Node from './node.js'
-import { bodyOf, type Each, type Outside } from './ops/arr.js'
+import {
+  assertCommutativeMonoid,
+  bodyOf,
+  type CommutativeMonoid,
+  type Each,
+  type Outside,
+} from './ops/arr.js'
 import { toNode, wrap, type EnvOfInput, type ExprInput, type NullOf } from './ops/core.js'
 import { readsOfNode } from './ops/reads.js'
 import { loadRows } from './ops/rowsLoad.js'
@@ -74,6 +80,7 @@ const related = <Row>(
   parts: {
     readonly test?: ((each: Each<Row>) => unknown) | undefined
     readonly value?: ((each: Each<Row>) => unknown) | undefined
+    readonly op?: Node.ForeignOp | undefined
   },
 ): Node.Node => {
   const row = toNode(of)
@@ -89,6 +96,7 @@ const related = <Row>(
       bodyOver(row, relation, value, name),
     ),
     set: [],
+    ...(parts.op === undefined ? {} : { op: parts.op }),
   })
 }
 
@@ -145,3 +153,28 @@ export const min: Numeric<number | null> = numeric('min') as Numeric<number | nu
 
 /** The greatest `value` of the rows pointing at `of` that pass `test`: null over none. */
 export const max: Numeric<number | null> = numeric('max') as Numeric<number | null>
+
+/**
+ * Fold `value` over the rows pointing at `of` that pass `test` using a
+ * declared commutative-monoid operation `op`: returns `op`'s identity over no
+ * rows and skips null contributions.
+ */
+export const reduce = <
+  O extends RowInput,
+  Row,
+  Op extends CommutativeMonoid,
+  V extends ExprInput<never, Schema.Schema.Type<Op['descriptor']['result']> | null>,
+  R extends Test = true,
+>(
+  of: O,
+  relation: Relation<Row>,
+  op: Op,
+  value: (each: Each<Row>) => V,
+  test?: (each: Each<Row>) => R,
+): Expr<
+  EnvOfInput<O> & Outside<EnvOfInput<V>> & Outside<EnvOfInput<R>>,
+  Schema.Schema.Type<Op['descriptor']['result']> | NullOf<O>
+> => {
+  assertCommutativeMonoid(op.descriptor, 'Relation.reduce')
+  return wrap(related('reduce', of, relation, { op: op.descriptor, value, test }))
+}

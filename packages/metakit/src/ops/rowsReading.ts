@@ -9,6 +9,7 @@
  * loads judgement too.
  */
 import type * as Node from '../node.js'
+import type { ForeignImplementations } from './eval.js'
 import type { partialRows } from './partialRows.js'
 
 /** A `Rows` node over a whole environment, its source's value already read. */
@@ -17,6 +18,7 @@ export type RowsEvaluation = (
   source: unknown,
   env: unknown,
   at: (node: Node.Node, env: unknown) => unknown,
+  foreign?: ForeignImplementations,
 ) => unknown
 
 let evaluation: RowsEvaluation | undefined

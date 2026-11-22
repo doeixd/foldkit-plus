@@ -363,7 +363,17 @@ export interface Opaque {
 }
 
 /** The question a `Rows` node asks of each element. */
-export type RowsFold = 'any' | 'every' | 'count' | 'sum' | 'min' | 'max' | 'find' | 'keep' | 'patch'
+export type RowsFold =
+  | 'any'
+  | 'every'
+  | 'count'
+  | 'sum'
+  | 'min'
+  | 'max'
+  | 'reduce'
+  | 'find'
+  | 'keep'
+  | 'patch'
 
 /**
  * What a `Rows` node asks its question of: the elements of a list the
@@ -400,6 +410,8 @@ export interface Rows {
   readonly where: Option.Option<Node>
   readonly value: Option.Option<Node>
   readonly set: ReadonlyArray<readonly [field: string, value: Node]>
+  /** The custom operation a `reduce` fold combines its elements' values with. */
+  readonly op?: ForeignOp | undefined
 }
 
 export type Node = Lit | PathNode | Call | If | Match | Opaque | Rows
@@ -425,6 +437,7 @@ export const mapRows = (
     where: Option.map(rows.where, body),
     value: Option.map(rows.value, body),
     set: rows.set.map(([field, value]) => [field, body(value)] as const),
+    ...(rows.op === undefined ? {} : { op: rows.op }),
   })
 
 /** The nodes of a `Rows` body: its test, its value and what `set` writes. */
@@ -510,7 +523,7 @@ export const key = (node: Node): string =>
       })};${Option.match(rows.where, { onNone: () => '', onSome: key })};${Option.match(
         rows.value,
         { onNone: () => '', onSome: key },
-      )};${rows.set.map(([field, value]) => `${JSON.stringify(field)}:${key(value)}`).join(',')})`,
+      )};${rows.set.map(([field, value]) => `${JSON.stringify(field)}:${key(value)}`).join(',')}${rows.op === undefined ? '' : `;${foreignName(rows.op)}`})`,
   })
 
 /**

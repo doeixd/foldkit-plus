@@ -170,5 +170,6 @@ export const residualizeNode = (
             ),
         },
         segments => lookupPartial(partialEnv, segments, Option.none(), true),
+        foreign,
       ),
   })

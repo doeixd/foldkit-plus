@@ -85,6 +85,7 @@ export const relatedSubquery = <S>(
     readonly matches: S
     readonly where: Option.Option<S>
     readonly value: Option.Option<S>
+    readonly aggregate?: ((value: S) => Result.Result<S, SqlUnsupportedError>) | undefined
   },
   text: (sql: string) => S,
   join: (chunks: ReadonlyArray<S>) => S,
@@ -138,5 +139,13 @@ export const relatedSubquery = <S>(
       return ofValue(value => select('MIN(', [value], ')'))
     case 'max':
       return ofValue(value => select('MAX(', [value], ')'))
+    case 'reduce':
+      return Option.match(parts.value, {
+        onNone: () => unsupported('rows.reduce over related rows has no value to fold'),
+        onSome: value =>
+          parts.aggregate === undefined
+            ? unsupported('rows.reduce over related rows has no aggregate lowering')
+            : Result.map(parts.aggregate(value), agg => select('', [agg], '')),
+      })
   }
 }

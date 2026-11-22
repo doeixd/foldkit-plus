@@ -3,6 +3,7 @@
  * of one: a page that builds none never carries the folds.
  */
 import * as Node from '../node.js'
+import type { ForeignImplementations } from './eval.js'
 import { partialRows } from './partialRows.js'
 import { answersBy, Elements, elementsOf, foldAnswers } from './rows.js'
 import { provideEvaluation, provideJudgement } from './rowsReading.js'
@@ -13,6 +14,7 @@ const evaluate = (
   source: unknown,
   env: unknown,
   at: (node: Node.Node, env: unknown) => unknown,
+  foreign?: ForeignImplementations,
 ): unknown =>
   Elements.$match(elementsOf(rows, source), {
     Value: ({ value }) => value,
@@ -20,7 +22,7 @@ const evaluate = (
     Absent: () => null,
     Held: ({ elements, whole }) =>
       whole
-        ? foldAnswers(rows, elements, answersBy(rows, elements, env, at))
+        ? foldAnswers(rows, elements, answersBy(rows, elements, env, at), foreign)
         : new Node.Refusal({
             reason: 'unsupported',
             at: `rows.${rows.fold}`,

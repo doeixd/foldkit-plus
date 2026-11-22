@@ -179,5 +179,6 @@ export const evalNode = (
         evalNode(Node.rowsSource(rows.over), env, foreign),
         env,
         (node, each) => evalNode(node, each, foreign),
+        foreign,
       ),
   })

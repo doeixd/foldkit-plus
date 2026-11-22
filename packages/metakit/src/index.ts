@@ -26,7 +26,9 @@ export { Zone, ZERO } from './abstract/zone.js'
 export * as Abstract from './abstract/check.js'
 export {
   foldProperties,
+  foldPropertiesOf,
   opProperties,
+  reduceProperties,
   type Direction,
   type Domain,
   type FoldProperties,

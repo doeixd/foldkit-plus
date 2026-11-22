@@ -14,6 +14,7 @@
 import { Data, Option } from 'effect'
 import * as Node from '../node.js'
 import { readable } from '../path.js'
+import { applyForeign, type ForeignImplementations } from './eval.js'
 
 /** The environment a body reads for one element: `env` with the element under `each`. */
 export const withEach = (env: unknown, element: unknown): Readonly<Record<string, unknown>> =>
@@ -133,6 +134,7 @@ export const foldAnswers = (
   rows: Node.Rows,
   elements: ReadonlyArray<unknown>,
   answers: Answers,
+  foreign: ForeignImplementations = {},
 ): unknown => {
   const passes = (index: number): boolean | Node.Refusal =>
     Option.isNone(rows.where) ? true : passing(answers.where(index))
@@ -187,6 +189,29 @@ export const foldAnswers = (
       return extreme((a, b) => a < b)
     case 'max':
       return extreme((a, b) => a > b)
+    case 'reduce': {
+      const op = rows.op
+      if (op === undefined || op.claims?.identity === undefined) {
+        return new Node.Refusal({
+          reason: 'unsupported',
+          at: at(rows),
+          detail: 'reduce has no operation or identity',
+        })
+      }
+      if (!Object.hasOwn(foreign, Node.foreignName(op))) return Node.unsupported(op)
+      let acc: unknown = op.claims.identity.value
+      for (const index of indices) {
+        const passed = passes(index)
+        if (Node.isRefusal(passed)) return passed
+        if (!passed) continue
+        const value = answers.value(index)
+        if (Node.isRefusal(value)) return value
+        if (value === null || value === undefined) continue
+        acc = applyForeign(op, [acc, value], foreign)
+        if (Node.isRefusal(acc)) return acc
+      }
+      return acc
+    }
     case 'find': {
       for (const index of indices) {
         const passed = passes(index)

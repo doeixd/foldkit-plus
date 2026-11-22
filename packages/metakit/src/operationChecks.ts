@@ -531,6 +531,7 @@ const collectNodeOps = (node: Node.Node, out: Map<string, Node.ForeignOp>): void
     },
     Opaque: () => {},
     Rows: rows => {
+      if (rows.op !== undefined) visitOp(rows.op)
       collectNodeOps(Node.rowsSource(rows.over), out)
       for (const body of Node.rowsBody(rows)) collectNodeOps(body, out)
     },

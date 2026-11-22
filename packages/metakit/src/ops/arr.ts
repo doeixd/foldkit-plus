@@ -11,7 +11,7 @@
  * slice `each`, so every reader sees the test as nodes. A null list gives
  * null; a test that gives null does not pass.
  */
-import { Option, SchemaAST } from 'effect'
+import { Option, Schema, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import * as Path from '../path.js'
 import type { Expr, PathAccessor } from '../path.js'
@@ -239,6 +239,7 @@ export const rowsOver = (
     readonly where?: Node.Node
     readonly value?: Node.Node
     readonly set?: ReadonlyArray<readonly [string, Node.Node]>
+    readonly op?: Node.ForeignOp
   },
 ): Node.Node => {
   loadRowsEvaluation()
@@ -248,6 +249,7 @@ export const rowsOver = (
     where: Option.fromUndefinedOr(body.where),
     value: Option.fromUndefinedOr(body.value),
     set: body.set ?? [],
+    ...(body.op === undefined ? {} : { op: body.op }),
   })
 }
 
@@ -328,6 +330,65 @@ export const sum: NumericFold<number> = /* @__PURE__ */ numeric('sum') as Numeri
 export const min: NumericFold<number | null> = /* @__PURE__ */ numeric('min') as NumericFold<
   number | null
 >
+
+/** An operation claiming commutativity, associativity, and a two-sided identity. */
+export interface CommutativeMonoid {
+  readonly descriptor: Node.ForeignOp & {
+    readonly args: readonly [Schema.Top, Schema.Top]
+    readonly result: Schema.Top
+    readonly claims: {
+      readonly commutative: true
+      readonly associative: true
+      readonly identity: { readonly value: unknown; readonly side: 'both' }
+    }
+  }
+}
+
+/** Verify at runtime that `op` carries the commutative-monoid claims `reduce` requires. */
+export const assertCommutativeMonoid = (op: Node.ForeignOp, caller: string): void => {
+  const claims = op.claims
+  if (
+    claims?.commutative !== true ||
+    claims?.associative !== true ||
+    claims?.identity === undefined ||
+    claims.identity.side !== 'both'
+  ) {
+    throw new Error(
+      `[metakit] ${caller}: "${Node.foreignName(op)}" does not claim commutative and associative with an identity, so its answer over rows would depend on their order.`,
+    )
+  }
+}
+
+/**
+ * Fold `value` over the elements of `list` that pass `test` using a declared
+ * commutative-monoid operation `op`: returns `op`'s identity over no elements
+ * and skips null contributions.
+ */
+export const reduce = <
+  L extends NullableItems,
+  O extends CommutativeMonoid,
+  V extends ExprInput<never, Schema.Schema.Type<O['descriptor']['result']> | null>,
+  T extends ExprInput<never, boolean | null> = true,
+>(
+  list: L,
+  op: O,
+  value: (each: Each<ElementOf<L>>) => V,
+  test?: (each: Each<ElementOf<L>>) => T,
+): Expr<
+  EnvOfInput<L> & Outside<EnvOfInput<V>> & Outside<EnvOfInput<T>>,
+  Schema.Schema.Type<O['descriptor']['result']> | NullOf<L>
+> => {
+  assertCommutativeMonoid(op.descriptor, 'Arr.reduce')
+  const source = toNode(list)
+  const element = elementAst(source)
+  return wrap(
+    rowsOver('reduce', source, {
+      op: op.descriptor,
+      value: bodyOf(element, value as Body, 'Arr.reduce'),
+      ...(test === undefined ? {} : { where: bodyOf(element, test as Body, 'Arr.reduce') }),
+    }),
+  )
+}
 
 /** The greatest `value` of the elements that pass `test`: null over none, skipping a null value. */
 export const max: NumericFold<number | null> = /* @__PURE__ */ numeric('max') as NumericFold<

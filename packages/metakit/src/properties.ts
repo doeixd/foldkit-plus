@@ -107,7 +107,7 @@ export const opProperties: { readonly [Id in Node.CoreOpId]: OpProperties } = Re
 /** What a fold keeps, as it is read off the elements' answers. */
 export interface FoldProperties {
   /** The operation the fold combines its elements' answers with, whose row it takes its properties from. */
-  readonly from?: 'num.add' | 'bool.or' | 'bool.and'
+  readonly from?: 'num.add' | 'bool.or' | 'bool.and' | Node.ForeignOp
   /** The answer over no element. */
   readonly identity?: { readonly value: unknown }
   /** One element whose test gives `value` decides the answer, `result`, whatever the others give. */
@@ -154,7 +154,34 @@ export const foldProperties: { readonly [Fold in Node.RowsFold]: FoldProperties 
   sum: summed('all'),
   min: {},
   max: {},
+  reduce: {},
   find: {},
   keep: {},
   patch: {},
 }
+
+/** Derive a `reduce` fold's properties from its custom operation's claims. */
+export const reduceProperties = (op: Node.ForeignOp): FoldProperties => {
+  const claims = op.claims
+  if (claims === undefined) return { from: op }
+  return {
+    from: op,
+    ...(claims.identity === undefined ? {} : { identity: { value: claims.identity.value } }),
+    ...(claims.commutative === true && claims.associative !== undefined
+      ? {
+          commutative: { over: 'all' as const },
+          associative: {
+            over: 'all' as const,
+            unlessRefused: claims.associative !== true,
+          },
+        }
+      : {}),
+    ...(claims.invertible === undefined ? {} : { invertible: { over: 'all' as const } }),
+  }
+}
+
+/** The properties of a `Rows` fold, deriving a `reduce` fold's row from its operation. */
+export const foldPropertiesOf = (rows: Pick<Node.Rows, 'fold' | 'op'>): FoldProperties =>
+  rows.fold === 'reduce' && rows.op !== undefined
+    ? reduceProperties(rows.op)
+    : foldProperties[rows.fold]
