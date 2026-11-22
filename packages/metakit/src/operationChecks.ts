@@ -653,7 +653,7 @@ export const lawObligations = (
   from:
     | { readonly transitions: Readonly<Record<string, unknown>> }
     | {
-        readonly when: Expr<never, boolean>
+        readonly when: Expr<never, boolean | null>
         readonly writes: ReadonlyArray<{ readonly value: Expr<never, unknown> }>
         readonly emits: ReadonlyArray<{
           readonly when?: Option.Option<Node.Node> | undefined
@@ -675,7 +675,7 @@ export const lawObligations = (
     }
   }
   const addTransition = (t: {
-    readonly when: Expr<never, boolean>
+    readonly when: Expr<never, boolean | null>
     readonly writes: ReadonlyArray<{ readonly value: Expr<never, unknown> }>
     readonly emits: ReadonlyArray<{
       readonly when?: Option.Option<Node.Node> | undefined
@@ -696,7 +696,7 @@ export const lawObligations = (
     for (const t of Object.values(from.transitions)) {
       addTransition(
         t as {
-          readonly when: Expr<never, boolean>
+          readonly when: Expr<never, boolean | null>
           readonly writes: ReadonlyArray<{ readonly value: Expr<never, unknown> }>
           readonly emits: ReadonlyArray<{
             readonly fields: ReadonlyArray<readonly [string, Node.Node]>

@@ -142,7 +142,7 @@ export interface Transition<State, Input, Emit = never, Supplied = NoSupplied> {
   readonly stateSchema: Option.Option<Schema.Codec<State>>
   readonly inputSchema: Option.Option<Schema.Codec<Input>>
   readonly suppliedSchema: Option.Option<Schema.Codec<Supplied>>
-  readonly when: ExprType<TransitionEnv<State, Input, Supplied>, boolean>
+  readonly when: ExprType<TransitionEnv<State, Input, Supplied>, boolean | null>
   readonly writes: ReadonlyArray<WriteEquation<State, Input, unknown, Supplied>>
   readonly emits: ReadonlyArray<EmitSpec>
   readonly _emit?: () => Emit
@@ -319,7 +319,7 @@ export const make = <
 }): Transition<S['Type'], I['Type'], EmitOfEntries<Entries>, Path.EnvOf<Sup>> => {
   type Env = TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>
   const env = pathsOf(config.state, config.input, config.supplied ?? ({} as Sup))
-  const whenExpr: ExprType<Env, boolean> = wrap(
+  const whenExpr: ExprType<Env, boolean | null> = wrap(
     config.when === undefined ? Node.Lit({ value: true }) : toNode(config.when(env)),
   )
   return {

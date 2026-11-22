@@ -1,6 +1,9 @@
 import { Data, Effect, Option } from 'effect'
+import { collectFields, pathKey, type FieldInfo } from '../abstract/fields.js'
 import * as Expr from '../expr.js'
 import * as Node from '../node.js'
+import * as Bool from '../ops/bool.js'
+import * as Null from '../ops/null.js'
 import type { Slice } from '../abstract/unordered.js'
 import type { ProveOptions } from '../prove.js'
 import * as Verdict from '../verdict.js'
@@ -18,6 +21,7 @@ export class SolverUnavailableError extends Data.TaggedError('SolverUnavailableE
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000
+const FP_TIMEOUT_MS = 2_000
 
 export type Proof = Verdict.Verdict<Readonly<Record<string, unknown>>>
 
@@ -63,8 +67,10 @@ const undecided = (reason: string, kind: Verdict.Obligation['kind'], detail: str
 
 const solve = async (z3: Z3, problem: Problem): Promise<Solved> => {
   const shape = shapeOf(problem.slices)
+  const hasFp = [...shape.paths.values()].some(info => info.sort === 'real' && !info.nan)
+  const effectiveTimeout = hasFp ? Math.min(problem.timeoutMs, FP_TIMEOUT_MS) : problem.timeoutMs
   const solver = new z3.Solver()
-  solver.set('timeout', problem.timeoutMs)
+  solver.set('timeout', effectiveTimeout)
   const lowered = lowering(z3, solver, shape)
   const { lower, holds, opaque, nanReads } = lowered
 
@@ -95,7 +101,7 @@ const solve = async (z3: Z3, problem: Problem): Promise<Solved> => {
   if (status === 'unknown') {
     const why = solver.reasonUnknown()
     return /timeout|canceled/.test(why)
-      ? undecided(`z3 gave up after ${problem.timeoutMs}ms`, 'budget', why)
+      ? undecided(`z3 gave up after ${effectiveTimeout}ms`, 'budget', why)
       : undecided(`z3 could not decide: ${why}`, 'nonlinear', why)
   }
   if (nanReads.size > 0 && status === 'unsat') {
@@ -140,9 +146,21 @@ export const refute = (
 > =>
   Effect.gen(function* () {
     const z3 = yield* getZ3
-    const rules = slices.flatMap(([under, schema]) =>
-      Expr.refinementsOf(schema).map(rule => Node.prefix(rule.node, under)),
-    )
+    const rules = slices.flatMap(([under, schema]) => {
+      const fields = new Map<string, FieldInfo>()
+      collectFields(schema.ast, under, fields)
+      return Expr.rulesOf(schema).map(rule => {
+        const node = Node.prefix(rule.expr.node, under)
+        const at = [...under, ...rule.at]
+        const info = rule.at.length > 0 ? fields.get(pathKey(at)) : undefined
+        if (info === undefined || !info.nullable) return node
+        const absent = Node.Call({
+          op: Null.isNullOp,
+          args: [Node.Path({ segments: at, ast: Option.none() })],
+        })
+        return Node.Call({ op: Bool.orOp, args: [absent, node] })
+      })
+    })
     const solved = yield* Effect.promise(() =>
       solve(z3, {
         slices,

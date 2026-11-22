@@ -17,13 +17,13 @@ export { affordances, canDispatch } from './can.js'
 
 type AnyTransition<State> = {
   readonly _tag: 'Transition'
-  readonly when: Expr.Expr<Transition.TransitionEnv<State, never, never>, boolean>
+  readonly when: Expr.Expr<Transition.TransitionEnv<State, never, never>, boolean | null>
   readonly writes: ReadonlyArray<Transition.WriteEquation<State, never, unknown, never>>
 }
 
 /** The input a transition takes. */
 export type InputOf<T> = T extends {
-  readonly when: Expr.Expr<Transition.TransitionEnv<never, infer I, never>, boolean>
+  readonly when: Expr.Expr<Transition.TransitionEnv<never, infer I, never>, boolean | null>
 }
   ? I
   : never

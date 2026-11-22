@@ -48,6 +48,7 @@ export const readModel = (
       case 'int':
       case 'real':
         if (z3.isIntVal(assigned)) return Option.some(Number(assigned.value()))
+        if (z3.isFPVal(assigned)) return Option.some(assigned.value())
         return z3.isRealVal(assigned) ? Option.some(assigned.asNumber()) : Option.none()
       case 'text': {
         const code = Number(assigned.toString())

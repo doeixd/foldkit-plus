@@ -1,5 +1,5 @@
 import { Option } from 'effect'
-import type { Arith, Bool, Context, Solver } from 'z3-solver'
+import type { Arith, Bool, Context, FP, Solver } from 'z3-solver'
 import { abstractOps } from '../abstract/ops.js'
 import { noCandidate } from '../abstract/support.js'
 import * as Node from '../node.js'
@@ -14,7 +14,8 @@ import { textReading } from './text.js'
 export type Z3 = Context<'metakit'>
 export type ZBool = Bool<'metakit'>
 export type ZArith = Arith<'metakit'>
-export type ZExpr = ZBool | ZArith
+export type ZFP = FP<'metakit'>
+export type ZExpr = ZBool | ZArith | ZFP
 
 /** What a term is, where the Schema or the operator says: a mismatch is undecided, not a proof. */
 export type Kind = 'bool' | 'num' | 'text' | 'null' | 'other'
@@ -133,6 +134,23 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       }
       return made
     }
+    if (info.sort === 'real' && !info.nan) {
+      const f64 = z3.Float.sort64()
+      const made = z3.Float.const(name, f64)
+      guard(z3.And(z3.Not(made.isNaN()), z3.Not(made.isInf())))
+      if (Option.isSome(info.min)) guard(made.ge(z3.Float.val(info.min.value, f64)))
+      if (Option.isSome(info.max)) guard(made.le(z3.Float.val(info.max.value, f64)))
+      if (Option.isSome(info.exclusiveMin)) {
+        guard(made.gt(z3.Float.val(info.exclusiveMin.value, f64)))
+      }
+      if (Option.isSome(info.exclusiveMax)) {
+        guard(made.lt(z3.Float.val(info.exclusiveMax.value, f64)))
+      }
+      if (info.literals.length > 0) {
+        guard(z3.Or(...info.literals.map(lit => made.eq(z3.Float.val(Number(lit), f64)))))
+      }
+      return made
+    }
     if (info.sort === 'int' || info.sort === 'real') {
       const made = info.sort === 'int' ? z3.Int.const(name) : z3.Real.const(name)
       // An integer above 0.5 is at least 1: a fraction is no integer constant.
@@ -195,9 +213,21 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     return 'other'
   }
   /** The values of two branches in one sort; a null branch borrows the other's, which is never read. */
+  const f64 = z3.Float.sort64()
+  const rne = z3.FloatRM.RNE()
+  const toFp = (value: ZExpr): ZFP => {
+    if (z3.isFP(value)) return value
+    if (z3.isIntVal(value)) return z3.Float.val(Number(value.value()), f64)
+    if (z3.isRealVal(value)) return z3.Float.val(value.asNumber(), f64)
+    throw new Unsupported('mixed integer and floating-point arithmetic in the solver')
+  }
+  const fpPair = (a: ZExpr, b: ZExpr): readonly [ZFP, ZFP] => [toFp(a), toFp(b)]
+  const isFpPair = (a: Term, b: Term): boolean => z3.isFP(a.value) || z3.isFP(b.value)
+
   const branches = (a: Term, b: Term): readonly [ZExpr, ZExpr] => {
     const left = a.kind === 'null' ? b.value : a.value
     const right = b.kind === 'null' ? a.value : b.value
+    if (z3.isFP(left) || z3.isFP(right)) return fpPair(left, right)
     return z3.isArith(left) && z3.isArith(right) ? aligned(left, right) : [left, right]
   }
   /** `cond ? a : b`, where `cond` is not null. */
@@ -223,6 +253,10 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       throw new Unsupported(`eq.is of a ${a.kind} and a ${b.kind}`)
     }
     if (z3.isBool(a.value) && z3.isBool(b.value)) return a.value.eq(b.value)
+    if (isFpPair(a, b)) {
+      const [left, right] = fpPair(a.value, b.value)
+      return left.eq(right)
+    }
     if (z3.isArith(a.value) && z3.isArith(b.value)) {
       const [left, right] = aligned(a.value, b.value)
       return left.eq(right)
@@ -256,15 +290,24 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     kind: 'bool',
   })
   const compare =
-    (apply: (a: ZArith, b: ZArith) => ZBool) =>
-    ([a, b]: ReadonlyArray<Term>): Term =>
-      strict('bool', [a!, b!], apply(...aligned(number(a!), number(b!))))
-  // The solver's numbers are exact. Whatever leaves the safe range is taken
-  // for refused, an integer or not: a proof then never rests on a double's rounding there.
-  // Evaluation refuses an operand past it too.
-  const arithmetic =
-    (apply: (a: ZArith, b: ZArith) => ZArith) =>
+    (apply: (a: ZArith, b: ZArith) => ZBool, applyFp: (a: ZFP, b: ZFP) => ZBool) =>
     ([a, b]: ReadonlyArray<Term>): Term => {
+      if (isFpPair(a!, b!)) {
+        const [x, y] = fpPair(a!.value, b!.value)
+        return strict('bool', [a!, b!], applyFp(x, y))
+      }
+      return strict('bool', [a!, b!], apply(...aligned(number(a!), number(b!))))
+    }
+  // The solver's integer numbers are exact; IEEE-754 Float64 handles `Schema.Finite`
+  // with `isNaN`/`isInf` refusal matching JavaScript's `num.*` non-finite refusal.
+  const arithmetic =
+    (apply: (a: ZArith, b: ZArith) => ZArith, applyFp: (a: ZFP, b: ZFP) => ZFP) =>
+    ([a, b]: ReadonlyArray<Term>): Term => {
+      if (isFpPair(a!, b!)) {
+        const [x, y] = fpPair(a!.value, b!.value)
+        const result = applyFp(x, y)
+        return strict('num', [a!, b!], result, z3.Or(result.isNaN(), result.isInf()))
+      }
       const [x, y] = aligned(number(a!), number(b!))
       const result = apply(x, y)
       return strict('num', [a!, b!], result, z3.Or(unsafe(x), unsafe(y), unsafe(result)))
@@ -349,14 +392,39 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       kind: mergeKind(a!.kind, b!.kind),
     }),
     ...text.rows,
-    'ord.lt': compare((a, b) => a.lt(b)),
-    'ord.lte': compare((a, b) => a.le(b)),
-    'ord.gt': compare((a, b) => a.gt(b)),
-    'ord.gte': compare((a, b) => a.ge(b)),
-    'num.add': arithmetic((a, b) => a.add(b)),
-    'num.sub': arithmetic((a, b) => a.sub(b)),
-    'num.mul': arithmetic((a, b) => a.mul(b)),
+    'ord.lt': compare(
+      (a, b) => a.lt(b),
+      (a, b) => a.lt(b),
+    ),
+    'ord.lte': compare(
+      (a, b) => a.le(b),
+      (a, b) => a.le(b),
+    ),
+    'ord.gt': compare(
+      (a, b) => a.gt(b),
+      (a, b) => a.gt(b),
+    ),
+    'ord.gte': compare(
+      (a, b) => a.ge(b),
+      (a, b) => a.ge(b),
+    ),
+    'num.add': arithmetic(
+      (a, b) => a.add(b),
+      (a, b) => a.add(rne, b),
+    ),
+    'num.sub': arithmetic(
+      (a, b) => a.sub(b),
+      (a, b) => a.sub(rne, b),
+    ),
+    'num.mul': arithmetic(
+      (a, b) => a.mul(b),
+      (a, b) => a.mul(rne, b),
+    ),
     'num.neg': ([a]) => {
+      if (z3.isFP(a!.value)) {
+        const result = a!.value.neg()
+        return strict('num', [a!], result, z3.Or(result.isNaN(), result.isInf()))
+      }
       const result = number(a!).neg()
       return strict('num', [a!], result, unsafe(result))
     },
