@@ -16,9 +16,8 @@
  *   `keep` leaves is no longer); `metakit/aggregates` keeps a total by
  *   deltas only over the domain where `sum` is commutative, associative and
  *   invertible, and starts it at `identity`;
- * - of a way of writing, `Transition.commutes` reads `commutes`, and
- *   `foldkit-remote` reads `commutes` and `invertible` to replay a pending
- *   write over a newer value or take back a failed one.
+ * - of a way of writing, `Transition.commutes` and `foldkit-remote`'s replay
+ *   of a pending write over a newer value read `commutes`.
  *
  * What partial evaluation reads is declared in `ops/laws.ts`, which a page
  * that judges carries; the ways of writing, and `num.add`'s row they derive

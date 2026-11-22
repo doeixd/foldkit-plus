@@ -2,9 +2,7 @@
  * One check per pair of ways of writing `writeProperties` lists as commuting
  * on one path: two writes that meet its condition, run in both orders over
  * seeded states, give one state, or are refused alike. A pair whose check
- * fails must not be listed. A way listed `invertible` is checked too: a
- * write, then one of the opposite amount, gives back the state wherever the
- * first has a value.
+ * fails must not be listed.
  */
 import { Result, Schema } from 'effect'
 import type { Each } from './ops/arr.js'
@@ -100,15 +98,6 @@ const writesOf = (
   }
 }
 
-/** Each write of `way` with the one of the opposite amount; none for a way that has no amount. */
-const undoneOf = (way: WayOfWriting): ReadonlyArray<readonly [Write, Write]> =>
-  way === 'add'
-    ? [-3, 0, 7].map(amount => [
-        write(state => Transition.add(state.n, amount)),
-        write(state => Transition.add(state.n, -amount)),
-      ])
-    : []
-
 /** mulberry32: the states are the same on every run. */
 const seeded = (seed: number) => () => {
   seed = (seed + 0x6d2b79f5) | 0
@@ -151,7 +140,6 @@ export interface WriteReport {
   readonly way: WayOfWriting
   readonly ok: boolean
   readonly checked: number
-  /** `with` the way it was listed as commuting with, or `way` itself where undoing it failed. */
   readonly failures: ReadonlyArray<{ readonly with: WayOfWriting; readonly state: string }>
 }
 
@@ -177,19 +165,6 @@ export const checkWriteProperties = (
             failures.push({ with: other, state: JSON.stringify(state) })
           }
         }
-      }
-    }
-  }
-  if (properties.invertible === true) {
-    const undone = undoneOf(way)
-    if (undone.length === 0) failures.push({ with: way, state: 'no write undoes it' })
-    for (const [apply, undo] of undone) {
-      for (const state of states) {
-        const after = outcome(state, apply, undo)
-        // Undone wherever the write has a value: one the Schema refuses has none.
-        if (after === 'refused' && Result.isFailure(Transition.run(apply, state, {}))) continue
-        checked++
-        if (!same(after, state)) failures.push({ with: way, state: JSON.stringify(state) })
       }
     }
   }

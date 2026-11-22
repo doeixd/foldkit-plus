@@ -62,18 +62,12 @@ export type CommuteCondition =
 export interface WriteProperties {
   /** The ways a write of this way commutes with on one path, and on what condition; any other does not decide. */
   readonly commutes: { readonly [Way in WayOfWriting]?: CommuteCondition }
-  /** A write of this way is undone by one of the opposite amount, over the integers, wherever it has a value. */
-  readonly invertible?: true
 }
 
-/**
- * Two `add`s commute where `num.add` is commutative and associative, over the
- * integers it is associative over; one is undone where `num.add` is invertible.
- */
+/** Two `add`s commute where `num.add` is commutative and associative, over the integers it is associative over. */
 const adds: WriteProperties = {
   commutes:
     added.commutative === true && added.associative !== undefined ? { add: 'in-range' } : {},
-  ...(added.invertible === undefined ? {} : { invertible: true }),
 }
 
 const removals = { remove: 'steady', removeWhere: 'steady' } as const
