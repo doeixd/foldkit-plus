@@ -59,9 +59,23 @@ export type CommuteCondition =
   | 'steady'
   | 'reads-no-set-field'
 
+/**
+ * When a write of one way, run twice in a row with the same values, leaves
+ * what it left once:
+ * - `always`;
+ * - `sets-unread`: no value it sets reads a field it sets (a toggle, which
+ *   sets a field from itself, is not once twice).
+ *
+ * Both hold of a write whose values read no path the transition writes; a
+ * value that does is `Transition.idempotent`'s to refuse, not the way's.
+ */
+export type IdempotentCondition = 'always' | 'sets-unread'
+
 export interface WriteProperties {
   /** The ways a write of this way commutes with on one path, and on what condition; any other does not decide. */
   readonly commutes: { readonly [Way in WayOfWriting]?: CommuteCondition }
+  /** When this way twice is once; absent where it is not (an `add` counts twice, an `append` lists twice). */
+  readonly idempotent?: IdempotentCondition
 }
 
 /**
@@ -85,6 +99,7 @@ const removals: WriteProperties = {
     patch: 'reads-no-set-field',
     patchWhere: 'reads-no-set-field',
   },
+  idempotent: 'always',
 }
 const patches: WriteProperties = {
   commutes: {
@@ -93,18 +108,27 @@ const patches: WriteProperties = {
     remove: 'reads-no-set-field',
     removeWhere: 'reads-no-set-field',
   },
+  idempotent: 'sets-unread',
 }
 
 export const writeProperties: { readonly [Way in WayOfWriting]: WriteProperties } = {
-  set: setWrites,
+  // A literal, not `setWrites`: its `idempotent` row stays off a page that reads only `setWrites`.
+  set: { commutes: setWrites.commutes, idempotent: 'always' },
   add: addWrites,
-  // Order shows: an appended list says which came first.
+  // Order shows: an appended list says which came first. Twice appends twice.
   append: { commutes: {} },
-  insert: { commutes: {} },
+  // An element whose key is there already is left as it is.
+  insert: { commutes: {}, idempotent: 'always' },
   remove: removals,
   removeWhere: removals,
   patch: patches,
   patchWhere: patches,
-  include: { commutes: { include: 'one-kind', exclude: 'different-literals' } },
-  exclude: { commutes: { exclude: 'one-kind', include: 'different-literals' } },
+  include: {
+    commutes: { include: 'one-kind', exclude: 'different-literals' },
+    idempotent: 'always',
+  },
+  exclude: {
+    commutes: { exclude: 'one-kind', include: 'different-literals' },
+    idempotent: 'always',
+  },
 }

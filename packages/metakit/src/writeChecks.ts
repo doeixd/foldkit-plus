@@ -2,13 +2,19 @@
  * One check per pair of ways of writing `writeProperties` lists as commuting
  * on one path: two writes that meet its condition, run in both orders over
  * seeded states, give one state, or are refused alike. A pair whose check
- * fails must not be listed.
+ * fails must not be listed. A way that lists `idempotent` has one more: a
+ * write that meets its condition, run twice, leaves what once leaves.
  */
 import { Result, Schema } from 'effect'
 import type { Each } from './ops/arr.js'
 import * as Bool from './ops/bool.js'
 import * as Num from './ops/num.js'
-import type { CommuteCondition, WayOfWriting, WriteProperties } from './properties.js'
+import type {
+  CommuteCondition,
+  IdempotentCondition,
+  WayOfWriting,
+  WriteProperties,
+} from './properties.js'
 import * as Transition from './transition.js'
 
 // A test reads `c`, which no write sets, so a removal and a patch meet the condition.
@@ -43,7 +49,7 @@ const write = (
  */
 const writesOf = (
   way: WayOfWriting,
-  condition: CommuteCondition,
+  condition: CommuteCondition | IdempotentCondition,
   other: boolean,
 ): ReadonlyArray<Write> => {
   const literals = ((): ReadonlyArray<string> => {
@@ -53,11 +59,17 @@ const writesOf = (
   })()
   // What a patch sets: fields apart where the condition asks it; otherwise
   // each field, and one set from the other.
-  type Sets = 'a' | 'b' | 'a from b'
+  type Sets = 'a' | 'b' | 'a from b' | 'b to 4'
+  // `sets-unread`: nothing a patch sets is read by what it sets.
   const fields: ReadonlyArray<Sets> =
-    condition === 'disjoint-fields' ? [other ? 'a' : 'b'] : ['a', 'b', 'a from b']
+    condition === 'disjoint-fields'
+      ? [other ? 'a' : 'b']
+      : condition === 'sets-unread'
+        ? ['a from b', 'b to 4']
+        : ['a', 'b', 'a from b']
   const setOf = (sets: Sets, each: Each<typeof Entry.Type>) => {
     if (sets === 'b') return { b: Num.add(each.b, 1) }
+    if (sets === 'b to 4') return { b: 4 }
     return { a: sets === 'a' ? Bool.not(each.a) : Num.gt(each.b, 0) }
   }
   switch (way) {
@@ -132,6 +144,12 @@ const outcome = (state: State, first: Write, second: Write): State | 'refused' =
       }),
   })
 
+const once = (state: State, write: Write): State | 'refused' =>
+  Result.match(Transition.run(write, state, {}), {
+    onFailure: () => 'refused' as const,
+    onSuccess: done => done,
+  })
+
 /** Two outcomes are one: alike as data, or both refused. */
 const same = (left: State | 'refused', right: State | 'refused'): boolean =>
   JSON.stringify(left) === JSON.stringify(right)
@@ -164,6 +182,17 @@ export const checkWriteProperties = (
           if (!same(outcome(state, a, b), outcome(state, b, a))) {
             failures.push({ with: other, state: JSON.stringify(state) })
           }
+        }
+      }
+    }
+  }
+  // Twice in a row is once, over the same states.
+  if (properties.idempotent !== undefined) {
+    for (const write of writesOf(way, properties.idempotent, false)) {
+      for (const state of states) {
+        checked++
+        if (!same(outcome(state, write, write), once(state, write))) {
+          failures.push({ with: way, state: JSON.stringify(state) })
         }
       }
     }

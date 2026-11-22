@@ -31,7 +31,7 @@ import type { WayOfWriting } from './properties.js'
 import type { ReaderOptions } from './expr.js'
 
 export { can } from './can.js'
-export { commutes } from './transitionCommutes.js'
+export { commutes, idempotent } from './transitionCommutes.js'
 export { lift } from './transitionLift.js'
 export {
   append,

@@ -21,7 +21,6 @@ import {
   type Storage,
   type SyncDefinition,
 } from '../src/index.js'
-import { walkAsync, type AsyncStep } from './walkAsync.js'
 
 const Message = Schema.Struct({ _tag: Schema.Literal('Appended'), text: Schema.String })
 type Message = typeof Message.Type
@@ -241,8 +240,8 @@ const FINAL = 'every tab exchanges with the connection up'
 
 /** `steps`, then a last step after all of them: each tab exchanges once the connection holds. */
 const closing = (
-  steps: ReadonlyArray<AsyncStep<World, StepName>>,
-): ReadonlyArray<AsyncStep<World, StepName>> => [
+  steps: ReadonlyArray<Temporal.AsyncStep<World, StepName>>,
+): ReadonlyArray<Temporal.AsyncStep<World, StepName>> => [
   ...steps,
   {
     name: FINAL,
@@ -255,12 +254,12 @@ const closing = (
 
 type StepName = string
 
-const submits = (id: 'A' | 'B'): ReadonlyArray<AsyncStep<World, StepName>> => [
+const submits = (id: 'A' | 'B'): ReadonlyArray<Temporal.AsyncStep<World, StepName>> => [
   { name: `submit:${id}1`, run: world => submit(world, id, `${id}1`) },
   { name: `submit:${id}2`, after: [`submit:${id}1`], run: world => submit(world, id, `${id}2`) },
 ]
 
-const syncs = (id: 'A' | 'B'): ReadonlyArray<AsyncStep<World, StepName>> => [
+const syncs = (id: 'A' | 'B'): ReadonlyArray<Temporal.AsyncStep<World, StepName>> => [
   { name: `sync:${id}`, run: world => synchronize(world, id, 'none') },
   { name: `sync:${id}:response lost`, run: world => synchronize(world, id, 'response lost') },
   { name: `sync:${id}:request lost`, run: world => synchronize(world, id, 'request lost') },
@@ -274,7 +273,7 @@ const syncs = (id: 'A' | 'B'): ReadonlyArray<AsyncStep<World, StepName>> => [
  * server's document.
  */
 export const reconnect = (options?: Temporal.WalkOptions) =>
-  walkAsync<World, StepName>(
+  Temporal.walkAsync<World, StepName>(
     {
       initial: openWorld,
       steps: closing([...submits('A'), ...syncs('A')]),
@@ -296,7 +295,7 @@ export const reconnect = (options?: Temporal.WalkOptions) =>
  * everything they hold one document, with every Message in it once.
  */
 export const twoTabs = (options?: Temporal.WalkOptions) =>
-  walkAsync<World, StepName>(
+  Temporal.walkAsync<World, StepName>(
     {
       initial: openWorld,
       steps: closing([
@@ -348,7 +347,7 @@ export const twoTabs = (options?: Temporal.WalkOptions) =>
  * and holds the server's document, its outbox sent there.
  */
 export const serverReset = (options?: Temporal.WalkOptions) =>
-  walkAsync<World, StepName>(
+  Temporal.walkAsync<World, StepName>(
     {
       initial: openWorld,
       steps: closing([

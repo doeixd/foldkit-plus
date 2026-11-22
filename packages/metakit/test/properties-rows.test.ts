@@ -61,6 +61,46 @@ describe('writeProperties', () => {
     }
   })
 
+  it('declares idempotent the ways that leave twice as once, and only those', () => {
+    expect(
+      Struct.keys(writeProperties).filter(way => writeProperties[way].idempotent !== undefined),
+    ).toEqual([
+      'set',
+      'insert',
+      'remove',
+      'removeWhere',
+      'patch',
+      'patchWhere',
+      'include',
+      'exclude',
+    ])
+  })
+
+  it.each([
+    'set',
+    'insert',
+    'remove',
+    'removeWhere',
+    'patch',
+    'patchWhere',
+    'include',
+    'exclude',
+  ] as const)('checks a write of %s run twice against once', way => {
+    expect(writeProperties[way].idempotent).toBeDefined()
+    const report = Conformance.checkWriteProperties(way, writeProperties[way])
+    expect(report.failures).toEqual([])
+    expect(report.checked).toBeGreaterThan(50)
+  })
+
+  it.each([
+    ['an add', 'add', 'always'],
+    ['an append', 'append', 'always'],
+    ['a patch that may set a field from itself', 'patch', 'always'],
+    ['a patch where it is picked by a test', 'patchWhere', 'always'],
+  ] as const)('a false idempotent listing is caught: %s', (_, way, idempotent) => {
+    expect(Conformance.checkWriteProperties(way, { commutes: {}, idempotent }).ok).toBe(false)
+  })
+
   it.each([
     ['two appends', 'append', { append: 'always' }],
     ['two inserts', 'insert', { insert: 'always' }],

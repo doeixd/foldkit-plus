@@ -7,7 +7,6 @@ import { Effect, Exit, Option, Schema, Scope } from 'effect'
 import { IDBFactory } from 'fake-indexeddb'
 import * as Temporal from 'metakit/temporal'
 import { indexedDb, type Storage } from '../src/index.js'
-import { walkAsync, type AsyncStep } from './walkAsync.js'
 
 type Writer = 'A' | 'B'
 const writers: ReadonlyArray<Writer> = ['A', 'B']
@@ -108,16 +107,16 @@ const reload = async (world: Stored, writer: Writer): Promise<void> => {
   world.known[writer] = (await readStore(world, writer)).revision
 }
 
-const writeSteps = (writer: Writer): ReadonlyArray<AsyncStep<Stored, string>> => [
-  ...[1, 2].map((at): AsyncStep<Stored, string> => ({
+const writeSteps = (writer: Writer): ReadonlyArray<Temporal.AsyncStep<Stored, string>> => [
+  ...[1, 2].map((at): Temporal.AsyncStep<Stored, string> => ({
     name: `${writer} appends ${at}`,
     run: world => settle(world, [writeFrom(world, writer, 'append')]),
   })),
-  ...[1, 2].map((at): AsyncStep<Stored, string> => ({
+  ...[1, 2].map((at): Temporal.AsyncStep<Stored, string> => ({
     name: `${writer} settles ${at}`,
     run: world => settle(world, [writeFrom(world, writer, 'save')]),
   })),
-  ...[1, 2].map((at): AsyncStep<Stored, string> => ({
+  ...[1, 2].map((at): Temporal.AsyncStep<Stored, string> => ({
     name: `${writer} reloads ${at}`,
     run: world => reload(world, writer),
   })),
@@ -135,7 +134,7 @@ const FINAL = 'both tabs reload'
  * exactly those the accepted appends left since the last accepted settle.
  */
 export const tabWriters = (options?: Temporal.WalkOptions) => {
-  const steps: ReadonlyArray<AsyncStep<Stored, string>> = [
+  const steps: ReadonlyArray<Temporal.AsyncStep<Stored, string>> = [
     ...writers.flatMap(writeSteps),
     {
       name: 'A and B settle at once',
@@ -147,7 +146,7 @@ export const tabWriters = (options?: Temporal.WalkOptions) => {
         settle(world, [writeFrom(world, 'A', 'append'), writeFrom(world, 'B', 'append')]),
     },
   ]
-  return walkAsync<Stored, string>(
+  return Temporal.walkAsync<Stored, string>(
     {
       initial: openStored,
       steps: [

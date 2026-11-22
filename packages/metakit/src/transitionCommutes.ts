@@ -340,3 +340,79 @@ export const commutes = <State, InputA, EmitA, SuppliedA, InputB, EmitB, Supplie
   }
   return Verdict.True()
 }
+
+const opaqueIn = (node: Node.Node): boolean =>
+  Node.$match(node, {
+    Lit: () => false,
+    Path: () => false,
+    Call: ({ args }) => args.some(opaqueIn),
+    If: ({ cond, then, otherwise }) => opaqueIn(cond) || opaqueIn(then) || opaqueIn(otherwise),
+    Match: ({ on, cases, otherwise }) =>
+      opaqueIn(on) ||
+      cases.some(([, branch]) => opaqueIn(branch)) ||
+      Option.match(otherwise, { onNone: () => false, onSome: opaqueIn }),
+    Opaque: () => true,
+    Rows: rows => [Node.rowsSource(rows.over), ...Node.rowsBody(rows)].some(opaqueIn),
+  })
+
+/** What a patch sets, as the values it computes: none for any other way. */
+const setValues = (write: AnyWrite): ReadonlyArray<Node.Node> =>
+  Way.$match(write.way, {
+    patch: ({ set }) => setBodies(set),
+    patchWhere: ({ set }) => setBodies(set),
+    set: () => [],
+    add: () => [],
+    append: () => [],
+    insert: () => [],
+    remove: () => [],
+    removeWhere: () => [],
+    include: () => [],
+    exclude: () => [],
+  })
+
+/**
+ * Whether `transition` run twice in a row, with the same input and supplied
+ * values, leaves the state once leaves, decided from its footprint and the
+ * ways its writes name, never by running it:
+ *
+ * 1. An opaque term (ordinary code, or a term that may read anything) is `Unknown`.
+ * 2. A transition that emits records emits them twice: `Unknown`.
+ * 3. A read of a path it writes (in its guard or a written value) may give
+ *    another answer the second time, or refuse it: `Unknown`.
+ * 4. Each write's way must list `idempotent` in `writeProperties`, and meet
+ *    its condition; an `add` or an `append` does not list it.
+ * 5. Otherwise `True`. (A transition never writes a path and one under it,
+ *    so no write undoes another.)
+ *
+ * It never answers `False`. A copy delivered later, after other writes, is
+ * a question of `commutes` as well; this answers the copy that follows at once.
+ */
+export const idempotent = <State, Input, Emit, Supplied>(
+  transition: Transition<State, Input, Emit, Supplied>,
+): Verdict.Verdict<never> => {
+  const x = transition as unknown as AnyTransition
+  if (readingNodes(x).some(node => Option.isNone(readsOfNode(node)) || opaqueIn(node))) {
+    return walk('an opaque term may do anything')
+  }
+  if (x.emits.length > 0) return walk('it emits records each time it runs')
+  const met = meetsAny(stateReads(x), x.writes.flatMap(writtenPaths))
+  if (met !== undefined) return walk(`it writes "${Path.format(met)}", which it also reads`)
+  for (const write of x.writes) {
+    const tag = write.way._tag
+    const condition = writeProperties[tag].idempotent
+    if (condition === undefined) {
+      return walk(`${ofWay(tag)} of "${Path.format(write.target)}" twice is not once`)
+    }
+    if (
+      condition === 'sets-unread' &&
+      touches(setValues(write).flatMap(fieldsRead), fieldsSet(write))
+    ) {
+      return walk(
+        `${ofWay(tag)} of "${Path.format(write.target)}" sets a field from the field itself`,
+      )
+    }
+  }
+  return Verdict.True()
+}
+
+const ofWay = (tag: string): string => (/^[aeiou]/.test(tag) ? `an ${tag}` : `a ${tag}`)

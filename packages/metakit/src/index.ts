@@ -39,6 +39,7 @@ export {
   setWrites,
   writeProperties,
   type CommuteCondition,
+  type IdempotentCondition,
   type WayOfWriting,
   type WriteProperties,
 } from './ops/ways.js'

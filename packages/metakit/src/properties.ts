@@ -33,6 +33,7 @@ import { added as addAlgebra } from './ops/ways.js'
 export {
   writeProperties,
   type CommuteCondition,
+  type IdempotentCondition,
   type WayOfWriting,
   type WriteProperties,
 } from './ops/ways.js'
