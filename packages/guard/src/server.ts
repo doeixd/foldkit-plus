@@ -41,6 +41,7 @@ import {
   type MemoryReadable,
   type ReadPlan,
   type ServerDefinition,
+  type StoreRequirement,
   type CascadeRequirement,
   type WriteRequirement,
   type WriteWhen,
@@ -365,6 +366,14 @@ export const GuardServer = {
    * taken under its own are read from its guarded descriptor, given as
    * `children`; one missing is refused where the writer is made.
    *
+   * An Update or Delete rule that reads another row (a path, an exists), and
+   * each such rule of a row a delete takes or unlinks, decides from a row a
+   * concurrent write can change. It is held to its writer's store as a data
+   * rule over other rows is (`needs`): `RemoteServer.write` refuses the write
+   * on a store that does not run the writers under one parent one at a time
+   * (Postgres at read committed with no parent lock), naming the guard. SQLite
+   * and D1 hold it, since the writer judges it in the statement that writes.
+   *
    * ```ts
    * RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
    * GuardServer.writer(Post, Policy, writer(Db.Post), { children: [Like] })
@@ -439,6 +448,27 @@ export const GuardServer = {
         `[foldkit-guard] GuardServer.writer: a delete of ${entity.name} clears links of ${clearJudging.map(({ child }) => child.name).join(', ')} rows under their own Update rules, which only a writer judging rules in its statement and clearing links can hold it to (foldkit-remote-drizzle's writer); this writer does not`,
       )
     }
+    // A rule reading another row decides from a row a concurrent write can change, so
+    // its store must run the writers under that row's parent one at a time, as for a
+    // data rule. Each is handed to the writer as `requires`, held in its statement
+    // (a writer without that is refused above): on D1 that is enough.
+    const overOthers = (of: AnyEntity, interaction: 'Update' | 'Delete') =>
+      Option.match(enforced(of), {
+        onNone: () => [],
+        onSome: attachment =>
+          reachingRules(attachment, interaction).map((name): StoreRequirement => ({
+            rule: `guard "${name}" (${of.name}'s ${interaction} rule)`,
+            needs: 'parent-serialized',
+            because: 'it reads another row, which a concurrent write can change',
+            judged: 'in-statement',
+          })),
+      })
+    const updating = overOthers(entity, 'Update')
+    const deleting = [
+      ...overOthers(entity, 'Delete'),
+      ...judging.flatMap(child => overOthers(child, 'Delete')),
+      ...clearJudging.flatMap(({ child }) => overOthers(child, 'Update')),
+    ]
     const used = new Set([
       ...judging.map(child => child.identity.token),
       ...clearJudging.map(({ child }) => child.identity.token),
@@ -893,6 +923,19 @@ export const GuardServer = {
       ...(writer.clears === true ? { clears: true } : {}),
       // What its store guarantees of concurrent writes is the writer's to say.
       store: writer.store,
+      // So is where it judges the rules a write declares, which the guard hands on.
+      ...(writer.judgesInStatement === true ? { judgesInStatement: true } : {}),
+      // What the guard's own rules over other rows need of that store, with the writer's.
+      needs: write => [
+        ...(writer.needs?.(write) ?? []),
+        ...Match.value(write).pipe(
+          Match.tagsExhaustive({
+            Insert: () => [],
+            Update: () => updating,
+            Delete: () => deleting,
+          }),
+        ),
+      ],
       // What the store refuses, the store knows: the guard drops none of its reasons. It
       // adds one: its rules judge the row the write leaves, worked out by the policy's
       // table, so an assignment that table cannot run would be judged as its old value.
