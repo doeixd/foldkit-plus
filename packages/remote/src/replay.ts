@@ -22,7 +22,14 @@
  * layer, and apart from `kept.ts`, which every page's Model reads.
  */
 import { Equal, Option } from 'effect'
-import { addWrites, setWrites, type WayOfWriting, type WriteProperties } from 'metakit'
+import {
+  addWrites,
+  combineWrites,
+  Node,
+  setWrites,
+  type WayOfWriting,
+  type WriteProperties,
+} from 'metakit'
 import { noKept, type Kept, type KeptField } from './kept.js'
 import type { EntityLayer } from './optimistic.js'
 import { own } from './record.js'
@@ -141,37 +148,72 @@ const replays = (row: WriteProperties, way: WayOfWriting): boolean => {
   )
 }
 
+/** Implementations of custom operations by `id@version`, for replaying pending `combine` writes. */
+export type ReplayForeign = Readonly<
+  Record<string, { readonly run: (args: ReadonlyArray<unknown>) => unknown }>
+>
+
 /**
  * `layer`'s write of `field` of row `key` (the last patch's, as it shows)
- * replayed over `newer`: an amount added to it, or the value set, absolute,
- * computed or a link. None where its way does not replay, or the value cannot
- * be worked out (a computed one, an amount over what is not a number).
+ * replayed over `newer`: an amount added to it, a custom operation combined
+ * with it (when `foreign` holds its implementation), or the value set,
+ * absolute, computed or a link. None where its way does not replay, or the
+ * value cannot be worked out (a computed one, an amount over what is not a
+ * number, a combine with no implementation on the page).
  */
 const replayed = (
   layer: EntityLayer | undefined,
   key: EntityKey,
   field: string,
   newer: unknown,
+  foreign?: ReplayForeign,
 ): Option.Option<unknown> => {
-  let touched = false
+  let mode: 'none' | 'add' | 'combine' = 'none'
   let delta = 0
+  let current = newer
   for (const patch of layer?.patches ?? []) {
     if (entityKey(patch.entity, patch.id) !== key) continue
     const sets = Object.hasOwn(patch.values, field)
     const computes = patch.computes !== undefined && Object.hasOwn(patch.computes, field)
     const amount = own(patch.adds, field)
-    if (!sets && !computes && amount === undefined) continue
-    touched = true
+    const combined = own(patch.combines, field)
+    if (!sets && !computes && amount === undefined && combined === undefined) continue
     if (sets || computes) {
-      if (sets && !computes && amount === undefined && replays(setWrites, 'set')) {
+      if (
+        sets &&
+        !computes &&
+        amount === undefined &&
+        combined === undefined &&
+        replays(setWrites, 'set')
+      ) {
         return Option.some(own(patch.values, field))
       }
       return Option.none()
     }
-    if (typeof amount !== 'number') return Option.none()
-    delta += amount
+    if (amount !== undefined && combined !== undefined) return Option.none()
+    if (amount !== undefined) {
+      if (mode === 'combine' || typeof amount !== 'number') return Option.none()
+      mode = 'add'
+      delta += amount
+    } else if (combined !== undefined) {
+      if (mode === 'add' || !replays(combineWrites, 'combine')) return Option.none()
+      const impl =
+        foreign !== undefined && Object.hasOwn(foreign, combined.op)
+          ? foreign[combined.op]
+          : undefined
+      if (impl === undefined) return Option.none()
+      mode = 'combine'
+      try {
+        const next = impl.run([current, combined.value])
+        if (Node.isRefusal(next)) return Option.none()
+        current = next
+      } catch {
+        return Option.none()
+      }
+    }
   }
-  if (!touched) return Option.none()
+  if (mode === 'none') return Option.none()
+  if (mode === 'combine') return Option.some(current)
   return replays(addWrites, 'add') && typeof newer === 'number'
     ? Option.some(newer + delta)
     : Option.none()
@@ -217,6 +259,7 @@ export const settleReplayed = (
   now: number,
   earlier?: ReadonlySet<string>,
   applied: ReadonlyArray<Row> = entities,
+  foreign?: ReplayForeign,
 ): { readonly kept: Kept; readonly again: ReadonlyArray<AgainRow> } => {
   const held = unexpired(kept, now)
   const asked = new Map<EntityKey, { entity: string; id: string; fields: Set<string> }>()
@@ -228,7 +271,7 @@ export const settleReplayed = (
       if (Equal.equals(newer, values[field])) continue
       if (
         rightAfter(store[key], revision, field) &&
-        Option.exists(replayed(layer, key, field, newer), value =>
+        Option.exists(replayed(layer, key, field, newer, foreign), value =>
           Equal.equals(value, values[field]),
         )
       )

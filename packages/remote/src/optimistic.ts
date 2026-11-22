@@ -5,6 +5,7 @@
  * rebase for free.
  */
 import { Match, Option } from 'effect'
+import { Node } from 'metakit'
 import {
   Operators,
   QueryEvaluateError,
@@ -12,6 +13,7 @@ import {
   type EntityRef,
   type MemoryOperators,
 } from 'foldkit-entity'
+import type { ReplayForeign } from './replay.js'
 import { type Connection, type Edge, edge, items } from './connection.js'
 import { connectionIdentity, type ConnectionIdentity } from './capability.js'
 import {
@@ -222,12 +224,13 @@ export const visibleStore = (
   optimistic: OptimisticState,
   kept: Kept,
   operators: MemoryOperators = Operators.kernel,
+  foreign?: ReplayForeign,
 ): EntityStore =>
   [...pendingDeletes(optimistic)].reduce(
     tombstone,
     writeEntities(
       base,
-      resolvedPatches(base, optimistic, kept, operators)
+      resolvedPatches(base, optimistic, kept, operators, foreign)
         .filter(patch => Object.keys(patch.values).length > 0)
         .map(patch => {
           const key = entityKey(patch.entity, patch.id)
@@ -327,13 +330,14 @@ export const resolvedPatches = (
   optimistic: OptimisticState,
   kept: Kept,
   operators: MemoryOperators = Operators.kernel,
+  foreign?: ReplayForeign,
 ): ReadonlyArray<NormalizedPatch> => {
   const shown = new Map<EntityKey, Record<string, unknown>>()
   // Fields an earlier layer could not work out: what the store holds for one is
   // not what the row before a later layer holds, so nothing reading it is predicted.
   const unsure = new Map<EntityKey, ReadonlySet<string>>()
   return optimistic.layers.flatMap(layer =>
-    layer.patches.map(({ adds, computes, ...patch }) => {
+    layer.patches.map(({ adds, combines, computes, ...patch }) => {
       const key = entityKey(patch.entity, patch.id)
       const earlier = shown.get(key) ?? {}
       const unknown = new Set(
@@ -362,6 +366,24 @@ export const resolvedPatches = (
         } else {
           unknown.add(field)
         }
+      }
+      const combinedFields = unincluded(combines, kept.get(key), layer.id)
+      for (const [field, spec] of Object.entries(combinedFields)) {
+        const impl =
+          foreign !== undefined && Object.hasOwn(foreign, spec.op) ? foreign[spec.op] : undefined
+        if (impl !== undefined && Object.hasOwn(row, field)) {
+          try {
+            const next = impl.run([row[field], spec.value])
+            if (!Node.isRefusal(next)) {
+              put(values, field, next)
+              unknown.delete(field)
+              continue
+            }
+          } catch {
+            // Fall through to mark unknown so the server's answer settles the field.
+          }
+        }
+        unknown.add(field)
       }
       shown.set(key, { ...earlier, ...values })
       unsure.set(key, unknown)

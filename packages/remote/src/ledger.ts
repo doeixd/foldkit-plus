@@ -19,15 +19,23 @@ export interface NormalizedPatch {
   readonly revision?: number | undefined
 }
 
+/** A pending `combine` write on one field: the operation's `id@version` name and its right-hand operand. */
+export interface PendingCombine {
+  readonly op: string
+  readonly value: unknown
+}
+
 /**
- * A patch a pending request shows, the amounts it moves fields by, and the
- * fields it computes: each worked out, whenever the store is read, over the
- * row as it then is, so a change that reaches the store meanwhile is added
- * to or computed from, not hidden. A computation is data (operators by name),
- * never a descriptor, since a pending patch sits in the Model.
+ * A patch a pending request shows, the amounts it moves fields by, the
+ * custom operations it combines fields with, and the fields it computes: each
+ * worked out, whenever the store is read, over the row as it then is, so a
+ * change that reaches the store meanwhile is added to, combined with or
+ * computed from, not hidden. A computation is data (operators by name), never
+ * a descriptor, since a pending patch sits in the Model.
  */
 export interface PendingPatch extends NormalizedPatch {
   readonly adds?: Readonly<Record<string, number>>
+  readonly combines?: Readonly<Record<string, PendingCombine>>
   readonly computes?: Readonly<Record<string, Computation>>
   /**
    * The row whose create moves `adds` (a count of the rows pointing here). A
