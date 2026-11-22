@@ -7,6 +7,7 @@ import * as Str from '../ops/str.js'
 import { opProperties } from '../properties.js'
 import * as Verdict from '../verdict.js'
 import * as Interval from './interval.js'
+import { literalsLeft } from './matches.js'
 import * as MulScaled from './mulScaled.js'
 import type { AbstractState } from './state.js'
 import { isRead, negated, noCandidate, proved, refuted } from './support.js'
@@ -169,6 +170,10 @@ const termAndLiteral = (
   return Option.none()
 }
 
+/** Whether `literal`, its text as equality compares it, is one of `members`. */
+const holds = (members: ReadonlyArray<unknown>, literal: unknown): boolean =>
+  members.some(member => Node.textIdentity(member) === literal)
+
 const decideEqual = (
   args: ReadonlyArray<Node.Node>,
   state: AbstractState,
@@ -193,6 +198,12 @@ const decideEqual = (
         return state.eqFacts.get(pk) === literal ? proved('zone') : refuted()
       }
       if (state.neqFacts.get(pk)?.has(literal) === true) return refuted()
+      // A value of a literal set is one of its members; null is no literal either.
+      const left = literalsLeft(state, pk)
+      if (Option.isSome(left)) {
+        if (!holds(left.value, literal)) return refuted()
+        if (left.value.length === 1 && isNull === false) return proved('zone')
+      }
     }
   }
   // Two numbers with values are equal or apart by their intervals; a null on either side is not.
@@ -229,7 +240,8 @@ const assumeEqual = (args: ReadonlyArray<Node.Node>, state: AbstractState): void
     state.zone.constrainEq(id.value, ZERO, literal)
   } else if (Node.$is('Path')(term)) {
     const pk = Node.key(term)
-    if (state.eqFacts.has(pk) && state.eqFacts.get(pk) !== literal) state.markBottom()
+    const outside = Option.exists(literalsLeft(state, pk), left => !holds(left, literal))
+    if (outside || (state.eqFacts.has(pk) && state.eqFacts.get(pk) !== literal)) state.markBottom()
     else state.eqFacts.set(pk, literal)
   }
 }
@@ -248,6 +260,14 @@ const assumeUnequal = (args: ReadonlyArray<Node.Node>, state: AbstractState): vo
   const excluded = state.neqFacts.get(pk) ?? new Set()
   excluded.add(literal)
   state.neqFacts.set(pk, excluded)
+  // A value of a literal set that is none of the members but one is that one.
+  Option.map(literalsLeft(state, pk), left => {
+    if (state.nullFacts.get(pk) !== false) return
+    if (left.length === 0) state.markBottom()
+    else if (left.length === 1 && !state.eqFacts.has(pk)) {
+      state.eqFacts.set(pk, Node.textIdentity(left[0]))
+    }
+  })
 }
 
 const lengthOf = (text: Node.Node): Node.Node => Node.Call({ op: Str.lenOp, args: [text] })

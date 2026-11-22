@@ -127,7 +127,7 @@ describe('A rule or a write that reads another row', () => {
 })
 
 describe('An equality to a literal the Schema alone decides', () => {
-  // `live` is never `archived`, whatever the score: the checker is told each value of the status as a fact.
+  // `live` is never `archived`, whatever the score: the checker reads a literal set as one of its values.
   const Doc = Entity.define(
     'PairDoc',
     Schema.Struct({

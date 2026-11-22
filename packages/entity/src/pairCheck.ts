@@ -8,8 +8,8 @@
  *
  * Its own file, imported by `laws.ts` alone: a page never carries the checker.
  */
-import { Data, Match, Option, Schema, SchemaAST } from 'effect'
-import { Abstract, Eq, Node, Null, Path, Verdict } from 'metakit'
+import { Data, Match, Option, Schema } from 'effect'
+import { Abstract, Node, Path, Verdict } from 'metakit'
 import { evalNode } from 'metakit/build'
 import { finiteValues } from './enumerate.js'
 import { judgeAgainst, readsBefore, type Invariant } from './invariant.js'
@@ -128,86 +128,21 @@ const assumedOf = (
     Delete: () => invariants.filter(each => !readsBefore(each)),
   })
 
-/** The most cases of the finite members' values one check splits into. */
-const MAX_CASES = 256
-
 /**
- * Each combination of the values of the finite members the rule and the write
- * read (a literal, a boolean, null), as the facts a case holds; the checker
- * decides an equality to a literal from facts, not from a Schema's literals.
- * One case with no fact where there are none, or too many to split.
- */
-const casesOf = (
-  write: AnyWrite,
-  held: Option.Option<Invariant>,
-  assumed: ReadonlyArray<Invariant>,
-): ReadonlyArray<ReadonlyArray<Node.Node>> => {
-  const fields = write.input.entity.fields as Readonly<Record<string, AnyField>>
-  const rowKeys = rowKeysOf(write, held, assumed)
-  const members: Array<{
-    readonly segments: ReadonlyArray<string>
-    readonly values: ReadonlyArray<unknown>
-  }> = []
-  const add = (segments: ReadonlyArray<string>, schema: Schema.Top) => {
-    if (SchemaAST.isOptional(schema.ast)) return
-    Option.map(finiteValues(schema), values => members.push({ segments, values }))
-  }
-  for (const key of rowKeys) {
-    const field = own(fields, key)
-    if (field !== undefined) add(['state', 'row', key], field.schema as unknown as Schema.Top)
-  }
-  for (const key of inputKeysOf(write, rowKeys)) {
-    const schema = write.input.schema.fields[key] as unknown as Schema.Top | undefined
-    if (schema !== undefined) add(['input', key], schema)
-  }
-  if (members.reduce((total, { values }) => total * values.length, 1) > MAX_CASES) return [[]]
-  return members.reduce<ReadonlyArray<ReadonlyArray<Node.Node>>>(
-    (cases, { segments, values }) =>
-      cases.flatMap(known =>
-        values.map(value => {
-          const path = Node.Path({ segments, ast: Option.none() })
-          return [
-            ...known,
-            value === null
-              ? Node.Call({ op: Null.isNullOp, args: [path] })
-              : Node.Call({ op: Eq.equalsOp, args: [path, Node.Lit({ value: value as never })] }),
-          ]
-        }),
-      ),
-    [[]],
-  )
-}
-
-const rank: Readonly<Record<Verdict.ProofTier, number>> = {
-  concrete: 0,
-  interval: 1,
-  zone: 2,
-  z3: 3,
-}
-
-/**
- * `goal` of one step of the write, under the assumed invariants, in every case
- * of the finite members: true, with the highest tier any case needed, or the
- * first case that is not.
+ * `goal` of one step of the write, under the assumed invariants. The checker
+ * reads a literal set (a status, a boolean) as the fact that the member is one
+ * of its values, so no case of them is split here.
  */
 const checkOver = (
   write: AnyWrite,
-  held: Option.Option<Invariant>,
   assumed: ReadonlyArray<Invariant>,
   goal: Node.Node,
 ): Verdict.Verdict<never> => {
   const { transition, stateSchema, assume } = build(write, assumed)
-  let tier: Verdict.ProofTier = 'concrete'
-  for (const known of casesOf(write, held, assumed)) {
-    const verdict = Abstract.checkGoal(stateSchema, transition, {
-      assume: [...assume, ...known.map(expr)] as never,
-      goal: expr(goal) as never,
-    })
-    if (!Verdict.isTrue(verdict)) return verdict
-    const found = tierOf(verdict)
-    if (rank[found] > rank[tier]) tier = found
-  }
-  return Verdict.True(Option.some(Verdict.Proved(tier)))
+  return Abstract.checkGoal(stateSchema, transition, {
+    assume: assume as never,
+    goal: expr(goal) as never,
+  })
 }
 
 /**
@@ -217,12 +152,7 @@ const checkOver = (
 export const meetable = (write: AnyWrite, invariants: ReadonlyArray<Invariant>): boolean => {
   if (write._tag === 'Insert' || Option.isNone(write.when)) return true
   try {
-    const never = checkOver(
-      write,
-      Option.none(),
-      assumedOf(write, invariants),
-      Node.Lit({ value: false }),
-    )
+    const never = checkOver(write, assumedOf(write, invariants), Node.Lit({ value: false }))
     return !Verdict.isTrue(never)
   } catch (error) {
     if (error instanceof Unreadable) return true
@@ -244,7 +174,7 @@ export const decide = (
   let verdict: Verdict.Verdict<never>
   try {
     const goal = underStates(lower([held.predicate]).nodes[0]!, 'next', true)
-    verdict = checkOver(write, Option.some(held), assumed, goal)
+    verdict = checkOver(write, assumed, goal)
   } catch (error) {
     if (error instanceof Unreadable) return Decision.Undecided({ reason: error.message })
     throw error

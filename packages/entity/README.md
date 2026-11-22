@@ -1678,22 +1678,21 @@ It asks whether the rule holds of the row the write leaves, for every row the
 Entity's state invariants allow (assumed to hold of the row before, which is
 what makes the proof inductive: a write that keeps a rule from every row the
 rules allow keeps it on every row the writes make) and every input within its
-Schema, where the write's `from` and `when` hold, once for each combination of
-the finite members' values. It relates two unknowns: a `when` of
-`balance >= amount` over a `compute` of `Expr.sub(balance, amount)` keeps
+Schema, where the write's `from` and `when` hold. It reads a literal set (a
+status, a boolean) as the fact that the member is one of its values. It
+relates two unknowns: a `when` of `balance >= amount` over a `compute` of
+`Expr.sub(balance, amount)`, or a `decrement: { balance: 'amount' }`, keeps
 `balance >= 0`. `Kept` names the tier of the checker's proof in `by`.
 
 What the checker leaves `Undecided` follows evaluation's own rules, which
 refuse what a database refuses:
 
 - **A plain `Schema.Number` may be NaN or infinite**, and a comparison or an
-  arithmetic operation over one is refused, so no write is proved to keep a
-  rule over it. `Schema.Finite` and `Schema.Int` decide it; a sum or a
+  arithmetic operation over one is refused, so a rule that reads one is
+  proved only where something rules NaN out (a `when` that compares it) or
+  decides the rule without it. `Schema.Finite` and `Schema.Int` decide it; a sum or a
   difference of two numbers that nothing bounds may pass the safe integer
   range, so a rule over one wants a bound on each (`Schema.isBetween`).
-- **A strict comparison of a number that is not an integer.** The checker's
-  intervals are closed: "below zero" reads as "at most zero", which a row at
-  zero meets. Over `Schema.Int` the same rule is decided.
 - **Another row.** A rule or a write that reads a related row is `Undecided`,
   saying so; the checker sees one row.
 

@@ -2,8 +2,9 @@
  * Precision the Tier 3 checker regained after Phase 1, each without an
  * answer a concrete value contradicts: a strict comparison of a double
  * narrows by the next double; a sum with a negated operand is the difference
- * it equals; a difference of doubles is bounded by the difference's bounds.
- * The seeded check at the end runs every verdict it gets against evaluation.
+ * it equals; a difference of doubles is bounded by the difference's bounds; a
+ * literal set is the fact that the member is one of its values. The seeded
+ * check at the end runs every verdict it gets against evaluation.
  */
 import { Result, Schema } from 'effect'
 import { Abstract, Bool, Eq, Expr, Interval, Num, Ord, Path, Transition, Verdict } from 'metakit'
@@ -169,6 +170,46 @@ describe('a decrement written with a negation', () => {
     // 1 - (-ε/4) rounds to 1, yet 1 - 1 is above -ε/4.
     expect(Expr.holds(backwards, { x: 1, y: -EPS / 4 })).toBe(false)
     expect(Verdict.isTrue(Abstract.checkInvariant(Pair, backwards))).toBe(false)
+  })
+})
+
+describe('an equality to a literal', () => {
+  const Doc = Schema.Struct({
+    status: Schema.Literals(['draft', 'live', 'archived']),
+    flag: Schema.Boolean,
+    tag: Schema.NullOr(Schema.Literal('a')),
+  })
+  const doc = Path.from(Doc)
+
+  it('is decided by the one member a literal set leaves', () => {
+    const One = Schema.Struct({ status: Schema.Literal('live') })
+    expect(Abstract.checkInvariant(One, Eq.is(Path.from(One).status, 'live'))._tag).toBe('True')
+    const somewhere = Bool.or(
+      Eq.is(doc.status, 'draft'),
+      Bool.or(Eq.is(doc.status, 'live'), Eq.is(doc.status, 'archived')),
+    )
+    expect(Abstract.checkInvariant(Doc, somewhere)._tag).toBe('True')
+    expect(
+      Abstract.checkInvariant(Doc, Bool.or(Eq.is(doc.flag, true), Eq.is(doc.flag, false)))._tag,
+    ).toBe('True')
+  })
+
+  it('is refuted for a literal the set does not hold', () => {
+    const Publish = Transition.make({
+      state: Doc,
+      input: Schema.Struct({ status: Schema.Literal('live') }),
+      apply: ({ state, input }) => [Transition.set(state.status, input.status)],
+    })
+    const next = Path.forEnv({ next: Doc }).next
+    expect(
+      Abstract.checkGoal(Doc, Publish, { goal: Bool.not(Eq.is(next.status, 'archived')) })._tag,
+    ).toBe('True')
+  })
+
+  it('is not decided where the member may be null, which is no member', () => {
+    expect(Expr.holds(Eq.is(doc.tag, 'a'), { status: 'live', flag: true, tag: null })).toBe(false)
+    expect(Verdict.isTrue(Abstract.checkInvariant(Doc, Eq.is(doc.tag, 'a')))).toBe(false)
+    expect(Verdict.isFalse(Abstract.checkInvariant(Doc, Eq.is(doc.tag, 'a')))).toBe(false)
   })
 })
 

@@ -14,6 +14,25 @@ export const resolveMatchArm = (node: Node.Match, value: unknown): Option.Option
 }
 
 /**
+ * The members of the literal set a path's Schema declares (a boolean's two
+ * among them) that no fact rules out, its value where it has one. None where
+ * the Schema declares no such set.
+ */
+export const literalsLeft = (
+  state: AbstractState,
+  pk: string,
+): Option.Option<ReadonlyArray<string | number | boolean>> => {
+  const info = state.fields.get(pk)
+  if (info === undefined || Option.isNone(info.literals)) return Option.none()
+  const excluded = state.neqFacts.get(pk)
+  return Option.some(
+    info.literals.value.filter(
+      value => excluded === undefined || !excluded.has(Node.textIdentity(value)),
+    ),
+  )
+}
+
+/**
  * Finite candidate values for a `Path` field, including `null` whenever the
  * field may read as null (so case-splitting is sound for a nullable or
  * optional enumeration).
@@ -21,22 +40,17 @@ export const resolveMatchArm = (node: Node.Match, value: unknown): Option.Option
 export const matchCandidates = (
   state: AbstractState,
   pk: string,
-): Option.Option<ReadonlyArray<string | number | boolean | null>> => {
-  const info = state.fields.get(pk)
-  if (info === undefined || Option.isNone(info.literals)) return Option.none()
-  const excluded = state.neqFacts.get(pk)
-  const domain: ReadonlyArray<string | number | boolean | null> = info.nullable
-    ? [...info.literals.value, null]
-    : info.literals.value
-  const known = state.nullFacts.get(pk)
-  const candidates = domain.filter(
-    value =>
-      (value === null ? known !== false : known !== true) &&
-      (excluded === undefined || !excluded.has(Node.textIdentity(value))),
-  )
-  if (candidates.length === 0 || candidates.length > MAX_SPLITS) return Option.none()
-  return Option.some(candidates)
-}
+): Option.Option<ReadonlyArray<string | number | boolean | null>> =>
+  Option.flatMap(literalsLeft(state, pk), left => {
+    const known = state.nullFacts.get(pk)
+    const candidates = [
+      ...(known === true ? [] : left),
+      ...(state.fields.get(pk)!.nullable && known !== false ? [null] : []),
+    ]
+    return candidates.length === 0 || candidates.length > MAX_SPLITS
+      ? Option.none()
+      : Option.some(candidates)
+  })
 
 /** `state` with `pk` holding `candidate`. */
 export const withCandidate = (

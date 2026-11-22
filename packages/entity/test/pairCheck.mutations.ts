@@ -22,28 +22,6 @@ export default [
     tests: [account, bounds],
   },
   {
-    name: 'the finite members never split into cases',
-    edits: [
-      {
-        file: '../src/pairCheck.ts',
-        find: 'if (members.reduce((total, { values }) => total * values.length, 1) > MAX_CASES) return [[]]',
-        replace: 'return [[]]',
-      },
-    ],
-    tests: [account, pair],
-  },
-  {
-    name: 'a proof credited to the weakest tier of its cases',
-    edits: [
-      {
-        file: '../src/pairCheck.ts',
-        find: 'if (rank[found] > rank[tier]) tier = found',
-        replace: 'if (rank[found] < rank[tier]) tier = found',
-      },
-    ],
-    tests: [account],
-  },
-  {
     name: 'the row after read as the row before',
     edits: [
       {
