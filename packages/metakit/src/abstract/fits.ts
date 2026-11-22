@@ -77,7 +77,8 @@ function fitsTerm(
   const byKind: Readonly<Record<FieldKind, () => Verdict.Verdict<never>>> = {
     number: () => {
       const numeric =
-        sourceKind === 'number' || (Node.$is('Call')(value) && abstractOf(value.op)._tag === 'Term')
+        sourceKind === 'number' ||
+        (Node.$is('Call')(value) && abstractOf(value.op, state.foreign)._tag === 'Term')
       if (!numeric) return unknown
       if (info.isInt && !state.isIntNode(value)) return unknown
       if (info.finite && !state.hasValue(value)) return state.unvalued(value)

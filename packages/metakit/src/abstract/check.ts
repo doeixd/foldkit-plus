@@ -14,6 +14,7 @@ import { Option, Schema } from 'effect'
 import * as Expr from '../expr.js'
 import * as Node from '../node.js'
 import * as Bool from '../ops/bool.js'
+import type { ForeignImplementations } from '../ops/eval.js'
 import * as Null from '../ops/null.js'
 import * as Path from '../path.js'
 import type { Transition, TransitionEnv } from '../transition.js'
@@ -91,12 +92,13 @@ const rulesUnder = (
 export const checkInvariant = <S extends Schema.Top>(
   schema: S,
   goal: Expr.Expr<S['Type'], boolean | null>,
+  options?: { readonly foreign?: ForeignImplementations },
 ): Verdict.Verdict<never> => {
   const fields = new Map<string, FieldInfo>()
   collectFields(schema.ast, [], fields)
   const invariants = rulesUnder(schema, [], fields).map(normalize)
   const target = normalize(goal.node)
-  const state = new AbstractState([...invariants, target], fields)
+  const state = new AbstractState([...invariants, target], fields, undefined, options?.foreign)
   for (const inv of invariants) state.assume(inv)
   return state.entails(target)
 }
@@ -116,6 +118,7 @@ const stepState = <S extends Schema.Top, I, Emit, Sup>(
     writes: ReadonlyArray<Write>,
     preInvariants: ReadonlyArray<Node.Node>,
   ) => ReadonlyArray<Node.Node>,
+  foreign?: ForeignImplementations,
 ) => {
   const fields = new Map<string, FieldInfo>()
   collectFields(stateSchema.ast, ['state'], fields)
@@ -143,6 +146,8 @@ const stepState = <S extends Schema.Top, I, Emit, Sup>(
   const state = new AbstractState(
     [...hypotheses, ...postGoals, ...writes.map(write => write.value)],
     fields,
+    undefined,
+    foreign,
   )
   for (const hypothesis of hypotheses) state.assume(hypothesis)
   // A write whose value is refused refuses the transition, so no state follows it.
@@ -168,6 +173,7 @@ export const checkGoal = <S extends Schema.Top, I, Emit, Sup>(
   options: {
     readonly assume?: ReadonlyArray<Expr.Expr<TransitionEnv<S['Type'], I, Sup>, boolean | null>>
     readonly goal: Expr.Expr<GoalEnv<S['Type'], I, Sup>, boolean | null>
+    readonly foreign?: ForeignImplementations
   },
 ): Verdict.Verdict<never> => {
   const { state, postGoals, reachable } = stepState(
@@ -186,6 +192,7 @@ export const checkGoal = <S extends Schema.Top, I, Emit, Sup>(
           : Option.none(),
       ),
     ],
+    options.foreign,
   )
   return reachable ? state.entails(postGoals[0]!) : proved('zone')
 }
@@ -199,12 +206,14 @@ export const checkGoal = <S extends Schema.Top, I, Emit, Sup>(
 export const checkTransition = <S extends Schema.Top, I, Emit, Sup>(
   stateSchema: S,
   transition: Transition<S['Type'], I, Emit, Sup>,
+  options?: { readonly foreign?: ForeignImplementations },
 ): Verdict.Verdict<never> => {
   const { state, fields, writes, postGoals, reachable } = stepState(
     stateSchema,
     transition,
     [],
     (writes, preInvariants) => preInvariants.map(inv => afterWrites(inv, writes)),
+    options?.foreign,
   )
   if (!reachable) return proved('zone')
 

@@ -34,7 +34,7 @@ export function hasValue(this: AbstractState, node: Node.Node): boolean {
       const inserted = Option.filter(countBounds(call), bounds => bounds.kind === 'inserted')
       if (Option.isSome(inserted)) return this.hasValue(inserted.value.base)
       const settled = (arg: Node.Node): boolean => isRead(arg) || this.hasValue(arg)
-      const row = abstractOf(call.op)
+      const row = abstractOf(call.op, this.foreign)
       if (row.unportable && !call.args.every(arg => this.portable(arg))) return false
       if (row._tag !== 'Term' && row.valued !== undefined) return row.valued(call.args, this)
       if (call.op.nulls === 'strict') {
@@ -103,7 +103,7 @@ function notNaN(this: AbstractState, node: Node.Node): boolean {
 export function notRefused(this: AbstractState, node: Node.Node): boolean {
   if (isRead(node) || this.hasValue(node) || this.unrefused.has(Node.key(node))) return true
   if (!Node.$is('Call')(node) || Node.isForeign(node.op)) return false
-  const row = abstractOf(node.op)
+  const row = abstractOf(node.op, this.foreign)
   return (
     row._tag === 'Predicate' &&
     node.args.every(arg => this.notRefused(arg)) &&

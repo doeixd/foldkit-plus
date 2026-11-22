@@ -15,13 +15,20 @@
  * opaque term) from object-level `null` (a known runtime value): `{ row: { x: null } }`
  * folds `row.x` to `Lit(null)`, never to `Unknown`.
  */
-import { Option } from 'effect'
+import { Option, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import { applyForeign, evalNode, ifArm, matchArm, type ForeignImplementations } from './eval.js'
 import { cannotRefuse, isPortableRead, isSafeRead, kindOf } from './kind.js'
-import { nullBesideUnrefused, rewrite, type View } from './laws.js'
+import { nullBesideUnrefused, rewrite, rewriteForeign, type View } from './laws.js'
 import { lookupPartial } from './partial.js'
 import { partialRows } from './partialRows.js'
+
+const astOfNode = (node: Node.Node): Option.Option<SchemaAST.AST> =>
+  Node.$is('Path')(node)
+    ? node.ast
+    : Node.$is('Call')(node) && Node.isForeign(node.op) && node.op.result !== undefined
+      ? Option.some(node.op.result.ast)
+      : Option.none()
 
 /** A residual as the laws see it. */
 const residual: View<Node.Node> = {
@@ -36,6 +43,7 @@ const residual: View<Node.Node> = {
       ? { id: node.op.id, arg: node.args[0]! }
       : undefined,
   same: (left, right) => Node.key(left) === Node.key(right),
+  ast: astOfNode,
 }
 
 /**
@@ -60,15 +68,28 @@ export const residualizeNode = (
       const nextArgs = args.map(arg => residualizeNode(arg, partialEnv, foreign))
       if (nullBesideUnrefused(residual, op, nextArgs)) return Node.Lit({ value: null })
       if (Node.isForeign(op)) {
-        return nextArgs.every(Node.$is('Lit')) && Object.hasOwn(foreign, Node.foreignName(op))
-          ? Node.Lit({
-              value: applyForeign(
-                op,
-                nextArgs.map(arg => arg.value),
-                foreign,
-              ),
-            })
-          : Node.Call({ op, args: nextArgs })
+        if (!Object.hasOwn(foreign, Node.foreignName(op))) return Node.Call({ op, args: nextArgs })
+        if (nextArgs.every(Node.$is('Lit'))) {
+          return Node.Lit({
+            value: applyForeign(
+              op,
+              nextArgs.map(arg => arg.value),
+              foreign,
+            ),
+          })
+        }
+        return Option.match(rewriteForeign(residual, op, nextArgs), {
+          onNone: () => Node.Call({ op, args: nextArgs }),
+          onSome: (made): Node.Node =>
+            'value' in made
+              ? Node.Lit({ value: made.value })
+              : 'call' in made
+                ? Node.Call({
+                    op: made.call,
+                    args: [made.operand, Node.Lit({ value: made.literal })],
+                  })
+                : made.operand,
+        })
       }
       if (nextArgs.every(Node.$is('Lit'))) {
         return Node.Lit({

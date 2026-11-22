@@ -10,10 +10,11 @@
  * `associative`, `invertible`, `monotone`) and the ways of writing are in
  * `properties.ts`, which joins both into `opProperties`.
  */
-import { Option } from 'effect'
+import { Match, Option, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import type { Direction, OpProperties } from '../properties.js'
 import { equalsOp, isOp } from './eq.js'
+import { present } from './kind.js'
 
 /** The properties partial evaluation reads of an operation. */
 export type OpLaws = Pick<
@@ -113,6 +114,8 @@ export interface View<T> {
   readonly safe: (operand: T) => boolean
   readonly unary: (operand: T) => { readonly id: string; readonly arg: T } | undefined
   readonly same: (left: T, right: T) => boolean
+  /** Static Schema AST of an open operand (a path or a custom call's result), where known. */
+  readonly ast?: (operand: T) => Option.Option<SchemaAST.AST>
 }
 
 /** What a rule makes of a call: a value, one of its operands (or an operand's own), or a call of another operation over the operand and a literal. */
@@ -224,6 +227,151 @@ export const rewrite = <T>(
           return Option.some({ call: equalsOp, operand: left, literal: only })
         }
       }
+    }
+  }
+
+  return Option.none()
+}
+
+const flatChecks = (
+  checks: ReadonlyArray<SchemaAST.Check<unknown>> | undefined,
+): ReadonlyArray<SchemaAST.Check<unknown>> =>
+  (checks ?? []).flatMap(check =>
+    Match.valueTags(check, {
+      FilterGroup: group => flatChecks(group.checks),
+      Filter: filter => [filter],
+    }),
+  )
+
+const sameCheck = (have: SchemaAST.Check<unknown>, need: SchemaAST.Check<unknown>): boolean => {
+  if (have === need) return true
+  const h = have.annotations?.representation
+  const n = need.annotations?.representation
+  if (h?.id === undefined || n?.id === undefined || h.id !== n.id) return false
+  return JSON.stringify(h.payload ?? null) === JSON.stringify(n.payload ?? null)
+}
+
+const memberWithin = (
+  member: SchemaAST.AST,
+  target: SchemaAST.AST,
+  checkArg: (value: unknown) => boolean,
+): boolean => {
+  if (member === target) return true
+  if (SchemaAST.isUnion(target)) return target.types.some(t => memberWithin(member, t, checkArg))
+  if (SchemaAST.isLiteral(member)) return checkArg(member.literal)
+  if (member._tag !== target._tag) return false
+  if (SchemaAST.isNumber(member) || SchemaAST.isString(member) || SchemaAST.isBoolean(member)) {
+    const have = flatChecks(member.checks)
+    const need = flatChecks(target.checks)
+    return need.every(req => have.some(candidate => sameCheck(candidate, req)))
+  }
+  return false
+}
+
+const admitsNull = (ast: SchemaAST.AST): boolean =>
+  SchemaAST.isNull(ast) ||
+  SchemaAST.isUndefined(ast) ||
+  (SchemaAST.isUnion(ast) && ast.types.some(admitsNull))
+
+const astWithin = (
+  source: SchemaAST.AST,
+  target: SchemaAST.AST,
+  checkArg: (value: unknown) => boolean,
+  allowNull: boolean,
+): boolean => {
+  if (!allowNull && admitsNull(source) && !admitsNull(target)) return false
+  if (source === target) return true
+  const members = present(source)
+  if (members.length === 0) return false
+  return members.every(member => memberWithin(member, target, checkArg))
+}
+
+/**
+ * Size-reducing rewrites for a declared custom operation (`ForeignOp`) from
+ * its `claims`: `identity`, `absorbing` and `idempotent`. An operand dropped
+ * or returned must be statically known to lie within the argument Schema (or
+ * null for a strict operation's `identity`/`idempotent`), and for `absorbing`
+ * must also be known not to be refused.
+ */
+export const rewriteForeign = <T>(
+  view: View<T>,
+  op: Node.ForeignOp,
+  args: ReadonlyArray<T>,
+): Option.Option<Rewrite<T>> => {
+  const { claims, args: argSchemas, checkArgs } = op
+  if (claims === undefined || argSchemas === undefined || checkArgs === undefined) {
+    return Option.none()
+  }
+
+  const isLit = (operand: T, expected: unknown): boolean =>
+    Option.exists(
+      view.known(operand),
+      value => Object.is(value, expected) || (value === 0 && expected === 0),
+    )
+
+  const withinSchema = (operand: T, index: number, allowNull: boolean): boolean => {
+    const target = argSchemas[index]
+    const check = checkArgs[index]
+    if (target === undefined || check === undefined) return false
+    const known = view.known(operand)
+    if (Option.isSome(known)) {
+      if (known.value === null) return allowNull || check.is(null)
+      return !Node.isRefusal(known.value) && check.is(known.value)
+    }
+    const ast = view.ast === undefined ? Option.none() : view.ast(operand)
+    return Option.exists(ast, source => astWithin(source, target.ast, check.is, allowNull))
+  }
+
+  const strict = op.nulls === 'strict'
+
+  if (args.length === 1 && claims.idempotent === true) {
+    const inner = view.unary(args[0]!)
+    if (inner !== undefined && inner.id === op.id && withinSchema(args[0]!, 0, strict)) {
+      return Option.some({ operand: args[0]! })
+    }
+  }
+
+  if (args.length === 2) {
+    const left = args[0]!
+    const right = args[1]!
+
+    if (claims.absorbing !== undefined) {
+      const { value, result, side } = claims.absorbing
+      const drops = (operand: T, index: number): boolean =>
+        view.cannotRefuse(operand) && withinSchema(operand, index, false)
+      if ((side === 'left' || side === 'both') && isLit(left, value) && drops(right, 1)) {
+        return Option.some({ value: result })
+      }
+      if ((side === 'right' || side === 'both') && isLit(right, value) && drops(left, 0)) {
+        return Option.some({ value: result })
+      }
+    }
+
+    if (claims.identity !== undefined) {
+      const { value, side } = claims.identity
+      if (
+        (side === 'left' || side === 'both') &&
+        isLit(left, value) &&
+        withinSchema(right, 1, strict)
+      ) {
+        return Option.some({ operand: right })
+      }
+      if (
+        (side === 'right' || side === 'both') &&
+        isLit(right, value) &&
+        withinSchema(left, 0, strict)
+      ) {
+        return Option.some({ operand: left })
+      }
+    }
+
+    if (
+      claims.idempotent === true &&
+      view.same(left, right) &&
+      withinSchema(left, 0, strict) &&
+      withinSchema(right, 1, strict)
+    ) {
+      return Option.some({ operand: left })
     }
   }
 

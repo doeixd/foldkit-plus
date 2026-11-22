@@ -1,5 +1,6 @@
 import { Match, Option } from 'effect'
 import * as Node from '../node.js'
+import type { ForeignImplementations } from '../ops/eval.js'
 import * as Verdict from '../verdict.js'
 import { assumeLeq, decide, entails, entailsLeq, propagate } from './entail.js'
 import { SAFE, type FieldInfo } from './fields.js'
@@ -25,6 +26,7 @@ import { Zone, ZERO } from './zone.js'
  */
 export class AbstractState {
   readonly fields: ReadonlyMap<string, FieldInfo>
+  readonly foreign: ForeignImplementations
   readonly varIndex: Map<string, number>
   readonly intVars: Set<number>
   readonly termNodes: Map<number, Node.Node>
@@ -55,9 +57,11 @@ export class AbstractState {
     nodes: ReadonlyArray<Node.Node>,
     fields: ReadonlyMap<string, FieldInfo>,
     from?: AbstractState,
+    foreign: ForeignImplementations = {},
   ) {
     this.fields = fields
     if (from !== undefined) {
+      this.foreign = from.foreign
       this.varIndex = from.varIndex
       this.intVars = from.intVars
       this.termNodes = from.termNodes
@@ -73,6 +77,7 @@ export class AbstractState {
       this.zone = from.zone.clone()
       return
     }
+    this.foreign = foreign
     this.varIndex = new Map()
     this.intVars = new Set()
     this.termNodes = new Map()
@@ -104,7 +109,7 @@ export class AbstractState {
     }
     for (const [id, term] of this.termNodes) {
       if (Node.$is('Call')(term)) {
-        Match.valueTags(abstractOf(term.op), {
+        Match.valueTags(abstractOf(term.op, this.foreign), {
           Term: ({ range }) => this.bound(id, range),
           Predicate: () => {},
           Value: () => {},
@@ -162,7 +167,7 @@ export class AbstractState {
       Path: path =>
         Option.match(this.fieldOf(path), { onNone: () => false, onSome: info => info.isInt }),
       Call: ({ op, args }) =>
-        Match.valueTags(abstractOf(op), {
+        Match.valueTags(abstractOf(op, this.foreign), {
           Term: ({ integral }) => integral(args.map(arg => this.isIntNode(arg))),
           Predicate: () => false,
           Value: () => false,
@@ -182,7 +187,7 @@ export class AbstractState {
       Path: () => {},
       Call: ({ op, args }) => {
         for (const arg of args) this.collectTerms(arg)
-        Match.valueTags(abstractOf(op), {
+        Match.valueTags(abstractOf(op, this.foreign), {
           Term: ({ relation }) => {
             const isInt = this.isIntNode(node)
             const id = this.register(Node.key(node), isInt)
@@ -236,7 +241,7 @@ export class AbstractState {
 
   /** Whether an arithmetic term's operands and result are known to stay in the safe range, so it is not refused. */
   inRange(node: Node.Call): boolean {
-    return Match.valueTags(abstractOf(node.op), {
+    return Match.valueTags(abstractOf(node.op, this.foreign), {
       Predicate: () => true,
       Value: () => true,
       Term: ({ refuses, unrefused }) =>
@@ -285,7 +290,7 @@ export class AbstractState {
    * no operand, so it says nothing.
    */
   private markPortable(call: Node.Call): void {
-    if (!abstractOf(call.op).unportable) return
+    if (!abstractOf(call.op, this.foreign).unportable) return
     if (call.op.id === 'eq.among' && noCandidate(call.args[1])) return
     for (const arg of call.args) this.portableKeys.add(Node.key(arg))
   }
@@ -353,7 +358,7 @@ export class AbstractState {
   private keepInRange(call: Node.Call): void {
     const id = this.varOf(call)
     if (Option.isNone(id) || !this.intVars.has(id.value)) return
-    Match.valueTags(abstractOf(call.op), {
+    Match.valueTags(abstractOf(call.op, this.foreign), {
       Predicate: () => {},
       Value: () => {},
       Term: ({ refuses }) => {
@@ -403,7 +408,7 @@ export class AbstractState {
     if (!Node.$is('Call')(node)) return fromZone
     // An insert's count is where `countBounds` put it; its `If` is not split again.
     if (Option.isSome(countBounds(node))) return fromZone
-    return Match.valueTags(abstractOf(node.op), {
+    return Match.valueTags(abstractOf(node.op, this.foreign), {
       Predicate: () => fromZone,
       Value: () => fromZone,
       Term: ({ range, forward }) => {
@@ -470,7 +475,7 @@ export class AbstractState {
 
   /** A call with a truth value was evaluated: a strict one over operands that all have values. */
   private settle(call: Node.Call, truth: boolean): void {
-    Match.valueTags(abstractOf(call.op), {
+    Match.valueTags(abstractOf(call.op, this.foreign), {
       Term: () => {},
       // A value of `null.coalesce` that is true says nothing this state holds.
       Value: () => {},

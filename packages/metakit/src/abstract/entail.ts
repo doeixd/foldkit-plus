@@ -247,7 +247,7 @@ export function decide(this: AbstractState, goal: Node.Node): Verdict.Verdict<ne
       return Verdict.Unknown('match scrutinee unknown')
     },
     Call: call =>
-      Match.valueTags(abstractOf(call.op), {
+      Match.valueTags(abstractOf(call.op, this.foreign), {
         Term: () => Verdict.Unknown('not a truth value'),
         Value: () => Verdict.Unknown(`${call.op.id} undecided in Tier 3`),
         Predicate: row => {

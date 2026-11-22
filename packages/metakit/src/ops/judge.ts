@@ -12,7 +12,7 @@
  * foreign call no implementation was given for. So a page that judges held
  * rows never builds the expression left over.
  */
-import { Data, Option } from 'effect'
+import { Data, Option, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import * as Path from '../path.js'
 import * as Verdict from '../verdict.js'
@@ -32,7 +32,7 @@ import {
   kindOf,
   kindOfValue,
 } from './kind.js'
-import { nullBesideUnrefused, rewrite, type View } from './laws.js'
+import { nullBesideUnrefused, rewrite, rewriteForeign, type View } from './laws.js'
 import { lookupPartial } from './partial.js'
 import { readsOfRows } from './reads.js'
 import { rowsJudgement } from './rowsReading.js'
@@ -56,6 +56,8 @@ class Leftover {
     readonly opaque: boolean,
     /** The first foreign call left, depth first, that no implementation was given for. */
     readonly unsupported: Node.ForeignOp | undefined,
+    /** Static Schema AST of a path or a custom call's result, where known. */
+    readonly ast: Option.Option<SchemaAST.AST> = Option.none(),
   ) {}
 }
 
@@ -111,6 +113,7 @@ const view: View<unknown> = {
       : isSafeNumber(judged),
   unary: judged => (isLeftover(judged) ? judged.unary : undefined),
   same,
+  ast: judged => (isLeftover(judged) ? judged.ast : Option.none()),
 }
 
 /** A call left over, with its arguments judged. */
@@ -127,12 +130,11 @@ const openCall = (
       args.map(arg => [view.cannotRefuse(arg), kindOfJudged(arg)]),
     ),
     undefined,
-    !Node.isForeign(op) && args.length === 1 && isLeftover(only)
-      ? { id: op.id, arg: only }
-      : undefined,
+    args.length === 1 && isLeftover(only) ? { id: op.id, arg: only } : undefined,
     readsTogether(args),
     opaqueIn(args),
     Node.isForeign(op) && !Object.hasOwn(foreign, Node.foreignName(op)) ? op : unsupportedIn(args),
+    Node.isForeign(op) && op.result !== undefined ? Option.some(op.result.ast) : Option.none(),
   )
 }
 
@@ -167,6 +169,7 @@ const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): 
             Option.some([path.segments]),
             false,
             undefined,
+            path.ast,
           ),
       ),
     Call: ({ op, args }) => {
@@ -174,9 +177,17 @@ const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): 
       if (nullBesideUnrefused(view, op, judged)) return null
       const known = !judged.some(isLeftover)
       if (Node.isForeign(op)) {
-        return known && Object.hasOwn(foreign, Node.foreignName(op))
-          ? applyForeign(op, judged, foreign)
-          : openCall(op, judged, foreign)
+        if (!Object.hasOwn(foreign, Node.foreignName(op))) return openCall(op, judged, foreign)
+        if (known) return applyForeign(op, judged, foreign)
+        return Option.match(rewriteForeign(view, op, judged), {
+          onNone: () => openCall(op, judged, foreign),
+          onSome: made =>
+            'value' in made
+              ? made.value
+              : 'call' in made
+                ? openCall(made.call, [made.operand, made.literal], foreign)
+                : made.operand,
+        })
       }
       if (known) return Node.apply(op, judged)
       return Option.match(rewrite(view, op, judged), {
