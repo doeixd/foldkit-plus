@@ -217,8 +217,8 @@ export default [
     edits: [
       {
         file: '../src/laws.ts',
-        find: "issuer.issue(by === 'bounds' ? Evidence.Bounded(pair) : Evidence.Enumerated(pair)),",
-        replace: "by === 'bounds' ? Evidence.Bounded(pair) : Evidence.Enumerated(pair),",
+        find: 'issuer.issue(',
+        replace: '(',
       },
     ],
     tests: [laws],

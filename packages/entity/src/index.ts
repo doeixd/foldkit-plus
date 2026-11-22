@@ -655,24 +655,6 @@ export type {
   RefinementOf,
 } from './refine.js'
 export { Footprint, type DeclaredFootprint } from './footprint.js'
-export {
-  Laws,
-  Finding,
-  LawEdge,
-  LawNode,
-  LawVerdict,
-  lawFactsOf,
-  type Arrow,
-  type FootprintEntry,
-  type LawEntry,
-  type LawFacts,
-  type LawPair,
-  type LawReport,
-  type LawTotals,
-  type Obligation,
-  type WriteEntry,
-} from './laws.js'
-export type { Witness } from './bounds.js'
 export type { Step } from './enumerate.js'
 export { lawId, transitionId } from './lawIds.js'
 export {

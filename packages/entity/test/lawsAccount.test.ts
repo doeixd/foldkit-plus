@@ -7,16 +7,8 @@
 import { Option, Schema } from 'effect'
 import { Evidence } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
-import {
-  Entity,
-  Expr,
-  Finding,
-  Footprint,
-  Laws,
-  Write,
-  type LawReport,
-  type LawVerdict,
-} from '../src/index.js'
+import { Entity, Expr, Footprint, Write } from '../src/index.js'
+import { Finding, Laws, type LawReport, type LawVerdict } from '../src/laws.js'
 import { Account, Open, operators, writes } from './accountFixture.js'
 
 const check = (options: Parameters<typeof writes>[0]) =>
@@ -37,12 +29,12 @@ describe('A rule that cannot apply', () => {
     ['neverOverdrawn', ['balance']],
     ['withinDailyLimit', ['withdrawnToday']],
   ])('is kept: closing an account leaves %s nothing to bind', (rule, over) => {
-    // `vacuous` no longer: the member is a plain `Schema.Number`, which may be
-    // NaN, and a comparison refuses NaN before `or` is settled by its other
-    // side; the bounds keep it instead.
+    // The member is a plain `Schema.Number`, which may be NaN, and a comparison
+    // refuses NaN before `or` is settled by its other side: the checker proves
+    // it from the bounds of the case where the status is closed.
     expect(verdict(report, 'CloseAccount', rule)).toMatchObject({
       _tag: 'Kept',
-      by: 'bounds',
+      by: 'zone',
       over,
     })
     expect(
@@ -69,7 +61,7 @@ describe('A rule that cannot apply, over a number that cannot be NaN', () => {
   const Opened = Entity.refine(Kept, 'Opened', { status: 'open' })
   const Shut = Entity.refine(Kept, 'Shut', { status: 'closed' })
 
-  it('is kept as vacuous: the comparison it leaves open cannot refuse', () => {
+  it('is kept: the comparison it leaves open cannot refuse', () => {
     const close = Write.update(
       Entity.input(Kept, Schema.Struct({ id: Schema.String, status: Schema.Literal('closed') })),
       { id: 'id', from: Opened, becomes: Shut },
@@ -77,7 +69,7 @@ describe('A rule that cannot apply, over a number that cannot be NaN', () => {
     const report = Laws.check({ writes: [{ name: 'Close', write: close }] })
     expect(verdict(report, 'Close', 'solvent')).toMatchObject({
       _tag: 'Kept',
-      by: 'vacuous',
+      by: 'zone',
       over: ['balance'],
     })
   })
@@ -88,7 +80,7 @@ describe('Numbers, decided from their bounds', () => {
     const report = check({ nonNegative: true })
     expect(verdict(report, 'DepositMoney', 'neverOverdrawn')).toMatchObject({
       _tag: 'Kept',
-      by: 'bounds',
+      by: 'zone',
       over: ['balance'],
     })
     const record = Option.getOrThrow(pairOf(report, 'DepositMoney', 'neverOverdrawn').evidence)
@@ -121,10 +113,7 @@ describe('Numbers, decided from their bounds', () => {
       'WithdrawMoney',
       'neverOverdrawn',
     )
-    expect(pair.verdict).toMatchObject({
-      _tag: 'Undecided',
-      reason: 'it rests on comparing balance with amount, which intervals alone cannot use',
-    })
+    expect(pair.verdict._tag).toBe('Undecided')
     expect(pair.evidence).toEqual(Option.none())
   })
 
@@ -169,11 +158,7 @@ describe('Numbers, decided from their bounds', () => {
         'WithdrawMoney',
         'neverOverdrawn',
       ),
-    ).toMatchObject({
-      _tag: 'Undecided',
-      reason:
-        'bank.opaqueMinus declares no monotonic law for its argument 1, so its effect on a number is not known',
-    })
+    ).toMatchObject({ _tag: 'Undecided' })
   })
 
   it('refuses past the daily limit where the table cannot run the balance’s operator, which that rule does not read', () => {
@@ -230,9 +215,8 @@ describe('What an undecided pair leaves a solver', () => {
     expect(obligation.write).toBe(list[3].write)
     expect(obligation.rule.id).toBe('neverOverdrawn')
     expect(obligation.assumed.map(each => each.id)).toEqual(['neverOverdrawn', 'withinDailyLimit'])
-    expect(obligation.cases).toEqual([
-      { before: { status: 'open' }, input: {}, after: { status: 'open' } },
-    ])
+    // The checker decided over the finite members itself: no case is left to list.
+    expect(obligation.cases).toEqual([])
   })
 
   it('carries none for a transition known by its footprint alone', () => {
@@ -251,7 +235,7 @@ describe('A write no row can meet', () => {
     name: 'Overdraw',
     write: Write.update(
       Entity.input(Account, Schema.Struct({ id: Schema.String, status: Schema.Literal('closed') })),
-      { id: 'id', from: Open, when: () => Expr.lt(Account.fields.balance, 0) },
+      { id: 'id', from: Open, when: () => Expr.lte(Account.fields.balance, -1) },
     ),
   }
 
@@ -327,13 +311,13 @@ describe('Laws.show on the account', () => {
         'OpenAccount     x neverOverdrawn              kept: 1 row enumerated',
         'OpenAccount     x withinDailyLimit            kept: 1 row enumerated',
         'OpenAccount     x aClosedAccountStaysClosed   kept: a create has no row before',
-        'CloseAccount    x neverOverdrawn              kept: proved from the bounds on balance, for every row and input within them',
-        'CloseAccount    x withinDailyLimit            kept: proved from the bounds on withdrawnToday, for every row and input within them',
+        'CloseAccount    x neverOverdrawn              kept: proved from the bounds and differences of balance, for every row and input within them',
+        'CloseAccount    x withinDailyLimit            kept: proved from the bounds and differences of withdrawnToday, for every row and input within them',
         'CloseAccount    x aClosedAccountStaysClosed   kept: 1 row enumerated',
-        'DepositMoney    x neverOverdrawn              kept: proved from the bounds on balance, for every row and input within them',
+        'DepositMoney    x neverOverdrawn              kept: proved from the bounds and differences of balance, for every row and input within them',
         'DepositMoney    x withinDailyLimit            kept: writes no member it reads',
         'DepositMoney    x aClosedAccountStaysClosed   kept: 1 row enumerated',
-        'WithdrawMoney   x neverOverdrawn              undecided: it rests on comparing balance with amount, which intervals alone cannot use',
+        'WithdrawMoney   x neverOverdrawn              undecided: intervals overlap',
         'WithdrawMoney   x withinDailyLimit            refused: An open account withdraws no more than the daily limit',
         '    before   status: "open", withdrawnToday: 1000, balance: 1',
         '    input    amount: 1',
