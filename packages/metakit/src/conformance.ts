@@ -71,6 +71,8 @@ export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
   'num.mul': Num.mulOp,
   'num.neg': Num.negOp,
   'num.mulScaled': MulScaled.mulScaledOp,
+  'num.div': Num.divOp,
+  'num.rem': Num.remOp,
   'str.len': Str.lenOp,
   'str.startsWith': Str.startsWithOp,
   'str.contains': Str.containsOp,
@@ -82,7 +84,16 @@ export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
 }
 
 /** What an operand is drawn from: a field of a kind, or a literal the call is written with. */
-type Operand = 'number' | 'boolean' | 'text' | 'items' | 'value' | 'candidates' | 'shift'
+type Operand =
+  | 'number'
+  | 'boolean'
+  | 'text'
+  | 'items'
+  | 'value'
+  | 'candidates'
+  | 'shift'
+  | 'rounding'
+  | 'onZero'
 
 /** Each primitive's operands. */
 const operands: Readonly<Record<Node.CoreOpId, ReadonlyArray<Operand>>> = {
@@ -111,6 +122,8 @@ const operands: Readonly<Record<Node.CoreOpId, ReadonlyArray<Operand>>> = {
   'num.mul': ['number', 'number'],
   'num.neg': ['number'],
   'num.mulScaled': ['number', 'number', 'shift'],
+  'num.div': ['number', 'number', 'rounding', 'onZero'],
+  'num.rem': ['number', 'number', 'onZero'],
   'str.len': ['text'],
   'str.startsWith': ['text', 'text'],
   'str.contains': ['text', 'text'],
@@ -219,6 +232,8 @@ const samples: Readonly<Record<Operand, ReadonlyArray<Sample>>> = {
   candidates: [literal([]), literal([1]), literal([0, MAX]), literal([null]), literal([1, null])],
   // The places a decimal product moves: none, down, up.
   shift: [literal(0), literal(2), literal(-1)],
+  rounding: [literal('half-even'), literal('floor'), literal('toward-zero')],
+  onZero: [literal('refuse'), literal('null')],
 }
 
 export interface OpFailure {

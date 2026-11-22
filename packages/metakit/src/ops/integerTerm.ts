@@ -33,6 +33,9 @@ export const isIntegerTerm = (node: Node.Node): boolean =>
     Call: ({ op, args }) =>
       op.id === 'str.len' ||
       op.id === 'arr.count' ||
+      ((op.id === 'num.div' || op.id === 'num.rem') &&
+        args.slice(0, 2).some(isIntegerTerm) &&
+        args.slice(0, 2).every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))) ||
       (integerOps.has(op.id) &&
         args.some(isIntegerTerm) &&
         args.every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))),

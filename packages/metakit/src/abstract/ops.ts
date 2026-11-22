@@ -6,6 +6,7 @@ import * as Eq from '../ops/eq.js'
 import * as Str from '../ops/str.js'
 import { opProperties } from '../properties.js'
 import * as Verdict from '../verdict.js'
+import { SAFE } from './fields.js'
 import * as Interval from './interval.js'
 import { literalsLeft } from './matches.js'
 import * as MulScaled from './mulScaled.js'
@@ -574,6 +575,48 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     monotone('num.neg', ([a]) => -a!),
   ),
   'num.mulScaled': { ...arithmetic('none', MulScaled.forward), unrefused: MulScaled.unrefused },
+  'num.div': {
+    ...arithmetic('none', ([a, b]) => {
+      if (Interval.isBottom(a!) || Interval.isBottom(b!)) return Interval.bottom
+      if (
+        !Number.isFinite(a!.lo) ||
+        !Number.isFinite(a!.hi) ||
+        !Number.isFinite(b!.lo) ||
+        !Number.isFinite(b!.hi) ||
+        b!.lo < 1
+      ) {
+        return Interval.top
+      }
+      const lo = Math.min(Math.floor(a!.lo / b!.lo), Math.floor(a!.lo / b!.hi))
+      const hi = Math.max(Math.ceil(a!.hi / b!.lo), Math.ceil(a!.hi / b!.hi))
+      return Interval.between(lo, hi)
+    }),
+    integral: ([a, b]) => a === true && b === true,
+    unrefused: ([a, b], [aInt, bInt]) =>
+      aInt === true &&
+      bInt === true &&
+      Interval.within(a!, SAFE) &&
+      Interval.within(b!, SAFE) &&
+      (b!.lo >= 1 || b!.hi <= -1),
+  },
+  'num.rem': {
+    ...arithmetic('none', ([a, b]) => {
+      if (Interval.isBottom(a!) || Interval.isBottom(b!)) return Interval.bottom
+      if (!Number.isFinite(b!.lo) || !Number.isFinite(b!.hi)) return Interval.top
+      const maxAbs = Math.floor(Math.max(Math.abs(b!.lo), Math.abs(b!.hi)))
+      if (maxAbs < 1) return Interval.top
+      const lo = a!.lo >= 0 ? 0 : -(maxAbs - 1)
+      const hi = a!.hi <= 0 ? 0 : maxAbs - 1
+      return Interval.between(lo, hi)
+    }),
+    integral: ([a, b]) => a === true && b === true,
+    unrefused: ([a, b], [aInt, bInt]) =>
+      aInt === true &&
+      bInt === true &&
+      Interval.within(a!, SAFE) &&
+      Interval.within(b!, SAFE) &&
+      (b!.lo >= 1 || b!.hi <= -1),
+  },
   'str.len': length,
   'str.startsWith': search(Str.startsWithOp),
   'str.contains': search(Str.containsOp),

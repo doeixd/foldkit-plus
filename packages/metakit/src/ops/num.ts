@@ -17,6 +17,17 @@ import * as Ord from './ord.js'
 
 export { gt, gte, gtOp, gteOp, lt, lte, ltOp, lteOp } from './ord.js'
 export { mulScaled } from './mulScaled.js'
+export {
+  div,
+  divOp,
+  rem,
+  remOp,
+  round,
+  toDecimal,
+  toInt,
+  type OnZero,
+  type RoundingMode,
+} from './divRem.js'
 
 const MAX = Number.MAX_SAFE_INTEGER
 

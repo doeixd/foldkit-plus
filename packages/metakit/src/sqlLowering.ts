@@ -11,6 +11,7 @@ import { Data, Option, Result } from 'effect'
 import { isFraction, isIntegerLiteral, isIntegerTerm } from './ops/integerTerm.js'
 import * as Node from './node.js'
 import { isShift } from './ops/mulScaled.js'
+import { isOnZero, isRoundingMode } from './ops/divRem.js'
 import * as Path from './path.js'
 import { mulScaledChunks, LEFT } from './sqlMulScaled.js'
 
@@ -311,6 +312,75 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
       mulScaledChunks(ctx.dialect, places).flatMap(chunk =>
         typeof chunk === 'string' ? q`${chunk}` : chunk === LEFT ? left : right,
       ),
+    )
+  },
+  'num.div': (args, ctx) => {
+    const [nNode, dNode, modeNode, onZeroNode] = args
+    if (!Node.$is('Lit')(modeNode) || !isRoundingMode(modeNode.value)) {
+      return unsupported('num.div: rounding mode is not a literal')
+    }
+    if (!Node.$is('Lit')(onZeroNode) || !isOnZero(onZeroNode.value)) {
+      return unsupported('num.div: onZero policy is not a literal')
+    }
+    if (![nNode!, dNode!].every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))) {
+      return unsupported(
+        'num.div needs operands that are integers whatever the row holds: a Schema.Int, Decimal or Money column, or an integer literal',
+      )
+    }
+    const mode = modeNode.value
+    const onZero = onZeroNode.value
+    const literalDivisor =
+      Node.$is('Lit')(dNode) && typeof dNode.value === 'number' && Number.isSafeInteger(dNode.value)
+        ? dNode.value
+        : undefined
+    if (onZero === 'refuse' && (literalDivisor === undefined || literalDivisor === 0)) {
+      return unsupported('num.div with a non-literal divisor requires { onZero: "null" } in SQL')
+    }
+    return both([nNode!, dNode!], ctx, (rawN, rawD) => {
+      const n =
+        literalDivisor !== undefined && literalDivisor > 0
+          ? rawN
+          : q`(CASE WHEN ${rawD} < 0 THEN (- ${rawN}) ELSE ${rawN} END)`
+      const d =
+        literalDivisor !== undefined && literalDivisor > 0
+          ? rawD
+          : q`(CASE WHEN ${rawD} < 0 THEN (- ${rawD}) ELSE ${rawD} END)`
+      const r = q`(((${n} % ${d}) + ${d}) % ${d})`
+      const qFloor = q`((${n} - ${r}) / ${d})`
+      const body =
+        mode === 'floor'
+          ? qFloor
+          : mode === 'ceiling'
+            ? q`(CASE WHEN ${r} = 0 THEN ${qFloor} ELSE (${qFloor} + 1) END)`
+            : mode === 'toward-zero'
+              ? q`((${n} - (${n} % ${d})) / ${d})`
+              : mode === 'half-even'
+                ? q`(CASE WHEN (2 * ${r}) > ${d} THEN (${qFloor} + 1) WHEN (2 * ${r}) < ${d} THEN ${qFloor} WHEN (((${qFloor} % 2) + 2) % 2) = 0 THEN ${qFloor} ELSE (${qFloor} + 1) END)`
+                : q`(CASE WHEN (2 * ${r}) > ${d} THEN (${qFloor} + 1) WHEN (2 * ${r}) < ${d} THEN ${qFloor} WHEN ${n} >= 0 THEN (${qFloor} + 1) ELSE ${qFloor} END)`
+      if (literalDivisor !== undefined && literalDivisor !== 0) return body
+      return q`(CASE WHEN ${rawD} = 0 THEN NULL ELSE ${body} END)`
+    })
+  },
+  'num.rem': (args, ctx) => {
+    const [nNode, dNode, onZeroNode] = args
+    const onZero =
+      Node.$is('Lit')(onZeroNode) && isOnZero(onZeroNode.value) ? onZeroNode.value : 'refuse'
+    if (![nNode!, dNode!].every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))) {
+      return unsupported(
+        'num.rem needs operands that are integers whatever the row holds: a Schema.Int, Decimal or Money column, or an integer literal',
+      )
+    }
+    const literalDivisor =
+      Node.$is('Lit')(dNode) && typeof dNode.value === 'number' && Number.isSafeInteger(dNode.value)
+        ? dNode.value
+        : undefined
+    if (onZero === 'refuse' && (literalDivisor === undefined || literalDivisor === 0)) {
+      return unsupported('num.rem with a non-literal divisor requires { onZero: "null" } in SQL')
+    }
+    return both([nNode!, dNode!], ctx, (left, right) =>
+      literalDivisor !== undefined && literalDivisor !== 0
+        ? q`(${left} % ${right})`
+        : q`(CASE WHEN ${right} = 0 THEN NULL ELSE (${left} % ${right}) END)`,
     )
   },
   'str.len': (args, ctx) =>

@@ -39,6 +39,8 @@ export type CoreOpId =
   | 'num.mul'
   | 'num.neg'
   | 'num.mulScaled'
+  | 'num.div'
+  | 'num.rem'
   | 'str.len'
   | 'str.startsWith'
   | 'str.contains'

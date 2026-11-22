@@ -4,6 +4,7 @@ import { abstractOps } from '../abstract/ops.js'
 import { noCandidate } from '../abstract/support.js'
 import * as Node from '../node.js'
 import { isShift } from '../ops/mulScaled.js'
+import { isOnZero, isRoundingMode } from '../ops/divRem.js'
 import * as Str from '../ops/str.js'
 import * as Path from '../path.js'
 import { halfEven } from './mulScaled.js'
@@ -375,6 +376,74 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
         return strict('num', [a!, b!], moved, unsafe(moved))
       }
       return strict('num', [a!, b!], halfEven(z3, product, shift), unsafe(product))
+    },
+    'num.div': ([a, b], [, divisorNode, modeNode, onZeroNode]) => {
+      const left = number(a!)
+      if (!z3.isInt(left)) {
+        throw new Unsupported('num.div of an operand the solver does not read as an integer')
+      }
+      if (
+        !Node.$is('Lit')(divisorNode!) ||
+        typeof divisorNode.value !== 'number' ||
+        !Number.isSafeInteger(divisorNode.value) ||
+        divisorNode.value <= 0
+      ) {
+        throw new Unsupported('num.div requires a positive integer literal divisor in the solver')
+      }
+      if (!Node.$is('Lit')(modeNode!) || !isRoundingMode(modeNode.value)) {
+        throw new Unsupported('num.div requires a literal rounding mode')
+      }
+      if (!Node.$is('Lit')(onZeroNode!) || !isOnZero(onZeroNode.value)) {
+        throw new Unsupported('num.div requires a literal onZero policy')
+      }
+      const d = divisorNode.value
+      const qFloor = left.div(d)
+      const r = left.mod(d)
+      const twice = r.mul(2)
+      const zero = z3.Int.val(0)
+      const mode = modeNode.value
+      const quotient =
+        mode === 'floor'
+          ? qFloor
+          : mode === 'ceiling'
+            ? z3.If(r.eq(zero), qFloor, qFloor.add(1))
+            : mode === 'toward-zero'
+              ? z3.If(z3.Or(r.eq(zero), left.ge(zero)), qFloor, qFloor.add(1))
+              : mode === 'half-even'
+                ? z3.If(
+                    twice.gt(d),
+                    qFloor.add(1),
+                    z3.If(
+                      twice.lt(d),
+                      qFloor,
+                      z3.If(qFloor.mod(2).eq(zero), qFloor, qFloor.add(1)),
+                    ),
+                  )
+                : z3.If(
+                    twice.gt(d),
+                    qFloor.add(1),
+                    z3.If(twice.lt(d), qFloor, z3.If(left.ge(zero), qFloor.add(1), qFloor)),
+                  )
+      return strict('num', [a!, b!], quotient, unsafe(quotient))
+    },
+    'num.rem': ([a, b], [, divisorNode]) => {
+      const left = number(a!)
+      if (!z3.isInt(left)) {
+        throw new Unsupported('num.rem of an operand the solver does not read as an integer')
+      }
+      if (
+        !Node.$is('Lit')(divisorNode!) ||
+        typeof divisorNode.value !== 'number' ||
+        !Number.isSafeInteger(divisorNode.value) ||
+        divisorNode.value <= 0
+      ) {
+        throw new Unsupported('num.rem requires a positive integer literal divisor in the solver')
+      }
+      const d = divisorNode.value
+      const r = left.mod(d)
+      const zero = z3.Int.val(0)
+      const remVal = z3.If(z3.Or(r.eq(zero), left.ge(zero)), r, r.sub(d))
+      return strict('num', [a!, b!], remVal, unsafe(remVal))
     },
     'str.len': ([a], [node]) => strict('num', [a!], length(node!)),
     'arr.count': ([a], [node]) =>
