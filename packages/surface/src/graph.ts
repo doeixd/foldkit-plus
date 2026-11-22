@@ -9,7 +9,7 @@
  * witnessed keeping it?
  */
 import { Data, Option } from 'effect'
-import { lawFactsOf, type LawEntry } from 'foldkit-entity'
+import { lawFactsOf, type LawEntry } from 'foldkit-entity/laws'
 import { Evidence } from 'foldkit-metadata'
 import {
   build as buildDependencyGraph,

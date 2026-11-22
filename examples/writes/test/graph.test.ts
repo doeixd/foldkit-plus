@@ -4,7 +4,8 @@
  * law is `law-unwitnessed` until a check, a walk or a line says it keeps it.
  */
 import { Schema } from 'effect'
-import { Entity, Expr, Laws, Write } from 'foldkit-entity'
+import { Entity, Expr, Write } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { Mutation, Remote } from 'foldkit-remote'
 import { Evidence, Graph, GraphNode, Module, Surface } from 'foldkit-surface'
 import { beforeAll, describe, expect, it } from 'vitest'

@@ -5,13 +5,13 @@ import {
   Derived,
   Entity,
   Expr,
-  Laws,
   Order,
   Query as Body,
   Relation,
   Write,
   evaluate,
 } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { Guards } from 'foldkit-guard'
 import { Can, CanWire, Mutation, Query, Remote } from 'foldkit-remote'
 import { ModelRef } from 'foldkit-surface'

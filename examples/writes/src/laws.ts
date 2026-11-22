@@ -1,4 +1,4 @@
-import { Laws, type WriteEntry } from 'foldkit-entity'
+import { Laws, type WriteEntry } from 'foldkit-entity/laws'
 import * as Domain from './domain.js'
 
 /** Every declared write the domain exports, whatever it is named, by name: a module namespace's order is the runtime's (Node sorts it, a bundler may not). */

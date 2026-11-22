@@ -8,16 +8,18 @@
 import { Effect, type Layer, Match, Option, Result, Schema } from 'effect'
 import {
   Entity,
-  Finding,
   Footprint,
-  LawVerdict,
   type AnyEntity,
   type AnyWrite,
   type Invariant,
-  type LawReport as LawsReport,
   type Row,
-  type WriteEntry,
 } from 'foldkit-entity'
+import {
+  Finding,
+  LawVerdict,
+  type LawReport as LawsReport,
+  type WriteEntry,
+} from 'foldkit-entity/laws'
 import { Evidence } from 'foldkit-metadata'
 import { RemoteClient } from './client.js'
 import { Law } from './law.js'

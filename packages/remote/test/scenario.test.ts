@@ -3,7 +3,8 @@
  * decided, with `Scenario` evidence issued for a run with no mismatch.
  */
 import { Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Laws, Write } from 'foldkit-entity'
+import { Entity, Expr, Write } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { Evidence } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
 import { Mutation } from '../src/index.js'

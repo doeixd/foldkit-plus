@@ -112,16 +112,17 @@ export const tsxWithoutApi = (dir: string): string => {
   return `The tsx installed at ${dir} (${version ?? 'unknown version'}) has no esm/api export, which this command loads the module through. Upgrade tsx to a 4.x release that has it (foldkit-plus is tested with ^4.23.15).`
 }
 
-/** Node's own TypeScript support: the module by its URL, `foldkit-entity` from the nearest `node_modules`. */
+/** Node's own TypeScript support: the module by its URL, `foldkit-entity` and its subpaths from the nearest `node_modules`. */
 const throughNode =
   (file: string): Load =>
   async specifier => {
-    if (specifier !== 'foldkit-entity') return import(/* @vite-ignore */ specifier)
-    const dir = installedFrom(dirname(file), specifier)
+    if (specifier !== 'foldkit-entity' && !specifier.startsWith('foldkit-entity/'))
+      return import(/* @vite-ignore */ specifier)
+    const dir = installedFrom(dirname(file), 'foldkit-entity')
     if (Option.isNone(dir)) throw new Error('foldkit-entity is not installed above the module')
-    const entry = entryOf(dir.value, '.')
+    const entry = entryOf(dir.value, `.${specifier.slice('foldkit-entity'.length)}`)
     if (Option.isNone(entry))
-      throw new Error("foldkit-entity's manifest names no entry for `import`")
+      throw new Error(`foldkit-entity's manifest names no entry for \`import\` of ${specifier}`)
     return import(/* @vite-ignore */ pathToFileURL(entry.value).href)
   }
 
@@ -158,13 +159,13 @@ const printed = async (
 
   let laws: unknown
   try {
-    const entity = await load('foldkit-entity')
+    const entity = await load('foldkit-entity/laws')
     laws = isRecord(entity) ? entity['Laws'] : undefined
   } catch (error) {
-    return failed(`Could not load foldkit-entity from the project: ${messageOf(error)}`)
+    return failed(`Could not load foldkit-entity/laws from the project: ${messageOf(error)}`)
   }
   if (!isEntityLaws(laws))
-    return failed("The project's foldkit-entity exports no Laws.check and Laws.show.")
+    return failed("The project's foldkit-entity/laws exports no Laws.check and Laws.show.")
   try {
     return { text: `${laws.show(isWrites(value) ? laws.check(value) : value)}\n`, isError: false }
   } catch (error) {

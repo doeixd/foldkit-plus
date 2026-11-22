@@ -1,5 +1,6 @@
 import { Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Laws, Relation, Write } from 'foldkit-entity'
+import { Entity, Expr, Relation, Write } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { Verdict } from 'metakit'
 import * as Prove from 'metakit/prove'
 import { expect, it } from 'vitest'

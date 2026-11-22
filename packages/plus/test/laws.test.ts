@@ -5,7 +5,7 @@
  * `tsx`, run the built CLI in `cli.test.ts`.
  */
 import { Option } from 'effect'
-import { Laws } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'

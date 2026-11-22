@@ -6,7 +6,8 @@
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity, Expr, Laws, Write } from 'foldkit-entity'
+import { Entity, Expr, Write } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { Graph, GraphEdge, GraphNode, Module, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Mutation, Remote } from '../src/index.js'

@@ -7,7 +7,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Effect, Match, Option, Schema } from 'effect'
-import { Laws } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { databaseLayer } from 'foldkit-remote-drizzle'
 import { Walk } from 'foldkit-remote/testing'
 import { RemoteServer } from 'foldkit-remote-server'

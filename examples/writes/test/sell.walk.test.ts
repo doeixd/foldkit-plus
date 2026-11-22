@@ -6,7 +6,7 @@
  * row as it was.
  */
 import { Option } from 'effect'
-import { Laws } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { Evidence } from 'foldkit-metadata'
 import { Walk } from 'foldkit-remote/testing'
 import { describe, expect, it } from 'vitest'
