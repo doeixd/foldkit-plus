@@ -49,7 +49,27 @@ const vat = Expr.eval(vatExpr, {
 // vat -> 247 (2.47 USD: 12.35 x 0.200)
 ```
 
-The product is computed exactly in integers. It is evaluated in memory only: SQL lowering refuses it, and the interval, zone and Z3 checkers read it as unknown. A missing operand, or a product of units outside the safe integer range, evaluates to `null`.
+Both build one core operation, `num.mulScaled` (`Num.mulScaled(left, right, { shift })` builds it directly, with the number of decimal places the product moves down: `leftScale + rightScale - scale`, or a negative number to move it up). Its operands are integer counts of units, the product `a * b` is computed exactly in integers, and a missing operand gives `null`. The product, an operand and the result must each stay within ±(2^53 − 1): anything else is refused, not rounded and not `null` (`Expr.evalResult` returns the refusal, `Expr.eval` throws it, and a rule that meets one does not hold). The product is checked before it is rounded, so `MAX_SAFE_INTEGER` units at scale 2 times `1.00` is refused although its result would fit. Each reader either does what evaluation does or refuses by name:
+
+| Reader | What it does with a decimal product |
+| --- | --- |
+| `Expr.eval`, `Expr.judge` and partial evaluation | Exact, as above. `Expr.judge` answers `Unknown` for a product it refuses. |
+| `metakit/sql` and `metakit/drizzle` (SQLite and Postgres) | Integer arithmetic only: an exact half goes to the even neighbour on both, and the answer is `NULL` where evaluation refuses. Postgres forms the product as `numeric`, which cannot overflow, and SQLite carries an overflowing product on as a float that lands past the bound, so neither raises nor returns a wrong number. A column that is not known to be an integer (a `Schema.Finite` field, say) is refused by name; use a `Schema.Int`, `Decimal` or `Money` field. |
+| The interval and zone checker (`Abstract`) | Bounds the result from the operands' intervals, rounding each end half-even. It says a product has a value only where the operands are integers and the product stays in range, so a rule over unbounded operands is not proved. |
+| The Z3 prover (`metakit/prove`) | Exact over integers, with the solver's `div` and `mod`. A product of two unbounded fields is non-linear, so the solver may give up and answer `Unknown`; an operand that is not an integer sort is `Unknown`. |
+| `Rows.sum` (`metakit/aggregates`) | Takes a decimal product as its contribution, as it takes any integer-valued expression. |
+
+```ts
+import * as Rows from 'metakit/aggregates'
+
+const totalVat = Rows.sum(Line, $ => Money.mul($.net, $.vat, { rateScale: 3 }))
+totalVat.evaluate([{ net: Money.minor('USD', 12_35), vat: Decimal.units(200, 3) }])
+// 247
+```
+
+One difference remains between SQL and memory. SQL has no refusal to give, so a refused product is `NULL`. Every operation that is null for a null operand (an order, arithmetic, `Eq.equals`) then agrees with memory, where the rule does not hold. A test of nullness (`Null.isNull`, `Eq.is`, `Eq.isNot`, `Null.coalesce`) is the exception: it holds of a refused product in SQL and is itself refused in memory. To keep a product out of refusal, bound its operands with `Schema.isBetween`, which the checker then reads to show the product stays in range.
+
+`opProperties` declares no property of `num.mulScaled`. Commutativity holds (either order gives one answer, which a test checks) but no reader reads it for this operation. The unit that leaves a product alone is `10^shift`, which depends on the call and which one row of the table cannot name, and the result is monotone in an operand only for operands of one sign, where the checker reads a direction that holds for every value.
 
 ## Timezone-free dates (`CalendarDay`)
 

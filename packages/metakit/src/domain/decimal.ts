@@ -95,10 +95,10 @@ export const between = ops.between
  * Multiply two decimals into a decimal at `scale`, rounding half-even. The
  * product is computed exactly in integers; `leftScale` and `rightScale` must be
  * the operands' own scales (checked by their types, and against a field's
- * Schema). Evaluated in memory only: SQL lowering refuses it and the static
- * checkers read it as unknown. A missing operand, or a product of units outside
- * the safe integer range, evaluates to `null` (typed so when an operand may be
- * null).
+ * Schema). It builds `num.mulScaled`, which evaluation, SQL (SQLite and
+ * Postgres), the checkers and Z3 read or refuse by name. A missing operand
+ * evaluates to `null` (typed so when an operand may be null); a product of
+ * units outside the safe integer range is refused.
  */
 export const mul = <
   L extends MaybeDecimalInput,

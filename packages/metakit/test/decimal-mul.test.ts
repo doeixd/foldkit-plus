@@ -175,6 +175,8 @@ describe('evaluation', () => {
   })
 })
 
+const Bill = Schema.Struct({ net: Money.make('USD'), vat: Decimal.make({ scale: 3 }) })
+
 describe('Decimal.mul and Money.mul build the operation', () => {
   const Line = Schema.Struct({
     price: Decimal.make({ scale: 2 }),
@@ -227,6 +229,11 @@ describe('Decimal.mul and Money.mul build the operation', () => {
     value += total.updateDelta(rows[1]!, row(50, 300))
     value += total.insertDelta(row(7, 5000))
     expect(value).toBe(total.evaluate([row(50, 300), row(1000, 2500), row(7, 5000)]))
+    // The amount and rate sum the docs show: 12.35 USD at 0.200.
+    const totalVat = Rows.sum(Bill, $ => Money.mul($.net, $.vat, { rateScale: 3 }))
+    expect(
+      totalVat.evaluate([{ net: Money.minor('USD', 12_35), vat: Decimal.units(200, 3) }]),
+    ).toBe(247)
     const loose = Schema.Struct({ n: Schema.Finite, m: Schema.Int })
     expect(() => Rows.sum(loose, $ => Num.mulScaled($.n, $.m, { shift: 2 }))).toThrow(
       /integer-valued/,

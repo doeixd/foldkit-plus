@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import { Expr, Num } from 'metakit'
 import * as Rows from 'metakit/aggregates'
-import { Decimal } from 'metakit/domain'
+import { Decimal, Money } from 'metakit/domain'
 
 const Pair = Schema.Struct({
   a: Schema.Int,
@@ -38,3 +38,8 @@ const total = Rows.sum(Pair, $ =>
 )
 const answer: Decimal.DecimalValue<2> = total.evaluate([])
 void answer
+
+// The same, for an amount and a rate, as `domain-types.md` writes it.
+const Bill = Schema.Struct({ net: Money.make('USD'), vat: Decimal.make({ scale: 3 }) })
+const totalVat = Rows.sum(Bill, $ => Money.mul($.net, $.vat, { rateScale: 3 }))
+totalVat.evaluate([{ net: Money.minor('USD', 12_35), vat: Decimal.units(200, 3) }])

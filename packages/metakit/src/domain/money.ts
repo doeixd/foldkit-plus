@@ -111,10 +111,10 @@ type RateScale<R> = ValueOfInput<R> extends DecimalValue<infer S> ? S : never
 /**
  * Multiply an amount by a `Decimal` rate (a tax rate, an exchange rate) into
  * an amount of the same currency and scale, rounding half-even. `rateScale`
- * must be the rate's own scale. Exact in integers; evaluated in memory only:
- * SQL lowering refuses it and the static checkers read it as unknown. A missing
- * operand, or a product outside the safe integer range, evaluates to `null`
- * (typed so when an operand may be null).
+ * must be the rate's own scale. Exact in integers: it builds `num.mulScaled`,
+ * which evaluation, SQL (SQLite and Postgres), the checkers and Z3 read or
+ * refuse by name. A missing operand evaluates to `null` (typed so when an
+ * operand may be null); a product outside the safe integer range is refused.
  */
 export const mul = <
   M extends ExprInput<never, MoneyValue<string, number> | null>,
