@@ -180,6 +180,33 @@ const nodeOf = (
   return build(condition)
 }
 
+/** A value no two readers agree on: text holding a NUL, a number that is not finite, or a list holding one. */
+const unportable = (value: unknown): boolean =>
+  typeof value === 'string'
+    ? value.includes('\u0000')
+    : typeof value === 'number'
+      ? !Number.isFinite(value)
+      : Array.isArray(value) && value.some(unportable)
+
+/**
+ * Whether a row guard of `condition` reads a principal's field holding a
+ * value no two readers agree on. Metakit refuses NUL text and NaN and orders
+ * ±Infinity; SQL refuses all three, and a guard kept for the statement is
+ * never judged in memory. Refused here, before any guard, every reader denies.
+ */
+const refusesInput = (condition: Condition, input: Row): boolean =>
+  Match.valueTags(condition, {
+    Always: () => false,
+    Never: () => false,
+    Row: ({ guard }) =>
+      Query.dependencies(guard.query).inputs.some(
+        key => Object.hasOwn(input, key) && unportable(input[key]),
+      ),
+    Inherit: () => false,
+    And: ({ conditions }) => conditions.some(each => refusesInput(each, input)),
+    Or: ({ conditions }) => conditions.some(each => refusesInput(each, input)),
+  })
+
 /** A part a client cannot judge: a rule over who asks, or an inherited Read. */
 const open: Settled = Settled.Open({
   reads: Option.none(),
@@ -203,7 +230,10 @@ export const Condition = {
    * range, an operator that throws or that `operators` lacks) refuses the
    * whole condition, as a database refuses a whole statement: what a write
    * supplies can deny it, never end the request. So does a part it cannot
-   * judge over one row (a path to another row).
+   * judge over one row (a path to another row), and a principal's field a
+   * guard reads that no reader agrees on (`refusesInput`). A guard a decided
+   * principal guard made moot (`[isAdmin, isOwner]` for an admin) is not in
+   * the condition, so it is not read.
    */
   holds: (
     condition: Condition,
@@ -212,6 +242,7 @@ export const Condition = {
     inherit: (relation: string) => boolean,
     operators: MemoryOperators,
   ): boolean =>
+    !refusesInput(condition, input) &&
     Settled.$match(
       settleNode(
         nodeOf(
@@ -231,7 +262,9 @@ export const Condition = {
    * for a statement to judge. `Always` or `Never` when the row alone decides
    * it. A guard the row alone makes metakit refuse, or cannot judge, refuses
    * the whole condition (`Never`): no part kept for the statement can make a
-   * refused one hold.
+   * refused one hold. So does a principal's field any guard reads, kept ones
+   * among them, that no reader agrees on (`refusesInput`), which the
+   * statement could not be compiled with.
    */
   residual: (
     condition: Condition,
@@ -239,6 +272,7 @@ export const Condition = {
     input: Readonly<Record<string, unknown>>,
     operators: MemoryOperators,
   ): Condition => {
+    if (refusesInput(condition, input)) return never
     let refused = false
     const decided = (each: Condition): Condition =>
       Match.valueTags(each, {

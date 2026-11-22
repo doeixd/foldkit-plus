@@ -213,7 +213,7 @@ const grid = cases.flatMap(each => askers.map(asker => ({ ...each, ...asker })))
  * The one difference, and its direction: SQL adds two stored integers as a
  * double, so `rank + rank > 10` holds of d4 (rank 2^52), where metakit
  * refuses the sum past 2^53 − 1 and the judge in memory denies. Memory is the
- * stricter reader. Closing it is metakit's SQL lowering of `num.add` giving
+ * stricter reader. A principal's number near 2^53 in a sum differs the same way. Closing it is metakit's SQL lowering of `num.add` giving
  * null past the range, as `num.mulScaled` does.
  */
 const sqlAlone = (name: string): ReadonlyArray<string> => (name.includes('doubled') ? ['d4'] : [])

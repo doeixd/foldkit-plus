@@ -14,6 +14,24 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 
 export default [
   edit(
+    'a principal’s unportable field is judged in memory',
+    condition,
+    '    !refusesInput(condition, input) &&\n',
+    '',
+  ),
+  edit(
+    'a principal’s unportable field reaches the statement',
+    condition,
+    '    if (refusesInput(condition, input)) return never\n',
+    '',
+  ),
+  edit(
+    'a principal’s infinite number is ordered',
+    condition,
+    '      ? !Number.isFinite(value)',
+    '      ? Number.isNaN(value)',
+  ),
+  edit(
     'a refused or null rule holds',
     condition,
     '      { Known: ({ value }) => value === true, Open: () => false },',

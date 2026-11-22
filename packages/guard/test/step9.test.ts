@@ -50,6 +50,12 @@ const G = Guards.declare(
     summed: guard.row(Related.Item, () => Expr.gt(Expr.add(stock, revision), 0)),
     inTeam: guard.row(Related.Item, () => Expr.eq(Related.Item.relations.team, 't1')),
     anonymous: guard.row(Related.Item, p => Expr.isNull(p.id)),
+    ownerInOpenTeam: guard.row(Related.Item, p =>
+      Expr.and(
+        Expr.eq(Expr.path(Related.Item.relations.team, Related.Team.fields.open), true),
+        Expr.eq(ownerId, p.id),
+      ),
+    ),
     inOpenTeam: guard.row(Related.Item, () =>
       Expr.eq(Expr.path(Related.Item.relations.team, Related.Team.fields.open), true),
     ),
@@ -159,6 +165,51 @@ describe('a refusal inside a guard', () => {
       Condition.holds(condition, row, Policy.inputOf(ada), () => false, Policy.operators),
     ).toBe(true)
   })
+})
+
+describe('a principal’s field no reader agrees on', () => {
+  const nul = Policy.inputOf(Option.some<User>({ id: `a${NUL}` }))
+
+  it('refuses a rule whose guard reading it is kept for the statement, beside one that allows', () => {
+    const condition = conditionOf({ Update: [G.titled, G.ownerInOpenTeam] })
+    expect(Condition.residual(condition, row, Policy.inputOf(ada), Policy.operators)).toBe(
+      Condition.always,
+    )
+    // Kept, the guard would reach the statement only to be refused when it is compiled.
+    expect(Condition.residual(condition, row, nul, Policy.operators)).toBe(Condition.never)
+    expect(Condition.holds(condition, row, nul, () => false, Policy.operators)).toBe(false)
+  })
+
+  const Ranked = Guards.declare(
+    'Ranked',
+    Schema.Struct({ id: Schema.String, rank: Schema.Number }),
+    guard => ({
+      outranks: guard.row(Related.Item, p => Expr.gte(stock, p.rank)),
+      titled: guard.row(Related.Item, () => Expr.eq(title, 'open')),
+    }),
+    { key: user => user.id, unguarded: 'deny' },
+  )
+  const RankedPolicy = Ranked.implement({})
+
+  it.each([Number.NaN, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY])(
+    'refuses %s, which SQL cannot compile, as memory does',
+    rank => {
+      const asker = Option.some({ id: 'ada', rank })
+      const ruled = Related.Item.pipe(
+        Guards.attach(Ranked, { row: { Update: [Ranked.outranks, Ranked.titled] } }),
+      )
+      const holds = (principal: typeof asker) =>
+        Condition.holds(
+          Effect.runSync(RankedPolicy.writable(ruled, principal, 'Update')).condition,
+          row,
+          RankedPolicy.inputOf(principal),
+          () => false,
+          RankedPolicy.operators,
+        )
+      expect(holds(Option.some({ id: 'ada', rank: 0 }))).toBe(true)
+      expect(holds(asker)).toBe(false)
+    },
+  )
 })
 
 describe('a guarded write whose rule metakit refuses', () => {
