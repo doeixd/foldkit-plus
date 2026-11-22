@@ -4,9 +4,9 @@
  */
 const tests = ['packages/surface/test/declared.test.ts']
 
-const edit = (name: string, find: string, replace: string) => ({
+const edit = (name: string, find: string, replace: string, file = '../src/declared.ts') => ({
   name,
-  edits: [{ file: '../src/declared.ts', find, replace }],
+  edits: [{ file, find, replace }],
   tests,
 })
 
@@ -66,6 +66,18 @@ export default [
     'an edge is drawn to every Message any record sends',
     'Object.hasOwn(validatedSends, emit) ? (validatedSends[emit] ?? []) : []',
     'Object.values(validatedSends).flat()',
+  ),
+  edit(
+    'a contract’s slice is merged into the writes of a Message that has a transition',
+    '    if (transitionTags.has(tag)) {',
+    '    if (false) {',
+    '../src/writes.ts',
+  ),
+  edit(
+    'a Message outside the owner’s messages may write the path it owns',
+    '    const foreign = owners.filter(entry => !entry.messages.has(tag))',
+    '    const foreign: typeof owners = []',
+    '../src/writesCheck.ts',
   ),
   edit(
     'sends keyed by a record no transition emits is accepted',

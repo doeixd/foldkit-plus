@@ -41,7 +41,9 @@ const declared = Declared.of(App, machine, {
   // The hand-written arm for Messages `machine` has no transition for.
   // Required by type exactly when some Message of `App` has none.
   fallback: (model, message) => handWritten(model, message),
-  // Optional store-owning contracts / extra writers forwarded to `Writes.of`.
+  // Optional store-owning contracts / extra writers forwarded to `Writes.of`,
+  // for Messages `machine` has no transition for: one that has a transition and
+  // is named here throws, as merging would widen what the transition declares.
   contracts: [syncContract],
 })
 ```

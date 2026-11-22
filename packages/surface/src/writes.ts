@@ -45,10 +45,12 @@ export interface WritesOptions {
    * Contracts whose Messages write their owned Model paths (e.g. a Remote
    * domain whose reducer Messages write `['remote']`). Any reader under those
    * paths — including a `Projection.derive` over a Remote read or a plain
-   * reference into the store — is reached by those Messages.
+   * reference into the store — is reached by those Messages. A Message named
+   * here has no transition: `Writes.of` throws for one that has, since its
+   * transition already says what it writes.
    */
   readonly contracts?: ReadonlyArray<WritesContract> | undefined
-  /** Extra Message-to-paths declarations outside `machine.transitions`. */
+  /** Extra Message-to-paths declarations for Messages outside `machine.transitions`. */
   readonly writers?: Readonly<Record<string, ReadonlyArray<ReadonlyArray<string>>>> | undefined
 }
 
@@ -139,13 +141,24 @@ const of = <
     const fp = machine.footprints[tag as Tag]
     addWrites(tag, fp?.writes ?? [])
   }
+  const transitionTags = new Set(Object.keys(machine.transitions))
+  // A transition's writes are exact; a contract's `owns` are its whole slice. Merged, they
+  // would widen the footprint to the slice and hide a stray write inside it.
+  const addElsewhere = (tag: string, paths: ReadonlyArray<ReadonlyArray<string>>, by: string) => {
+    if (transitionTags.has(tag)) {
+      throw new Error(
+        `Writes.of: "${tag}" has a transition, which declares what it writes, and ${by} declares it too: declare its writes once`,
+      )
+    }
+    addWrites(tag, paths)
+  }
   const registeredPaths: Array<ReadonlyArray<string>> = []
   for (const contract of options?.contracts ?? []) {
-    for (const tag of contract.messages) addWrites(tag, contract.owns)
+    for (const tag of contract.messages) addElsewhere(tag, contract.owns, 'a contract')
     registeredPaths.push(...contract.owns)
   }
   for (const [tag, paths] of Object.entries(options?.writers ?? {})) {
-    addWrites(tag, paths)
+    addElsewhere(tag, paths, 'writers')
     registeredPaths.push(...paths)
   }
   const footprints: Record<string, { readonly writes: ReadonlyArray<ReadonlyArray<string>> }> =

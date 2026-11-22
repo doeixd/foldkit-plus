@@ -449,7 +449,10 @@ const update = writes.track(
   Messages with no transition (required while any has none). A missing
   `supply` entry or `fallback` also throws when `Declared.of` runs. `record`
   receives each step's supplied values and `declared.replay(model, step)` runs
-  the step with them again. `sends` maps each emitted record to the Messages
+  the step with them again. `contracts` (a placed Bundle's or Sync document's
+  `messages` and `owns`) and `writers` declare what a Message with no
+  transition writes; one that has a transition throws, as its transition is
+  exact and the slice is not. `sends` maps each emitted record to the Messages
   its Command may send back; `Declared.of` throws for a key no transition
   emits or a value that is not a Message of the application.
   `declared.messageEdges` is what `Graph.of` takes as `sends` (with

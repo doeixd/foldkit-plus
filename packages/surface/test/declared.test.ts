@@ -235,6 +235,76 @@ describe('Declared.of', () => {
       /"Noted" changed title, and its transition declares it writes note/,
     )
   })
+
+  describe('through declared.step, as a placed child is run', () => {
+    // `Noted` stands for the child's Messages, which its owner contract names.
+    const child = { kind: 'bundle', name: 'Notes', owns: [['note']], messages: ['Noted'] }
+    const Sneaky = Machine.make({
+      state: Model,
+      transitions: {
+        Renamed,
+        Incremented: Transition.make({
+          state: Model,
+          input: Message.Incremented,
+          apply: ({ state, input }) => [
+            Transition.add(state.count, input.by),
+            Transition.set(state.note, 'sneaked'),
+          ],
+        }),
+      },
+    })
+    const declaredWith = (
+      fallback: (model: Model, message: Message) => { readonly model: Model },
+    ) =>
+      Declared.of(App, Sneaky, {
+        commands: { LogTitle: () => [], Persist: () => [] },
+        contracts: [child],
+        fallback,
+      })
+    const noted = (model: Model, message: Message) =>
+      message._tag === 'Noted' ? { model: { ...model, note: message.note } } : { model }
+
+    it('reports a Message the child does not own that writes the path it owns', () => {
+      const declared = declaredWith(noted)
+      const checked = WritesCheck.verify(declared.writes, declared.step, { contracts: [child] })
+      // The child's own Message writes its path.
+      expect(checked(initial, Message.Noted({ note: 'inside' })).model.note).toBe('inside')
+      // A parent Message declares the write and still does not own the path.
+      expect(() => checked(initial, Message.Incremented({ by: 1 }))).toThrow(
+        /"Incremented" changed note, which "bundle:Notes" owns, and is not one of its messages/,
+      )
+    })
+
+    it('reports the child writing outside the path it owns', () => {
+      const declared = declaredWith((model, message) =>
+        message._tag === 'Noted'
+          ? { model: { ...model, note: message.note, title: 'leaked!' } }
+          : { model },
+      )
+      const checked = WritesCheck.verify(declared.writes, declared.step, { contracts: [child] })
+      expect(() => checked(initial, Message.Noted({ note: 'x' }))).toThrow(
+        /"Noted" changed title, and its transition declares it writes note/,
+      )
+    })
+  })
+
+  it('refuses a Message that has a transition and is also named by a contract or writers', () => {
+    // Merged, the contract's whole slice would be declared written by the transition's Message.
+    expect(() =>
+      Declared.of(App, PartialMachine, {
+        commands: { LogTitle: () => [], Persist: () => [] },
+        contracts: [{ messages: ['Renamed'], owns: [['note']] }],
+        fallback: model => ({ model }),
+      }),
+    ).toThrow(/"Renamed" has a transition, which declares what it writes, and a contract/)
+    expect(() =>
+      Declared.of(App, PartialMachine, {
+        commands: { LogTitle: () => [], Persist: () => [] },
+        writers: { Renamed: [['note']] },
+        fallback: model => ({ model }),
+      }),
+    ).toThrow(/"Renamed" has a transition, which declares what it writes, and writers/)
+  })
 })
 
 describe('Declared.of with supplied values', () => {

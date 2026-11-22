@@ -230,7 +230,7 @@ describe('a Surface whose projection carries metadata', () => {
     // Registering an UNRELATED contract (owning ['count']) must NOT disable the
     // metadata fallback for Planned (which reads unregistered ['note']).
     const withUnrelated = Writes.of(App, Declared, {
-      contracts: [{ messages: ['Counted'], owns: [['count']] }],
+      contracts: [{ messages: [], owns: [['count']] }],
     })
     withUnrelated.rootView(Planned, undefined, (note, h) => h.p([], [note]))
     expect(withUnrelated.regions()).toEqual([
