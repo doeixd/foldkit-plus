@@ -59,7 +59,12 @@ export type Capability = 'row-atomic' | 'parent-serialized'
 export type Judged = 'in-statement' | 'read-first'
 
 const given: Readonly<Record<Capability, (store: StoreCapabilities, judged: Judged) => boolean>> = {
-  'row-atomic': store => store.isolation !== 'eventual',
+  // A statement re-reads the row it writes (Postgres at read committed too); a row read
+  // before it is still the row written only in a serializable transaction.
+  'row-atomic': (store, judged) =>
+    store.isolation !== 'eventual' &&
+    (judged === 'in-statement' ||
+      (store.isolates === 'transaction' && store.isolation === 'serializable')),
   // A read in one round trip and the write in the next are one isolated step only
   // where the isolation reaches across them, or where the read is in the write.
   'parent-serialized': (store, judged) =>

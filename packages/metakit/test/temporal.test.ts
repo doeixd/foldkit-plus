@@ -95,9 +95,14 @@ describe('what each declared rule needs of its store', () => {
 describe('mounting on a store', () => {
   const transitions = Temporal.requirements({ machine: Bank })
   const rows = Temporal.requirements({ aggregates })
+  const transitionsInStatement = transitions.map(rule => ({
+    ...rule,
+    judged: 'in-statement' as const,
+  }))
 
   it.each([
-    { needed: transitions, on: store('read-committed', false) },
+    { needed: transitionsInStatement, on: store('read-committed', false) },
+    { needed: transitionsInStatement, on: store('serializable', false, 'statement') },
     { needed: transitions, on: store('serializable', false) },
     { needed: rows, on: store('serializable', false) },
     { needed: rows, on: store('read-committed', true) },
@@ -110,6 +115,25 @@ describe('mounting on a store', () => {
     { needed: transitions, on: store('eventual', false), rule: 'Withdraw', needs: 'row-atomic' },
     // A lock is no use to a store that merges writes after the fact.
     { needed: transitions, on: store('eventual', true), rule: 'Deposit', needs: 'row-atomic' },
+    {
+      needed: transitionsInStatement,
+      on: store('eventual', false),
+      rule: 'Deposit',
+      needs: 'row-atomic',
+    },
+    // A row read before the write may have moved by then: at read committed, or on D1.
+    {
+      needed: transitions,
+      on: store('read-committed', true),
+      rule: 'Withdraw',
+      needs: 'row-atomic',
+    },
+    {
+      needed: transitions,
+      on: store('serializable', false, 'statement'),
+      rule: 'Deposit',
+      needs: 'row-atomic',
+    },
     {
       needed: rows,
       on: store('read-committed', false),
@@ -160,7 +184,10 @@ describe('mounting on a store', () => {
   })
 
   it('names only the rules the store cannot hold', () => {
-    const all = Temporal.requirements({ machine: Bank, aggregates })
+    // A writer that checks a transition's guard in its UPDATE: the statement re-reads the row.
+    const all = Temporal.requirements({ machine: Bank, aggregates }).map(rule =>
+      rule.needs === 'row-atomic' ? { ...rule, judged: 'in-statement' as const } : rule,
+    )
     expect(Store.refused(store('read-committed', false), all).map(({ rule }) => rule)).toEqual([
       'balanceIsItsEntries',
       'entryLimit',

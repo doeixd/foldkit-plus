@@ -49,8 +49,26 @@ export default [
   ),
   mutation(
     'an eventual store is taken to write a row as one step',
-    "'row-atomic': store => store.isolation !== 'eventual',",
-    "'row-atomic': () => true,",
+    "    store.isolation !== 'eventual' &&\n    (judged === 'in-statement' ||",
+    "    (judged === 'in-statement' ||",
+    store,
+  ),
+  mutation(
+    'a row read before the write is taken to be the row written',
+    "      (store.isolates === 'transaction' && store.isolation === 'serializable')),",
+    '      true),',
+    store,
+  ),
+  mutation(
+    'a row read first at read committed is taken to be the row written',
+    "      (store.isolates === 'transaction' && store.isolation === 'serializable')),",
+    "      store.isolates === 'transaction'),",
+    store,
+  ),
+  mutation(
+    'a row checked in the statement is taken to have moved',
+    "    (judged === 'in-statement' ||\n      (store.isolates",
+    '    ((store.isolates',
     store,
   ),
   mutation(

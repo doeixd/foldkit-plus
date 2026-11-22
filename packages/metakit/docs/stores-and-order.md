@@ -73,7 +73,9 @@ const needed = Temporal.requirements({ machine: Bank, aggregates })
 // ]
 ```
 
-`Temporal.requirements` reads what each rule needs from the declarations. A transition that reads the record it writes needs `row-atomic`: its guard and its writes must apply to the row as one step, which every store except an `'eventual'` one gives. An aggregate needs `parent-serialized`: writers of the rows under one parent must run one at a time, which a `'serializable'` store gives, and a `'read-committed'` one gives only with `parentRowLock`. Each `rule` is typed as a key of what you declared.
+`Temporal.requirements` reads what each rule needs from the declarations. A transition that reads the record it writes needs `row-atomic`: its guard and its writes must apply to the row as one step. An aggregate needs `parent-serialized`: writers of the rows under one parent must run one at a time, which a `'serializable'` store gives, and a `'read-committed'` one gives only with `parentRowLock`. Each `rule` is typed as a key of what you declared.
+
+Whether a store gives either also depends on where your writer checks the rule. Unless a requirement says otherwise, it is taken to be checked from a read made before the write, which at read committed may be stale by the time the write lands.
 
 Call `Store.mount` where the server sets the store up:
 
@@ -81,17 +83,30 @@ Call `Store.mount` where the server sets the store up:
 const mounting = () => Store.mount(postgres, needed)
 // throws StoreRefused:
 // [metakit] store "Postgres" (read-committed per transaction, does not lock the parent row) cannot hold:
+//   - "Deposit" needs row-atomic (a guard and its writes apply to one row as one step),
+//     judged from a read before the write: it writes from the state it read
+//   - "Withdraw" needs row-atomic (…), judged from a read before the write: it writes from the state it read
 //   - "balanceIsItsEntries" needs parent-serialized (writers of the rows under one parent
 //     run one at a time), judged from a read before the write: it reads every row under one parent
 ```
 
 It throws `StoreRefused`, an error, for a store that cannot hold one of the rules, and returns nothing for one that can. `Store.refused(postgres, needed)` gives the same list without throwing.
 
+If your writer checks a transition's `when` inside the `UPDATE` that writes the row, say so with `judged: 'in-statement'`. The statement re-reads the row it writes, so the transitions hold at read committed; the aggregate does not, since its rows are other rows:
+
+```ts
+const checkedInUpdate = needed.map(rule =>
+  rule.needs === 'row-atomic' ? { ...rule, judged: 'in-statement' as const } : rule,
+)
+const stillRefused = Store.refused(postgres, checkedInUpdate).map(({ rule }) => rule)
+// ['balanceIsItsEntries']
+```
+
 To get past the refusal, change what is true of the database and then what you declare: run it at the serializable level (`isolation: 'serializable'`), or have every write of an entry lock its account row first (`select … for update`) and declare `parentRowLock: true`. `Store.mount` believes the facts; it does not inspect the database.
 
 ### A store that isolates one statement
 
-On D1 a writer cannot read in one round trip and write in the next as one unit, so a rule judged from a read before the write is refused there even though D1 runs one write at a time. A rule your writer judges inside the statement that writes (the read is a subquery of the `UPDATE`) holds. Say so on the requirement with `judged`:
+On D1 a writer cannot read in one round trip and write in the next as one unit, so a rule judged from a read before the write is refused there even though D1 runs one write at a time. A rule your writer judges inside the statement that writes (an aggregate's rows read by a subquery of the `UPDATE`) holds:
 
 ```ts
 const d1: Store.StoreCapabilities = {
@@ -101,13 +116,13 @@ const d1: Store.StoreCapabilities = {
   parentRowLock: false,
 }
 const readFirst = () => Store.mount(d1, needed)
-// throws StoreRefused: "balanceIsItsEntries" ... judged from a read before the write
+// throws StoreRefused: every rule, each judged from a read before the write
 const inStatement = needed.map(rule => ({ ...rule, judged: 'in-statement' as const }))
 Store.mount(d1, inStatement)
 // returns: the rules are judged where D1 runs them as one step
 ```
 
-Judging in the statement does not make up for a weaker isolation: on the read-committed Postgres above, the subquery reads what had committed when the statement began, and the same refusal stands.
+Judging an aggregate in the statement does not make up for a weaker isolation: on the read-committed Postgres above, the subquery reads what had committed when the statement began, and its refusal stands.
 
 ## List the orders a proof leaves open
 
