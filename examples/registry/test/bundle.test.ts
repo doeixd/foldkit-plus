@@ -75,7 +75,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // metakit's evaluator and judge on every page that reaches entity (16.6 kB minified, `node`,
 // `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
 // 2026-11-21. Ceiling: the reading plus 300.
-const CEILING = 268_160
+// +571 on 2026-11-22 (Phase 5 item 10 of the unification plan): 268,431 measured (268,022 before).
+// One rule replays a pending write over a newer value (`foldkit-remote/replay.js`, which replaces
+// `keeping.js`, and metakit's `ops/ways.js` rows for `set` and `add`): about 710 bytes minified,
+// on every page with writes. Ceiling: the reading plus 300.
+const CEILING = 268_731
 
 clientBudget({
   name: 'registry',

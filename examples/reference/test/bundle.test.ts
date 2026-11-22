@@ -59,7 +59,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +1,152 on 2026-11-22: CI on Linux read 258,760 after the Phase 1 gate fixes (an operand past the safe
 // range refused by every reader, 63fac3ae0; ops/integerTerm and guard's condition), part of the
 // accepted Phase 1 cost. Ceiling: CI's reading plus 300.
-const CEILING = 259_060
+// +306 on 2026-11-22 (Phase 5 item 10 of the unification plan): 259,066 measured (258,511 before).
+// One rule replays a pending write over a newer value (`foldkit-remote/replay.js`, which replaces
+// `keeping.js`, and metakit's `ops/ways.js` rows for `set` and `add`): about 710 bytes minified,
+// on every page with writes. Ceiling: the reading plus 300.
+const CEILING = 259_366
 
 clientBudget({
   name: 'reference',
