@@ -88,7 +88,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // reaches and where a rule is judged, `metakit/store`; `RemoteServer.write` checks a writer's own rules
 // against its store), about 700 raw bytes estimated by their author. Code every server with writes runs.
 // Ceiling: the reading plus 300.
-const CEILING = 3_293_703
+// +1,582 on 2026-11-22: 3,294,985 measured. 1,108 of it is the Phase 5 review's fix that a write's answer
+// carries the row's revision (`EntityWriter.revision`, the mutate handler keeping it); 174 was already over
+// at 331a7de4b from the day's other server growth, not bisected. Ceiling: the reading plus 300.
+const CEILING = 3_295_285
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))
