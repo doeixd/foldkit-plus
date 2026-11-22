@@ -81,7 +81,7 @@ describe('Operation.define (Phase 4 bout 4.4)', () => {
     if (Result.isFailure(outOfRangeArg)) {
       expect(outOfRangeArg.failure.reason).toBe('ill-typed')
       expect(outOfRangeArg.failure.detail).toContain(
-        'flags.or@1: argument 1 is 2147483648, outside its Schema (a value between 0 and 2147483647)',
+        'flags.or@1: argument 1 is 2147483648, outside its Schema (an integer, a value between 0 and 2147483647)',
       )
     }
 
@@ -91,7 +91,7 @@ describe('Operation.define (Phase 4 bout 4.4)', () => {
     if (Result.isFailure(outOfRangeResult)) {
       expect(outOfRangeResult.failure.reason).toBe('ill-typed')
       expect(outOfRangeResult.failure.detail).toContain(
-        'flags.or@1: the implementation gave -1, outside its result Schema (a value between 0 and 2147483647)',
+        'flags.or@1: the implementation gave -1, outside its result Schema (an integer, a value between 0 and 2147483647)',
       )
     }
   })
@@ -155,7 +155,7 @@ describe('Operation.define (Phase 4 bout 4.4)', () => {
         claims: { identity: { value: -1, side: 'both' } },
       }),
     ).toThrow(
-      '[metakit] Operation.define: the identity of "flags.badId" is -1, which its argument Schema does not admit (a value between 0 and 2147483647).',
+      '[metakit] Operation.define: the identity of "flags.badId" is -1, which its first argument Schema does not admit (an integer, a value between 0 and 2147483647).',
     )
 
     expect(() =>
@@ -168,7 +168,7 @@ describe('Operation.define (Phase 4 bout 4.4)', () => {
         claims: { absorbing: { value: -1, result: 0, side: 'both' } },
       }),
     ).toThrow(
-      '[metakit] Operation.define: the absorbing value of "flags.badAbs" is -1, which its argument Schema does not admit (a value between 0 and 2147483647).',
+      '[metakit] Operation.define: the absorbing value of "flags.badAbs" is -1, which its first argument Schema does not admit (an integer, a value between 0 and 2147483647).',
     )
   })
 

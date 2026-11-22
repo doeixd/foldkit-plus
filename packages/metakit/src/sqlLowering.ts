@@ -96,7 +96,7 @@ const joined = (parts: ReadonlyArray<Sql>, separator: string): Sql =>
  * a double holds it, so those are refused here, for a bound parameter as for
  * an inlined literal.
  */
-const literal = (value: unknown): Lowered => {
+export const literal = (value: unknown): Lowered => {
   if (value === null || value === undefined) return Result.succeed(q`NULL`)
   if (typeof value === 'number' && !Number.isFinite(value)) {
     return unsupported(`non-finite number literal: ${value}`)

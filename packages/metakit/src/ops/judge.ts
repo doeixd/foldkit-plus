@@ -12,7 +12,7 @@
  * foreign call no implementation was given for. So a page that judges held
  * rows never builds the expression left over.
  */
-import { Data, Option, SchemaAST } from 'effect'
+import { Data, Option, Schema, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import * as Path from '../path.js'
 import * as Verdict from '../verdict.js'
@@ -130,11 +130,15 @@ const openCall = (
       args.map(arg => [view.cannotRefuse(arg), kindOfJudged(arg)]),
     ),
     undefined,
-    args.length === 1 && isLeftover(only) ? { id: op.id, arg: only } : undefined,
+    args.length === 1 && isLeftover(only)
+      ? { id: Node.isForeign(op) ? Node.foreignName(op) : op.id, arg: only }
+      : undefined,
     readsTogether(args),
     opaqueIn(args),
     Node.isForeign(op) && !Object.hasOwn(foreign, Node.foreignName(op)) ? op : unsupportedIn(args),
-    Node.isForeign(op) && op.result !== undefined ? Option.some(op.result.ast) : Option.none(),
+    Node.isForeign(op) && op.result !== undefined
+      ? Option.some(Schema.NullOr(op.result).ast)
+      : Option.none(),
   )
 }
 

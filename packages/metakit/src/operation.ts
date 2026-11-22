@@ -11,6 +11,7 @@ import { Equal, Option, Schema, SchemaAST } from 'effect'
 import * as Node from './node.js'
 import { toNode, wrap, type ExprInput, type NullOf } from './ops/core.js'
 import type { ForeignImplementation, ForeignImplementations } from './ops/eval.js'
+export { applyForeign } from './ops/eval.js'
 import type { Expr } from './path.js'
 
 type CorePrefix = (typeof Node.RESERVED_PREFIXES)[number]
@@ -136,55 +137,66 @@ export type AnyOperation = {
   }
 }
 
-const formatCheck = (check: SchemaAST.Check<unknown>): string | undefined => {
+const collectChecks = (check: SchemaAST.Check<unknown>, out: Array<string>): void => {
   const rep = check.annotations?.representation as
     | { readonly id?: string; readonly payload?: Record<string, unknown> }
     | undefined
   if (rep?.id === 'effect/schema/isBetween' && rep.payload !== undefined) {
-    return `a value between ${String(rep.payload['minimum'])} and ${String(rep.payload['maximum'])}`
+    out.push(
+      `a value between ${String(rep.payload['minimum'])} and ${String(rep.payload['maximum'])}`,
+    )
+    return
   }
   if (rep?.id === 'effect/schema/isGreaterThanOrEqualTo' && rep.payload !== undefined) {
-    return `a value >= ${String(rep.payload['minimum'])}`
+    out.push(`a value >= ${String(rep.payload['minimum'])}`)
+    return
   }
   if (rep?.id === 'effect/schema/isGreaterThan' && rep.payload !== undefined) {
-    return `a value > ${String(rep.payload['minimum'])}`
+    out.push(`a value > ${String(rep.payload['minimum'])}`)
+    return
   }
   if (rep?.id === 'effect/schema/isLessThanOrEqualTo' && rep.payload !== undefined) {
-    return `a value <= ${String(rep.payload['maximum'])}`
+    out.push(`a value <= ${String(rep.payload['maximum'])}`)
+    return
   }
   if (rep?.id === 'effect/schema/isLessThan' && rep.payload !== undefined) {
-    return `a value < ${String(rep.payload['maximum'])}`
+    out.push(`a value < ${String(rep.payload['maximum'])}`)
+    return
   }
-  if (rep?.id === 'effect/schema/isInt') return 'an integer'
-  if (rep?.id === 'effect/schema/isFinite') return 'a finite number'
+  if (rep?.id === 'effect/schema/isInt') {
+    out.push('an integer')
+    return
+  }
+  if (rep?.id === 'effect/schema/isFinite') {
+    out.push('a finite number')
+    return
+  }
   if (check._tag === 'FilterGroup') {
-    for (const inner of check.checks) {
-      const found = formatCheck(inner)
-      if (found !== undefined) return found
-    }
+    for (const inner of check.checks) collectChecks(inner, out)
   }
-  return undefined
 }
 
-const describeSchema = (schema: Schema.Top): string => {
-  const ast = schema.ast
+const describeAst = (ast: SchemaAST.AST): string => {
+  if (SchemaAST.isUnion(ast)) return ast.types.map(describeAst).join(' | ')
   const checks =
     'checks' in ast
       ? (ast.checks as ReadonlyArray<SchemaAST.Check<unknown>> | undefined)
       : undefined
   if (checks !== undefined) {
-    for (let i = checks.length - 1; i >= 0; i--) {
-      const text = formatCheck(checks[i]!)
-      if (text !== undefined) return text
-    }
+    const parts: Array<string> = []
+    for (const check of checks) collectChecks(check, parts)
+    if (parts.length > 0) return parts.join(', ')
   }
   if (SchemaAST.isNumber(ast)) return 'a number'
   if (SchemaAST.isBoolean(ast)) return 'a boolean'
   if (SchemaAST.isString(ast)) return 'text'
+  if (SchemaAST.isNull(ast)) return 'null'
   const id = ast.annotations?.identifier
   if (typeof id === 'string') return `a ${id}`
   return ast._tag
 }
+
+const describeSchema = (schema: Schema.Top): string => describeAst(schema.ast)
 
 const encodingName = (ast: SchemaAST.AST): string | undefined => {
   if (ast.encoding === undefined) return undefined
@@ -313,24 +325,47 @@ export const define = <
 
   const claims = toForeignClaims(spec.claims as Record<string, unknown> | undefined)
   const firstArgCheck = checkArgs[0]
-  if (claims.identity !== undefined && firstArgCheck !== undefined) {
-    if (!firstArgCheck.is(claims.identity.value)) {
+  const secondArgCheck = checkArgs[1]
+  if (claims.identity !== undefined) {
+    const { value, side } = claims.identity
+    if (side !== 'right' && firstArgCheck !== undefined && !firstArgCheck.is(value)) {
       throw new Error(
-        `[metakit] Operation.define: the identity of "${id}" is ${String(claims.identity.value)}, which its argument Schema does not admit (${firstArgCheck.describe}).`,
+        `[metakit] Operation.define: the identity of "${id}" is ${String(value)}, which its first argument Schema does not admit (${firstArgCheck.describe}).`,
+      )
+    }
+    if (side !== 'left' && secondArgCheck !== undefined && !secondArgCheck.is(value)) {
+      throw new Error(
+        `[metakit] Operation.define: the identity of "${id}" is ${String(value)}, which its second argument Schema does not admit (${secondArgCheck.describe}).`,
+      )
+    }
+    if (side === 'both' && !checkResult.is(value)) {
+      throw new Error(
+        `[metakit] Operation.define: the identity of "${id}" is ${String(value)}, which its result Schema does not admit (${checkResult.describe}).`,
       )
     }
   }
-  if (claims.absorbing !== undefined && firstArgCheck !== undefined) {
-    if (!firstArgCheck.is(claims.absorbing.value)) {
+  if (claims.absorbing !== undefined) {
+    const { value, result, side } = claims.absorbing
+    if (side !== 'right' && firstArgCheck !== undefined && !firstArgCheck.is(value)) {
       throw new Error(
-        `[metakit] Operation.define: the absorbing value of "${id}" is ${String(claims.absorbing.value)}, which its argument Schema does not admit (${firstArgCheck.describe}).`,
+        `[metakit] Operation.define: the absorbing value of "${id}" is ${String(value)}, which its first argument Schema does not admit (${firstArgCheck.describe}).`,
       )
     }
-    if (!checkResult.is(claims.absorbing.result)) {
+    if (side !== 'left' && secondArgCheck !== undefined && !secondArgCheck.is(value)) {
       throw new Error(
-        `[metakit] Operation.define: the absorbing result of "${id}" is ${String(claims.absorbing.result)}, which its result Schema does not admit (${checkResult.describe}).`,
+        `[metakit] Operation.define: the absorbing value of "${id}" is ${String(value)}, which its second argument Schema does not admit (${secondArgCheck.describe}).`,
       )
     }
+    if (!checkResult.is(result)) {
+      throw new Error(
+        `[metakit] Operation.define: the absorbing result of "${id}" is ${String(result)}, which its result Schema does not admit (${checkResult.describe}).`,
+      )
+    }
+  }
+  if (claims.monotone !== undefined && claims.monotone.length !== spec.args.length) {
+    throw new Error(
+      `[metakit] Operation.define: monotone claim of "${id}" has length ${claims.monotone.length}, expected ${spec.args.length} to match args.`,
+    )
   }
 
   const descriptor: Node.ForeignOp & {
@@ -418,6 +453,20 @@ export const describe = (op: AnyOperation): OperationDescription => {
   }
 }
 
+const canonicalJson = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>
+    const keys = Object.keys(record).sort()
+    const entries: Array<string> = []
+    for (const k of keys) {
+      if (record[k] !== undefined) entries.push(`${JSON.stringify(k)}:${canonicalJson(record[k])}`)
+    }
+    return `{${entries.join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
 /**
  * Compare two operation descriptions of one `id@version`. Returns `Option.none()`
  * when they match, or the first difference (`args`, `result`, `nulls`, `claims`).
@@ -436,7 +485,7 @@ export const compare = (
     return Option.some('result Schema differs')
   }
   if (!Equal.equals(local.args, remote.args)) return Option.some('argument Schemas differ')
-  if (JSON.stringify(local.claims) !== JSON.stringify(remote.claims)) {
+  if (canonicalJson(local.claims) !== canonicalJson(remote.claims)) {
     return Option.some('claims differ')
   }
   return Option.none()

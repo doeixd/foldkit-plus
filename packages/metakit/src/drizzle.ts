@@ -13,7 +13,7 @@ import type { Schema } from 'effect'
 import type * as Expr from './expr.js'
 import * as Node from './node.js'
 import { isForeignLowerings, type ForeignLowerings } from './operationSql.js'
-import { SqlPiece, SqlUnsupportedError, type Sql, type SqlDialect } from './sqlLowering.js'
+import { literal, SqlPiece, SqlUnsupportedError, type Sql, type SqlDialect } from './sqlLowering.js'
 import { lowerCheck, lowerUpdate, lowerWhere } from './sqlStatements.js'
 import {
   bound,
@@ -165,20 +165,23 @@ const renderer = (
                               }),
                             )
                           }
+                          const foreign = options.foreign
                           const identity = op.claims?.identity?.value
-                          return Result.flatMap(
-                            options.foreign.renderAggregate(options.dialect, op, val, parts =>
-                              sql.join(
-                                parts.map(part =>
-                                  typeof part === 'string' ? sql.raw(part) : part,
+                          return Result.flatMap(literal(identity), idPieces =>
+                            Result.flatMap(
+                              foreign.renderAggregate(options.dialect, op, val, parts =>
+                                sql.join(
+                                  parts.map(part =>
+                                    typeof part === 'string' ? sql.raw(part) : part,
+                                  ),
                                 ),
                               ),
+                              agg =>
+                                Result.map(
+                                  render(idPieces, related),
+                                  idSql => sql`COALESCE(${agg}, ${idSql})`,
+                                ),
                             ),
-                            agg =>
-                              Result.map(
-                                render([SqlPiece.Value({ value: identity })], related),
-                                idSql => sql`COALESCE(${agg}, ${idSql})`,
-                              ),
                           )
                         }
                       : undefined,
@@ -238,7 +241,7 @@ export const toUpdate = <State, Input, Emit>(
   transition: Transition<State, Input, Emit>,
   input: Input,
   table: Table,
-  options?: { readonly dialect?: SqlDialect; readonly foreign?: ForeignDrizzle },
+  options?: { readonly dialect?: SqlDialect; readonly foreign?: ForeignDrizzle | ForeignLowerings },
 ): Result.Result<
   { readonly set: Readonly<Record<string, SQL>>; readonly where: SQL },
   SqlUnsupportedError | Refused

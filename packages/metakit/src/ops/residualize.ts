@@ -15,7 +15,7 @@
  * opaque term) from object-level `null` (a known runtime value): `{ row: { x: null } }`
  * folds `row.x` to `Lit(null)`, never to `Unknown`.
  */
-import { Option, SchemaAST } from 'effect'
+import { Option, Schema, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import { applyForeign, evalNode, ifArm, matchArm, type ForeignImplementations } from './eval.js'
 import { cannotRefuse, isPortableRead, isSafeRead, kindOf } from './kind.js'
@@ -27,7 +27,8 @@ const astOfNode = (node: Node.Node): Option.Option<SchemaAST.AST> =>
   Node.$is('Path')(node)
     ? node.ast
     : Node.$is('Call')(node) && Node.isForeign(node.op) && node.op.result !== undefined
-      ? Option.some(node.op.result.ast)
+      ? // A foreign call may evaluate to null (strict null propagation or implementation returning null).
+        Option.some(Schema.NullOr(node.op.result).ast)
       : Option.none()
 
 /** A residual as the laws see it. */
@@ -40,7 +41,10 @@ const residual: View<Node.Node> = {
   safe: isSafeRead,
   unary: node =>
     Node.$is('Call')(node) && node.args.length === 1
-      ? { id: node.op.id, arg: node.args[0]! }
+      ? {
+          id: Node.isForeign(node.op) ? Node.foreignName(node.op) : node.op.id,
+          arg: node.args[0]!,
+        }
       : undefined,
   same: (left, right) => Node.key(left) === Node.key(right),
   ast: astOfNode,

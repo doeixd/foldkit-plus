@@ -166,7 +166,9 @@ export const reduceProperties = (op: Node.ForeignOp): FoldProperties => {
   if (claims === undefined) return { from: op }
   return {
     from: op,
-    ...(claims.identity === undefined ? {} : { identity: { value: claims.identity.value } }),
+    ...(claims.identity !== undefined && claims.identity.side === 'both'
+      ? { identity: { value: claims.identity.value } }
+      : {}),
     ...(claims.commutative === true && claims.associative !== undefined
       ? {
           commutative: { over: 'all' as const },

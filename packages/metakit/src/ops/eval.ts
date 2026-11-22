@@ -106,6 +106,9 @@ export const applyForeign = (
   const name = Node.foreignName(op)
   const implementation = Object.hasOwn(implementations, name) ? implementations[name] : undefined
   if (implementation === undefined) return Node.unsupported(op)
+  // Refusals always propagate before argument Schema checks, even for `nulls: 'own'`.
+  const refused = args.find(Node.isRefusal)
+  if (refused !== undefined) return refused
   return Node.applying(op, args, values => {
     if (op.checkArgs !== undefined) {
       for (let index = 0; index < op.checkArgs.length; index++) {

@@ -305,7 +305,9 @@ const holds = (
       return (
         Node.foreignName(opA) === Node.foreignName(opB) &&
         opA.claims.commutative === true &&
-        opA.claims.associative === true
+        opA.claims.associative === true &&
+        opB.claims.commutative === true &&
+        opB.claims.associative === true
       )
     }
     case 'disjoint-fields': {

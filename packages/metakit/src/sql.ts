@@ -11,7 +11,7 @@ import type { Schema } from 'effect'
 import type * as Expr from './expr.js'
 import * as Node from './node.js'
 import { isForeignLowerings, type ForeignLowerings } from './operationSql.js'
-import { SqlPiece, SqlUnsupportedError, type Sql, type SqlDialect } from './sqlLowering.js'
+import { literal, SqlPiece, SqlUnsupportedError, type Sql, type SqlDialect } from './sqlLowering.js'
 import { lowerCheck, lowerUpdate, lowerWhere } from './sqlStatements.js'
 import {
   bound,
@@ -188,16 +188,19 @@ const renderer = (options: {
                           }),
                         )
                       }
+                      const foreign = options.foreign
                       const identity = op.claims?.identity?.value
-                      return Result.flatMap(
-                        options.foreign.renderAggregate(options.dialect, op, val, parts =>
-                          parts.join(''),
-                        ),
-                        agg =>
-                          Result.map(
-                            render([SqlPiece.Value({ value: identity })], related),
-                            idSql => `COALESCE(${agg}, ${idSql})`,
+                      return Result.flatMap(literal(identity), idPieces =>
+                        Result.flatMap(
+                          foreign.renderAggregate(options.dialect, op, val, parts =>
+                            parts.join(''),
                           ),
+                          agg =>
+                            Result.map(
+                              render(idPieces, related),
+                              idSql => `COALESCE(${agg}, ${idSql})`,
+                            ),
+                        ),
                       )
                     }
                   : undefined,
@@ -275,7 +278,7 @@ export const toUpdate = <State, Input, Emit>(
     readonly whereId?: {
       readonly [K in keyof State & string]: { readonly column: K; readonly value: State[K] }
     }[keyof State & string]
-    readonly foreign?: ForeignSqlTable
+    readonly foreign?: ForeignSqlTable | ForeignLowerings
   },
 ): Result.Result<SqlFragment, SqlUnsupportedError | Refused> => {
   const dialect = options?.dialect ?? 'postgres'

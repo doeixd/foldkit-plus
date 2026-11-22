@@ -12,6 +12,7 @@
  */
 import { Match, Option, SchemaAST } from 'effect'
 import * as Node from '../node.js'
+import { optionInner } from '../path.js'
 import type { Direction, OpProperties } from '../properties.js'
 import { equalsOp, isOp } from './eq.js'
 import { present } from './kind.js'
@@ -273,6 +274,7 @@ const memberWithin = (
 const admitsNull = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isNull(ast) ||
   SchemaAST.isUndefined(ast) ||
+  Option.isSome(optionInner(ast)) ||
   (SchemaAST.isUnion(ast) && ast.types.some(admitsNull))
 
 const astWithin = (
@@ -281,7 +283,7 @@ const astWithin = (
   checkArg: (value: unknown) => boolean,
   allowNull: boolean,
 ): boolean => {
-  if (!allowNull && admitsNull(source) && !admitsNull(target)) return false
+  if (!allowNull && admitsNull(source)) return false
   if (source === target) return true
   const members = present(source)
   if (members.length === 0) return false
@@ -317,7 +319,7 @@ export const rewriteForeign = <T>(
     if (target === undefined || check === undefined) return false
     const known = view.known(operand)
     if (Option.isSome(known)) {
-      if (known.value === null) return allowNull || check.is(null)
+      if (known.value === null) return allowNull
       return !Node.isRefusal(known.value) && check.is(known.value)
     }
     const ast = view.ast === undefined ? Option.none() : view.ast(operand)
@@ -328,7 +330,11 @@ export const rewriteForeign = <T>(
 
   if (args.length === 1 && claims.idempotent === true) {
     const inner = view.unary(args[0]!)
-    if (inner !== undefined && inner.id === op.id && withinSchema(args[0]!, 0, strict)) {
+    if (
+      inner !== undefined &&
+      inner.id === Node.foreignName(op) &&
+      withinSchema(args[0]!, 0, strict)
+    ) {
       return Option.some({ operand: args[0]! })
     }
   }

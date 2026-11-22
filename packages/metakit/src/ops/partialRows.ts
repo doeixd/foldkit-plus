@@ -101,7 +101,10 @@ export const partialRows = <T>(
     rows.set.map(([field, value]) => [field, answer(value, index)] as const),
   )
   const answers = [...tests, ...values, ...sets.flat().map(([, value]) => value)]
-  if (whole && answers.every(each => Option.isSome(reader.known(each)))) {
+  const missingOp =
+    rows.op !== undefined &&
+    (foreign === undefined || !Object.hasOwn(foreign, Node.foreignName(rows.op)))
+  if (whole && !missingOp && answers.every(each => Option.isSome(reader.known(each)))) {
     const valueOf = (judged: T | undefined): unknown =>
       judged === undefined ? null : Option.getOrNull(reader.known(judged))
     return reader.value(

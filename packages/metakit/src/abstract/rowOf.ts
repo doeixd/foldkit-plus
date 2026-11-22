@@ -122,7 +122,9 @@ const monotoneForeignTerm = (
   checkArgs: ReadonlyArray<Node.ForeignSchemaCheck>,
 ): TermOp => {
   const argShapes = (op.args ?? []).map(arg => numericArgShape(arg.ast))
-  const resultIsInt = op.result !== undefined && numericArgShape(op.result.ast).isInt
+  const resultShape =
+    op.result !== undefined ? numericArgShape(op.result.ast) : { convex: false, isInt: false }
+  const resultIsInt = resultShape.isInt
   const allNumeric = op.args !== undefined && op.args.every(arg => SchemaAST.isNumber(arg.ast))
   return {
     _tag: 'Term',
@@ -137,7 +139,10 @@ const monotoneForeignTerm = (
     integral: () => resultIsInt,
     refuses: true,
     unrefused: (intervals, isInts) => {
-      if (intervals.length !== argShapes.length) return false
+      if (!resultShape.convex || intervals.length !== argShapes.length) return false
+      if (resultShape.isInt && intervals.some((iv, i) => iv.lo !== iv.hi && isInts[i] !== true)) {
+        return false
+      }
       for (let i = 0; i < intervals.length; i++) {
         const iv = intervals[i]!
         const shape = argShapes[i]!
@@ -155,6 +160,7 @@ const monotoneForeignTerm = (
 export const abstractOf = (op: Node.AnyOp, foreign?: ForeignImplementations): AbstractOp => {
   if (!Node.isForeign(op)) return abstractOps[op.id]
   if (
+    op.nulls === 'strict' &&
     op.returns === 'number' &&
     foreign !== undefined &&
     Object.hasOwn(foreign, Node.foreignName(op)) &&

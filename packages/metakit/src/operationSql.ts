@@ -12,29 +12,51 @@ import type { AnyOperation, Operation } from './operation.js'
 import { SqlUnsupportedError } from './sqlLowering.js'
 import type { ForeignSql } from './sqlRender.js'
 
-const PIECE_TAG = Symbol.for('metakit/operation/sqlPiece')
+const PIECE_TAG = Symbol('metakit/operation/sqlPiece')
+const RAW_TAG = Symbol('metakit/operation/sqlRaw')
+const LOWERINGS_TAG = Symbol('metakit/operation/foreignLowerings')
+
+interface RawHole {
+  readonly [RAW_TAG]: true
+  readonly raw: unknown
+}
 
 /** A safe SQL fragment built by `piece` or supplied as a lowered argument. */
 export interface SqlPiece {
   readonly [PIECE_TAG]: true
   readonly strings: ReadonlyArray<string>
-  readonly holes: ReadonlyArray<SqlPiece | { readonly raw: unknown }>
+  readonly holes: ReadonlyArray<SqlPiece | RawHole>
 }
+
+const isSqlPiece = (value: unknown): value is SqlPiece =>
+  typeof value === 'object' && value !== null && PIECE_TAG in value
+
+const isRawHole = (value: unknown): value is RawHole =>
+  typeof value === 'object' && value !== null && RAW_TAG in value
 
 /** Tagged template for SQL lowerings: holes may only be other `SqlPiece`s. */
 export const piece = (
   strings: TemplateStringsArray,
   ...holes: ReadonlyArray<SqlPiece>
-): SqlPiece => ({
-  [PIECE_TAG]: true,
-  strings,
-  holes,
-})
+): SqlPiece => {
+  for (const hole of holes) {
+    if (!isSqlPiece(hole)) {
+      throw new Error(
+        '[metakit/sql] piece: every hole must be a SqlPiece built by piece(...) or passed as a lowering argument.',
+      )
+    }
+  }
+  return {
+    [PIECE_TAG]: true,
+    strings,
+    holes,
+  }
+}
 
 const rawPiece = <S>(raw: S): SqlPiece => ({
   [PIECE_TAG]: true,
   strings: ['', ''],
-  holes: [{ raw }],
+  holes: [{ [RAW_TAG]: true, raw }],
 })
 
 /** Render a `SqlPiece` tree into a target SQL representation `S`. */
@@ -42,6 +64,11 @@ export const renderPiece = <S>(
   fragment: SqlPiece,
   combine: (parts: ReadonlyArray<string | S>) => S,
 ): S => {
+  if (!isSqlPiece(fragment)) {
+    throw new Error(
+      '[metakit/sql] renderPiece: expected a SqlPiece built by piece(...) or passed as a lowering argument.',
+    )
+  }
   const parts: Array<string | S> = []
   const walk = (node: SqlPiece): void => {
     for (let i = 0; i < node.strings.length; i++) {
@@ -49,8 +76,13 @@ export const renderPiece = <S>(
       if (text.length > 0) parts.push(text)
       if (i < node.holes.length) {
         const hole = node.holes[i]!
-        if (PIECE_TAG in hole) walk(hole)
-        else parts.push(hole.raw as S)
+        if (isSqlPiece(hole)) walk(hole)
+        else if (isRawHole(hole)) parts.push(hole.raw as S)
+        else {
+          throw new Error(
+            '[metakit/sql] renderPiece: invalid hole in SqlPiece; holes must be created by piece(...).',
+          )
+        }
       }
     }
   }
@@ -149,7 +181,7 @@ export interface ForeignLowerings {
 
 /** Whether `value` is a `ForeignLowerings` table built by `lowerings(...)`. */
 export const isForeignLowerings = (value: unknown): value is ForeignLowerings =>
-  typeof value === 'object' && value !== null && 'aggregateForDialect' in value
+  typeof value === 'object' && value !== null && LOWERINGS_TAG in value
 
 /** Collect SQL lowerings, refusing duplicates for one `id@version`. */
 export const lowerings = (...list: ReadonlyArray<SqlLowering>): ForeignLowerings => {
@@ -226,5 +258,14 @@ export const lowerings = (...list: ReadonlyArray<SqlLowering>): ForeignLowerings
     return table
   }
 
-  return { entries, forDialect, aggregateForDialect, renderCall, renderAggregate, toForeignSql }
+  const result: ForeignLowerings = {
+    entries,
+    forDialect,
+    aggregateForDialect,
+    renderCall,
+    renderAggregate,
+    toForeignSql,
+  }
+  Object.defineProperty(result, LOWERINGS_TAG, { value: true })
+  return result
 }
