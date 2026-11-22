@@ -539,7 +539,7 @@ test.each([
  * module of their own, and the reads walker is `ops/reads`. The second page
  * asks `Machine.canDispatch` and keeps it, so the first can fail.
  */
-test('a page running transitions keeps no ops/residualize unless it asks what a partial state allows', async () => {
+test('a page running transitions keeps no judge unless it asks what a partial state allows, and never ops/residualize', async () => {
   const root = scratchIn('metakit', 'published-')
   made.push(root)
   const index = await buildPublished('metakit', root)
@@ -571,9 +571,13 @@ test('a page running transitions keeps no ops/residualize unless it asks what a 
   for (const entries of [built, source]) {
     const running = await kept(page(''), entries)
     expect(running.some(id => /\/transition\.(js|ts)$/.test(id))).toBe(true)
-    expect(running.filter(id => residualize.test(id) || /\/can\.(js|ts)$/.test(id))).toEqual([])
+    expect(
+      running.filter(id => residualize.test(id) || /\/(can|ops\/judge)\.(js|ts)$/.test(id)),
+    ).toEqual([])
+    // Asking judges with the lean judge (`ops/judge`, since 103e5f790), which builds no residual.
     const asking = await kept(page(', Machine.canDispatch'), entries)
-    expect(asking.some(id => residualize.test(id))).toBe(true)
+    expect(asking.some(id => /\/ops\/judge\.(js|ts)$/.test(id))).toBe(true)
+    expect(asking.filter(id => residualize.test(id))).toEqual([])
   }
 }, 240_000)
 
