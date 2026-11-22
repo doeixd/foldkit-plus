@@ -5,16 +5,18 @@
  * and Z3.
  */
 import { Schema } from 'effect'
-import { Num, Ord, Path } from '../../src/index.js'
+import { Bool, Num, Ord, Path, Time } from '../../src/index.js'
 
 const Cents = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 1_000_000 }))
 const SignedCents = Schema.Int.check(Schema.isBetween({ minimum: -1_000_000, maximum: 1_000_000 }))
 const MilliCents = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 100_000_000 }))
+const DayIn2020s = Schema.Int.check(Schema.isBetween({ minimum: 18_262, maximum: 22_000 }))
 
 export const BankAccount = Schema.Struct({
   balance: Cents,
   correction: SignedCents,
   rawFee: MilliCents,
+  lastFeeOn: DayIn2020s,
 })
 
 const $bank = Path.forSchema(BankAccount)
@@ -26,14 +28,42 @@ export const bankMonthlyFee = Num.round($bank.rawFee, {
   toScale: 2,
   rounding: 'half-even',
 })
+/** Next monthly fee date: 1 month after `lastFeeOn`, clamped to month-end. */
+export const bankNextFeeOn = Time.addMonths($bank.lastFeeOn, 1)
+/** First day of the month in which `lastFeeOn` fell. */
+export const bankFeeMonth = Time.startOfMonth($bank.lastFeeOn)
 
 export const Booking = Schema.Struct({
   dayNumber: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 365 })),
+  start: DayIn2020s,
+  today: DayIn2020s,
+  otherStart: DayIn2020s,
+  otherEnd: DayIn2020s,
 })
 
 const $booking = Path.forSchema(Booking)
 /** Day within a 30-day billing cycle: always in [0, 29]. */
 export const bookingCycleDay = Num.rem($booking.dayNumber, 30)
+/** Trial end date: 30 days after `start`. */
+export const bookingTrialEnd = Time.addDays($booking.start, 30)
+/** Signed days left until trial end. */
+export const bookingDaysLeft = Time.daysBetween(bookingTrialEnd, $booking.today)
+/** Whether the booking's trial overlaps another interval `[otherStart, otherEnd)`. */
+export const bookingTrialOverlaps = Time.overlaps(
+  $booking.start,
+  bookingTrialEnd,
+  $booking.otherStart,
+  $booking.otherEnd,
+)
+export const bookingTrialEndsAfterStart = Ord.gt(bookingTrialEnd, $booking.start)
+export const bookingNoAdjacentOverlap = Bool.not(
+  Time.overlaps(
+    $booking.start,
+    bookingTrialEnd,
+    bookingTrialEnd,
+    Time.addDays(bookingTrialEnd, 30),
+  ),
+)
 
 export const Order = Schema.Struct({
   totalCents: Cents,

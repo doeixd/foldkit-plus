@@ -445,6 +445,38 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       const remVal = z3.If(z3.Or(r.eq(zero), left.ge(zero)), r, r.sub(d))
       return strict('num', [a!, b!], remVal, unsafe(remVal))
     },
+    'time.addDays': ([a, b]) => {
+      const [da, nb] = [number(a!), number(b!)]
+      if (!z3.isInt(da) || !z3.isInt(nb)) {
+        throw new Unsupported('time.addDays of an operand the solver does not read as an integer')
+      }
+      const sum = da.add(nb)
+      return strict('num', [a!, b!], sum, z3.Or(unsafe(da), unsafe(nb), unsafe(sum)))
+    },
+    'time.daysBetween': ([a, b]) => {
+      const [da, db] = [number(a!), number(b!)]
+      if (!z3.isInt(da) || !z3.isInt(db)) {
+        throw new Unsupported(
+          'time.daysBetween of an operand the solver does not read as an integer',
+        )
+      }
+      const diff = da.sub(db)
+      return strict('num', [a!, b!], diff, z3.Or(unsafe(da), unsafe(db), unsafe(diff)))
+    },
+    'time.addMonths': () => {
+      throw new Unsupported('time.addMonths')
+    },
+    'time.startOfMonth': () => {
+      throw new Unsupported('time.startOfMonth')
+    },
+    'time.overlaps': ([s1, e1, s2, e2]) => {
+      const [a, b, c, d] = [number(s1!), number(e1!), number(s2!), number(e2!)]
+      if (!z3.isInt(a) || !z3.isInt(b) || !z3.isInt(c) || !z3.isInt(d)) {
+        throw new Unsupported('time.overlaps of an operand the solver does not read as an integer')
+      }
+      const bad = z3.Or(unsafe(a), unsafe(b), unsafe(c), unsafe(d))
+      return strict('bool', [s1!, e1!, s2!, e2!], z3.And(a.lt(d), c.lt(b)), bad)
+    },
     'str.len': ([a], [node]) => strict('num', [a!], length(node!)),
     'arr.count': ([a], [node]) =>
       strict(

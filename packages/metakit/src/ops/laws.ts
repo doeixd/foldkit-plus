@@ -16,6 +16,7 @@ import { optionInner } from '../path.js'
 import type { Direction, OpProperties } from '../properties.js'
 import { equalsOp, isOp } from './eq.js'
 import { present } from './kind.js'
+import { EARLIEST_DAY, LATEST_DAY } from './time.js'
 
 /** The properties partial evaluation reads of an operation. */
 export type OpLaws = Pick<
@@ -61,6 +62,11 @@ export const opLaws: { readonly [Id in Node.CoreOpId]: OpLaws } = {
   'num.mulScaled': {},
   'num.div': {},
   'num.rem': {},
+  'time.addDays': { identity: { value: 0, side: 'right', over: 'integers' } },
+  'time.addMonths': { identity: { value: 0, side: 'right', over: 'calendarDays' } },
+  'time.daysBetween': {},
+  'time.startOfMonth': { idempotent: true },
+  'time.overlaps': {},
   'str.len': {},
   'str.startsWith': {},
   'str.contains': {},
@@ -198,11 +204,47 @@ export const rewrite = <T>(
     }
 
     if (laws.identity !== undefined) {
-      const { value, side } = laws.identity
-      if ((side === 'left' || side === 'both') && isLit(left, value) && ofKind(right)) {
+      const { value, side, over } = laws.identity
+      const fitsIdentity = (operand: T): boolean => {
+        if (!ofKind(operand)) return false
+        if (over === undefined || over === 'all') return true
+        const known = view.known(operand)
+        if (Option.isSome(known)) {
+          if (known.value === null) return true
+          if (typeof known.value !== 'number' || !Number.isSafeInteger(known.value)) return false
+          return over === 'integers' || (known.value >= EARLIEST_DAY && known.value <= LATEST_DAY)
+        }
+        if (view.ast === undefined) return false
+        const ast = view.ast(operand)
+        if (Option.isNone(ast)) return false
+        const members = present(ast.value)
+        if (members.length === 0) return false
+        return members.every(member => {
+          if (!SchemaAST.isNumber(member)) return false
+          const checks = flatChecks(member.checks)
+          const isInt = checks.some(
+            c => c.annotations?.representation?.id === 'effect/schema/isInt',
+          )
+          if (!isInt) return false
+          if (over === 'integers') return true
+          let lo = -Infinity
+          let hi = Infinity
+          for (const c of checks) {
+            const rep = c.annotations?.representation as
+              | { readonly id?: string; readonly payload?: Record<string, unknown> }
+              | undefined
+            if (typeof rep?.payload?.['minimum'] === 'number')
+              lo = Math.max(lo, rep.payload['minimum'])
+            if (typeof rep?.payload?.['maximum'] === 'number')
+              hi = Math.min(hi, rep.payload['maximum'])
+          }
+          return lo >= EARLIEST_DAY && hi <= LATEST_DAY
+        })
+      }
+      if ((side === 'left' || side === 'both') && isLit(left, value) && fitsIdentity(right)) {
         return Option.some({ operand: right })
       }
-      if ((side === 'right' || side === 'both') && isLit(right, value) && ofKind(left)) {
+      if ((side === 'right' || side === 'both') && isLit(right, value) && fitsIdentity(left)) {
         return Option.some({ operand: left })
       }
     }

@@ -56,8 +56,12 @@ export type Domain = 'all' | 'integers'
  * rewrite rules partial evaluation alone reads (`reflexive`, `involution`).
  */
 export interface OpProperties {
-  /** `op(x, value)` is `x`, on `side`, for every `x` of the result's kind (a number within ±(2^53−1)), null or refused. */
-  readonly identity?: { readonly value: unknown; readonly side: Side }
+  /** `op(x, value)` is `x`, on `side`, for every `x` of the result's kind (or `over`), null or refused. */
+  readonly identity?: {
+    readonly value: unknown
+    readonly side: Side
+    readonly over?: Domain | 'calendarDays'
+  }
   /**
    * `op(x, value)` is `result`, on `side`, for every `x`; `unlessRefused`:
    * for every `x` that is not refused, since a refusal is not absorbed.
@@ -97,6 +101,10 @@ const algebra: {
   'num.add': addAlgebra,
   'num.sub': { monotone: ['up', 'down'] },
   'num.neg': { monotone: ['down'] },
+  'time.addDays': { monotone: ['up', 'up'] },
+  'time.addMonths': { monotone: ['up', 'up'] },
+  'time.daysBetween': { monotone: ['up', 'down'] },
+  'time.startOfMonth': { monotone: ['up'] },
 }
 
 export const opProperties: { readonly [Id in Node.CoreOpId]: OpProperties } = Record.map(

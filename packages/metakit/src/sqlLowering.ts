@@ -383,6 +383,37 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
         : q`(CASE WHEN ${right} = 0 THEN NULL ELSE (${left} % ${right}) END)`,
     )
   },
+  'time.addDays': (args, ctx) => both(args, ctx, (d, n) => q`(${d} + ${n})`),
+  'time.daysBetween': (args, ctx) => both(args, ctx, (a, b) => q`(${a} - ${b})`),
+  'time.startOfMonth': (args, ctx) =>
+    one(args, ctx, d =>
+      ctx.dialect === 'postgres'
+        ? q`(date_trunc('month', DATE '1970-01-01' + (${d})::integer)::date - DATE '1970-01-01')`
+        : q`CAST(round(julianday(date('1970-01-01', (${d}) || ' days', 'start of month')) - 2440587.5) AS INTEGER)`,
+    ),
+  'time.addMonths': (args, ctx) =>
+    both(args, ctx, (d, n) =>
+      ctx.dialect === 'postgres'
+        ? q`(((DATE '1970-01-01' + (${d})::integer) + make_interval(months => (${n})::integer))::date - DATE '1970-01-01')`
+        : q`CAST(round(julianday(min(date(date('1970-01-01', (${d}) || ' days'), 'start of month', (${n}) || ' months', (CAST(strftime('%d', date('1970-01-01', (${d}) || ' days')) AS INTEGER) - 1) || ' days'), date(date('1970-01-01', (${d}) || ' days'), 'start of month', (${n}) || ' months', '+1 month', '-1 day'))) - 2440587.5) AS INTEGER)`,
+    ),
+  'time.overlaps': (args, ctx) => {
+    const [s1, e1, s2, e2] = args
+    if (s1 === undefined || e1 === undefined || s2 === undefined || e2 === undefined) {
+      return unsupported('time.overlaps takes 4 arguments')
+    }
+    return Result.flatMap(ctx.lower(s1), a =>
+      Result.flatMap(ctx.lower(e1), b =>
+        Result.flatMap(ctx.lower(s2), c =>
+          Result.map(
+            ctx.lower(e2),
+            d =>
+              q`(CASE WHEN (${a}) IS NULL OR (${b}) IS NULL OR (${c}) IS NULL OR (${d}) IS NULL THEN NULL ELSE ((${a}) < (${d}) AND (${c}) < (${b})) END)`,
+          ),
+        ),
+      ),
+    )
+  },
   'str.len': (args, ctx) =>
     one(args, ctx, s => q`${byDialect('char_length', 'length')(ctx.dialect)}(${s})`),
   'str.startsWith': (args, ctx) =>

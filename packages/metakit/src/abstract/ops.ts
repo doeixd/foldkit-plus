@@ -4,6 +4,7 @@ import * as Arr from '../ops/arr.js'
 import * as Bool from '../ops/bool.js'
 import * as Eq from '../ops/eq.js'
 import * as Str from '../ops/str.js'
+import * as Time from '../ops/time.js'
 import { opProperties } from '../properties.js'
 import * as Verdict from '../verdict.js'
 import { SAFE } from './fields.js'
@@ -616,6 +617,115 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
       Interval.within(a!, SAFE) &&
       Interval.within(b!, SAFE) &&
       (b!.lo >= 1 || b!.hi <= -1),
+  },
+  'time.addDays': {
+    ...arithmetic(
+      'add',
+      monotone('time.addDays', ([a, b], toward) => Interval.directedAdd(a!, b!, toward)),
+    ),
+    integral: ([a, b]) => a === true && b === true,
+    unrefused: ([a, b], [aInt, bInt]) =>
+      aInt === true &&
+      bInt === true &&
+      Interval.within(a!, SAFE) &&
+      Interval.within(b!, SAFE) &&
+      a!.lo + b!.lo >= -Number.MAX_SAFE_INTEGER &&
+      a!.hi + b!.hi <= Number.MAX_SAFE_INTEGER,
+  },
+  'time.addMonths': {
+    ...arithmetic('none', ([d, n]) => {
+      if (Interval.isBottom(d!) || Interval.isBottom(n!)) return Interval.bottom
+      const cal = Interval.between(Time.EARLIEST_DAY, Time.LATEST_DAY)
+      if (!Interval.within(d!, cal) || !Number.isFinite(n!.lo) || !Number.isFinite(n!.hi)) {
+        return Interval.top
+      }
+      const lo = Time.addMonthsInt(Math.floor(d!.lo), Math.floor(n!.lo))
+      const hi = Time.addMonthsInt(Math.ceil(d!.hi), Math.ceil(n!.hi))
+      return Node.isRefusal(lo) || Node.isRefusal(hi) ? Interval.top : Interval.between(lo, hi)
+    }),
+    integral: () => true,
+    unrefused: ([d, n], [dInt, nInt]) => {
+      const cal = Interval.between(Time.EARLIEST_DAY, Time.LATEST_DAY)
+      if (
+        dInt !== true ||
+        nInt !== true ||
+        !Interval.within(d!, cal) ||
+        !Interval.within(n!, SAFE)
+      ) {
+        return false
+      }
+      return (
+        !Node.isRefusal(Time.addMonthsInt(d!.lo, n!.lo)) &&
+        !Node.isRefusal(Time.addMonthsInt(d!.hi, n!.hi))
+      )
+    },
+  },
+  'time.daysBetween': {
+    ...arithmetic(
+      'sub',
+      monotone('time.daysBetween', ([a, b], toward) => Interval.directedAdd(a!, -b!, toward)),
+    ),
+    integral: ([a, b]) => a === true && b === true,
+    unrefused: ([a, b], [aInt, bInt]) =>
+      aInt === true &&
+      bInt === true &&
+      Interval.within(a!, SAFE) &&
+      Interval.within(b!, SAFE) &&
+      a!.lo - b!.hi >= -Number.MAX_SAFE_INTEGER &&
+      a!.hi - b!.lo <= Number.MAX_SAFE_INTEGER,
+  },
+  'time.startOfMonth': {
+    ...arithmetic('none', ([d]) => {
+      if (Interval.isBottom(d!)) return Interval.bottom
+      const cal = Interval.between(Time.EARLIEST_DAY, Time.LATEST_DAY)
+      if (!Interval.within(d!, cal)) return Interval.top
+      const lo = Time.startOfMonthInt(Math.floor(d!.lo))
+      const hi = Time.startOfMonthInt(Math.ceil(d!.hi))
+      return Node.isRefusal(lo) || Node.isRefusal(hi) ? Interval.top : Interval.between(lo, hi)
+    }),
+    integral: () => true,
+    unrefused: ([d], [dInt]) =>
+      dInt === true && Interval.within(d!, Interval.between(Time.EARLIEST_DAY, Time.LATEST_DAY)),
+  },
+  'time.overlaps': {
+    _tag: 'Predicate',
+    unportable: false,
+    neverNull: false,
+    measures: none,
+    valued: (args, state) =>
+      args.every(
+        arg =>
+          state.hasValue(arg) &&
+          state.isIntNode(arg) &&
+          Interval.within(state.evalInterval(arg), SAFE),
+      ),
+    decide: (args, state) => {
+      const [s1, e1, s2, e2] = [args[0]!, args[1]!, args[2]!, args[3]!]
+      const allSafeInt = [s1, e1, s2, e2].every(
+        arg => state.isIntNode(arg) && Interval.within(state.evalInterval(arg), SAFE),
+      )
+      if (!allSafeInt) return Verdict.Unknown('time.overlaps operands may not be safe integers')
+      const lt = abstractOps['ord.lt']
+      if (lt._tag !== 'Predicate') return Verdict.Unknown('ord.lt unavailable')
+      const first = lt.decide([s1, e2], state)
+      const second = lt.decide([s2, e1], state)
+      if (Verdict.isTrue(first) && Verdict.isTrue(second)) return proved('zone')
+      if (
+        (Verdict.isFalse(first) || Verdict.isFalse(second)) &&
+        [s1, e1, s2, e2].every(arg => state.hasValue(arg))
+      ) {
+        return refuted()
+      }
+      return Verdict.Unknown('time.overlaps undecided in Tier 3')
+    },
+    assume: (args, state) => {
+      const [s1, e1, s2, e2] = [args[0]!, args[1]!, args[2]!, args[3]!]
+      const lt = abstractOps['ord.lt']
+      if (lt._tag !== 'Predicate') return
+      lt.assume([s1, e2], state)
+      lt.assume([s2, e1], state)
+    },
+    refute: () => {},
   },
   'str.len': length,
   'str.startsWith': search(Str.startsWithOp),

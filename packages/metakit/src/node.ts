@@ -12,7 +12,7 @@
 import { Data, Option, type Schema, type SchemaAST } from 'effect'
 import type { OpProperties } from './properties.js'
 
-/** The closed set of 33 primitive operators. */
+/** The closed set of 38 primitive operators. */
 export type CoreOpId =
   | 'bool.and'
   | 'bool.or'
@@ -41,6 +41,11 @@ export type CoreOpId =
   | 'num.mulScaled'
   | 'num.div'
   | 'num.rem'
+  | 'time.addDays'
+  | 'time.addMonths'
+  | 'time.daysBetween'
+  | 'time.startOfMonth'
+  | 'time.overlaps'
   | 'str.len'
   | 'str.startsWith'
   | 'str.contains'
@@ -235,6 +240,7 @@ export const RESERVED_PREFIXES = [
   'null.',
   'ord.',
   'num.',
+  'time.',
   'str.',
   'arr.',
   'rows.',

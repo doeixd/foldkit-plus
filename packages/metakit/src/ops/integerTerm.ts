@@ -22,6 +22,10 @@ const integerOps: ReadonlySet<string> = new Set<Node.CoreOpId>([
   'num.mul',
   'num.neg',
   'num.mulScaled',
+  'time.addDays',
+  'time.addMonths',
+  'time.daysBetween',
+  'time.startOfMonth',
   'null.coalesce',
 ])
 

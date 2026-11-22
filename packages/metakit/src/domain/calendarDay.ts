@@ -7,8 +7,8 @@ import { Data, Result, Schema } from 'effect'
 import * as Bool from '../ops/bool.js'
 import { call, type EnvOfInput, type ExprInput } from '../ops/core.js'
 import * as Eq from '../ops/eq.js'
-import * as Num from '../ops/num.js'
 import * as Ord from '../ops/ord.js'
+import * as Time from '../ops/time.js'
 import type { Expr } from '../path.js'
 import { DOMAIN_ANNOTATION_KEY } from './annotation.js'
 
@@ -105,17 +105,58 @@ export const addDays = <D extends DayInput<never>, N extends ExprInput<never, nu
   day: D,
   days: N,
 ): Expr<EnvOfInput<D> & EnvOfInput<N>, CalendarDayValue> =>
-  Num.add(day as ExprInput<never, number>, days) as unknown as Expr<
+  Time.addDays(day as ExprInput<never, number>, days) as unknown as Expr<
+    EnvOfInput<D> & EnvOfInput<N>,
+    CalendarDayValue
+  >
+
+/** Add an integer number of months to a `CalendarDay`, clamping to month-end. */
+export const addMonths = <D extends DayInput<never>, N extends ExprInput<never, number>>(
+  day: D,
+  months: N,
+): Expr<EnvOfInput<D> & EnvOfInput<N>, CalendarDayValue> =>
+  Time.addMonths(day as ExprInput<never, number>, months) as unknown as Expr<
     EnvOfInput<D> & EnvOfInput<N>,
     CalendarDayValue
   >
 
 /** Signed day difference `a - b` in days. */
-export const diffDays = <A extends DayInput<never>, B extends DayInput<never>>(
+export const daysBetween = <A extends DayInput<never>, B extends DayInput<never>>(
   a: A,
   b: B,
 ): Expr<EnvOfInput<A> & EnvOfInput<B>, number> =>
-  Num.sub(a as ExprInput<never, number>, b as ExprInput<never, number>)
+  Time.daysBetween(a as ExprInput<never, number>, b as ExprInput<never, number>)
+
+/** Signed day difference `a - b` in days. */
+export const diffDays = daysBetween
+
+/** First day of the calendar month holding `day`. */
+export const startOfMonth = <D extends DayInput<never>>(
+  day: D,
+): Expr<EnvOfInput<D>, CalendarDayValue> =>
+  Time.startOfMonth(day as ExprInput<never, number>) as unknown as Expr<
+    EnvOfInput<D>,
+    CalendarDayValue
+  >
+
+/** Whether half-open calendar-day ranges `[s1, e1)` and `[s2, e2)` overlap. */
+export const overlaps = <
+  S1 extends DayInput<never>,
+  E1 extends DayInput<never>,
+  S2 extends DayInput<never>,
+  E2 extends DayInput<never>,
+>(
+  s1: S1,
+  e1: E1,
+  s2: S2,
+  e2: E2,
+): Expr<EnvOfInput<S1> & EnvOfInput<E1> & EnvOfInput<S2> & EnvOfInput<E2>, boolean> =>
+  Time.overlaps(
+    s1 as ExprInput<never, number>,
+    e1 as ExprInput<never, number>,
+    s2 as ExprInput<never, number>,
+    e2 as ExprInput<never, number>,
+  )
 
 export const before = <A extends DayInput<never>, B extends DayInput<never>>(
   a: A,

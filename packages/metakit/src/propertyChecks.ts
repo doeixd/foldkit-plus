@@ -7,6 +7,7 @@
  */
 import { Equal } from 'effect'
 import * as Node from './node.js'
+import { EARLIEST_DAY, LATEST_DAY } from './ops/time.js'
 import { isSafeNumber } from './ops/kind.js'
 import type { Domain, OpProperties, Side } from './properties.js'
 
@@ -48,10 +49,19 @@ const ofKind = (op: Node.Op): ReadonlyArray<unknown> => {
 }
 
 /** The values of `values` in `domain`: over the integers, the safe integers, null and a refusal. */
-const within = (domain: Domain, values: ReadonlyArray<unknown>): ReadonlyArray<unknown> =>
+const within = (
+  domain: Domain | 'calendarDays',
+  values: ReadonlyArray<unknown>,
+): ReadonlyArray<unknown> =>
   domain === 'all'
     ? values
-    : values.filter(value => typeof value !== 'number' || Number.isSafeInteger(value))
+    : domain === 'calendarDays'
+      ? values.filter(
+          value =>
+            typeof value !== 'number' ||
+            (Number.isSafeInteger(value) && value >= EARLIEST_DAY && value <= LATEST_DAY),
+        )
+      : values.filter(value => typeof value !== 'number' || Number.isSafeInteger(value))
 
 const holdsNul = (value: unknown): boolean => typeof value === 'string' && value.includes('\u0000')
 
@@ -125,7 +135,7 @@ export const checkProperties = (
     x => op.returns !== 'number' || typeof x !== 'number' || isSafeNumber(x),
   )
   if (identity !== undefined) {
-    for (const x of returned) {
+    for (const x of within(identity.over ?? 'all', returned)) {
       for (const args of placed(identity.side, x, identity.value)) {
         expect('identity', args, sameAnswer(run(args), x), `gives ${label(x)}`)
       }

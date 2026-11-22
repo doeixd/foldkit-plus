@@ -25,6 +25,7 @@ import * as Num from './ops/num.js'
 import * as Ord from './ops/ord.js'
 import { residualizeNode } from './ops/residualize.js'
 import * as Str from './ops/str.js'
+import * as Time from './ops/time.js'
 import { checkFoldProperties } from './foldChecks.js'
 import { foldProperties, opProperties, writeProperties } from './properties.js'
 import { checkProperties, sameAnswer, type PropertyReport } from './propertyChecks.js'
@@ -73,6 +74,11 @@ export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
   'num.mulScaled': MulScaled.mulScaledOp,
   'num.div': Num.divOp,
   'num.rem': Num.remOp,
+  'time.addDays': Time.addDaysOp,
+  'time.addMonths': Time.addMonthsOp,
+  'time.daysBetween': Time.daysBetweenOp,
+  'time.startOfMonth': Time.startOfMonthOp,
+  'time.overlaps': Time.overlapsOp,
   'str.len': Str.lenOp,
   'str.startsWith': Str.startsWithOp,
   'str.contains': Str.containsOp,
@@ -94,6 +100,7 @@ type Operand =
   | 'shift'
   | 'rounding'
   | 'onZero'
+  | 'day'
 
 /** Each primitive's operands. */
 const operands: Readonly<Record<Node.CoreOpId, ReadonlyArray<Operand>>> = {
@@ -124,6 +131,11 @@ const operands: Readonly<Record<Node.CoreOpId, ReadonlyArray<Operand>>> = {
   'num.mulScaled': ['number', 'number', 'shift'],
   'num.div': ['number', 'number', 'rounding', 'onZero'],
   'num.rem': ['number', 'number', 'onZero'],
+  'time.addDays': ['number', 'number'],
+  'time.addMonths': ['number', 'number'],
+  'time.daysBetween': ['number', 'number'],
+  'time.startOfMonth': ['number'],
+  'time.overlaps': ['day', 'day', 'day', 'day'],
   'str.len': ['text'],
   'str.startsWith': ['text', 'text'],
   'str.contains': ['text', 'text'],
@@ -234,6 +246,13 @@ const samples: Readonly<Record<Operand, ReadonlyArray<Sample>>> = {
   shift: [literal(0), literal(2), literal(-1)],
   rounding: [literal('half-even'), literal('floor'), literal('toward-zero')],
   onZero: [literal('refuse'), literal('null')],
+  day: [
+    field('0 as itself', 0, Schema.Int.check(near(0, 0))),
+    field('1 within 3', 1, Schema.Int.check(near(1, 3))),
+    field('10 as an integer', 10, Schema.Int),
+    field('0.5 as a float', 0.5, Schema.Finite),
+    field('null integer', null, Schema.NullOr(Schema.Int)),
+  ],
 }
 
 export interface OpFailure {
