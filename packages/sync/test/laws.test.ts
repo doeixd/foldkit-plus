@@ -19,6 +19,7 @@ import {
 } from 'foldkit-durable'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { Arr, Num, Path, Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   Sync,
@@ -525,5 +526,64 @@ describe('a replica', () => {
     // A Message the law takes still goes.
     await run(replica.submit(Message.RemovedTodo({ id: 't1' })))
     expect(await run(replica.pending)).toHaveLength(101)
+  })
+})
+
+describe('SyncDeclared.fromMachine', () => {
+  it('extracts durable transitions from an application Machine and enforces sharedPaths & state-only rules', () => {
+    const AppMachine = Machine.make({
+      state: Model,
+      transitions: {
+        CreatedTodo: Transition.make({
+          state: Model,
+          input: Message.CreatedTodo,
+          apply: ({ state, input }) => [
+            Transition.insert(state.todos, { id: input.id, title: input.title }),
+          ],
+        }),
+        RemovedTodo: Transition.make({
+          state: Model,
+          input: Message.RemovedTodo,
+          apply: ({ state, input }) => [Transition.remove(state.todos, input.id)],
+        }),
+        ChangedFilter: Transition.make({
+          state: Model,
+          input: Message.ChangedFilter,
+          apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
+        }),
+        Emitting: Transition.make({
+          state: Model,
+          input: Message.CreatedTodo,
+          apply: () => [],
+          emits: () => [Transition.emit('Notify', {})],
+        }),
+      },
+    })
+
+    // Durable subset works cleanly in Sync.forApplication(App).make
+    const FromMachine = Sync.forApplication(App).make({
+      ...options,
+      transitions: SyncDeclared.fromMachine(
+        AppMachine,
+        ['CreatedTodo', 'RemovedTodo'],
+        options.shared,
+      ),
+    })
+    const replayed = FromMachine.replay(
+      { todos: [] },
+      Message.CreatedTodo({ id: 'a', title: 'first' }),
+    )
+    expect(replayed.todos).toEqual([{ id: 'a', title: 'first' }])
+    expect(FromMachine.replay(replayed, Message.RemovedTodo({ id: 'a' })).todos).toEqual([])
+
+    // Writing outside sharedPaths is refused at definition time
+    expect(() => SyncDeclared.fromMachine(AppMachine, ['ChangedFilter'], options.shared)).toThrow(
+      /outside the shared slice/,
+    )
+
+    // Emitting a Command in a durable transition is refused at definition time
+    expect(() => SyncDeclared.fromMachine(AppMachine, ['Emitting'], options.shared)).toThrow(
+      /emits a Command; durable transitions are state-only/,
+    )
   })
 })
