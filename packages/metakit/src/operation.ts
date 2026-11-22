@@ -9,7 +9,7 @@
  */
 import { Equal, Option, Schema, SchemaAST } from 'effect'
 import * as Node from './node.js'
-import { toNode, wrap, type ExprInput } from './ops/core.js'
+import { toNode, wrap, type ExprInput, type NullOf } from './ops/core.js'
 import type { ForeignImplementation, ForeignImplementations } from './ops/eval.js'
 import type { Expr } from './path.js'
 
@@ -89,6 +89,14 @@ export type Claims<Args extends ReadonlyArray<Schema.Top>, R extends Schema.Top>
   readonly monotone?: MonotoneTuple<Args>
 }
 
+/** `null` when any argument in `Args` may be `null`, else `never`. */
+export type NullOfAll<Args extends ReadonlyArray<unknown>> = Args extends readonly [
+  infer Head,
+  ...infer Tail,
+]
+  ? NullOf<Head> | NullOfAll<Tail>
+  : never
+
 /** A declared custom operation: callable to build `Expr` calls, plus its `ForeignOp` descriptor. */
 export interface Operation<
   Id extends string,
@@ -106,7 +114,10 @@ export interface Operation<
     },
   >(
     ...args: A
-  ): Expr<EnvOfAll<A>, Schema.Schema.Type<R> | null>
+  ): Expr<
+    EnvOfAll<A>,
+    N extends 'strict' ? Schema.Schema.Type<R> | NullOfAll<A> : Schema.Schema.Type<R> | null
+  >
   readonly descriptor: Node.ForeignOp & {
     readonly id: Id
     readonly version: V

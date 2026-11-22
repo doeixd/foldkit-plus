@@ -47,12 +47,16 @@ const flagsClamp = Operation.define({
 const State = Schema.Struct({ granted: Flags, label: Schema.String })
 const $ = Path.from(State)
 
-// Literal argument does not erase the Path argument's environment.
+// Literal argument does not erase the Path argument's environment, and non-null args stay non-null.
 const grantedOrFour = flagsOr($.granted, 4)
-expectTypeOf(grantedOrFour).toEqualTypeOf<Expr.Expr<typeof State.Type, number | null>>()
+expectTypeOf(grantedOrFour).toEqualTypeOf<Expr.Expr<typeof State.Type, number>>()
 
 const clamped = flagsClamp($.granted, 0, 10)
-expectTypeOf(clamped).toEqualTypeOf<Expr.Expr<typeof State.Type, number | null>>()
+expectTypeOf(clamped).toEqualTypeOf<Expr.Expr<typeof State.Type, number>>()
+
+// Nullable argument widens strict operation result to `number | null`.
+const grantedOrNull = flagsOr($.granted, null)
+expectTypeOf(grantedOrNull).toEqualTypeOf<Expr.Expr<typeof State.Type, number | null>>()
 
 // Negative cases: each constraint probed alone.
 

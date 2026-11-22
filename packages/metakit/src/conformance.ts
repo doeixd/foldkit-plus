@@ -416,3 +416,10 @@ export const sameOutcome = <A>(left: Outcome<A>, right: Outcome<A>): boolean =>
     Result.match(left, { onSuccess: value => value, onFailure: refusal => refusal }),
     Result.match(right, { onSuccess: value => value, onFailure: refusal => refusal }),
   )
+
+export {
+  checkOperation,
+  lawObligations,
+  type OperationReport,
+  type ParityRunner,
+} from './operationChecks.js'
