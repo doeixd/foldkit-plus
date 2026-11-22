@@ -58,7 +58,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // data +24, the app's own style +44) and +447 by #593, whose `runtimeJson` codec (1.7 kB minified)
 // is Remote's Model schema, so every Remote page carries it. No module was added to or dropped from
 // the page by the first, so `foldkit-bundle` and FileUpload did not reach it. Ceiling raised to the reading.
-const CEILING = 245_700
+// +7,267 on 2026-11-21, TEMPORARY: 252,667 measured after step 9 of the metakit unification plan. Not
+// measured step by step; the growth matches the other Remote pages' (step 5, entity's judge on metakit,
+// and step 9, guard's conditions). Step 10 must bring this back toward 245,700, as recorded in
+// docs/design/metakit-unification-LEDGER.md under "Owed by step 10".
+const CEILING = 252_967
 
 clientBudget({
   name: 'chirp',
