@@ -66,6 +66,7 @@ describe('writeProperties', () => {
       Struct.keys(writeProperties).filter(way => writeProperties[way].idempotent !== undefined),
     ).toEqual([
       'set',
+      'combine',
       'insert',
       'remove',
       'removeWhere',
@@ -78,6 +79,7 @@ describe('writeProperties', () => {
 
   it.each([
     'set',
+    'combine',
     'insert',
     'remove',
     'removeWhere',

@@ -9,6 +9,7 @@ import { Result, Schema } from 'effect'
 import type { Each } from './ops/arr.js'
 import * as Bool from './ops/bool.js'
 import * as Num from './ops/num.js'
+import * as Operation from './operation.js'
 import type {
   CommuteCondition,
   IdempotentCondition,
@@ -24,14 +25,29 @@ const Entry = Schema.Struct({
   b: Schema.Int,
   c: Schema.Boolean,
 })
+const SmallInt = Schema.Int.check(Schema.isBetween({ minimum: -50, maximum: 50 }))
 const State = Schema.Struct({
-  n: Schema.Int.check(Schema.isBetween({ minimum: -50, maximum: 50 })),
+  n: SmallInt,
   tag: Schema.String,
   list: Schema.Array(Entry),
   set: Schema.Array(Schema.String),
 })
 type State = typeof State.Type
 const None = Schema.Struct({})
+
+const maxOp = Operation.define({
+  id: 'check.max',
+  version: 1,
+  args: [SmallInt, SmallInt],
+  returns: SmallInt,
+  nulls: 'strict',
+  claims: { commutative: true, associative: true, idempotent: true },
+})
+
+const combineImpls = Operation.implementations(
+  'writeChecks',
+  Operation.implement(maxOp, (a, b) => (a > b ? a : b)),
+)
 
 type Write = Transition.Transition<State, {}, never, Transition.NoSupplied>
 
@@ -78,7 +94,7 @@ const writesOf = (
     case 'add':
       return [-3, 0, 7].map(amount => write(state => Transition.add(state.n, amount)))
     case 'combine':
-      return []
+      return [-3, 0, 7].map(value => write(state => Transition.combine(state.n, maxOp, value)))
     case 'append':
       return literals.map(id =>
         write(state => Transition.append(state.list, { id, a: true, b: 1, c: true })),
@@ -137,17 +153,17 @@ const states: ReadonlyArray<State> = (() => {
 })()
 
 const outcome = (state: State, first: Write, second: Write): State | 'refused' =>
-  Result.match(Transition.run(first, state, {}), {
+  Result.match(Transition.run(first, state, {}, undefined, { foreign: combineImpls }), {
     onFailure: () => 'refused' as const,
     onSuccess: after =>
-      Result.match(Transition.run(second, after, {}), {
+      Result.match(Transition.run(second, after, {}, undefined, { foreign: combineImpls }), {
         onFailure: () => 'refused' as const,
         onSuccess: done => done,
       }),
   })
 
 const once = (state: State, write: Write): State | 'refused' =>
-  Result.match(Transition.run(write, state, {}), {
+  Result.match(Transition.run(write, state, {}, undefined, { foreign: combineImpls }), {
     onFailure: () => 'refused' as const,
     onSuccess: done => done,
   })
