@@ -53,6 +53,7 @@ export const unrefused = (
 ): boolean => {
   const shift = shiftOf(args[2]!)
   if (shift === undefined || !integers[0] || !integers[1]) return false
+  if (!Interval.within(args[0]!, SAFE) || !Interval.within(args[1]!, SAFE)) return false
   const product = Interval.mul(args[0]!, args[1]!)
   if (!Interval.within(product, SAFE)) return false
   return shift >= 0 || Interval.within(Interval.mul(product, Interval.constant(10 ** -shift)), SAFE)

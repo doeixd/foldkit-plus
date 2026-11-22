@@ -147,8 +147,6 @@ const refusesOperandsOnly: ReadonlySet<Node.CoreOpId> = new Set<Node.CoreOpId>([
   'eq.is',
   'eq.isNot',
   'eq.equals',
-  'eq.in',
-  'eq.among',
   'null.isNull',
   'null.coalesce',
 ])
@@ -169,10 +167,17 @@ export const cannotRefuse = (node: Node.Node): boolean =>
     Lit: ({ value }) => admitted(value),
     Path: ({ ast }) => Option.exists(ast, admitsNoRefusable),
     Call: ({ op, args }) =>
-      callCannotRefuse(
-        op,
-        args.map(arg => [cannotRefuse(arg), kindOf(arg)]),
-      ),
+      !Node.isForeign(op) && (op.id === 'eq.in' || op.id === 'eq.among')
+        ? args.length === 2 &&
+          cannotRefuse(args[0]!) &&
+          cannotRefuse(args[1]!) &&
+          ((Node.$is('Lit')(args[1]!) && Array.isArray(args[1]!.value)) ||
+            (Node.$is('Path')(args[1]!) &&
+              Option.exists(args[1]!.ast, ast => present(ast).every(SchemaAST.isArrays))))
+        : callCannotRefuse(
+            op,
+            args.map(arg => [cannotRefuse(arg), kindOf(arg)]),
+          ),
     If: () => false,
     Match: () => false,
     Opaque: () => false,

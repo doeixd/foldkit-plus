@@ -310,6 +310,9 @@ export const walk = <State, Name extends string, Of extends string = never>(
 
   const first = options?.seed ?? 1
   const runs = options?.runs ?? 200
+  if (!Number.isInteger(runs) || runs <= 0) {
+    throw new Error(`[metakit] Temporal.walk: runs must be a positive integer, got ${runs}`)
+  }
   for (let run = 0; run < runs; run++) {
     const seed = first + run
     const failing = broken(orderOf(seed))
@@ -418,6 +421,9 @@ export const walkAsync = async <World, Name extends string>(
 
   const first = options?.seed ?? 1
   const runs = options?.runs ?? 30
+  if (!Number.isInteger(runs) || runs <= 0) {
+    throw new Error(`[metakit] Temporal.walkAsync: runs must be a positive integer, got ${runs}`)
+  }
   for (let run = 0; run < runs; run++) {
     const seed = first + run
     const failing = await broken(orderOf(seed))
@@ -588,12 +594,11 @@ export const makeRegistry = (): Registry => {
     const discharged: Array<DischargedObligation> = []
     for (const [key, { scope, obligation }] of owed) {
       const walks = shown.get(key) ?? []
-      const closing = walks.find(closes)
-      if (closing !== undefined) {
-        discharged.push({ ...scope, obligation, discharge: closing })
+      const last = walks.at(-1)
+      if (last !== undefined && closes(last)) {
+        discharged.push({ ...scope, obligation, discharge: last })
         continue
       }
-      const last = walks.at(-1)
       open.push({
         ...scope,
         obligation,
@@ -677,11 +682,22 @@ export const makeRegistry = (): Registry => {
     },
     decide: (scope, { name, reason, checked }) => {
       const at = placed(scope)
-      decided.set(keyOf(at.owner, name), {
+      const key = keyOf(at.owner, name)
+      const prev = decided.get(key)
+      const nextChecked = Option.fromUndefinedOr(checked)
+      if (
+        prev !== undefined &&
+        Option.isSome(prev.checked) &&
+        WalkResult.$is('Broken')(prev.checked.value) &&
+        !(Option.isSome(nextChecked) && WalkResult.$is('Broken')(nextChecked.value))
+      ) {
+        return
+      }
+      decided.set(key, {
         ...at,
         name,
         reason,
-        checked: Option.fromUndefinedOr(checked),
+        checked: nextChecked,
       })
     },
     report,

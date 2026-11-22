@@ -154,7 +154,7 @@ const openChoice = (on: Leftover, arms: ReadonlyArray<unknown>): Leftover =>
 
 const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): unknown =>
   Node.$match(node, {
-    Lit: ({ value }) => value,
+    Lit: ({ value }) => (value === undefined ? null : value),
     Path: path =>
       Option.getOrElse(
         lookupPartial(env, path.segments, path.ast),
@@ -213,13 +213,18 @@ const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): 
         ),
       )
     },
-    Opaque: opaque =>
-      Option.isSome(opaque.reads) &&
-      opaque.reads.value.every(segments =>
-        Option.isSome(lookupPartial(env, segments, Option.none())),
-      )
-        ? opaque.run(env)
-        : new Leftover(Option.none(), false, undefined, undefined, opaque.reads, true, undefined),
+    Opaque: opaque => {
+      if (
+        Option.isSome(opaque.reads) &&
+        opaque.reads.value.every(segments =>
+          Option.isSome(lookupPartial(env, segments, Option.none())),
+        )
+      ) {
+        const value = opaque.run(env)
+        return value === undefined ? null : value
+      }
+      return new Leftover(Option.none(), false, undefined, undefined, opaque.reads, true, undefined)
+    },
     // Read by `rowsLoad.ts`, which whatever built the node loaded.
     Rows: rows =>
       rowsJudgement()(

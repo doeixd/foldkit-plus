@@ -23,6 +23,7 @@ export const ZERO = 0
  */
 const addUp = (a: number, b: number): number => {
   const sum = a + b
+  if (sum === -Infinity) return -Number.MAX_VALUE
   const bPart = sum - a
   const error = a - (sum - bPart) + (b - bPart)
   return error > 0 ? sum + Math.abs(sum) * Number.EPSILON : sum

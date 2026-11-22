@@ -270,10 +270,15 @@ export const walkPair = <State, Transitions extends Readonly<Record<string, unkn
 
   const firstSeed = options?.seed ?? 1
   const runs = options?.runs ?? 100
+  if (!Number.isInteger(runs) || runs <= 0) {
+    throw new Error(`[metakit] walkPair: runs must be a positive integer, got ${runs}`)
+  }
+  let sampled = 0
   for (let run = 0; run < runs; run++) {
     const seed = firstSeed + run
     const [drawn] = Effect.runSync(Arbitrary.sampleEffect(arbitrary, { count: 1, seed, size: 8 }))
     if (drawn === undefined) continue
+    sampled += 1
     const next = Temporal.generator(seed)
     const stepA = {
       _tag: first,
@@ -297,6 +302,14 @@ export const walkPair = <State, Transitions extends Readonly<Record<string, unkn
         reason: `with ${first} ${clip(canonical(stepA.input))} and ${second} ${clip(canonical(stepB.input))}, ${first} first and ${second} first differ in ${differences(forward, backward)}`,
       })
     }
+  }
+  if (sampled === 0) {
+    return Temporal.WalkResult.Broken({
+      seed: firstSeed,
+      interleaving: [first, second],
+      minimal: [first, second],
+      reason: 'no state was sampled for this pair',
+    })
   }
   return Temporal.WalkResult.Held({ seed: firstSeed, runs })
 }

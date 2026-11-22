@@ -163,3 +163,27 @@ describe('An equality to a literal the Schema alone decides', () => {
     })
   })
 })
+
+describe('An insert leaving an invariant field unwritten (H1)', () => {
+  const Account = Entity.define(
+    'InsertAccount',
+    Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+      balance: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+    }),
+  ).pipe(
+    Entity.invariant('nonNegative', ({ after }) => Expr.gte(after.balance, 0), {
+      message: 'Balance must not be negative',
+    }),
+  )
+
+  it('does not prove Kept when the insert omits balance', () => {
+    const CreateAccount = Write.insert(
+      Entity.input(Account, Schema.Struct({ id: Schema.String, name: Schema.String })),
+      { id: 'id' },
+    )
+    const verdict = verdictOf({ name: 'CreateAccount', write: CreateAccount }, 'nonNegative')
+    expect(verdict._tag).not.toBe('Kept')
+  })
+})

@@ -9,7 +9,7 @@
 import { Option, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import { countOp } from '../ops/arr.js'
-import { present } from '../ops/kind.js'
+import { isFiniteNumber, present } from '../ops/kind.js'
 import { addOp } from '../ops/num.js'
 
 const countOf = (list: Node.Node): Node.Node => Node.Call({ op: countOp, args: [list] })
@@ -76,12 +76,23 @@ export const countOfWritten = (list: Node.Node): Node.Node => {
   return countOf(list)
 }
 
-const scalar = (node: Node.Node): boolean => {
+const isBool = (node: Node.Node): boolean => {
+  if (Node.$is('Lit')(node)) return typeof node.value === 'boolean'
+  if (Node.$is('Path')(node)) {
+    return Option.exists(node.ast, ast => present(ast).every(SchemaAST.isBoolean))
+  }
+  return Node.$is('Call')(node) && node.op.returns === 'boolean' && refusesNothing(node)
+}
+
+const isFiniteOrBool = (node: Node.Node): boolean => {
   if (Node.$is('Lit')(node))
-    return typeof node.value === 'boolean' || typeof node.value === 'number'
+    return (
+      typeof node.value === 'boolean' ||
+      (typeof node.value === 'number' && Number.isFinite(node.value))
+    )
   if (Node.$is('Path')(node)) {
     return Option.exists(node.ast, ast =>
-      present(ast).every(member => SchemaAST.isBoolean(member) || SchemaAST.isNumber(member)),
+      present(ast).every(member => SchemaAST.isBoolean(member) || isFiniteNumber(member)),
     )
   }
   return Node.$is('Call')(node) && node.op.returns === 'boolean' && refusesNothing(node)
@@ -90,7 +101,7 @@ const scalar = (node: Node.Node): boolean => {
 /**
  * Whether evaluating `node` can be refused for no value its Schemas allow: a
  * literal, a read, and the logic and equality operations over booleans and
- * numbers. Anything else may be refused, as far as this says.
+ * finite numbers. Anything else may be refused, as far as this says.
  */
 export const refusesNothing = (node: Node.Node): boolean => {
   if (Node.$is('Lit')(node)) return !Node.isRefusal(node.value)
@@ -102,10 +113,11 @@ export const refusesNothing = (node: Node.Node): boolean => {
     case 'bool.and':
     case 'bool.or':
     case 'bool.not':
+      return node.args.every(isBool)
     case 'eq.is':
     case 'eq.isNot':
     case 'eq.equals':
-      return node.args.every(scalar)
+      return node.args.every(isFiniteOrBool)
     default:
       return false
   }
