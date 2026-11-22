@@ -70,7 +70,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +879 on 2026-11-22: 251,970 read locally and 251,594 by CI on Linux after the Phase 1 gate fixes
 // (an operand past the safe range refused by every reader, 63fac3ae0; ops/integerTerm and guard's
 // condition), part of the accepted Phase 1 cost. Ceiling: the larger reading plus 300.
-const CEILING = 252_270
+// +525 on 2026-11-22: 252,495 measured after Phase 5 items 5 and 10 (every domain with writes keeps the
+// late-answer record, and `replayOver` with its revision rule decides a pending write over a newer value),
+// code every page with writes runs. Ceiling: the reading plus 300.
+const CEILING = 252_795
 
 clientBudget({
   name: 'chirp',
