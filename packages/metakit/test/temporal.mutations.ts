@@ -50,8 +50,8 @@ export default [
   ),
   mutation(
     'an eventual store is taken to write a row as one step',
-    "    store.isolation !== 'eventual' &&\n    (judged === 'in-statement' ||",
-    "    (judged === 'in-statement' ||",
+    "    store.isolation !== 'eventual' &&\n    (judged !== 'read-first' ||",
+    "    (judged !== 'read-first' ||",
     store,
   ),
   mutation(
@@ -68,8 +68,20 @@ export default [
   ),
   mutation(
     'a row checked in the statement is taken to have moved',
-    "    (judged === 'in-statement' ||\n      (store.isolates",
+    "    (judged !== 'read-first' ||\n      (store.isolates",
     '    ((store.isolates',
+    store,
+  ),
+  mutation(
+    'a constraint is taken to hold on an eventual store',
+    "      ? store.isolation !== 'eventual'",
+    '      ? true',
+    store,
+  ),
+  mutation(
+    'a constraint is judged as a read before the write',
+    "    judged === 'constraint'\n      ?",
+    "    judged === 'never'\n      ?",
     store,
   ),
   mutation(

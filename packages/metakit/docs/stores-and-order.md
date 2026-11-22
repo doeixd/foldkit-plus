@@ -124,6 +124,21 @@ Store.mount(d1, inStatement)
 
 Judging an aggregate in the statement does not make up for a weaker isolation: on the read-committed Postgres above, the subquery reads what had committed when the statement began, and its refusal stands.
 
+### A rule the database enforces itself
+
+A foreign key is a rule the database keeps on its own: no row may point at a row that is not there, and a delete of the row pointed at waits for, or refuses, a write linking to it, at any isolation. Where a foreign key holds your rule, say so with `judged: 'constraint'`. It holds on any store but an eventual one, whose copies each check the key against their own rows:
+
+```ts
+const linked: Store.Requirement = {
+  rule: 'Entry.account',
+  needs: 'parent-serialized',
+  because: 'an entry may be written while its account is deleted',
+  judged: 'constraint',
+}
+Store.mount(postgres, [linked])
+// returns: the foreign key holds it on the read-committed Postgres above
+```
+
 ## List the orders a proof leaves open
 
 `Prove.machine` proves each transition alone. Its report also names what that leaves open: each pair of transitions (a transition can pair with itself, as two deposits do) where one writes what the other reads or writes, so the order their replies arrive in can matter.

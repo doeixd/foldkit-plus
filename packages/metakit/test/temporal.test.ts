@@ -183,6 +183,16 @@ describe('mounting on a store', () => {
     expect(Store.refused(store('eventual', true), inStatement)).toHaveLength(2)
   })
 
+  it('a constraint the database enforces holds a rule at any isolation but eventual', () => {
+    const constrained = rows.map(rule => ({ ...rule, judged: 'constraint' as const }))
+    expect(Store.refused(store('read-committed', false), constrained)).toEqual([])
+    expect(Store.refused(store('read-committed', false, 'statement'), constrained)).toEqual([])
+    expect(Store.refused(store('eventual', true), constrained)).toHaveLength(2)
+    expect(() => Store.mount(store('eventual', false), constrained)).toThrow(
+      'held by a constraint the database enforces',
+    )
+  })
+
   it('names only the rules the store cannot hold', () => {
     // A writer that checks a transition's guard in its UPDATE: the statement re-reads the row.
     const all = Temporal.requirements({ machine: Bank, aggregates }).map(rule =>

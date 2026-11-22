@@ -55,22 +55,28 @@ export type Capability = 'row-atomic' | 'parent-serialized'
  * Where a writer judges a rule. `in-statement`: inside the statement, or the
  * one batch, that writes, over the rows as that statement finds them.
  * `read-first`: from a read made before the statement that writes.
+ * `constraint`: by a constraint the database itself enforces (a foreign key),
+ * which takes its own locks, whatever the isolation.
  */
-export type Judged = 'in-statement' | 'read-first'
+export type Judged = 'in-statement' | 'read-first' | 'constraint'
 
 const given: Readonly<Record<Capability, (store: StoreCapabilities, judged: Judged) => boolean>> = {
   // A statement re-reads the row it writes (Postgres at read committed too); a row read
   // before it is still the row written only in a serializable transaction.
   'row-atomic': (store, judged) =>
     store.isolation !== 'eventual' &&
-    (judged === 'in-statement' ||
+    (judged !== 'read-first' ||
       (store.isolates === 'transaction' && store.isolation === 'serializable')),
   // A read in one round trip and the write in the next are one isolated step only
-  // where the isolation reaches across them, or where the read is in the write.
+  // where the isolation reaches across them, or where the read is in the write. A
+  // foreign key locks the row pointed at against its deleters at any isolation, but
+  // replicas that merge later each check it against their own rows.
   'parent-serialized': (store, judged) =>
-    (judged === 'in-statement' || store.isolates === 'transaction') &&
-    (store.isolation === 'serializable' ||
-      (store.isolation === 'read-committed' && store.parentRowLock)),
+    judged === 'constraint'
+      ? store.isolation !== 'eventual'
+      : (judged === 'in-statement' || store.isolates === 'transaction') &&
+        (store.isolation === 'serializable' ||
+          (store.isolation === 'read-committed' && store.parentRowLock)),
 }
 
 const meaning: Readonly<Record<Capability, string>> = {
@@ -81,6 +87,7 @@ const meaning: Readonly<Record<Capability, string>> = {
 const where: Readonly<Record<Judged, string>> = {
   'in-statement': 'judged in the statement that writes',
   'read-first': 'judged from a read before the write',
+  constraint: 'held by a constraint the database enforces',
 }
 
 /** Whether `store` gives `capability` to a rule judged as `judged` says. */
