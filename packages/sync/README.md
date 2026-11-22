@@ -604,6 +604,98 @@ Commit pipeline: `operation` → `validate` → `authorize` → `reduce` → `la
 `make` throws for a law whose id or message is over 500 characters, or whose
 `path` names more than 16 fields: its refusal could not be sent.
 
+### Write a law and a replay as expressions
+
+A `holds` callback is code `make` can only run, so it cannot tell you that the
+Message you wrote for `CreatedTodo` keeps the cap: you learn it when the
+journal refuses an operation. [metakit](../metakit/README.md) writes a rule as
+an **expression** (a value built from `Num`, `Arr` and the like, which a
+checker can read as well as evaluate), and `foldkit-sync/metakit` turns two of
+them into what `make` takes:
+
+- `SyncDeclared.holds(expression)` is a law's `holds`. The expression reads the
+  snapshot the operation leaves as `model`, so `before` is not available to
+  it: a cap that lets an over-full document shrink needs the callback form.
+  The law holds only where the expression is true. A snapshot it is null over,
+  or that metakit refuses to evaluate it over (an integer result past
+  ±(2^53 − 1)), breaks the law.
+- `SyncDeclared.transition(transition)` declares what one durable Message does
+  as a metakit `Transition`, under its tag in `make({ transitions })`. The
+  Transition's state is `{ model }` over the shared slice, and its input is the
+  Message's own constructor (an input of another shape is a type error). Its `when`
+  is a guard: a Message whose guard is false is refused, by the replica's
+  `submit` and by the journal. It may change the shared slice and nothing else;
+  one that emits a Command is rejected.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, forApplication } from 'foldkit-sync'
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+  filter: Schema.String,
+})
+const Message = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  ChangedFilter: { filter: Schema.String },
+})
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { todos: [], filter: '' },
+  update: model => ({ model }),
+})
+-->
+```ts
+import { Arr, Num, Path, Transition } from 'metakit'
+import { SyncDeclared } from 'foldkit-sync/metakit'
+
+const todos = Projection.pick(App.model.todos)
+const { model } = Path.forEnv({ model: todos.schema })
+
+const CappedBoard = forApplication(App).make({
+  documentId: DocumentId.make('capped-board'),
+  shared: todos,
+  durable: MessageSet.make(App, [Message.CreatedTodo]),
+  laws: {
+    atMost100Todos: {
+      holds: SyncDeclared.holds(Num.lte(Arr.count(model.todos), 100)),
+      message: 'A board holds 100 todos',
+      path: ['todos'],
+    },
+  },
+  transitions: {
+    CreatedTodo: SyncDeclared.transition(
+      Transition.make({
+        state: Schema.Struct({ model: todos.schema }),
+        input: Message.CreatedTodo,
+        when: ({ state }) => Num.lt(Arr.count(state.model.todos), 100),
+        apply: ({ state, input }) => [
+          Transition.append(state.model.todos, { id: input.id, title: input.title }),
+        ],
+      }),
+    ),
+  },
+})
+```
+
+The mount and the journal replay `CreatedTodo` with that Transition in place
+of your `update`; a tag with no declaration still goes through `update`. At
+definition time `make` also checks each declared transition against the laws
+written with `SyncDeclared.holds`: it throws `Sync.make: "CreatedTodo" has an
+unreachable guard` for a guard that no snapshot satisfying those laws can
+pass, and `… violates a shared-state invariant` for a transition proved to
+break one. A check the solver cannot decide lets the declaration through, and
+the journal still judges every operation on admission. A law written as a
+callback is run, never read by this check.
+
+`foldkit-sync/metakit` is the only part of `foldkit-sync` that imports metakit,
+so a page whose laws are callbacks carries none of it. If your application
+already declares a metakit `Machine`, `SyncDeclared.fromMachine(machine, tags,
+shared)` takes the durable tags from it as one transition each, and throws for
+one that emits a Command or writes outside the shared slice.
+
 ### Stamp what only the commit decides
 
 A fact carries its own nondeterminism, but a client cannot know where its

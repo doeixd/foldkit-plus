@@ -289,7 +289,8 @@ const Capped = forApplication(App).make({
 
 `holds` sees the snapshot before the operation and the one after it. To write
 it as a metakit expression instead, wrap the expression in `SyncDeclared.holds`
-from `foldkit-sync/metakit`; it sees the snapshot after as `model`, and holds
+from `foldkit-sync/metakit`; it sees the snapshot after as `model` (never
+`before`, so a cap that lets an over-full document shrink stays a callback), and holds
 only where the expression is true: a snapshot it is null over, or cannot be
 evaluated over (an integer result past ±(2^53−1)), breaks the law. That
 subpath is the only part of `foldkit-sync` that imports metakit, so a page
@@ -346,9 +347,15 @@ has `live(model, message)` (the Model after a declared Message, the same Model
 where it is refused, `Option.none()` for a tag with no declaration) and
 `footprints` (each declared tag's read and written paths).
 At definition time, `make` rejects a guard proved unreachable under the laws
-written with `SyncDeclared.holds`, or a transition proved to break one. An
-undecided check lets the declaration proceed. The journal still checks each
-document law on admission.
+written with `SyncDeclared.holds`, or a transition proved to break one. The
+errors read `Sync.make: "<tag>" has an unreachable guard` and `… violates a
+shared-state invariant`; a transition that emits a Command, or one under a tag
+the document does not record, throws too. A law written as a callback is run,
+never read by this check. An undecided check lets the declaration proceed. The
+journal still checks each document law on admission. To take the durable tags
+from an application's metakit `Machine` instead, use
+`SyncDeclared.fromMachine(machine, tags, shared)`: one transition per tag, thrown
+for one that emits a Command or writes outside the shared slice.
 
 The journal judges every operation after `reduce` (`journalContract()` carries
 `judge`), `appendAsServer` and reactions included; a broken law is
