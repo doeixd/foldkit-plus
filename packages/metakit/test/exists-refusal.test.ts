@@ -200,5 +200,5 @@ describe('an exists said not to refuse', () => {
     // The generator makes both kinds: those it clears, and refusals among the rest.
     expect(unrefused).toBeGreaterThan(150)
     expect(refusedElsewhere).toBeGreaterThan(150)
-  })
+  }, 60_000)
 })

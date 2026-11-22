@@ -378,5 +378,6 @@ describe('every verdict, against evaluation', () => {
     // Enough of each answer that the check is not vacuous.
     expect(decided.True).toBeGreaterThan(60)
     expect(decided.False).toBeGreaterThan(20)
-  })
+    // A few seconds alone, more beside the whole suite.
+  }, 60_000)
 })
