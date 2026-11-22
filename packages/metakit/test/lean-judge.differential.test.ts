@@ -15,6 +15,10 @@ import * as Node from '../src/node.js'
 import { judgeNode, Settled, settleNode } from '../src/ops/judge.js'
 import type { ForeignImplementations } from '../src/ops/eval.js'
 import { residualSettled, residualVerdict } from '../src/residualJudge.js'
+import { loadRows } from '../src/ops/rowsLoad.js'
+
+// The generator builds `Rows` nodes by hand, with no constructor to load their reading.
+loadRows()
 
 /** A small seeded generator (mulberry32), so a failing case is found again. */
 const random = (seed: number) => {

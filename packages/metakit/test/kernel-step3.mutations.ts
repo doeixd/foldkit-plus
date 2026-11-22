@@ -6,7 +6,6 @@
  */
 const commutes = '../src/transitionCommutes.ts'
 const rows = '../src/ops/rows.ts'
-const evaluate = '../src/ops/eval.ts'
 const residual = '../src/ops/partialRows.ts'
 const reads = '../src/ops/reads.ts'
 const lowering = '../src/sqlLowering.ts'
@@ -144,9 +143,9 @@ export default [
   mutation(
     rowsTests,
     'evaluation folds related rows held only in part',
-    evaluate,
-    '          whole\n            ? foldAnswers(',
-    '          true\n            ? foldAnswers(',
+    '../src/ops/rowsLoad.ts',
+    '      whole\n        ? foldAnswers(',
+    '      true\n        ? foldAnswers(',
   ),
 
   // Partial evaluation.

@@ -12,6 +12,10 @@ import { describe, expect, it } from 'vitest'
 import * as Text from '../src/domain/text.js'
 import { evalNode } from '../src/ops/eval.js'
 import { cannotRefuse } from '../src/ops/kind.js'
+import { loadRows } from '../src/ops/rowsLoad.js'
+
+// The tests build `Rows` nodes by hand, with no constructor to load their reading.
+loadRows()
 
 const Item = Schema.Struct({
   x: Schema.Int,

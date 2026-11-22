@@ -32,8 +32,8 @@ import {
 } from './kind.js'
 import { nullBesideUnrefused, rewrite, type View } from './laws.js'
 import { lookupPartial } from './partial.js'
-import { partialRows } from './partialRows.js'
 import { readsOfRows } from './reads.js'
+import { rowsReading } from './rowsReading.js'
 
 type Reads = Option.Option<ReadonlyArray<ReadonlyArray<string>>>
 
@@ -214,8 +214,9 @@ const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): 
       )
         ? opaque.run(env)
         : new Leftover(Option.none(), false, undefined, undefined, opaque.reads, true, undefined),
+    // Read by `rowsLoad.ts`, which whatever built the node loaded.
     Rows: rows =>
-      partialRows(
+      rowsReading().partial(
         rows,
         env,
         {

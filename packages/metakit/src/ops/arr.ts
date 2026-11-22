@@ -17,6 +17,7 @@ import * as Path from '../path.js'
 import type { Expr, PathAccessor } from '../path.js'
 import * as Bool from './bool.js'
 import { call, toNode, wrap, type EnvOfInput, type ExprInput, type NullOf } from './core.js'
+import { loadRows } from './rowsLoad.js'
 import { byCodePoint, wellFormed } from './str.js'
 
 /** An array operand; where it may be null, so may the result. */
@@ -209,14 +210,16 @@ export const rowsOver = (
     readonly value?: Node.Node
     readonly set?: ReadonlyArray<readonly [string, Node.Node]>
   },
-): Node.Node =>
-  Node.Rows({
+): Node.Node => {
+  loadRows()
+  return Node.Rows({
     fold,
     over: Node.RowsOver.List({ list }),
     where: Option.fromUndefinedOr(body.where),
     value: Option.fromUndefinedOr(body.value),
     set: body.set ?? [],
   })
+}
 
 const fold =
   (kind: Node.RowsFold) =>

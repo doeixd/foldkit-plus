@@ -9,6 +9,7 @@ import * as Node from './node.js'
 import { andOp, orOp } from './ops/bool.js'
 import { evalNode } from './ops/eval.js'
 import { addOp, subOp } from './ops/num.js'
+import { loadRows } from './ops/rowsLoad.js'
 import { opProperties, type Domain, type FoldProperties } from './properties.js'
 import { sameAnswer, type PropertyFailure, type PropertyReport } from './propertyChecks.js'
 
@@ -60,8 +61,9 @@ const each = (field: keyof Element): Node.Node =>
   Node.Path({ segments: [Node.EACH, field], ast: Option.none() })
 
 /** The fold asked of a list: a test for `any`, `every` and `count`, a value for the numeric folds. */
-const asked = (fold: Node.RowsFold): Node.Rows =>
-  Node.Rows({
+const asked = (fold: Node.RowsFold): Node.Rows => {
+  loadRows()
+  return Node.Rows({
     fold,
     over: Node.RowsOver.List({ list: Node.Path({ segments: ['list'], ast: Option.none() }) }),
     where:
@@ -71,6 +73,7 @@ const asked = (fold: Node.RowsFold): Node.Rows =>
     value: Option.some(each('v')),
     set: [],
   })
+}
 
 const label = (list: ReadonlyArray<Element>): ReadonlyArray<string> =>
   list.map(

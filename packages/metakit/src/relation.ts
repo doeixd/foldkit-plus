@@ -22,6 +22,7 @@ import * as Node from './node.js'
 import { bodyOf, type Each, type Outside } from './ops/arr.js'
 import { toNode, wrap, type EnvOfInput, type ExprInput, type NullOf } from './ops/core.js'
 import { readsOfNode } from './ops/reads.js'
+import { loadRows } from './ops/rowsLoad.js'
 import type { Expr } from './path.js'
 
 /** The rows of one kind pointing at a row of another through one of their fields. */
@@ -77,6 +78,7 @@ const related = <Row>(
 ): Node.Node => {
   const row = toNode(of)
   const name = `Relation.${fold}`
+  loadRows()
   return Node.Rows({
     fold,
     over: Node.RowsOver.Related({ of: row, relation: relation.name }),

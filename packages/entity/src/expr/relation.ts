@@ -8,7 +8,7 @@
  */
 import { Match, Option, type Schema } from 'effect'
 import { Node } from 'metakit'
-import { isExpr } from 'metakit/build'
+import { isExpr, loadRows } from 'metakit/build'
 import type { ViewerExpr, ViewerPathExpr } from '../context.js'
 import type { AnyEntity, AnyVariantEntity, EntityField, EntityRelation } from '../index.js'
 import { put } from '../record.js'
@@ -96,8 +96,10 @@ const pointing = (
   via: ReadonlyArray<OneRelation>,
   relation: OneRelation,
   where: Option.Option<Node.Node>,
-): Node.Node =>
-  Node.Rows({
+): Node.Node => {
+  // The readers' folds arrive on a page with the first exists it builds.
+  loadRows()
+  return Node.Rows({
     fold: 'any',
     over: Node.RowsOver.Related({
       of: Node.Path({ segments: hops(['row'], via), ast: Option.none() }),
@@ -107,6 +109,7 @@ const pointing = (
     value: Option.none(),
     set: [],
   })
+}
 
 /** Where an exists starts on the judged row: the relation it follows first, or the row's id. */
 export const existsStart = (
