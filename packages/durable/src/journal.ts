@@ -971,10 +971,10 @@ const makeShape = <
           last: null,
           epoch: null,
         }
-      const cursor = toCursor(Number(row.cursor))
-      const snapshotCursor = Number(row.snapshot_cursor)
-      const last = row.last === null ? null : String(row.last)
-      const epoch = row.epoch === null ? null : String(row.epoch)
+      let cursor = toCursor(Number(row.cursor))
+      let snapshotCursor = Number(row.snapshot_cursor)
+      let last = row.last === null ? null : String(row.last)
+      let epoch = row.epoch === null ? null : String(row.epoch)
       const cached = current.get(key)
       if (
         cached !== undefined &&
@@ -984,9 +984,37 @@ const makeShape = <
         cached.epoch === epoch
       )
         return cached
+      // Guard the snapshot read against a concurrent compaction advancing snapshot_cursor
+      // between the two round trips (e.g. on D1); if it moved, re-read all fields in one SELECT.
       const stored = yield* sql<{
         readonly snapshot: string
-      }>`SELECT snapshot FROM documents WHERE key = ${key}`
+      }>`SELECT snapshot FROM documents WHERE key = ${key} AND snapshot_cursor = ${snapshotCursor}`
+      let rawSnapshot: string
+      if (stored[0] !== undefined) {
+        rawSnapshot = String(stored[0].snapshot)
+      } else {
+        const fresh = yield* sql<{
+          readonly cursor: number
+          readonly snapshot_cursor: number
+          readonly snapshot: string
+          readonly last: string | null
+          readonly epoch: string | null
+        }>`SELECT d.cursor, d.snapshot_cursor, d.snapshot, o.op_id AS last, e.epoch FROM documents d LEFT JOIN operations o ON o.key = d.key AND o.sequence = d.cursor LEFT JOIN epochs e ON e.key = d.key WHERE d.key = ${key}`
+        const latest = fresh[0]
+        if (latest === undefined)
+          return {
+            snapshot: options.empty(),
+            cursor: toCursor(0),
+            snapshotCursor: 0,
+            last: null,
+            epoch: null,
+          }
+        cursor = toCursor(Number(latest.cursor))
+        snapshotCursor = Number(latest.snapshot_cursor)
+        last = latest.last === null ? null : String(latest.last)
+        epoch = latest.epoch === null ? null : String(latest.epoch)
+        rawSnapshot = String(latest.snapshot)
+      }
       const since =
         // Bounded above by the cursor read with the snapshot: without a
         // transaction a concurrent commit could otherwise land between the
@@ -1002,7 +1030,7 @@ const makeShape = <
           since.reduce(
             (state, operation) =>
               options.reduce(state, operationCodec.decode(JSON.parse(String(operation.input)))),
-            snapshotCodec.decode(JSON.parse(String(stored[0]!.snapshot))),
+            snapshotCodec.decode(JSON.parse(rawSnapshot)),
           ),
         catch: cause => journalError('Could not load the snapshot', cause),
       })
@@ -1454,8 +1482,18 @@ const makeShape = <
     InvalidOperationError | OperationRejectedError | IdentityConflictError | SqlError | JournalError
   > => {
     const unit = commitOnce(key, prepared, principal).pipe(Effect.map(settleCommit))
+    // On D1 a crash between INSERT INTO operations and UPDATE documents can leave
+    // documents.cursor behind MAX(operations.sequence); heal it before retrying.
+    const healCursor =
+      sql`UPDATE documents SET cursor = (SELECT COALESCE(MAX(sequence), 0) FROM operations WHERE key = ${key}) WHERE key = ${key} AND cursor < (SELECT COALESCE(MAX(sequence), 0) FROM operations WHERE key = ${key})`.pipe(
+        Effect.asVoid,
+        Effect.ignore,
+      )
     return d1
       ? unit.pipe(
+          Effect.tapError(error =>
+            error._tag === 'SqlError' && isConstraintViolation(error) ? healCursor : Effect.void,
+          ),
           Effect.retry({
             while: error => error._tag === 'SqlError' && isConstraintViolation(error),
             times: MAX_COMMIT_RETRIES,
