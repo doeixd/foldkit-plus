@@ -204,7 +204,11 @@ attached rules on every request.
   joined by and/or, plus inherited Reads); `Condition.holds(condition, values,
   Policy.inputOf(principal), inherit, Policy.operators)` runs it over stored
   values, the row guards' primitive operators by the policy's table
-  (`G.implement(bodies, { operators })`, `Operators.kernel` by default).
+  (`G.implement(bodies, { operators })`, `Operators.kernel` by default). It
+  is true only where metakit judges the whole condition true: a guard that is
+  refused (text holding a NUL, NaN, a sum past the safe integer range), that
+  one row cannot judge, or that reads a principal's field holding a NUL or a
+  non-finite number refuses it, whatever the other guards say.
   `Condition.residual(condition, values, input, operators)` decides it as far
   as one row can, keeping the row guards that read another row (what a
   writer's `requires` then judges); `Condition.decided` reads `Always`/`Never`
@@ -370,7 +374,7 @@ yes and `May.refused(may, 'Update')` only on a no: hide or disable on
 Guard, `Expr`, and `Laws` share one typed expression tree (`Guard and from/when and invariants and Schema`):
 
 - **Two-step reduction (`Policy.readable` / `writable`):** principal guards decide once per request into `Always` or `Never` and simplify the `Condition` tree; only surviving `RowGuard`s reach SQL (`GuardDrizzle.visible`) or memory (`Condition.holds`).
-- **Partial evaluation & residualization:** `Condition.residual` decides single-row guards immediately and leaves only cross-row guards (`Expr.path`, `Expr.exists`) for the write's SQL statement. `Condition.judge` runs over partial client rows twice (assuming unknowns `true` and `false`) and decides only where both agree.
+- **Partial evaluation & residualization:** `Condition.residual` decides single-row guards immediately and leaves only cross-row guards (`Expr.path`, `Expr.exists`) for the write's SQL statement. `Condition.judge(condition, row, rows)` judges partial client rows with metakit and returns a `Verdict`: `Unknown` for a rule over the principal's fields, an inherited Read, a row or field the client lacks, or a refusal, and for a yes beside any of them. `may`'s prediction decides principal guards both ways and stands only where every rule is decided and both agree.
 - **Structural safety guarantees:**
   - `GuardServer.writer` checks `Update` row rules on **both `before` and `after`** (blocking privilege escape), checks each member/`Link` rule on `after` with that one change undone, checks cascading `Delete` child rows in the same statement, and pins writes with `revision` (retrying up to 3 times on concurrent edits).
   - `GuardServer.validate` and `GuardServer.writer` block hidden-field side channels: queries cannot filter/sort by Read-ruled members, writes cannot read them in `when`/`expect`/`compute`, and invariant failures over them return generic `Invalid`.

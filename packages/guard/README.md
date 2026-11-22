@@ -812,7 +812,10 @@ Condition.holds(readable, t1, Policy.inputOf(ada), () => false, Policy.operators
 - `Condition.always` and `Condition.never` short-circuit row scans when
   principal guards alone decide access.
 - `Condition.holds` evaluates a condition over an in-memory row; its fourth
-  argument resolves inherited `Read` relations.
+  argument resolves inherited `Read` relations. It answers `true` only where
+  the whole condition is true: a guard the row makes unanswerable (text
+  holding a NUL character, NaN, a sum too large to add exactly) refuses it,
+  even beside a guard that allows.
 
 ## Limits
 
