@@ -79,8 +79,8 @@ const rulesUnder = (
   Expr.rulesOf(schema).map(rule => {
     const node = Node.prefix(rule.expr.node, under)
     const at = [...under, ...rule.at]
-    const info = fields.get(pathKey(at))
-    if (info === undefined || !info.nullable) return node
+    const info = rule.at.length > 0 ? fields.get(pathKey(at)) : undefined
+    if (info === undefined || !info.optional) return node
     const absent = Node.Call({
       op: Null.isNullOp,
       args: [Node.Path({ segments: at, ast: Option.none() })],

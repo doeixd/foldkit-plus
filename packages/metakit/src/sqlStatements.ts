@@ -35,7 +35,7 @@ export const lowerCheck = (schema: Schema.Top, dialect: SqlDialect): Lowered => 
   for (const rule of Expr.rulesOf(schema)) {
     const info = rule.at.length > 0 ? fields.get(pathKey(rule.at)) : undefined
     const guarded =
-      info !== undefined && info.nullable
+      info !== undefined && info.optional
         ? Node.Call({
             op: Bool.orOp,
             args: [

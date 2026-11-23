@@ -17,7 +17,7 @@ export default [
     edits: [
       {
         file: '../src/sqlStatements.ts',
-        find: 'info !== undefined && info.nullable',
+        find: 'info !== undefined && info.optional',
         replace: 'false',
       },
     ],
@@ -28,7 +28,7 @@ export default [
     edits: [
       {
         file: '../src/prove/solve.ts',
-        find: 'if (info === undefined || !info.nullable) return node',
+        find: 'if (info === undefined || !info.optional) return node',
         replace: 'return node',
       },
     ],

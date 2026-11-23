@@ -90,7 +90,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     throw new Unsupported(`expected a number, got ${term.kind}`)
   }
   const expr = (value: unknown): ZExpr => {
-    if (z3.isBool(value) || z3.isArith(value)) return value
+    if (z3.isBool(value) || z3.isArith(value) || z3.isFP(value)) return value
     throw new Unsupported('a term of no solver sort')
   }
   /** Two numbers in one sort: an integer beside a fraction is read as a real, which loses nothing. */
@@ -134,7 +134,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       }
       return made
     }
-    if (info.sort === 'real' && !info.nan) {
+    if (info.sort === 'real' && info.finite) {
       const f64 = z3.Float.sort64()
       const made = z3.Float.const(name, f64)
       guard(z3.And(z3.Not(made.isNaN()), z3.Not(made.isInf())))
@@ -147,7 +147,14 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
         guard(made.lt(z3.Float.val(info.exclusiveMax.value, f64)))
       }
       if (info.literals.length > 0) {
-        guard(z3.Or(...info.literals.map(lit => made.eq(z3.Float.val(Number(lit), f64)))))
+        guard(
+          z3.Or(
+            ...info.literals.map(lit => {
+              const v = z3.Float.val(Number(lit), f64)
+              return z3.And(made.le(v), made.ge(v))
+            }),
+          ),
+        )
       }
       return made
     }
@@ -255,7 +262,8 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     if (z3.isBool(a.value) && z3.isBool(b.value)) return a.value.eq(b.value)
     if (isFpPair(a, b)) {
       const [left, right] = fpPair(a.value, b.value)
-      return left.eq(right)
+      // IEEE-754 numeric equality (`fp.eq` on non-NaN floats): equates -0.0 and +0.0.
+      return z3.And(left.le(right), left.ge(right))
     }
     if (z3.isArith(a.value) && z3.isArith(b.value)) {
       const [left, right] = aligned(a.value, b.value)
@@ -492,7 +500,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
                     qFloor.add(1),
                     z3.If(twice.lt(d), qFloor, z3.If(left.ge(zero), qFloor.add(1), qFloor)),
                   )
-      return strict('num', [a!, b!], quotient, unsafe(quotient))
+      return strict('num', [a!, b!], quotient, z3.Or(unsafe(left), unsafe(quotient)))
     },
     'num.rem': ([a, b], [, divisorNode]) => {
       const left = number(a!)
@@ -511,7 +519,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       const r = left.mod(d)
       const zero = z3.Int.val(0)
       const remVal = z3.If(z3.Or(r.eq(zero), left.ge(zero)), r, r.sub(d))
-      return strict('num', [a!, b!], remVal, unsafe(remVal))
+      return strict('num', [a!, b!], remVal, z3.Or(unsafe(left), unsafe(remVal)))
     },
     'time.addDays': ([a, b]) => {
       const [da, nb] = [number(a!), number(b!)]
@@ -563,6 +571,13 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
           : measure('arrCount', node!).eq(0),
       ),
     'arr.has': ([list, needle], [listNode, needleNode]) => {
+      if (
+        Node.$is('Lit')(listNode!) &&
+        Array.isArray(listNode.value) &&
+        listNode.value.some(el => typeof el === 'number' && !Number.isFinite(el))
+      ) {
+        return strict('bool', [list!, needle!], z3.Bool.val(false), z3.Bool.val(true))
+      }
       const key = `arrHas:${Node.key(listNode!)}:${Node.key(needleNode!)}`
       const known = opaque.has(key)
       let sym = opaque.get(key)

@@ -23,6 +23,8 @@ export interface FieldInfo {
   readonly nulFree: boolean
   /** May read as null: `NullOr`, an optional key, or a field under either. */
   readonly nullable: boolean
+  /** The key itself or an enclosing key is optional (`Schema.optionalKey`), so absent skips field checks. */
+  readonly optional: boolean
   readonly interval: Interval.Interval
   readonly literals: Option.Option<ReadonlyArray<string | number | boolean>>
 }
@@ -97,15 +99,17 @@ export const collectFields = (
   prefix: ReadonlyArray<string>,
   fields: Map<string, FieldInfo>,
   under = false,
+  underOptional = false,
 ): void => {
+  const optional = underOptional || SchemaAST.isOptional(ast)
   // A path reads an `Option` as its value or null, and a write of null stores a none.
   const inner = optionInner(ast)
   if (Option.isSome(inner)) {
-    collectFields(Schema.NullOr(Schema.make(inner.value)).ast, prefix, fields, under)
+    collectFields(Schema.NullOr(Schema.make(inner.value)).ast, prefix, fields, under, optional)
     return
   }
   const members = present(ast)
-  const nullable = under || members.length !== flat(ast).length || SchemaAST.isOptional(ast)
+  const nullable = under || members.length !== flat(ast).length || optional
   const base: FieldInfo = {
     segments: prefix,
     ast,
@@ -114,6 +118,7 @@ export const collectFields = (
     finite: false,
     nulFree: false,
     nullable,
+    optional,
     interval: Interval.top,
     literals: Option.none(),
   }
@@ -125,7 +130,7 @@ export const collectFields = (
     set({ kind: 'struct' })
     for (const property of only.propertySignatures) {
       if (typeof property.name === 'string') {
-        collectFields(property.type, [...prefix, property.name], fields, nullable)
+        collectFields(property.type, [...prefix, property.name], fields, nullable, optional)
       }
     }
     return

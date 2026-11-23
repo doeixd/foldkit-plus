@@ -20,6 +20,8 @@ export interface PathInfo {
   readonly exclusiveMax: Option.Option<number>
   /** A number whose Schema accepts NaN, which has no order. */
   readonly nan: boolean
+  /** A number whose Schema rejects NaN, +Infinity, and -Infinity (`Schema.Finite` / bounded). */
+  readonly finite: boolean
   /** What the checks on text ask of it (none for any other sort); `nulFree` of `Text.schema`. */
   readonly text: TextChecks
 }
@@ -138,6 +140,7 @@ const readShape = (
       literals: [],
       ...noBounds,
       nan: false,
+      finite: false,
       text: { minLength: 0, maxLength: Infinity, nulFree: false, modelled: true },
       ...more,
     })
@@ -172,20 +175,25 @@ const readShape = (
           : literals.every(literal => Number.isInteger(literal))
             ? 'int'
             : 'real'
-    return info(sort, { literals })
+    return info(sort, { literals, finite: sort === 'int' || sort === 'real' })
   }
   if (present.length > 1 && present.every(SchemaAST.isNumber)) {
     // A union of numbers is a number that may hold a fraction; its members' bounds are not one bound.
-    return info('real', { nan: Schema.is(Schema.make<Schema.Top>(ast))(Number.NaN) })
+    const is = Schema.is(Schema.make<Schema.Top>(ast))
+    const nan = is(Number.NaN)
+    return info('real', { nan, finite: !nan && !is(Infinity) && !is(-Infinity) })
   }
   if (present.length !== 1) return info('other')
   if (SchemaAST.isNumber(inner)) {
     const bounds: Bounds = { ...noBounds, int: false }
     readChecks(inner.checks ?? [], bounds)
     const { int, ...declared } = bounds
+    const is = Schema.is(Schema.make<Schema.Top>(inner))
+    const nan = is(Number.NaN)
     return info(int ? 'int' : 'real', {
       ...declared,
-      nan: Schema.is(Schema.make<Schema.Top>(inner))(Number.NaN),
+      nan,
+      finite: int || (!nan && !is(Infinity) && !is(-Infinity)),
     })
   }
   if (SchemaAST.isBoolean(inner)) return info('bool')

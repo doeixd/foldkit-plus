@@ -67,7 +67,7 @@ const undecided = (reason: string, kind: Verdict.Obligation['kind'], detail: str
 
 const solve = async (z3: Z3, problem: Problem): Promise<Solved> => {
   const shape = shapeOf(problem.slices)
-  const hasFp = [...shape.paths.values()].some(info => info.sort === 'real' && !info.nan)
+  const hasFp = [...shape.paths.values()].some(info => info.sort === 'real' && info.finite)
   const effectiveTimeout = hasFp ? Math.min(problem.timeoutMs, FP_TIMEOUT_MS) : problem.timeoutMs
   const solver = new z3.Solver()
   solver.set('timeout', effectiveTimeout)
@@ -153,7 +153,7 @@ export const refute = (
         const node = Node.prefix(rule.expr.node, under)
         const at = [...under, ...rule.at]
         const info = rule.at.length > 0 ? fields.get(pathKey(at)) : undefined
-        if (info === undefined || !info.nullable) return node
+        if (info === undefined || !info.optional) return node
         const absent = Node.Call({
           op: Null.isNullOp,
           args: [Node.Path({ segments: at, ast: Option.none() })],
