@@ -8,7 +8,7 @@
  * asks the graph's one question: is every transition that can break a law
  * witnessed keeping it?
  */
-import { Data, Option } from 'effect'
+import { Data, Option, type Schema } from 'effect'
 import { lawFactsOf, type LawEntry } from 'foldkit-entity/laws'
 import { Evidence } from 'foldkit-metadata'
 import {
@@ -118,10 +118,22 @@ export interface GraphMachine {
   >
 }
 
+/** Writer IDs present in `Graph.of(module).dependencies`: Message transitions, durable Messages, and entity writes. */
+export type GraphWriterId<Tag extends string = string> =
+  | `message:${Tag}`
+  | `durable:${Tag}`
+  | `write:${string}`
+
+/** Reader IDs present in `Graph.of(module).dependencies`: Surfaces, closed Surface laws, and contract/entity laws. */
+export type GraphReaderId<SurfaceName extends string = string> =
+  | `surface:${SurfaceName}`
+  | `closure:${SurfaceName}`
+  | `${string}.${string}`
+
 /** An application's graph: every contract's facts, its closed Surfaces, the evidence admitted, and the unified dependency graph. */
-export interface Graph extends GraphFacts {
+export interface Graph<W extends string = string, R extends string = string> extends GraphFacts {
   /** The unified `metakit/graph` dependency graph over contracts, laws, surfaces, and machine transitions. */
-  readonly dependencies: DependencyGraph
+  readonly dependencies: DependencyGraph<W, R>
 }
 
 /** What `Graph` reads beside the contracts. */
@@ -489,13 +501,16 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
 }
 
 /** The ids of the graph's laws, in the order contracts declared them. */
-const lawsOf = (graph: Graph): ReadonlyArray<string> =>
+const lawsOf = <W extends string, R extends string>(graph: Graph<W, R>): ReadonlyArray<string> =>
   graph.nodes.filter(GraphNode.$is('Law')).map(law => law.id)
 
-const breakers = (graph: Graph, law: string): ReadonlyArray<Breaker> => {
+const breakers = <W extends string, R extends string>(
+  graph: Graph<W, R>,
+  law: string,
+): ReadonlyArray<Breaker> => {
   const keeps = graph.edges.filter(GraphEdge.$is('Keeps')).filter(edge => edge.law === law)
   return graph.nodes.filter(GraphNode.$is('Transition')).flatMap(({ id }) => {
-    const reasons = graph.dependencies.explain(id, law)
+    const reasons = graph.dependencies.explain(id as W, law as R)
     const seen = new Set<string>()
     const paths: Array<ReadonlyArray<string>> = []
     for (const reason of reasons) {
@@ -595,8 +610,19 @@ export const Graph = {
    * which, and a `keeps` edge per record of `evidence` that is issued and
    * joins its pair. Pure, and computed each time it is asked.
    */
-  of: (module: Module<any, any, any>, options: GraphOptions = {}): Graph =>
-    assemble(module.contracts, options).graph,
+  of: <
+    Root,
+    F extends Schema.Struct.Fields,
+    Cases extends Record<string, Schema.Struct.Fields>,
+    Surfaces extends string = string,
+  >(
+    module: Module<Root, F, Cases, Surfaces>,
+    options: GraphOptions = {},
+  ): Graph<GraphWriterId<keyof Cases & string>, GraphReaderId<Surfaces>> =>
+    assemble(module.contracts, options).graph as Graph<
+      GraphWriterId<keyof Cases & string>,
+      GraphReaderId<Surfaces>
+    >,
 
   /**
    * Each transition that writes a path `law` reads, which is each that could
@@ -604,7 +630,10 @@ export const Graph = {
    * the graph does not hold, which a misspelt id would otherwise answer with
    * nothing.
    */
-  breakersOf: (graph: Graph, law: string): ReadonlyArray<Breaker> => {
+  breakersOf: <W extends string, R extends string>(
+    graph: Graph<W, R>,
+    law: string,
+  ): ReadonlyArray<Breaker> => {
     if (!lawsOf(graph).includes(law))
       throw new Error(`Graph.breakersOf: the graph holds no law ${law}`)
     return breakers(graph, law)

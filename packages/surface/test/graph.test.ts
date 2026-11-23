@@ -611,7 +611,7 @@ describe('a Message that sends another (Declared.messageEdges)', () => {
       sends: { Echo: ['RemovedTodo'], Log: ['ChangedFilter'], Persist: ['CreatedTodo'] },
     })
     const graph = graphOf(machine, declared.messageEdges)
-    for (const tag of ['CreatedTodo', 'RemovedTodo', 'ChangedFilter'])
+    for (const tag of ['CreatedTodo', 'RemovedTodo', 'ChangedFilter'] as const)
       expect(graph.dependencies.affectedBy(`message:${tag}`), tag).toEqual(
         expect.arrayContaining(['surface:FilterBar', 'surface:TodoList']),
       )

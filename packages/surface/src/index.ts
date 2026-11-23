@@ -940,8 +940,8 @@ export type ParamsSchema<Params> = unknown extends Params
  */
 type ParamsArgument<Params> = undefined extends Params ? [params?: Params] : [params: Params]
 
-export interface Surface<Root, Model, Message, Params> {
-  readonly name: string
+export interface Surface<Root, Model, Message, Params, Name extends string = string> {
+  readonly name: Name
   /** Identity token of the application this Surface belongs to. */
   readonly owner: object
   readonly Params: ParamsSchema<Params>
@@ -1182,11 +1182,12 @@ export interface Application<
    * object of Projections and refs, which becomes `Projection.struct`.
    */
   readonly surface: <
+    const Name extends string = string,
     const Params extends ParamsShape | undefined = undefined,
     Shape extends ModelShape<Root> = Projection<Root, unknown>,
     const Ms extends readonly MessageConstructor<Cases>[] = readonly [],
   >(
-    name: string,
+    name: Name,
     config: {
       readonly params?: Params
       readonly model: (context: {
@@ -1196,7 +1197,7 @@ export interface Application<
       readonly messages?: Ms
       readonly closed?: boolean
     },
-  ) => Surface<Root, ModelOf<Root, Shape>, MsgOf<Ms>, ParamsOf<Params>>
+  ) => Surface<Root, ModelOf<Root, Shape>, MsgOf<Ms>, ParamsOf<Params>, Name>
   /**
    * This application made runnable, once its update exists: the same
    * references and the same owner, with the initial Model and the transition
@@ -1695,12 +1696,13 @@ export const Surface = {
     Root,
     F extends Schema.Struct.Fields,
     Cases extends Record<string, Schema.Struct.Fields>,
+    const Name extends string = string,
     Params = void,
     Model = unknown,
     const Ms extends readonly MessageConstructor<Cases>[] = readonly [],
   >(
     app: AppScope<Root, F, Cases>,
-    name: string,
+    name: Name,
     config: {
       readonly Params?: Schema.Codec<Params, unknown>
       readonly model: (context: {
@@ -1714,7 +1716,7 @@ export const Surface = {
        */
       readonly closed?: boolean
     },
-  ): Surface<Root, Model, MsgOf<Ms>, Params> => {
+  ): Surface<Root, Model, MsgOf<Ms>, Params, Name> => {
     // Deliberately no eager `projection(undefined)`: a parameterized Surface's
     // projection may read `params`.
     const projection = (params: Params): Projection<Root, Model> => {
@@ -1916,14 +1918,31 @@ export interface Wiring<Model, Message, R = never, Claims extends string = strin
   readonly contract?: Contract | undefined
 }
 
+/** Extract literal Surface names from a tuple/array of `ModuleItem`s. */
+type SurfaceNameOf<Item> =
+  Item extends Surface<any, any, any, any, infer Name>
+    ? string extends Name
+      ? never
+      : Name
+    : never
+
+type ModuleSurfaces<Items extends readonly unknown[]> = [SurfaceNameOf<Items[number]>] extends [
+  never,
+]
+  ? string
+  : SurfaceNameOf<Items[number]>
+
 /** Contracts of one application, in declaration order. Data, not a runtime. */
 export interface Module<
   Root,
   F extends Schema.Struct.Fields,
   Cases extends Record<string, Schema.Struct.Fields>,
+  Surfaces extends string = string,
 > {
   readonly app: AppScope<Root, F, Cases>
   readonly contracts: readonly Contract[]
+  /** Phantom carrier for the literal names of Surfaces registered in this Module. */
+  readonly _surfaces?: Surfaces | undefined
 }
 
 export interface Finding {
@@ -1995,16 +2014,39 @@ const owners = (module: Module<any, any, any>) =>
  * ```
  */
 export const Module = {
-  make: <Root, F extends Schema.Struct.Fields, Cases extends Record<string, Schema.Struct.Fields>>(
+  make: <
+    Root,
+    F extends Schema.Struct.Fields,
+    Cases extends Record<string, Schema.Struct.Fields>,
+    const Items extends readonly ModuleItem<Root>[] = readonly [],
+  >(
     app: AppScope<Root, F, Cases>,
-    items: readonly ModuleItem<Root>[] = [],
-  ): Module<Root, F, Cases> => ({ app, contracts: items.map(toContract) }),
+    items: Items = [] as unknown as Items,
+  ): Module<Root, F, Cases, ModuleSurfaces<Items>> => ({
+    app,
+    contracts: items.map(toContract),
+  }),
 
   /** A new Module with more contracts; the input is unchanged. */
-  add: <Root, F extends Schema.Struct.Fields, Cases extends Record<string, Schema.Struct.Fields>>(
-    module: Module<Root, F, Cases>,
-    ...items: readonly ModuleItem<Root>[]
-  ): Module<Root, F, Cases> => ({
+  add: <
+    Root,
+    F extends Schema.Struct.Fields,
+    Cases extends Record<string, Schema.Struct.Fields>,
+    Surfaces extends string,
+    const Items extends readonly ModuleItem<Root>[],
+  >(
+    module: Module<Root, F, Cases, Surfaces>,
+    ...items: Items
+  ): Module<
+    Root,
+    F,
+    Cases,
+    [SurfaceNameOf<Items[number]>] extends [never]
+      ? Surfaces
+      : string extends Surfaces
+        ? SurfaceNameOf<Items[number]>
+        : Surfaces | SurfaceNameOf<Items[number]>
+  > => ({
     app: module.app,
     contracts: [...module.contracts, ...items.map(toContract)],
   }),

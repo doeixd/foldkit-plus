@@ -48,6 +48,7 @@ import type {
   SurfaceFamily,
   SurfaceSource,
 } from 'foldkit-surface'
+import { minimizePaths, pathsOverlap } from 'metakit/graph/match'
 import { withContext, type Binding, type Region, type UnnamedHandler } from './context.js'
 import { cachedPageDiffers, handlerUnnamed, pageFailed, reportingTo } from './diagnostics.js'
 import {
@@ -423,17 +424,16 @@ const coverOf = (
   },
   reads: ReadonlyArray<string> = [],
 ): Cover => {
-  const contains = (outer: ReadonlyArray<string>) =>
-    outer.length > 0 &&
-    outer.length <= path.length &&
-    outer.every((key, index) => path[index] === key)
-  if (plan.state.dependencies.some(contains)) return 'state'
-  if (plan.restored.some(({ path: outer }) => contains(outer))) return 'restored'
-  if (plan.local.some(contains)) return 'local'
+  const coveredBy = (outers: ReadonlyArray<ReadonlyArray<string>>): boolean =>
+    minimizePaths(outers.filter(outer => outer.length > 0)).some(
+      outer => outer.length <= path.length && pathsOverlap(outer, path),
+    )
+  if (coveredBy(plan.state.dependencies)) return 'state'
+  if (coveredBy(plan.restored.map(({ path: outer }) => outer))) return 'restored'
+  if (coveredBy(plan.local)) return 'local'
   if (
     plan.parts.some(
-      part =>
-        (part.restores ?? []).some(contains) && part.covers.some(name => reads.includes(name)),
+      part => coveredBy(part.restores ?? []) && part.covers.some(name => reads.includes(name)),
     )
   )
     return 'part'

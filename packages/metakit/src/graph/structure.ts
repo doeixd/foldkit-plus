@@ -84,15 +84,15 @@ export const unknownEdge = (): PathEdge => ({
 export type WriterKind = 'transition' | 'write' | 'reducer'
 export type ReaderKind = 'projection' | 'binding' | 'placement' | 'query' | 'guard' | 'rule'
 
-export interface WriterNode {
-  readonly id: string
+export interface WriterNode<W extends string = string> {
+  readonly id: W
   readonly kind: WriterKind
   readonly writes: ReadonlyArray<PathEdge>
   readonly reads?: ReadonlyArray<PathEdge>
 }
 
-export interface ReaderNode {
-  readonly id: string
+export interface ReaderNode<R extends string = string> {
+  readonly id: R
   readonly kind: ReaderKind
   readonly reads: ReadonlyArray<PathEdge>
 }
@@ -180,27 +180,27 @@ const trieQueryOverlap = <T>(
   }
 }
 
-export interface DependencyGraph {
-  readonly writers: ReadonlyMap<string, WriterNode>
-  readonly readers: ReadonlyMap<string, ReaderNode>
+export interface DependencyGraph<W extends string = string, R extends string = string> {
+  readonly writers: ReadonlyMap<W, WriterNode<W>>
+  readonly readers: ReadonlyMap<R, ReaderNode<R>>
   readonly links: ReadonlyArray<RowToModelLink>
   /** Exact reader IDs invalidated when `writerId` runs (preserves reader declaration order). */
-  readonly affectedBy: (writerId: string) => ReadonlyArray<string>
+  readonly affectedBy: (writerId: W) => ReadonlyArray<R>
   /** Every reader whose reads overlap `path` (plus unknown readers). */
-  readonly readersOf: (path: PathAddress) => ReadonlyArray<string>
+  readonly readersOf: (path: PathAddress) => ReadonlyArray<R>
   /** Every writer whose writes overlap `path` (plus unknown writers). */
-  readonly writersOf: (path: PathAddress) => ReadonlyArray<string>
+  readonly writersOf: (path: PathAddress) => ReadonlyArray<W>
   /** Explain every reason `writerId` affects `readerId` (`[]` when disjoint). */
-  readonly explain: (writerId: string, readerId: string) => ReadonlyArray<OverlapReason>
+  readonly explain: (writerId: W, readerId: R) => ReadonlyArray<OverlapReason>
   /** Writers and readers carrying at least one `'unknown'` edge. */
   readonly unknowns: () => {
-    readonly writers: ReadonlyArray<string>
-    readonly readers: ReadonlyArray<string>
+    readonly writers: ReadonlyArray<W>
+    readonly readers: ReadonlyArray<R>
   }
   /** Readers unaffected by every writer in the graph. */
-  readonly deadReaders: () => ReadonlyArray<string>
+  readonly deadReaders: () => ReadonlyArray<R>
   /** Overlapping write-write or write-read edges between two writers. */
-  readonly overlaps: (writerA: string, writerB: string) => ReadonlyArray<OverlapReason>
+  readonly overlaps: (writerA: W, writerB: W) => ReadonlyArray<OverlapReason>
 }
 
 const isUnknownEdge = (edge: PathEdge): boolean =>
@@ -210,25 +210,25 @@ const isUnknownEdge = (edge: PathEdge): boolean =>
  * Build the indexed `DependencyGraph` once from writers, readers, and optional
  * `row -> model` bridge links.
  */
-export const build = (config: {
-  readonly writers: ReadonlyArray<WriterNode>
-  readonly readers: ReadonlyArray<ReaderNode>
+export const build = <const W extends string = string, const R extends string = string>(config: {
+  readonly writers: ReadonlyArray<WriterNode<W>>
+  readonly readers: ReadonlyArray<ReaderNode<R>>
   readonly links?: ReadonlyArray<RowToModelLink>
-}): DependencyGraph => {
-  const writerMap = new Map<string, WriterNode>()
-  const readerMap = new Map<string, ReaderNode>()
-  const readerOrder: Array<string> = []
-  const writerOrder: Array<string> = []
+}): DependencyGraph<W, R> => {
+  const writerMap = new Map<W, WriterNode<W>>()
+  const readerMap = new Map<R, ReaderNode<R>>()
+  const readerOrder: Array<R> = []
+  const writerOrder: Array<W> = []
   const links = config.links ?? []
 
-  const readerTrie = emptyTrie<string>()
-  const writerTrie = emptyTrie<string>()
+  const readerTrie = emptyTrie<R>()
+  const writerTrie = emptyTrie<W>()
   const linkRowTrie = emptyTrie<RowToModelLink>()
   const linkModelTrie = emptyTrie<RowToModelLink>()
 
-  const unknownWriteWriters = new Set<string>()
-  const unknownAnyWriters = new Set<string>()
-  const unknownReaders = new Set<string>()
+  const unknownWriteWriters = new Set<W>()
+  const unknownAnyWriters = new Set<W>()
+  const unknownReaders = new Set<R>()
 
   for (const link of links) {
     trieInsert(linkRowTrie, addressKeySegments(link.row), link)
@@ -271,14 +271,14 @@ export const build = (config: {
     }
   }
 
-  const orderReaders = (set: ReadonlySet<string>): ReadonlyArray<string> =>
+  const orderReaders = (set: ReadonlySet<R>): ReadonlyArray<R> =>
     readerOrder.filter(id => set.has(id))
 
-  const orderWriters = (set: ReadonlySet<string>): ReadonlyArray<string> =>
+  const orderWriters = (set: ReadonlySet<W>): ReadonlyArray<W> =>
     writerOrder.filter(id => set.has(id))
 
-  const readersOf = (path: PathAddress): ReadonlyArray<string> => {
-    const hit = new Set<string>(unknownReaders)
+  const readersOf = (path: PathAddress): ReadonlyArray<R> => {
+    const hit = new Set<R>(unknownReaders)
     trieQueryOverlap(readerTrie, addressKeySegments(path), hit)
     // Follow any row -> model bridge links overlapping `path`
     const bridged = new Set<RowToModelLink>()
@@ -289,8 +289,8 @@ export const build = (config: {
     return orderReaders(hit)
   }
 
-  const writersOf = (path: PathAddress): ReadonlyArray<string> => {
-    const hit = new Set<string>(unknownWriteWriters)
+  const writersOf = (path: PathAddress): ReadonlyArray<W> => {
+    const hit = new Set<W>(unknownWriteWriters)
     const segs = addressKeySegments(path)
     trieQueryOverlap(writerTrie, segs, hit)
     // Follow any row -> model bridge links whose model side overlaps `path`
@@ -302,14 +302,14 @@ export const build = (config: {
     return orderWriters(hit)
   }
 
-  const affectedBy = (writerId: string): ReadonlyArray<string> => {
+  const affectedBy = (writerId: W): ReadonlyArray<R> => {
     const w = writerMap.get(writerId)
     if (w === undefined || w.writes.length === 0) return []
     if (unknownWriteWriters.has(writerId)) {
       // An unknown write can affect every reader in the graph
       return [...readerOrder]
     }
-    const hit = new Set<string>(unknownReaders)
+    const hit = new Set<R>(unknownReaders)
     const bridged = new Set<RowToModelLink>()
     for (const edge of w.writes) {
       if (Option.isSome(edge.path)) {
@@ -324,7 +324,7 @@ export const build = (config: {
     return orderReaders(hit)
   }
 
-  const explain = (writerId: string, readerId: string): ReadonlyArray<OverlapReason> => {
+  const explain = (writerId: W, readerId: R): ReadonlyArray<OverlapReason> => {
     const w = writerMap.get(writerId)
     const r = readerMap.get(readerId)
     if (w === undefined || r === undefined || w.writes.length === 0) return []
@@ -363,8 +363,8 @@ export const build = (config: {
     readers: orderReaders(unknownReaders),
   })
 
-  const deadReaders = (): ReadonlyArray<string> => {
-    const everAffected = new Set<string>()
+  const deadReaders = (): ReadonlyArray<R> => {
+    const everAffected = new Set<R>()
     for (const wId of writerOrder) {
       for (const rId of affectedBy(wId)) everAffected.add(rId)
     }
@@ -374,7 +374,7 @@ export const build = (config: {
   // The pair is put in one order first, so `overlaps(a, b)` and `overlaps(b, a)`
   // give the same reasons: a row write bridged into a Model path meets the
   // other writer's write from either side.
-  const overlaps = (writerA: string, writerB: string): ReadonlyArray<OverlapReason> => {
+  const overlaps = (writerA: W, writerB: W): ReadonlyArray<OverlapReason> => {
     const [first, second] = writerA <= writerB ? [writerA, writerB] : [writerB, writerA]
     const a = writerMap.get(first)
     const b = writerMap.get(second)
