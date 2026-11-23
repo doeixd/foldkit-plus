@@ -98,6 +98,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `metakit/graph`: an indexed lookup treats `*` as any one segment in either direction, so a writer at `todos.*.done` invalidates a reader at `todos.0.done` and `explain` agrees with `affectedBy`; `minimizePaths` drops a path only when another covers every read it covers, so `todos.0` no longer hides `todos.*.title` (#615, #616).
 - `metakit/sql`: text ordering, equality, membership and `match` pin the SQLite side to `BINARY`, and `str.startsWith`/`str.endsWith` compare `BINARY`, so a column's declared `NOCASE` or `RTRIM` collation no longer changes which rows an expression selects (#621).
 - `metakit/sql`: a related aggregate's value binds its parameter before its filter does, as SQLite's anonymous `?` takes them in the order the SQL text names them (#618).
 - `metakit/sql`: `num.neg` widens an integer column before negating it on Postgres, whose `int4` negation raises on the smallest int4 before a later cast (#622).

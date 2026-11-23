@@ -160,24 +160,32 @@ const collectSubtree = <T>(node: TrieNode<T>, out: Set<T>): void => {
 /**
  * Find every indexed entry whose path overlaps `segments` (either an ancestor
  * prefix along the walk down, or any descendant in the subtree at `segments`).
+ * `*` in either the query or an entry matches any one segment, so a concrete
+ * query finds a wildcard entry and a wildcard query finds a concrete one.
  */
 const trieQueryOverlap = <T>(
   root: TrieNode<T>,
   segments: ReadonlyArray<string>,
   out: Set<T>,
 ): void => {
-  let node: TrieNode<T> | undefined = root
-  for (const v of node.values) out.add(v)
-  for (let i = 0; i < segments.length; i++) {
-    node = node.children.get(segments[i]!)
-    if (node === undefined) return
-    // Ancestor values overlap; at the final segment we collect the entire subtree
-    if (i < segments.length - 1) {
-      for (const v of node.values) out.add(v)
-    } else {
+  const visit = (node: TrieNode<T>, depth: number): void => {
+    if (depth === segments.length) {
       collectSubtree(node, out)
+      return
     }
+    // A path ending here is an ancestor of the query, so it overlaps.
+    for (const value of node.values) out.add(value)
+    const segment = segments[depth]!
+    if (segment === '*') {
+      for (const child of node.children.values()) visit(child, depth + 1)
+      return
+    }
+    const exact = node.children.get(segment)
+    if (exact !== undefined) visit(exact, depth + 1)
+    const wildcard = node.children.get('*')
+    if (wildcard !== undefined && wildcard !== exact) visit(wildcard, depth + 1)
   }
+  visit(root, 0)
 }
 
 export interface DependencyGraph<W extends string = string, R extends string = string> {

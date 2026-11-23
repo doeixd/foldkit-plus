@@ -14,8 +14,11 @@ export const pathsOverlap = (a: ReadonlyArray<string>, b: ReadonlyArray<string>)
   Path.isPrefix(a, b) || Path.isPrefix(b, a)
 
 /**
- * Deduplicate and prefix-minimize a list of paths: if `['account']` is present,
- * `['account', 'balance']` is subsumed and dropped. Deterministic order.
+ * Deduplicate and minimize a list of paths: `['account']` subsumes
+ * `['account', 'balance']`, and `['todos', '*']` subsumes
+ * `['todos', '0', 'title']`. A concrete segment does not subsume a wildcard
+ * (`['todos', '0']` leaves `['todos', '*', 'title']` standing), since it
+ * covers that path for one index only. Deterministic order.
  */
 export const minimizePaths = (
   paths: ReadonlyArray<ReadonlyArray<string>>,
@@ -30,11 +33,24 @@ export const minimizePaths = (
     }
   }
   return unique.filter(
-    (candidate, i) =>
-      !unique.some(
-        (other, j) => i !== j && other.length < candidate.length && Path.isPrefix(other, candidate),
-      ),
+    (candidate, i) => !unique.some((other, j) => i !== j && covers(other, candidate)),
   )
+}
+
+/**
+ * True when every concrete path `candidate` matches, `cover` matches too: a
+ * segment of `cover` matches `*` or the same segment, and `*` in `candidate`
+ * is covered only by `*` in `cover` (or by a shorter `cover`, a whole subtree).
+ */
+export const covers = (cover: ReadonlyArray<string>, candidate: ReadonlyArray<string>): boolean => {
+  if (cover.length > candidate.length) return false
+  for (let i = 0; i < cover.length; i++) {
+    const a = cover[i]!
+    const b = candidate[i]!
+    if (a === '*') continue
+    if (b === '*' || a !== b) return false
+  }
+  return true
 }
 
 /**
