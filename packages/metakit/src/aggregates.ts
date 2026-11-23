@@ -11,8 +11,10 @@
  *   the contribution must be integer-valued (a `Schema.Int`, `Money` or
  *   `Decimal` field, or integer arithmetic over them): floating-point
  *   addition is not invertible (`0.1 + 0.2 + 0.3 - 0.2` is
- *   `0.4000000000000001`). The symbolic deltas let `Prove.transition` prove a
- *   rule over any number of rows.
+ *   `0.4000000000000001`). A difference of two safe totals may leave the safe
+ *   range itself, so `updateDelta` refuses it and `replaceTotal` computes the
+ *   exact next total instead. The symbolic deltas let `Prove.transition` prove
+ *   a rule over any number of rows.
  * - **Extremes and tests** (`Rows.min`, `Rows.max`, `Rows.every`,
  *   `Rows.any`): their folds are not invertible, so an insert is O(1) while
  *   deleting or updating the extremum rescans the rows.
@@ -28,6 +30,7 @@ import { isIntCheck } from './intCheck.js'
 import * as Node from './node.js'
 import { toNode, wrap, type ExprInput } from './ops/core.js'
 import * as Num from './ops/num.js'
+import * as Null from './ops/null.js'
 import * as Path from './path.js'
 import type { PathAccessor } from './path.js'
 import { foldProperties } from './properties.js'
@@ -52,6 +55,12 @@ interface GroupAggregate<Row, A extends number> {
   readonly deleteDelta: (row: Row) => A
   /** Exact O(1) delta for updating `before` to `after`: `next = prev + updateDelta(before, after)`. */
   readonly updateDelta: (before: Row, after: Row) => A
+  /**
+   * The total with `before` replaced by `after`, computed as one exact
+   * integer expression. Use this where the difference of the two may leave
+   * ±(2^53−1) while their total stays inside it.
+   */
+  readonly replaceTotal: (total: A, before: Row, after: Row) => A
   /** Symbolic delta of `insert(row)` over `{ row }`, for unbounded Zone and Z3 proofs. */
   readonly symbolicInsertDelta: Expr.Expr<{ readonly row: Row }, number>
   /** Symbolic delta of `update(before -> after)` over `{ before, after }`. */
@@ -181,6 +190,9 @@ const groupAggregate = <Row, A extends number>(
     )
   }
   const zero = identity.value as A
+  // A plain number keeps `null.coalesce`'s environment the row's alone: a generic
+  // `A` leaves its `EnvOfInput` unresolved.
+  const missing = zero as number
   // SQL `SUM` skips a null; a missing contribution moves nothing.
   const valueOf = (row: Row): A => {
     const value = Expr.eval(contribution, row)
@@ -188,6 +200,10 @@ const groupAggregate = <Row, A extends number>(
   }
   const liftTo = <Key extends string>(key: Key) =>
     Expr.lift(Path.field<{ readonly [K in Key]: Row }, Key>(key), contribution)
+  // The interface promises a number; `A` here is the generic contribution type,
+  // whose `null` handling is settled by `null.coalesce` below.
+  const liftNumber = <Key extends string>(key: Key) =>
+    liftTo(key) as Expr.Expr<{ readonly [K in Key]: Row }, number>
   return {
     identity: zero,
     rowSchema: rowSchema as unknown as Schema.Codec<Row>,
@@ -201,9 +217,24 @@ const groupAggregate = <Row, A extends number>(
     apply: (total, delta) => withinSafe(fold, BigInt(total) + BigInt(delta)) as A,
     insertDelta: valueOf,
     deleteDelta: row => (0 - valueOf(row)) as A,
-    updateDelta: (before, after) => (valueOf(after) - valueOf(before)) as A,
-    symbolicInsertDelta: liftTo('row'),
-    symbolicUpdateDelta: Num.sub(liftTo('after'), liftTo('before')),
+    updateDelta: (before, after) => {
+      const delta = BigInt(valueOf(after)) - BigInt(valueOf(before))
+      if (delta > SAFE_TOTAL || delta < -SAFE_TOTAL) {
+        throw new Node.Refusal({
+          reason: 'unsafe-integer',
+          at: `Rows.${fold}`,
+          detail: 'the update delta is past ±(2^53−1); replaceTotal keeps the exact total',
+        })
+      }
+      return Number(delta) as A
+    },
+    replaceTotal: (total, before, after) =>
+      withinSafe(fold, BigInt(total) - BigInt(valueOf(before)) + BigInt(valueOf(after))) as A,
+    symbolicInsertDelta: Null.coalesce(liftNumber('row'), missing),
+    symbolicUpdateDelta: Num.sub(
+      Null.coalesce(liftNumber('after'), missing),
+      Null.coalesce(liftNumber('before'), missing),
+    ),
   }
 }
 

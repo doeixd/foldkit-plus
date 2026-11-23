@@ -242,6 +242,13 @@ export const combine = <State, Input, V, Supplied = NoSupplied>(
   }
 }
 
+/** An emitted record's tag is its `_tag`; a payload field of that name would overwrite it. */
+const rejectReservedField = (name: string): void => {
+  if (name === '_tag') {
+    throw new Error('[metakit] an emitted record reserves the field name "_tag"; nest it instead')
+  }
+}
+
 /**
  * A record a step emits: `tag`, and each field's value over the state before
  * the step, as the written values are. With `when`, only where it is true.
@@ -249,7 +256,7 @@ export const combine = <State, Input, V, Supplied = NoSupplied>(
  */
 export const emit = <
   const Tag extends string,
-  const F extends Readonly<Record<string, unknown>>,
+  const F extends Readonly<Record<string, unknown>> & { readonly _tag?: never },
   W extends ExprInput<never, boolean | null> = true,
 >(
   tag: Tag,
@@ -261,12 +268,15 @@ export const emit = <
   > &
     (W extends ExprType<infer E, unknown> ? E : unknown),
   { readonly _tag: Tag } & { readonly [K in keyof F]: ValueOfInput<F[K]> }
-> => ({
-  _tag: 'Emitted',
-  tag,
-  fields: Object.entries(fields).map(([name, value]) => [name, toNode(value)] as const),
-  when: Option.map(Option.fromUndefinedOr(options?.when), toNode),
-})
+> => {
+  for (const name of Object.keys(fields)) rejectReservedField(name)
+  return {
+    _tag: 'Emitted',
+    tag,
+    fields: Object.entries(fields).map(([name, value]) => [name, toNode(value)] as const),
+    when: Option.map(Option.fromUndefinedOr(options?.when), toNode),
+  }
+}
 
 /** The writes of one transition, checked: no target twice, and none under another. */
 const checkedWrites = <W extends { readonly target: ReadonlyArray<string> }>(
@@ -331,7 +341,10 @@ export const make = <
     ),
     when: whenExpr,
     writes: checkedWrites(config.apply(env)),
-    emits: (config.emits?.(env) ?? []).map(({ tag, fields, when }) => ({ tag, fields, when })),
+    emits: (config.emits?.(env) ?? []).map(({ tag, fields, when }) => {
+      for (const [name] of fields) rejectReservedField(name)
+      return { tag, fields, when }
+    }),
   }
 }
 

@@ -232,6 +232,48 @@ describe('sum keeps exact deltas by reading only integers', () => {
     expect(total.insertDelta({ cents: null })).toBe(0)
     expect(total.updateDelta({ cents: 5 }, { cents: null })).toBe(-5)
   })
+
+  it('replaces two totals whose difference is not a safe integer', () => {
+    const Line = Schema.Struct({ cents: Schema.Int })
+    const total = Rows.sum(Line, $ => $.cents)
+    const min = Number.MIN_SAFE_INTEGER
+    const max = Number.MAX_SAFE_INTEGER
+    const before = { cents: min }
+    const after = { cents: max - 1 }
+
+    expect(total.replaceTotal(total.evaluate([before]), before, after)).toBe(
+      total.evaluate([after]),
+    )
+    expect(total.replaceTotal(total.evaluate([after]), after, before)).toBe(
+      total.evaluate([before]),
+    )
+    expect(total.replaceTotal(0, { cents: 0 }, { cents: 0 })).toBe(0)
+    expect(() => total.updateDelta(before, after)).toThrow(/update delta is past/)
+    expect(() => total.replaceTotal(max, { cents: 0 }, { cents: 1 })).toThrow(/total is past/)
+  })
+
+  it('gives a symbolic delta the identity for a missing contribution', () => {
+    const Line = Schema.Struct({ cents: Schema.NullOr(Schema.Int) })
+    const total = Rows.sum(Line, $ => $.cents)
+    const pairs = [
+      [{ cents: null }, { cents: 7 }],
+      [{ cents: 7 }, { cents: null }],
+      [{ cents: null }, { cents: null }],
+      [{ cents: 3 }, { cents: 9 }],
+    ] as const
+
+    for (const [before, after] of pairs) {
+      expect(Expr.eval(total.symbolicUpdateDelta, { before, after })).toBe(
+        total.updateDelta(before, after),
+      )
+      expect(Expr.eval(total.symbolicInsertDelta, { row: before })).toBe(total.insertDelta(before))
+      expect(Expr.eval(total.symbolicInsertDelta, { row: after })).toBe(total.insertDelta(after))
+    }
+
+    const tally = Rows.count(Entry, $ => $.settled)
+    const unknown = { id: 'a', amount: null, settled: null }
+    expect(Expr.eval(tally.symbolicInsertDelta, { row: unknown })).toBe(tally.insertDelta(unknown))
+  })
 })
 
 describe('metakit/aggregates imports no SQL', () => {
