@@ -209,8 +209,27 @@ const textOrder =
     both(args, ctx, (left, right) =>
       ctx.dialect === 'postgres'
         ? q`(${left} ${operator} ${right} COLLATE "C")`
-        : q`(${left} ${operator} ${right})`,
+        : q`(${left} COLLATE BINARY ${operator} ${right})`,
     )
+
+/**
+ * `=`, `IS`: exact identity. A SQLite column may declare a collation that
+ * matches text the expression does not (`NOCASE`, `RTRIM`), so its side is
+ * pinned to `BINARY`; Postgres compares text exactly unless the database
+ * declares a nondeterministic collation, which is its own choice.
+ */
+const textEqual =
+  (operator: (dialect: SqlDialect) => string): SqlLowerer =>
+  (args, ctx) => {
+    const text = needleKind(args[0]!) === 'text' || needleKind(args[1]!) === 'text'
+    return Result.flatMap(noFractionBesideInteger(args[0]!, args[1]!), () =>
+      both(args, ctx, (left, right) =>
+        text && ctx.dialect === 'sqlite'
+          ? q`(${left} COLLATE BINARY ${operator(ctx.dialect)} ${right})`
+          : q`(${left} ${operator(ctx.dialect)} ${right})`,
+      ),
+    )
+  }
 
 /** A list a transition writes is held in the state, never in a column this phase writes. */
 const listWrite = (id: Node.CoreOpId): Lowered =>
@@ -264,8 +283,8 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'bool.and': infix('AND'),
   'bool.or': infix('OR'),
   'bool.not': (args, ctx) => one(args, ctx, inner => q`(NOT ${inner})`),
-  'eq.is': numeric(byDialect('IS NOT DISTINCT FROM', 'IS')),
-  'eq.isNot': numeric(byDialect('IS DISTINCT FROM', 'IS NOT')),
+  'eq.is': textEqual(byDialect('IS NOT DISTINCT FROM', 'IS')),
+  'eq.isNot': textEqual(byDialect('IS DISTINCT FROM', 'IS NOT')),
   'eq.in': (args, ctx) => {
     const list = args[1]!
     if (!Node.$is('Lit')(list) || !Array.isArray(list.value)) {
@@ -273,6 +292,10 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
     }
     const candidates: ReadonlyArray<unknown> = list.value
     return Result.flatMap(ctx.lower(args[0]!), needle => {
+      const target =
+        ctx.dialect === 'sqlite' && needleKind(args[0]!) === 'text'
+          ? q`${needle} COLLATE BINARY`
+          : needle
       const present = candidates.filter(item => item !== null && item !== undefined)
       if (isIntegerTerm(args[0]!) && present.some(isFraction)) return fractionBesideInteger()
       const items: Array<Sql> = []
@@ -282,17 +305,17 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
         items.push(lowered.success)
       }
       if (candidates.length === 0) return Result.succeed(q`FALSE`)
-      if (items.length === 0) return Result.succeed(q`(${needle} IS NULL)`)
-      const among = q`(${needle} IN (${joined(items, ', ')}))`
+      if (items.length === 0) return Result.succeed(q`(${target} IS NULL)`)
+      const among = q`(${target} IN (${joined(items, ', ')}))`
       // `IN` is unknown of a null needle; membership answers false, so `NOT` of it holds.
       return Result.succeed(
         present.length < candidates.length
-          ? q`(${among} OR (${needle} IS NULL))`
-          : q`((${needle} IS NOT NULL) AND ${among})`,
+          ? q`(${among} OR (${target} IS NULL))`
+          : q`((${target} IS NOT NULL) AND ${among})`,
       )
     })
   },
-  'eq.equals': numeric(() => '='),
+  'eq.equals': textEqual(() => '='),
   'eq.among': (args, ctx) => {
     const list = args[1]!
     if (!Node.$is('Lit')(list) || !Array.isArray(list.value)) {
@@ -300,6 +323,10 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
     }
     const candidates: ReadonlyArray<unknown> = list.value
     return Result.flatMap(ctx.lower(args[0]!), needle => {
+      const target =
+        ctx.dialect === 'sqlite' && needleKind(args[0]!) === 'text'
+          ? q`${needle} COLLATE BINARY`
+          : needle
       if (isIntegerTerm(args[0]!) && candidates.some(isFraction)) return fractionBesideInteger()
       const items: Array<Sql> = []
       for (const item of candidates) {
@@ -309,7 +336,7 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
       }
       // No candidate is false whatever the value, as SQLite answers `x IN ()` and Drizzle writes an empty `inArray`.
       if (items.length === 0) return Result.succeed(q`FALSE`)
-      return Result.succeed(q`(${needle} IN (${joined(items, ', ')}))`)
+      return Result.succeed(q`(${target} IN (${joined(items, ', ')}))`)
     })
   },
   'null.isNull': (args, ctx) => one(args, ctx, inner => q`(${inner} IS NULL)`),
@@ -475,13 +502,13 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
     both(args, ctx, (s, prefix) =>
       ctx.dialect === 'postgres'
         ? q`(LEFT(${s}, char_length(${prefix})) = ${prefix})`
-        : q`(substr(${s}, 1, length(${prefix})) = ${prefix})`,
+        : q`(substr(${s}, 1, length(${prefix})) COLLATE BINARY = ${prefix})`,
     ),
   'str.endsWith': (args, ctx) =>
     both(args, ctx, (s, suffix) =>
       ctx.dialect === 'postgres'
         ? q`(RIGHT(${s}, char_length(${suffix})) = ${suffix})`
-        : q`(CASE WHEN (${s}) IS NULL OR (${suffix}) IS NULL THEN NULL ELSE (length(${suffix}) = 0 OR substr(${s}, -length(${suffix})) = ${suffix}) END)`,
+        : q`(CASE WHEN (${s}) IS NULL OR (${suffix}) IS NULL THEN NULL ELSE (length(${suffix}) = 0 OR substr(${s}, -length(${suffix})) COLLATE BINARY = ${suffix}) END)`,
     ),
   'str.contains': (args, ctx) =>
     both(
@@ -568,7 +595,11 @@ export const lowerNode = (
             ),
           ),
         Match: ({ on, cases, otherwise }) =>
-          Result.flatMap(ctx.lower(on), target => {
+          Result.flatMap(ctx.lower(on), rawTarget => {
+            const target =
+              ctx.dialect === 'sqlite' && needleKind(on) === 'text'
+                ? q`(${rawTarget} COLLATE BINARY)`
+                : rawTarget
             const arms: Array<Sql> = []
             for (const [value, branch] of cases) {
               const when = literal(value)

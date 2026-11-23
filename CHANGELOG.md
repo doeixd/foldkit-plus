@@ -98,6 +98,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `metakit/sql`: text ordering, equality, membership and `match` pin the SQLite side to `BINARY`, and `str.startsWith`/`str.endsWith` compare `BINARY`, so a column's declared `NOCASE` or `RTRIM` collation no longer changes which rows an expression selects (#621).
 - `metakit/sql`: a related aggregate's value binds its parameter before its filter does, as SQLite's anonymous `?` takes them in the order the SQL text names them (#618).
 - `metakit/sql`: `num.neg` widens an integer column before negating it on Postgres, whose `int4` negation raises on the smallest int4 before a later cast (#622).
 - `metakit`: `Transition.emit` refuses a payload field named `_tag`, which would overwrite the emitted record's routing tag, at `emit` and again at `Transition.make` for a hand-built emission (#620).
