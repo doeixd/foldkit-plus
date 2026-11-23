@@ -168,8 +168,10 @@ const renderer = (options: {
           onNone: () => Result.succeed(Option.none<string>()),
           onSome: each => Result.map(render(each, related), Option.some),
         })
-      return Result.flatMap(body(piece.where), where =>
-        Result.flatMap(body(piece.value), value =>
+      // Value before filter: the subquery writes SELECT's value ahead of WHERE's filter,
+      // and SQLite's `?` takes parameters in the order the text names them.
+      return Result.flatMap(body(piece.value), value =>
+        Result.flatMap(body(piece.where), where =>
           relatedSubquery(
             piece.fold,
             {

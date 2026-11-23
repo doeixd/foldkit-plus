@@ -98,6 +98,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `metakit/sql`: a related aggregate's value binds its parameter before its filter does, as SQLite's anonymous `?` takes them in the order the SQL text names them (#618).
+- `metakit/sql`: `num.neg` widens an integer column before negating it on Postgres, whose `int4` negation raises on the smallest int4 before a later cast (#622).
 - `metakit`: `Transition.emit` refuses a payload field named `_tag`, which would overwrite the emitted record's routing tag, at `emit` and again at `Transition.make` for a hand-built emission (#620).
 - `metakit/aggregates`: the symbolic insert and update deltas give a null contribution the fold's identity, as evaluation does, so a proof over a nullable total agrees with the maintained one (#624).
 - `foldkit-mixins`: a capability token answers for its own ancestors, so one made by another copy of the package satisfies its parents, as its type says; before, only the asking copy's registry was consulted, so a Behavior the type accepted failed to attach and `Style.forCapability` skipped the slot. A bare-name parent still resolves through the registry (#634).

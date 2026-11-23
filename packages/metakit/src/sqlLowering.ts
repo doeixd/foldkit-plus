@@ -340,7 +340,11 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'num.add': exact('+'),
   'num.sub': exact('-'),
   'num.mul': exact('*'),
-  'num.neg': (args, ctx) => one(args, ctx, inner => q`(- ${inner})`),
+  // Postgres negates an `int4` in int4 arithmetic before any later cast, and raises on -2147483648.
+  'num.neg': (args, ctx) =>
+    ctx.dialect === 'postgres' && isIntegerTerm(args[0]!)
+      ? one(args, ctx, inner => q`(CAST((- CAST(${inner} AS numeric)) AS bigint))`)
+      : one(args, ctx, inner => q`(- ${inner})`),
   'num.mulScaled': (args, ctx) => {
     const shift = args[2]
     if (!Node.$is('Lit')(shift) || !isShift(shift.value)) {
