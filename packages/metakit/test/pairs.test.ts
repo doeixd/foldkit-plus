@@ -264,7 +264,7 @@ describe('the registry', () => {
   })
   const owed = [Temporal.obligation({ name: 'A/B', shows: 'order', over: ['A', 'B'] })]
 
-  it('keeps an obligation open while its walks broke, and closes it when one held', () => {
+  it('keeps an obligation open while any ordinary walk broke, whatever a later walk held', () => {
     const registry = Temporal.makeRegistry()
     registry.declare({ owner: 'p', where: 'p.ts:1' }, owed)
     registry.record({ owner: 'p' }, { obligation: 'A/B', result: broken })
@@ -273,6 +273,14 @@ describe('the registry', () => {
       { owner: 'p' },
       { obligation: 'A/B', result: Temporal.WalkResult.Held({ seed: 1, runs: 5 }) },
     )
+    expect(registry.report().ok).toBe(false)
+    expect(registry.report().open[0]?.why).toBe('broke at seed 3 in the order A, B: x')
+  })
+
+  it('closes a pair whose walk answered that the order matters', () => {
+    const registry = Temporal.makeRegistry()
+    registry.declare({ owner: 'p', where: 'p.ts:1' }, owed)
+    registry.record({ owner: 'p' }, { obligation: 'A/B', result: broken, answer: 'order-matters' })
     expect(registry.report().ok).toBe(true)
   })
 

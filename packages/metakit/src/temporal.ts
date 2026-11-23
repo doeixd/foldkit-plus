@@ -469,6 +469,10 @@ export interface Discharge<Name extends string = string> {
 const closes = ({ result, answer }: Discharge): boolean =>
   WalkResult.$is('Held')(result) || answer !== undefined
 
+/** A recorded walk that broke the ordinary question; an exploratory pair's answer is not one. */
+const broke = (walks: ReadonlyArray<Discharge>): Discharge | undefined =>
+  walks.find(({ result, answer }) => WalkResult.$is('Broken')(result) && answer === undefined)
+
 /**
  * Walk `scenario` for `obligation`. Throws when the scenario has no step for
  * one of the obligation's `over` (a pair of one transition needs two steps of
@@ -500,7 +504,17 @@ export const undischarged = <Name extends string, Over extends string>(
   owed: ReadonlyArray<WalkObligation<Name, Over>>,
   discharges: ReadonlyArray<Discharge<NoInfer<Name>>>,
 ): ReadonlyArray<WalkObligation<Name, Over>> => {
-  const held = new Set(discharges.filter(closes).map(({ obligation: name }) => name))
+  const byName = new Map<string, Array<Discharge<NoInfer<Name>>>>()
+  for (const discharge of discharges) {
+    const walks = byName.get(discharge.obligation) ?? []
+    walks.push(discharge)
+    byName.set(discharge.obligation, walks)
+  }
+  const held = new Set(
+    [...byName]
+      .filter(([, walks]) => broke(walks) === undefined && walks.some(closes))
+      .map(([name]) => name),
+  )
   return owed.filter(({ name }) => !held.has(name))
 }
 
@@ -608,6 +622,11 @@ export const makeRegistry = (): Registry => {
     const discharged: Array<DischargedObligation> = []
     for (const [key, { scope, obligation }] of owed) {
       const walks = shown.get(key) ?? []
+      const failure = broke(walks)
+      if (failure !== undefined) {
+        open.push({ ...scope, obligation, why: describeResult(failure.result) })
+        continue
+      }
       const last = walks.at(-1)
       if (last !== undefined && closes(last)) {
         discharged.push({ ...scope, obligation, discharge: last })

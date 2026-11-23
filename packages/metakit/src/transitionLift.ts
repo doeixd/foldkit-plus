@@ -20,7 +20,11 @@ import {
   type WriteEquation,
 } from './transition.js'
 
-const rewriteStatePrefix = (node: Node.Node, outerSegments: ReadonlyArray<string>): Node.Node => {
+const rewriteStatePrefix = (
+  node: Node.Node,
+  outerSegments: ReadonlyArray<string>,
+  projected: WeakMap<object, unknown>,
+): Node.Node => {
   if (outerSegments.length === 0) return node
   return Node.$match(node, {
     Lit: lit => lit,
@@ -29,18 +33,21 @@ const rewriteStatePrefix = (node: Node.Node, outerSegments: ReadonlyArray<string
         ? Node.Path({ segments: ['state', ...outerSegments, ...segments.slice(1)], ast })
         : Node.Path({ segments, ast }),
     Call: ({ op, args }) =>
-      Node.Call({ op, args: args.map(arg => rewriteStatePrefix(arg, outerSegments)) }),
+      Node.Call({
+        op,
+        args: args.map(arg => rewriteStatePrefix(arg, outerSegments, projected)),
+      }),
     If: ({ cond, then, otherwise }) =>
       Node.If({
-        cond: rewriteStatePrefix(cond, outerSegments),
-        then: rewriteStatePrefix(then, outerSegments),
-        otherwise: rewriteStatePrefix(otherwise, outerSegments),
+        cond: rewriteStatePrefix(cond, outerSegments, projected),
+        then: rewriteStatePrefix(then, outerSegments, projected),
+        otherwise: rewriteStatePrefix(otherwise, outerSegments, projected),
       }),
     Match: ({ on, cases, otherwise }) =>
       Node.Match({
-        on: rewriteStatePrefix(on, outerSegments),
-        cases: cases.map(([v, b]) => [v, rewriteStatePrefix(b, outerSegments)] as const),
-        otherwise: Option.map(otherwise, b => rewriteStatePrefix(b, outerSegments)),
+        on: rewriteStatePrefix(on, outerSegments, projected),
+        cases: cases.map(([v, b]) => [v, rewriteStatePrefix(b, outerSegments, projected)] as const),
+        otherwise: Option.map(otherwise, b => rewriteStatePrefix(b, outerSegments, projected)),
       }),
     Opaque: ({ name, reads, run: fn }) =>
       Node.Opaque({
@@ -50,22 +57,31 @@ const rewriteStatePrefix = (node: Node.Node, outerSegments: ReadonlyArray<string
             segs[0] === 'state' ? ['state', ...outerSegments, ...segs.slice(1)] : segs,
           ),
         ),
+        // One projected environment per outer step, so a child's body runs once
+        // however many of its written values read it. Scoped to this lift, so
+        // separate mounts stay independent.
         run: env => {
           const outer = env as TransitionEnv<unknown, unknown, unknown>
           const innerState = Path.get(Path.make<unknown, unknown>(outerSegments), outer.state)
           // No child to run over: null, as a read of it is.
           return Option.match(innerState, {
             onNone: () => null,
-            onSome: state =>
-              state === null || state === undefined ? null : fn({ ...outer, state }),
+            onSome: state => {
+              if (state === null || state === undefined) return null
+              const known = projected.get(outer)
+              if (known !== undefined) return fn(known)
+              const projectedEnv = { ...outer, state }
+              projected.set(outer, projectedEnv)
+              return fn(projectedEnv)
+            },
           })
         },
       }),
     Rows: rows =>
       Node.mapRows(
         rows,
-        source => rewriteStatePrefix(source, outerSegments),
-        body => rewriteStatePrefix(body, outerSegments),
+        source => rewriteStatePrefix(source, outerSegments, projected),
+        body => rewriteStatePrefix(body, outerSegments, projected),
       ),
   })
 }
@@ -100,7 +116,8 @@ export const lift = <Outer, Inner, Input, Emit, Supplied = NoSupplied>(
   path: PathType<Outer, Inner>,
   transition: Transition<Inner, Input, Emit, Supplied>,
 ): Transition<Outer, Input, Emit, Supplied> => {
-  const move = (node: Node.Node): Node.Node => rewriteStatePrefix(node, path.segments)
+  const projected = new WeakMap<object, unknown>()
+  const move = (node: Node.Node): Node.Node => rewriteStatePrefix(node, path.segments, projected)
   return {
     _tag: 'Transition',
     stateSchema: Option.none(),
