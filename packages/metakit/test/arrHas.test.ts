@@ -8,9 +8,9 @@ import * as Prove from '../src/prove.js'
 import * as Sql from '../src/sql.js'
 
 const Row = Schema.Struct({
-  tags: Schema.NullOr(Schema.Array(Schema.String)),
+  tags: Schema.NullOr(Schema.Array(Schema.NullOr(Schema.String))),
   needle: Schema.NullOr(Schema.String),
-  nums: Schema.NullOr(Schema.Array(Schema.Int)),
+  nums: Schema.NullOr(Schema.Array(Schema.NullOr(Schema.Int))),
   numNeedle: Schema.NullOr(Schema.Int),
 })
 const $ = Path.forSchema(Schema.Struct({ row: Row }))
@@ -86,6 +86,8 @@ describe('Arr.has (Bout 1.4)', () => {
     const cases: ReadonlyArray<Schema.Schema.Type<typeof Row>> = [
       { tags: ['viewer', 'admin'], needle: 'admin', nums: [1, 2, 3], numNeedle: 2 },
       { tags: ['viewer', 'editor'], needle: 'admin', nums: [1, 2, 3], numNeedle: 9 },
+      { tags: ['a', null], needle: 'missing', nums: [1, null], numNeedle: 3 },
+      { tags: ['a', null], needle: 'a', nums: [1, null], numNeedle: 1 },
       { tags: [], needle: 'admin', nums: [], numNeedle: 1 },
       { tags: [], needle: null, nums: [], numNeedle: null },
       { tags: ['a', 'b'], needle: null, nums: [1], numNeedle: null },
@@ -141,6 +143,44 @@ describe('Arr.has (Bout 1.4)', () => {
           expect(pgVal, `postgres ${name} on ${JSON.stringify(row)}`).toBe(expected)
         }
       }
+
+      // C3: SQLite boolean-vs-integer distinction in json_each (true != 1, false != 0).
+      sqlite.exec('CREATE TABLE b (flags TEXT)')
+      sqlite.prepare('INSERT INTO b VALUES (?)').run(JSON.stringify([true]))
+      const BoolRow = Schema.Struct({
+        row: Schema.Struct({ flags: Schema.Array(Schema.Union([Schema.Boolean, Schema.Int])) }),
+      })
+      const $b = Path.forSchema(BoolRow)
+      const checkBool = (needle: boolean | number, expected: boolean) => {
+        const expr = Arr.has($b.row.flags, needle)
+        const lowered = Sql.lowerNode(expr.node, { dialect: 'sqlite', rowPrefix: ['row'] })
+        expect(Result.isSuccess(lowered)).toBe(true)
+        if (Result.isSuccess(lowered)) {
+          const params: Array<number | string | null> = []
+          const text = lowered.success
+            .map(piece =>
+              Sql.SqlPiece.$match(piece, {
+                Text: ({ text: t }) => t,
+                Value: ({ value }) => {
+                  params.push(typeof value === 'boolean' ? (value ? 1 : 0) : (value as number))
+                  return '?'
+                },
+                Column: ({ segments }) => `"${segments.join('_')}"`,
+                Foreign: () => '',
+                Each: () => '',
+                Rows: () => '',
+              }),
+            )
+            .join('')
+          const raw = (
+            sqlite.prepare(`SELECT ${text} AS ans FROM b`).get(...params) as { ans: number }
+          ).ans
+          expect(raw !== 0, `sqlite [true] has ${String(needle)}`).toBe(expected)
+        }
+      }
+      checkBool(true, true)
+      checkBool(false, false)
+      checkBool(1, false)
     } finally {
       sqlite.close()
       await pg.close()

@@ -6,8 +6,8 @@ export default [
     edits: [
       {
         file: '../src/sqlLowering.ts',
-        find: 'q`(CASE WHEN (${list}) IS NULL OR (${value}) IS NULL THEN NULL ELSE (${value} = ANY(${list})) END)`',
-        replace: 'q`(${value} = ANY(${list}))`',
+        find: 'return q`(CASE WHEN (${list}) IS NULL OR (${value}) IS NULL THEN NULL ELSE COALESCE(${value} = ANY(${list}), FALSE) END)`',
+        replace: 'return q`(${value} = ANY(${list}))`',
       },
     ],
     tests,
@@ -17,8 +17,8 @@ export default [
     edits: [
       {
         file: '../src/sqlLowering.ts',
-        find: 'q`(CASE WHEN (${list}) IS NULL OR (${value}) IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM json_each(${list}) WHERE value = ${value}) END)`',
-        replace: 'q`EXISTS (SELECT 1 FROM json_each(${list}) WHERE value = ${value})`',
+        find: 'return q`(CASE WHEN (${list}) IS NULL OR (${value}) IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM json_each(${list}) WHERE ${match}) END)`',
+        replace: 'return q`EXISTS (SELECT 1 FROM json_each(${list}) WHERE ${match})`',
       },
     ],
     tests,

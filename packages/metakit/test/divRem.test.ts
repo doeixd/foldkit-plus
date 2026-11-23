@@ -93,7 +93,7 @@ describe('Num.div, Num.rem, Num.round, Num.toDecimal, Num.toInt', () => {
     const pg = new PGlite()
     try {
       sqlite.exec('CREATE TABLE t (n INTEGER, d INTEGER)')
-      await pg.exec('CREATE TABLE t (n BIGINT, d BIGINT)')
+      await pg.exec('CREATE TABLE t (n INTEGER, d INTEGER)')
 
       const pairs: ReadonlyArray<readonly [number, number]> = [
         [0, 2],
@@ -106,6 +106,8 @@ describe('Num.div, Num.rem, Num.round, Num.toDecimal, Num.toInt', () => {
         [150, 100],
         [5, -2],
         [-7, -3],
+        [-1, 2_000_000_000],
+        [-2_000_000_000, 1_500_000_000],
         [10, 0],
       ]
       for (const [n, d] of pairs) {

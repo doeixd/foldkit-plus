@@ -7,8 +7,9 @@
  * placeholder can never part from its parameter. A reader renders the pieces
  * with its own column and bind strategy.
  */
-import { Data, Option, Result } from 'effect'
+import { Data, Option, Result, SchemaAST } from 'effect'
 import { isFraction, isIntegerLiteral, isIntegerTerm } from './ops/integerTerm.js'
+import { present } from './ops/kind.js'
 import * as Node from './node.js'
 import { isShift } from './ops/mulScaled.js'
 import { isOnZero, isRoundingMode } from './ops/divRem.js'
@@ -218,6 +219,46 @@ const listWrite = (id: Node.CoreOpId): Lowered =>
 /** An array is a Postgres array or SQLite JSON text; both give null for a null one. */
 const arrayLength = byDialect('cardinality', 'json_array_length')
 
+type NeedleKind = 'boolean' | 'number' | 'text' | 'unknown'
+
+const needleKind = (node: Node.Node): NeedleKind =>
+  Node.$match(node, {
+    Lit: ({ value }): NeedleKind =>
+      typeof value === 'boolean'
+        ? 'boolean'
+        : typeof value === 'number'
+          ? 'number'
+          : typeof value === 'string'
+            ? 'text'
+            : 'unknown',
+    Path: ({ ast }): NeedleKind => {
+      if (Option.isNone(ast)) return 'unknown'
+      const members = present(ast.value)
+      if (members.length === 0) return 'unknown'
+      if (members.every(SchemaAST.isBoolean)) return 'boolean'
+      if (members.every(SchemaAST.isNumber)) return 'number'
+      if (members.every(SchemaAST.isString)) return 'text'
+      return 'unknown'
+    },
+    Call: ({ op }): NeedleKind =>
+      op.returns === 'boolean'
+        ? 'boolean'
+        : op.returns === 'number'
+          ? 'number'
+          : op.returns === 'text'
+            ? 'text'
+            : 'unknown',
+    If: ({ then }): NeedleKind => needleKind(then),
+    Match: ({ cases }): NeedleKind => (cases.length > 0 ? needleKind(cases[0]![1]) : 'unknown'),
+    Opaque: (): NeedleKind => 'unknown',
+    Rows: ({ fold }): NeedleKind =>
+      fold === 'any' || fold === 'every'
+        ? 'boolean'
+        : fold === 'count' || fold === 'sum' || fold === 'min' || fold === 'max'
+          ? 'number'
+          : 'unknown',
+  })
+
 /** The lowering of every primitive: a new one fails to compile until it has a row here. */
 export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'bool.and': infix('AND'),
@@ -340,28 +381,30 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
       return unsupported('num.div with a non-literal divisor requires { onZero: "null" } in SQL')
     }
     return both([nNode!, dNode!], ctx, (rawN, rawD) => {
+      const wideN = ctx.dialect === 'postgres' ? q`CAST(${rawN} AS bigint)` : rawN
+      const wideD = ctx.dialect === 'postgres' ? q`CAST(${rawD} AS bigint)` : rawD
       const n =
         literalDivisor !== undefined && literalDivisor > 0
-          ? rawN
-          : q`(CASE WHEN ${rawD} < 0 THEN (- ${rawN}) ELSE ${rawN} END)`
+          ? wideN
+          : q`(CASE WHEN ${wideD} < 0 THEN (- ${wideN}) ELSE ${wideN} END)`
       const d =
         literalDivisor !== undefined && literalDivisor > 0
-          ? rawD
-          : q`(CASE WHEN ${rawD} < 0 THEN (- ${rawD}) ELSE ${rawD} END)`
+          ? wideD
+          : q`(CASE WHEN ${wideD} < 0 THEN (- ${wideD}) ELSE ${wideD} END)`
       const r = q`(((${n} % ${d}) + ${d}) % ${d})`
       const qFloor = q`((${n} - ${r}) / ${d})`
       const body =
         mode === 'floor'
           ? qFloor
           : mode === 'ceiling'
-            ? q`(CASE WHEN ${r} = 0 THEN ${qFloor} ELSE (${qFloor} + 1) END)`
+            ? q`(${qFloor} + (CASE WHEN ${r} = 0 THEN 0 ELSE 1 END))`
             : mode === 'toward-zero'
               ? q`((${n} - (${n} % ${d})) / ${d})`
               : mode === 'half-even'
-                ? q`(CASE WHEN (2 * ${r}) > ${d} THEN (${qFloor} + 1) WHEN (2 * ${r}) < ${d} THEN ${qFloor} WHEN (((${qFloor} % 2) + 2) % 2) = 0 THEN ${qFloor} ELSE (${qFloor} + 1) END)`
-                : q`(CASE WHEN (2 * ${r}) > ${d} THEN (${qFloor} + 1) WHEN (2 * ${r}) < ${d} THEN ${qFloor} WHEN ${n} >= 0 THEN (${qFloor} + 1) ELSE ${qFloor} END)`
+                ? q`(${qFloor} + (CASE WHEN (2 * ${r}) > ${d} THEN 1 WHEN (2 * ${r}) = ${d} AND (${qFloor} % 2) != 0 THEN 1 ELSE 0 END))`
+                : q`(${qFloor} + (CASE WHEN (2 * ${r}) > ${d} THEN 1 WHEN (2 * ${r}) = ${d} AND ${n} >= 0 THEN 1 ELSE 0 END))`
       if (literalDivisor !== undefined && literalDivisor !== 0) return body
-      return q`(CASE WHEN ${rawD} = 0 THEN NULL ELSE ${body} END)`
+      return q`(CASE WHEN ${wideD} = 0 THEN NULL ELSE ${body} END)`
     })
   },
   'num.rem': (args, ctx) => {
@@ -386,20 +429,25 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
         : q`(CASE WHEN ${right} = 0 THEN NULL ELSE (${left} % ${right}) END)`,
     )
   },
-  'time.addDays': (args, ctx) => both(args, ctx, (d, n) => q`(${d} + ${n})`),
-  'time.daysBetween': (args, ctx) => both(args, ctx, (a, b) => q`(${a} - ${b})`),
+  'time.addDays': exact('+'),
+  'time.daysBetween': exact('-'),
   'time.startOfMonth': (args, ctx) =>
     one(args, ctx, d =>
       ctx.dialect === 'postgres'
         ? q`(date_trunc('month', DATE '1970-01-01' + (${d})::integer)::date - DATE '1970-01-01')`
         : q`CAST(round(julianday(date('1970-01-01', (${d}) || ' days', 'start of month')) - 2440587.5) AS INTEGER)`,
     ),
+  // Valid over CalendarDay range 0001-01-01..9999-12-31 (-719162..2932896); SQLite guards 9999-12 month-end overflow.
   'time.addMonths': (args, ctx) =>
-    both(args, ctx, (d, n) =>
-      ctx.dialect === 'postgres'
-        ? q`(((DATE '1970-01-01' + (${d})::integer) + make_interval(months => (${n})::integer))::date - DATE '1970-01-01')`
-        : q`CAST(round(julianday(min(date(date('1970-01-01', (${d}) || ' days'), 'start of month', (${n}) || ' months', (CAST(strftime('%d', date('1970-01-01', (${d}) || ' days')) AS INTEGER) - 1) || ' days'), date(date('1970-01-01', (${d}) || ' days'), 'start of month', (${n}) || ' months', '+1 month', '-1 day'))) - 2440587.5) AS INTEGER)`,
-    ),
+    both(args, ctx, (d, n) => {
+      if (ctx.dialect === 'postgres') {
+        return q`(((DATE '1970-01-01' + (${d})::integer) + make_interval(months => (${n})::integer))::date - DATE '1970-01-01')`
+      }
+      const targetStart = q`date(date('1970-01-01', (${d}) || ' days'), 'start of month', (${n}) || ' months')`
+      const sameDom = q`date(${targetStart}, (CAST(strftime('%d', date('1970-01-01', (${d}) || ' days')) AS INTEGER) - 1) || ' days')`
+      const monthEnd = q`(CASE WHEN strftime('%Y-%m', ${targetStart}) = '9999-12' THEN '9999-12-31' ELSE date(${targetStart}, '+1 month', '-1 day') END)`
+      return q`CAST(round(julianday(min(${sameDom}, ${monthEnd})) - 2440587.5) AS INTEGER)`
+    }),
   'time.overlaps': (args, ctx) => {
     const [s1, e1, s2, e2] = args
     if (s1 === undefined || e1 === undefined || s2 === undefined || e2 === undefined) {
@@ -440,11 +488,21 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'arr.count': (args, ctx) => one(args, ctx, a => q`${arrayLength(ctx.dialect)}(${a})`),
   'arr.isEmpty': (args, ctx) => one(args, ctx, a => q`(${arrayLength(ctx.dialect)}(${a}) = 0)`),
   'arr.has': (args, ctx) =>
-    both(args, ctx, (list, value) =>
-      ctx.dialect === 'postgres'
-        ? q`(CASE WHEN (${list}) IS NULL OR (${value}) IS NULL THEN NULL ELSE (${value} = ANY(${list})) END)`
-        : q`(CASE WHEN (${list}) IS NULL OR (${value}) IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM json_each(${list}) WHERE value = ${value}) END)`,
-    ),
+    both(args, ctx, (list, value) => {
+      if (ctx.dialect === 'postgres') {
+        return q`(CASE WHEN (${list}) IS NULL OR (${value}) IS NULL THEN NULL ELSE COALESCE(${value} = ANY(${list}), FALSE) END)`
+      }
+      const kind = needleKind(args[1]!)
+      const match =
+        kind === 'boolean'
+          ? q`type = (CASE WHEN ${value} THEN 'true' ELSE 'false' END)`
+          : kind === 'number'
+            ? q`type IN ('integer', 'real') AND value = ${value}`
+            : kind === 'text'
+              ? q`type = 'text' AND value = ${value}`
+              : q`((typeof(${value}) IN ('integer', 'real') AND type IN ('integer', 'real')) OR type = typeof(${value})) AND value = ${value}`
+      return q`(CASE WHEN (${list}) IS NULL OR (${value}) IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM json_each(${list}) WHERE ${match}) END)`
+    }),
   'arr.append': () => listWrite('arr.append'),
   'arr.include': () => listWrite('arr.include'),
   'arr.exclude': () => listWrite('arr.exclude'),
