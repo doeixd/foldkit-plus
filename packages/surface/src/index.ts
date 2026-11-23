@@ -26,7 +26,13 @@ export {
   type MetadataKey,
   type MetadataSummary,
 } from 'foldkit-metadata'
-export { Closure, type ClosureProjection, ClosureViolation } from './closure.js'
+export {
+  Closure,
+  type ClosureProjection,
+  ClosureViolation,
+  ownedFields,
+  type OwnedFields,
+} from './closure.js'
 import type { ContractLaws } from './graph.js'
 import { isPrefix, labelOf, pathText, tableCell } from './text.js'
 export {

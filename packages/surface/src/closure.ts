@@ -13,15 +13,40 @@ export type ClosureProjection<Root, Value> =
       readonly schema: Schema.Schema<Value>
       readonly dependencies: DependencyTree
       readonly get: (root: Root) => Value
+      readonly set?: ((root: Root, value: Value) => Root) | undefined
     }
 
-const ownedBy = new WeakMap<DependencyTree, ReadonlySet<string>>()
+/** Top-level Model fields a projection owns whole (`path.length === 1`) vs partially (`path.length > 1`). */
+export interface OwnedFields {
+  readonly whole: ReadonlySet<string>
+  readonly partial: ReadonlySet<string>
+}
+
+const ownedBy = new WeakMap<DependencyTree, OwnedFields>()
 const equivalenceOf = new WeakMap<object, (a: never, b: never) => boolean>()
 
-const owned = (dependencies: DependencyTree): ReadonlySet<string> => {
+/**
+ * Partition the top-level Model fields touched by `dependencies` into `whole`
+ * (owned outright by a single-segment path) and `partial` (only sub-paths are
+ * owned). Used by both `Closure.reads` and `foldkit-sync` so both agree on
+ * which top-level fields are wholly owned.
+ */
+export const ownedFields = (dependencies: DependencyTree): OwnedFields => {
   let fields = ownedBy.get(dependencies)
   if (fields === undefined) {
-    fields = new Set(dependencies.map(path => path[0]).filter(key => key !== undefined))
+    const whole = new Set<string>()
+    const partial = new Set<string>()
+    for (const path of dependencies) {
+      const head = path[0]
+      if (head === undefined) continue
+      if (path.length === 1) {
+        whole.add(head)
+        partial.delete(head)
+      } else if (!whole.has(head)) {
+        partial.add(head)
+      }
+    }
+    fields = { whole, partial }
     ownedBy.set(dependencies, fields)
   }
   return fields
@@ -29,9 +54,13 @@ const owned = (dependencies: DependencyTree): ReadonlySet<string> => {
 
 const partsOf = <Root, Value>(
   projection: ClosureProjection<Root, Value>,
-): { readonly codec: Schema.Schema<Value>; readonly read: (root: Root) => Value } =>
+): {
+  readonly codec: Schema.Schema<Value>
+  readonly read: (root: Root) => Value
+  readonly set?: ((root: Root, value: Value) => Root) | undefined
+} =>
   'schema' in projection
-    ? { codec: projection.schema, read: projection.get }
+    ? { codec: projection.schema, read: projection.get, set: projection.set }
     : { codec: projection.Model, read: projection.read }
 
 const equivalence = <Value>(codec: Schema.Schema<Value>): ((a: Value, b: Value) => boolean) => {
@@ -63,19 +92,29 @@ const reads = <Root, Value, Message>(
 ): ReadonlyArray<string> => {
   const live = model as Readonly<Record<string, unknown>>
   const baseline = app.initial as Readonly<Record<string, unknown>>
-  const own = owned(projection.dependencies)
+  const { whole, partial } = ownedFields(projection.dependencies)
+  const { codec, read, set } = partsOf(projection)
   const outside = Object.keys(live).filter(
-    key => !own.has(key) && !Object.is(live[key], baseline[key]),
+    key =>
+      !whole.has(key) &&
+      (set !== undefined || !partial.has(key)) &&
+      !Object.is(live[key], baseline[key]),
   )
   if (outside.length === 0) return []
 
-  const { codec, read } = partsOf(projection)
   const equal = equivalence(codec)
+  const current = read(model)
   const after = read(app.update(model, message).model)
   const differs = (fields: ReadonlyArray<string>): boolean => {
     const reset = { ...live }
-    for (const key of fields) reset[key] = baseline[key]
-    const other = read(app.update(reset as Root, message).model)
+    let touchedPartial = false
+    for (const key of fields) {
+      reset[key] = baseline[key]
+      if (partial.has(key)) touchedPartial = true
+    }
+    const candidate =
+      touchedPartial && set !== undefined ? set(reset as Root, current) : (reset as Root)
+    const other = read(app.update(candidate, message).model)
     return !Object.is(after, other) && !equal(after, other)
   }
 

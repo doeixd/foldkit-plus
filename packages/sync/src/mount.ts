@@ -20,7 +20,7 @@ import * as Subscription from 'foldkit/subscription'
 import type { Subscriptions } from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import * as Url from 'foldkit/url'
-import { Closure, type RunnableApplication } from 'foldkit-surface'
+import { Closure, ownedFields, type RunnableApplication } from 'foldkit-surface'
 import { ReplayError, type ReplicaError } from './errors.js'
 import type { DefinedSync } from './make.js'
 import type { Replica, ReplicaStatus } from './sync.js'
@@ -454,13 +454,23 @@ export const mount = <
           >,
         )
 
-  // The Model fields outside the slice that a durable Message's result depends on. An `update`
-  // that throws on the reset Model is left to `submit`, which refuses what replay cannot apply.
-  const readsOutside = (model: Model, message: Message & Tagged): ReadonlyArray<string> => {
+  // The Model fields outside the slice that a durable Message's result depends on. If `Closure.reads`
+  // throws, its reads outside the slice are unknown, so every outside field is treated as read.
+  const readsOutside = (
+    model: Model,
+    message: Message & Tagged,
+  ): { readonly fields: ReadonlyArray<string>; readonly reason?: string } => {
     try {
-      return Closure.reads(app, sync.projection, model, message)
+      return { fields: Closure.reads(app, sync.projection, model, message) }
     } catch {
-      return []
+      const { whole } = ownedFields(sync.projection.dependencies)
+      const allOutside = Object.keys(model as Readonly<Record<string, unknown>>).filter(
+        key => !whole.has(key),
+      )
+      return {
+        fields: allOutside.length > 0 ? allOutside : ['*'],
+        reason: `[foldkit-sync] Closure.reads threw for Message "${message._tag}"; its reads outside the slice are unknown, so the replica treats every outside field as read. Declare a transition for "${message._tag}" to remove the guess.`,
+      }
     }
   }
 
@@ -478,13 +488,15 @@ export const mount = <
     const result: Update.Return<Model, RuntimeMessage, Resources> = Option.isSome(declared)
       ? { model: declared.value }
       : (app.update(model, message) as Update.Return<Model, RuntimeMessage, Resources>)
-    const outside = Option.isSome(declared) ? [] : readsOutside(model, message)
-    if (outside.length > 0) {
+    const outside = Option.isSome(declared) ? { fields: [] } : readsOutside(model, message)
+    if (outside.fields.length > 0) {
       // Not applied and not submitted: every other replica and the server replay this Message over
       // the slice alone, so the slice shown here would be one that none of them ever holds.
       persistsOwed++
       const error = new ReplayError({
-        message: `durable "${message._tag}" reads Model fields outside the shared projection: ${outside.join(', ')}`,
+        message:
+          outside.reason ??
+          `durable "${message._tag}" reads Model fields outside the shared projection: ${outside.fields.join(', ')}`,
       })
       return {
         model,

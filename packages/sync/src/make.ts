@@ -7,6 +7,7 @@
 import { Equal, Option, Predicate, Schema } from 'effect'
 import {
   MessageSet,
+  ownedFields,
   Projection,
   Surface,
   type AppScope,
@@ -499,9 +500,9 @@ const derivedReplay = <
   // built once, so a violation names the fields and replay (which runs per
   // pending operation on every optimistic read) does not re-compare the shared
   // slice against itself. A partially shared field is still compared.
-  const owned = new Set(shared.dependencies.filter(path => path.length === 1).map(path => path[0]))
+  const { whole } = ownedFields(shared.dependencies)
   const fields = Object.entries(app.Model.fields)
-    .filter(([key]) => !owned.has(key))
+    .filter(([key]) => !whole.has(key))
     .map(
       ([key, field]) =>
         [key, Schema.toEquivalence(field as unknown as Schema.Schema<unknown>)] as const,
