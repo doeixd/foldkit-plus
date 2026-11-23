@@ -207,7 +207,7 @@ class Writer {
         () => `MetadataToken.make(${literal(value.kind)}, ${literal(value.name)})`,
       )
     }
-    // A capability's parents are registered before it, so `extendsCapability` walks them.
+    // Parents are declared first because the child's `extends` array names them as values.
     const parents = (value.extends ?? []).map(parent => this.token(parent))
     return this.declare(
       `capability:${value.name}`,

@@ -1,7 +1,9 @@
 /**
  * Ported from `effect-atom-jsx/src/Element.ts` `Capability`, without Handle
  * objects. Inheritance is metadata: a behavior that needs Interactive can
- * attach to TextInput. Lookups go through a Map so `__proto__` is a legal name.
+ * attach to TextInput. A token answers for its own ancestors, so one made by
+ * another copy of this package still fits; the registry resolves a bare name.
+ * Lookups go through a Map so `__proto__` is a legal name.
  */
 import * as MetadataToken from './metadataToken.js'
 
@@ -28,7 +30,7 @@ export type AssignableNamesOf<T> = T extends string
 export type Satisfies<Actual, Required extends { readonly name: string }> =
   Required['name'] extends AssignableNamesOf<Actual> ? true : false
 
-const parentsByName = new Map<string, ReadonlyArray<string>>()
+const parentsByName = new Map<string, ReadonlyArray<CapabilityParent>>()
 const registry = new Map<string, Any>()
 
 export const is = (value: unknown): value is Any =>
@@ -57,29 +59,39 @@ export const make = <
     }
     throw new Error(`Capability "${name}" is already defined with a different extends list`)
   }
-  parentsByName.set(name, parentNames)
+  const frozenParents = Object.freeze([...parents]) as Extends
+  parentsByName.set(name, frozenParents)
   const capability: Capability<Name, Extends> = {
     ...MetadataToken.make('element.capability', name),
-    extends: Object.freeze([...parents]) as Extends,
+    extends: frozenParents,
   }
   registry.set(name, capability)
   return Object.freeze(capability)
 }
 
+/**
+ * A value's declared parents: a token carries its own, so a capability made by
+ * another copy of this package still knows its ancestors; a bare name — or a
+ * bare metadata token — resolves through this copy's registry.
+ */
+const parentsOf = (value: CapabilityParent): ReadonlyArray<CapabilityParent> =>
+  (typeof value === 'string' ? undefined : (value as Partial<Any>).extends) ??
+  parentsByName.get(MetadataToken.nameOf(value)) ??
+  []
+
 /** True when `value` is `base` or inherits from it. Ported from AF-UI. */
 export const extendsCapability = (value: string | Any, base: string | Any): boolean => {
-  const valueName = MetadataToken.nameOf(value)
   const baseName = MetadataToken.nameOf(base)
-  if (valueName === baseName) return true
   const visited = new Set<string>()
-  const stack = [...(parentsByName.get(valueName) ?? [])]
+  const stack: Array<CapabilityParent> = [value]
   while (stack.length > 0) {
     const current = stack.pop()
     if (current === undefined) continue
-    if (current === baseName) return true
-    if (visited.has(current)) continue
-    visited.add(current)
-    stack.push(...(parentsByName.get(current) ?? []))
+    const currentName = MetadataToken.nameOf(current)
+    if (currentName === baseName) return true
+    if (visited.has(currentName)) continue
+    visited.add(currentName)
+    stack.push(...parentsOf(current))
   }
   return false
 }
@@ -89,12 +101,13 @@ export const satisfies = (actual: string | Any, required: string | Any): boolean
 
 export const names = (capability: Any): ReadonlyArray<string> => {
   const seen = new Set<string>()
-  const walk = (name: string) => {
+  const walk = (value: CapabilityParent) => {
+    const name = MetadataToken.nameOf(value)
     if (seen.has(name)) return
     seen.add(name)
-    for (const parent of parentsByName.get(name) ?? []) walk(parent)
+    for (const parent of parentsOf(value)) walk(parent)
   }
-  walk(capability.name)
+  walk(capability)
   return [...seen]
 }
 
