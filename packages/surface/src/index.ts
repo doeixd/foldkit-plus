@@ -708,6 +708,7 @@ export const Projection = {
     options: {
       readonly verify?: boolean | undefined
       readonly Model?: Schema.Codec<Value, unknown>
+      readonly pathEpoch?: ((root: Root) => number) | undefined
     } = {},
   ): Derived<Root, Value> => {
     if (on.length === 0) {
@@ -721,13 +722,25 @@ export const Projection = {
     const dependencies = mergeDependencies(parts.flatMap(part => part.dependencies))
     // No path changes when what such a read reads does, so none can skip it.
     const always = parts.some(unnamed)
-    let last: { readonly values: ReadonlyArray<unknown>; readonly value: Value } | undefined
+    let last:
+      | { readonly values: ReadonlyArray<unknown>; readonly value: Value; readonly epoch?: number }
+      | undefined
     const derived: Derived<Root, Value> & { Model?: Schema.Codec<Value, unknown> } = {
       ...(options.Model === undefined ? {} : { Model: options.Model }),
       dependencies,
       read: root => {
-        const values = dependencies.map(path => valueAt(root, path))
         const before = last
+        const nextEpoch =
+          !always && options.pathEpoch !== undefined ? options.pathEpoch(root) : undefined
+        if (before !== undefined && nextEpoch !== undefined && nextEpoch === before.epoch) {
+          if (options.verify === true && !Equal.equals(derive(root), before.value)) {
+            throw new Error(
+              `Projection.derive: nothing it names changed (${dependencies.map(path => path.join('.')).join(', ')}), yet working the value out again gives another. It reads something its \`on\` does not name: add it there.`,
+            )
+          }
+          return before.value
+        }
+        const values = dependencies.map(path => valueAt(root, path))
         const hit =
           before !== undefined &&
           !always &&
@@ -743,7 +756,7 @@ export const Projection = {
             : hit
               ? before.value
               : keepAlike(before.value, derive(root))
-        last = { values, value }
+        last = nextEpoch === undefined ? { values, value } : { values, value, epoch: nextEpoch }
         return value
       },
     }
@@ -756,12 +769,16 @@ export const Projection = {
       options: {
         readonly verify?: boolean | undefined
         readonly Model: Schema.Codec<Value, unknown>
+        readonly pathEpoch?: ((root: Root) => number) | undefined
       },
     ): ModeledDerived<Root, Value>
     <Root, Value>(
       on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
       derive: (root: Root) => Value,
-      options?: { readonly verify?: boolean | undefined },
+      options?: {
+        readonly verify?: boolean | undefined
+        readonly pathEpoch?: ((root: Root) => number) | undefined
+      },
     ): Derived<Root, Value>
   },
 

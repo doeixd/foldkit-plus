@@ -826,10 +826,11 @@ export type Region<Root, Slots, Message> = (
 export const region = <Root, Value, Slots, Message>(
   reads: Reads<Root, Value>,
   draw: (value: Value, slots: SlotBuilders<Slots, Message>, h: HtmlBuilder<Message>) => Html,
+  options?: { readonly pathEpoch?: ((root: Root) => number) | undefined },
 ): Region<Root, Slots, Message> => {
   // Worked out again by the same rule a derivation is, and drawn again by the
   // lazy slot only when that gives a new value.
-  const derived = Projection.derive([reads], reads.read)
+  const derived = Projection.derive([reads], reads.read, options)
   const drawRegion = (
     slots: SlotBuilders<Slots, Message>,
     h: HtmlBuilder<Message>,
