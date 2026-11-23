@@ -72,16 +72,30 @@ export const compose = <Outer, Mid, Inner>(
   inner: Path<Mid, Inner>,
 ): Path<Outer, Inner> => make<Outer, Inner>([...outer.segments, ...inner.segments], inner.ast)
 
-/** Read the value at `path` from `env`, or `Option.none()` if any segment is missing. */
+/** True for a path whose Schema declares it an `Option` (`Schema.Option`, `Schema.OptionFromNullOr`). */
+const optionPath = <Env, A>(path: Path<Env, A>): boolean =>
+  Option.exists(path.ast, ast => Option.isSome(optionInner(ast)))
+
+/**
+ * Read the value at `path` from `env`, or `Option.none()` if any segment is
+ * missing. A path built from a Schema reads the logical value: through an
+ * `Option` to its value, or null for a none; a path made from raw segments
+ * reads storage, an `Option` included.
+ */
 export const get = <Env, A>(path: Path<Env, A>, env: Env): Option.Option<A> => {
+  const logical = Option.isSome(path.ast)
   let current: unknown = env
   for (const segment of path.segments) {
+    if (logical && Option.isOption(current)) {
+      if (Option.isNone(current)) return Option.some(null as A)
+      current = current.value
+    }
     if (current === null || typeof current !== 'object' || !Object.hasOwn(current, segment)) {
       return Option.none()
     }
     current = (current as Record<string, unknown>)[segment]
   }
-  return Option.some(current as A)
+  return Option.some((logical && Option.isOption(current) ? readable(current) : current) as A)
 }
 
 const ARRAY_INDEX = /^(0|[1-9]\d*)$/
@@ -95,6 +109,24 @@ export const set = <Env, A>(path: Path<Env, A>, env: Env, value: A): Env => {
   if (path.segments.length === 0) {
     return Object.is(env, value) ? env : (value as unknown as Env)
   }
+  const logical = Option.isSome(path.ast)
+  const stored =
+    logical && optionPath(path) ? (value === null ? Option.none() : Option.some(value)) : value
+  if (logical && !optionPath(path)) {
+    let current: unknown = env
+    for (let index = 0; index < path.segments.length - 1; index++) {
+      if (current === null || typeof current !== 'object') break
+      const segment = path.segments[index]!
+      current = Object.hasOwn(current, segment)
+        ? (current as Record<string, unknown>)[segment]
+        : undefined
+      if (Option.isOption(current)) {
+        throw new Error(
+          `[metakit] Path: "${format(path.segments)}" is inside the Option at "${format(path.segments.slice(0, index + 1))}": write the whole value`,
+        )
+      }
+    }
+  }
   const existing = get(path, env)
   if (Option.isSome(existing) && Object.is(existing.value, value)) {
     return env
@@ -105,7 +137,7 @@ export const set = <Env, A>(path: Path<Env, A>, env: Env, value: A): Env => {
       current !== null && typeof current === 'object' ? (current as Record<string, unknown>) : {}
     const existingChild = Object.hasOwn(base, key) ? base[key] : undefined
     const nextChild =
-      index === path.segments.length - 1 ? value : updateAt(existingChild, index + 1)
+      index === path.segments.length - 1 ? stored : updateAt(existingChild, index + 1)
     // An array stays one: a spread would turn it into an object keyed by index.
     if (Array.isArray(current) && ARRAY_INDEX.test(key) && Number(key) <= current.length) {
       const next: Array<unknown> = [...current]

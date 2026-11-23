@@ -56,6 +56,50 @@ describe('reading', () => {
   })
 })
 
+describe('Path.get and Path.set read and write the logical value', () => {
+  it('reads a some as its value and a none as null', () => {
+    expect(Path.get($.editingId, busy)).toEqual(Option.some('t1'))
+    expect(Path.get($.editingId, idle)).toEqual(Option.some(null))
+  })
+
+  it('reads through an Option to a field inside it', () => {
+    expect(Path.get($.undo.title, busy)).toEqual(Option.some('milk'))
+    expect(Path.get($.undo.title, idle)).toEqual(Option.some(null))
+  })
+
+  it('writes a value as a some and null as a none', () => {
+    const renamed = Path.set($.editingId, busy, 't2')
+    expect(renamed.editingId).toEqual(Option.some('t2'))
+    expect(Schema.is(Model)(renamed)).toBe(true)
+
+    const cleared = Path.set($.editingId, busy, null)
+    expect(cleared.editingId).toEqual(Option.none())
+    expect(Schema.is(Model)(cleared)).toBe(true)
+  })
+
+  it('keeps the model it was given where the field already reads as the value', () => {
+    expect(Path.set($.editingId, busy, 't1')).toBe(busy)
+    expect(Path.set($.editingId, idle, null)).toBe(idle)
+  })
+
+  it('writes a whole Option field', () => {
+    expect(Path.set($.undo, idle, { id: 'x', title: 'y' }).undo).toEqual(
+      Option.some({ id: 'x', title: 'y' }),
+    )
+    expect(Path.set($.undo, busy, null).undo).toEqual(Option.none())
+  })
+
+  it('refuses a write inside an Option', () => {
+    expect(() => Path.set($.undo.title, busy, 'x')).toThrow(/inside the Option at "undo"/)
+  })
+
+  it('leaves a raw path on storage, an Option included', () => {
+    expect(Path.get(Path.make<Model, unknown>(['editingId']), busy)).toEqual(
+      Option.some(Option.some('t1')),
+    )
+  })
+})
+
 describe('writing', () => {
   const Edit = Transition.make({
     state: Model,

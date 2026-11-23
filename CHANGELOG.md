@@ -98,6 +98,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `metakit/path`: `Path.get` and `Path.set` on a path built from a Schema read and write the logical value of an `Option` field (its value or null, stored as `some` or `none`), read through an `Option` to a field inside it, and refuse a write inside one; a path made from raw segments still reads and writes storage (#630).
 - `metakit`: a lifted `Transition.opaque` body runs once per step, however many of its written fields read the next state (#619).
 - `metakit/temporal`: a broken walk for a declared obligation stays open whichever order the walks were recorded, in `report` and `undischarged`; an exploratory `order-matters` answer still closes it, and declaring the obligation again clears the evidence (#632).
 - `metakit/graph`: an indexed lookup treats `*` as any one segment in either direction, so a writer at `todos.*.done` invalidates a reader at `todos.0.done` and `explain` agrees with `affectedBy`; `minimizePaths` drops a path only when another covers every read it covers, so `todos.0` no longer hides `todos.*.title` (#615, #616).
