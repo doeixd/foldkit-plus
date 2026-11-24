@@ -463,8 +463,23 @@ const mountList = (options: {
   )
 }
 
-// The browser tests share one pointer: a stale one over the list highlights its row on mount.
-const park = () => userEvent.hover(document.body, { position: { x: 1400, y: 880 } })
+// Park before mounting. A stale pointer over the list selects a row as it appears.
+const park = async () => {
+  const corner = document.createElement('div')
+  Object.assign(corner.style, {
+    position: 'fixed',
+    right: '0',
+    bottom: '0',
+    width: '8px',
+    height: '8px',
+  })
+  document.body.append(corner)
+  try {
+    await userEvent.hover(corner)
+  } finally {
+    corner.remove()
+  }
+}
 const activeRow = () => document.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')
 /** Presses ArrowDown `count` times, each once the one before is drawn: a key meets the last frame's view. */
 const down = async (count: number) => {
@@ -480,6 +495,7 @@ const inView = (row: HTMLElement) => {
 }
 
 test('the highlighted row is scrolled into the list as the keys move it, with keepActiveInView', async () => {
+  await park()
   const handle = mountList({ mixins: Command.keepActiveInView })
   try {
     const input = await vi.waitFor(() => {
@@ -487,7 +503,6 @@ test('the highlighted row is scrolled into the list as the keys move it, with ke
       expect(found).not.toBeNull()
       return found!
     })
-    await park()
     input.focus()
     const list = document.querySelector<HTMLElement>('[role="listbox"]')!
     expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
@@ -500,6 +515,7 @@ test('the highlighted row is scrolled into the list as the keys move it, with ke
 })
 
 test('without keepActiveInView the list stays where it was', async () => {
+  await park()
   const handle = mountList({})
   try {
     const input = await vi.waitFor(() => {
@@ -507,7 +523,6 @@ test('without keepActiveInView the list stays where it was', async () => {
       expect(found).not.toBeNull()
       return found!
     })
-    await park()
     input.focus()
     await down(20)
     expect(inView(activeRow()!)).toBe(false)
@@ -517,6 +532,7 @@ test('without keepActiveInView the list stays where it was', async () => {
 })
 
 test('PageDown and PageUp move the highlight; typing and the caret keys, Home and End included, stay the field’s', async () => {
+  await park()
   const handle = mountList({
     routes: [
       Behaviors.Keys.route('Clear', {
@@ -532,7 +548,6 @@ test('PageDown and PageUp move the highlight; typing and the caret keys, Home an
       expect(found).not.toBeNull()
       return found!
     })
-    await park()
     input.focus()
     const at = () => activeRow()?.textContent
     await userEvent.keyboard('{ArrowDown}')

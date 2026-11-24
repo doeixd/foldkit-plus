@@ -81,19 +81,18 @@ test('a keycap has a heavier lower edge and a lit top inside it', async () => {
   }
 })
 
-// The ink is dark on the keycap's light face. Measured on a screenshot of
-// each key, a capital K sat 0.0px across and 0.5px high, and a command sign
-// 0.5px left and 0.5px high: a half pixel is what a screenshot's whole pixels
-// resolve, so the bound is a pixel, under which the old untrimmed line (a
-// pixel high) falls out. The key's borders lie outside the 15% margin the
-// reading leaves out.
+// The painted face starts inside the thicker bottom edge of the keycap.
 test.each(['K', '\u2318'])("a key's ink is centered on its face: %s", async glyph => {
   const handle = mount([glyph])
   try {
     await vi.waitFor(() => expect(keys()).toHaveLength(1))
-    const { x, y } = await inkOffsetOf(keys()[0]!, brightness => brightness < 128)
+    const key = keys()[0]!
+    const { x, y } = await inkOffsetOf(key, brightness => brightness < 128)
+    const style = getComputedStyle(key)
+    const faceY =
+      (Number.parseFloat(style.borderTopWidth) - Number.parseFloat(style.borderBottomWidth)) / 2
     expect(Math.abs(x)).toBeLessThan(1)
-    expect(Math.abs(y)).toBeLessThan(1)
+    expect(Math.abs(y - faceY)).toBeLessThan(1)
   } finally {
     handle.dispose()
   }
