@@ -438,7 +438,38 @@ describe('metakit/graph', () => {
       expect(g.affectedBy('UnknownReadWriter')).toEqual([])
     })
 
-    it('builds a 500-node graph under 5 ms at definition time', () => {
+    it('orders and deduplicates sparse direct and bridged hits by declaration', () => {
+      const row = Graph.rowPath('Note', ['title'])
+      const model = Graph.modelPath(['note', 'title'])
+      const rowEdge = Graph.knownEdge(row)
+      const modelEdge = Graph.knownEdge(model)
+      const unrelated = Array.from({ length: 32 }, (_, i) => ({
+        id: `other${i}`,
+        kind: 'binding' as const,
+        reads: [Graph.knownEdge(Graph.modelPath(['other', String(i)]))],
+      }))
+      const graph = Graph.build({
+        writers: [
+          { id: 'row', kind: 'write', writes: [rowEdge, modelEdge] },
+          { id: 'model', kind: 'transition', writes: [modelEdge] },
+          ...unrelated.map(({ id, reads }) => ({ id, kind: 'transition' as const, writes: reads })),
+        ],
+        readers: [
+          { id: 'model', kind: 'binding', reads: [modelEdge] },
+          { id: 'both', kind: 'binding', reads: [rowEdge, modelEdge] },
+          ...unrelated,
+          { id: 'dead', kind: 'binding', reads: [Graph.knownEdge(Graph.modelPath(['dead']))] },
+        ],
+        links: [{ row, model }],
+      })
+
+      expect(graph.readersOf(row)).toEqual(['model', 'both'])
+      expect(graph.affectedBy('row')).toEqual(['model', 'both'])
+      expect(graph.writersOf(model)).toEqual(['row', 'model'])
+      expect(graph.deadReaders()).toEqual(['dead'])
+    })
+
+    it('builds and queries a 500-node graph', () => {
       const writers: Array<Graph.WriterNode> = []
       const readers: Array<Graph.ReaderNode> = []
       for (let i = 0; i < 250; i++) {

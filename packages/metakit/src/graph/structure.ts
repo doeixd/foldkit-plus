@@ -214,6 +214,19 @@ export interface DependencyGraph<W extends string = string, R extends string = s
 const isUnknownEdge = (edge: PathEdge): boolean =>
   edge.knowledge === 'unknown' || Option.isNone(edge.path)
 
+const orderHits = <Id>(
+  hits: ReadonlySet<Id>,
+  ranks: ReadonlyMap<Id, number>,
+): ReadonlyArray<Id> => {
+  const ids = [...hits]
+  if (ids.length < 2) return ids
+  // A dense lookup is cheaper to scan than to sort.
+  if (ids.length * Math.log2(ids.length) >= ranks.size) {
+    return [...ranks.keys()].filter(id => hits.has(id))
+  }
+  return ids.sort((left, right) => ranks.get(left)! - ranks.get(right)!)
+}
+
 /**
  * Build the indexed `DependencyGraph` once from writers, readers, and optional
  * `row -> model` bridge links.
@@ -225,8 +238,8 @@ export const build = <const W extends string = string, const R extends string = 
 }): DependencyGraph<W, R> => {
   const writerMap = new Map<W, WriterNode<W>>()
   const readerMap = new Map<R, ReaderNode<R>>()
-  const readerOrder: Array<R> = []
-  const writerOrder: Array<W> = []
+  const readerRanks = new Map<R, number>()
+  const writerRanks = new Map<W, number>()
   const links = config.links ?? []
 
   const readerTrie = emptyTrie<R>()
@@ -248,7 +261,7 @@ export const build = <const W extends string = string, const R extends string = 
       throw new Error(`[metakit/graph] duplicate writer id "${w.id}"`)
     }
     writerMap.set(w.id, w)
-    writerOrder.push(w.id)
+    writerRanks.set(w.id, writerRanks.size)
     for (const edge of w.writes) {
       if (isUnknownEdge(edge)) {
         unknownWriteWriters.add(w.id)
@@ -269,7 +282,7 @@ export const build = <const W extends string = string, const R extends string = 
       throw new Error(`[metakit/graph] duplicate reader id "${r.id}"`)
     }
     readerMap.set(r.id, r)
-    readerOrder.push(r.id)
+    readerRanks.set(r.id, readerRanks.size)
     for (const edge of r.reads) {
       if (isUnknownEdge(edge)) {
         unknownReaders.add(r.id)
@@ -278,12 +291,6 @@ export const build = <const W extends string = string, const R extends string = 
       }
     }
   }
-
-  const orderReaders = (set: ReadonlySet<R>): ReadonlyArray<R> =>
-    readerOrder.filter(id => set.has(id))
-
-  const orderWriters = (set: ReadonlySet<W>): ReadonlyArray<W> =>
-    writerOrder.filter(id => set.has(id))
 
   const readersOf = (path: PathAddress): ReadonlyArray<R> => {
     const hit = new Set<R>(unknownReaders)
@@ -294,7 +301,7 @@ export const build = <const W extends string = string, const R extends string = 
     for (const link of bridged) {
       trieQueryOverlap(readerTrie, addressKeySegments(link.model), hit)
     }
-    return orderReaders(hit)
+    return orderHits(hit, readerRanks)
   }
 
   const writersOf = (path: PathAddress): ReadonlyArray<W> => {
@@ -307,7 +314,7 @@ export const build = <const W extends string = string, const R extends string = 
     for (const link of bridged) {
       trieQueryOverlap(writerTrie, addressKeySegments(link.row), hit)
     }
-    return orderWriters(hit)
+    return orderHits(hit, writerRanks)
   }
 
   const affectedBy = (writerId: W): ReadonlyArray<R> => {
@@ -315,7 +322,7 @@ export const build = <const W extends string = string, const R extends string = 
     if (w === undefined || w.writes.length === 0) return []
     if (unknownWriteWriters.has(writerId)) {
       // An unknown write can affect every reader in the graph
-      return [...readerOrder]
+      return [...readerRanks.keys()]
     }
     const hit = new Set<R>(unknownReaders)
     const bridged = new Set<RowToModelLink>()
@@ -329,7 +336,7 @@ export const build = <const W extends string = string, const R extends string = 
     for (const link of bridged) {
       trieQueryOverlap(readerTrie, addressKeySegments(link.model), hit)
     }
-    return orderReaders(hit)
+    return orderHits(hit, readerRanks)
   }
 
   const explain = (writerId: W, readerId: R): ReadonlyArray<OverlapReason> => {
@@ -367,16 +374,16 @@ export const build = <const W extends string = string, const R extends string = 
   }
 
   const unknowns = () => ({
-    writers: orderWriters(unknownAnyWriters),
-    readers: orderReaders(unknownReaders),
+    writers: orderHits(unknownAnyWriters, writerRanks),
+    readers: orderHits(unknownReaders, readerRanks),
   })
 
   const deadReaders = (): ReadonlyArray<R> => {
     const everAffected = new Set<R>()
-    for (const wId of writerOrder) {
+    for (const wId of writerRanks.keys()) {
       for (const rId of affectedBy(wId)) everAffected.add(rId)
     }
-    return readerOrder.filter(id => !everAffected.has(id))
+    return [...readerRanks.keys()].filter(id => !everAffected.has(id))
   }
 
   // The pair is put in one order first, so `overlaps(a, b)` and `overlaps(b, a)`
