@@ -175,11 +175,8 @@ jobs:
       - run: pnpm exec vitest run --project unit examples/site/test packages/plus/test
 
   # What jsdom cannot check: layout, focus, the caret, in headless Chromium.
-  # Each shard runs ONE browser project (never `browser` + `browser-touch`
-  # together, which opens two Chromium instances in one runner) and stays under
-  # ~60 files so Chromium's renderer never hits its ~75-file memory wall
-  # (`VITEST_BROWSER_CONNECTION_CLOSED`). The light `touch` shard also runs the
-  # two Node unit files that launch Playwright themselves.
+  # Run the desktop tests in shorter batches with fresh Chromium instances.
+  # The touch job also runs the two Node tests that launch Playwright directly.
   browser:
     needs: changes
     if: needs.changes.outputs.browser == 'true'
@@ -190,13 +187,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: 1/6, args: --project browser --shard=1/6, pw_unit: '' }
-          - { name: 2/6, args: --project browser --shard=2/6, pw_unit: '' }
-          - { name: 3/6, args: --project browser --shard=3/6, pw_unit: '' }
-          - { name: 4/6, args: --project browser --shard=4/6, pw_unit: '' }
-          - { name: 5/6, args: --project browser --shard=5/6, pw_unit: '' }
-          - { name: 6/6, args: --project browser --shard=6/6, pw_unit: '' }
-          - { name: touch, args: --project browser-touch, pw_unit: '1' }
+          - { name: 1/6, project: browser, batches: '1/24 2/24 3/24 4/24', pw_unit: '' }
+          - { name: 2/6, project: browser, batches: '5/24 6/24 7/24 8/24', pw_unit: '' }
+          - { name: 3/6, project: browser, batches: '9/24 10/24 11/24 12/24', pw_unit: '' }
+          - { name: 4/6, project: browser, batches: '13/24 14/24 15/24 16/24', pw_unit: '' }
+          - { name: 5/6, project: browser, batches: '17/24 18/24 19/24 20/24', pw_unit: '' }
+          - { name: 6/6, project: browser, batches: '21/24 22/24 23/24 24/24', pw_unit: '' }
+          - { name: touch, project: browser-touch, batches: '', pw_unit: '1' }
     steps:
       - uses: actions/checkout@v7
 
@@ -204,58 +201,58 @@ jobs:
 
       - uses: ./.github/actions/setup-playwright
 
-      # One worker per runner: Chromium sometimes closes its connection mid-run
-      # in a different shard each time (#582; cause unknown), and two workers
-      # share one machine's memory. A run that fails with that signature alone
-      # is run once more and the re-run is written to the job summary; any
-      # other failure, an assertion failure included, fails the job at once, and
-      # so does a second failure of the same shard. The signature is the error
-      # code with no failed test: a failed test prints ` FAIL `, a `Failed
-      # Tests` heading and `N failed` in the summary counts, and none of those
-      # appears when a file only failed to load.
+      # Desktop shards can lose the browser connection mid-run (#582).
+      # Restart Chromium between batches. Retry only for that connection error
+      # and only when it contains no failed test.
       - name: Browser tests (one re-run when the browser connection closes)
         env:
-          ARGS: ${{ matrix.args }}
-          SHARD: ${{ matrix.name }}
+          BROWSER_PROJECT: ${{ matrix.project }}
+          BROWSER_BATCHES: ${{ matrix.batches }}
         run: |
           set -o pipefail
-          first_log="$RUNNER_TEMP/browser-first.log"
-          second_log="$RUNNER_TEMP/browser-second.log"
 
           # pipefail makes the pipeline's status pnpm's, not tee's.
           run_tests() {
-            # shellcheck disable=SC2086
-            pnpm test $ARGS --maxWorkers=1 2>&1 | tee "$1"
+            local log="$1"
+            shift
+            pnpm test --project "$BROWSER_PROJECT" --maxWorkers=1 --no-color "$@" 2>&1 | tee "$log"
           }
 
-          status=0
-          run_tests "$first_log" || status=$?
-          if [ "$status" -eq 0 ]; then
-            exit 0
-          fi
+          run_batch() {
+            local label="$1" status=0
+            shift
+            local first_log="$RUNNER_TEMP/browser-first.log"
+            local second_log="$RUNNER_TEMP/browser-second.log"
+            run_tests "$first_log" "$@" || status=$?
+            if [ "$status" -eq 0 ]; then
+              return 0
+            fi
 
-          if grep -q 'VITEST_BROWSER_CONNECTION_CLOSED' "$first_log" \
-            && ! grep -Eq '(^|[[:space:]])FAIL[[:space:]]|Failed Tests|[0-9]+ failed' "$first_log"; then
-            file=$(grep -o 'Failed to run the test [^ ]*' "$first_log" | head -n 1 || true)
-            echo "::warning title=browser ($SHARD) re-run::The browser connection closed (VITEST_BROWSER_CONNECTION_CLOSED); running the shard once more. ${file}"
-            {
-              echo "### browser ($SHARD): re-run once"
-              echo
-              echo "The first run failed with \`VITEST_BROWSER_CONNECTION_CLOSED\` and no failed test (${file:-no file named}). Re-running the shard once; a second failure fails the job. See #582."
-            } >> "$GITHUB_STEP_SUMMARY"
+            if grep -q 'VITEST_BROWSER_CONNECTION_CLOSED' "$first_log" \
+              && ! grep -Eq '(^|[[:space:]])FAIL[[:space:]]|Failed Tests|[1-9][0-9]* failed' "$first_log"; then
+              local file
+              file=$(grep -o 'Failed to run the test [^ ]*' "$first_log" | head -n 1 || true)
+              echo "::warning title=browser ($label) re-run::The browser connection closed (VITEST_BROWSER_CONNECTION_CLOSED); retrying this batch. ${file}"
+              {
+                echo "### browser ($label): re-run once"
+                echo
+                echo "The first run lost the browser connection and had no failed test (${file:-no file named}). See #582."
+              } >> "$GITHUB_STEP_SUMMARY"
 
-            status=0
-            run_tests "$second_log" || status=$?
-            {
-              echo
-              if [ "$status" -eq 0 ]; then
-                echo "The re-run passed."
-              else
-                echo "The re-run failed (exit $status): treated as real."
-              fi
-            } >> "$GITHUB_STEP_SUMMARY"
+              status=0
+              run_tests "$second_log" "$@" || status=$?
+              echo "The re-run exited with status $status." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            return "$status"
+          }
+
+          if [ -z "$BROWSER_BATCHES" ]; then
+            run_batch touch
+          else
+            for batch in $BROWSER_BATCHES; do
+              run_batch "$batch" "--shard=$batch"
+            done
           fi
-          exit "$status"
 
       - if: matrix.pw_unit == '1'
         env:
