@@ -373,6 +373,7 @@ jobs:
           pnpm build:packages
           node -e "import('node:fs').then(async ({ readdirSync, existsSync }) => { const { canonicalizeDist } = await import('./scripts/bundle-report.mjs'); for (const d of readdirSync('packages')) { const dist = 'packages/' + d + '/dist'; if (existsSync(dist)) canonicalizeDist(dist); } })"
           node scripts/published-types.mjs
+          pnpm --filter foldkit-successor test:declarations
           pnpm -r --filter "./packages/*" exec pnpm pack --pack-destination "$GITHUB_WORKSPACE/tarballs"
           tar -cf packages-dist.tar packages/*/dist
 

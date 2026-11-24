@@ -4295,6 +4295,25 @@ importers:
         specifier: 8.3.5
         version: 8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
+  packages/successor:
+    dependencies:
+      effect:
+        specifier: 4.1.4
+        version: 4.1.4
+      metakit:
+        specifier: workspace:*
+        version: link:../metakit
+    devDependencies:
+      foldkit-durable:
+        specifier: workspace:*
+        version: link:../durable
+      tsdown:
+        specifier: ^0.23.1
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/surface:
     dependencies:
       foldkit-entity:

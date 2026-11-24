@@ -1,0 +1,48 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "noEmit": false,
+    "paths": {
+      "foldkit-durable": ["../durable/src/index.ts"],
+      "foldkit-durable/core": ["../durable/src/core.ts"],
+      "foldkit-successor/block": ["./src/block.ts"],
+      "foldkit-successor/commands": ["./src/commands.ts"],
+      "foldkit-successor/dom": ["./src/dom.ts"],
+      "foldkit-successor/event-sourced": ["./src/eventSourced.ts"],
+      "foldkit-successor/journal": ["./src/journal.ts"],
+      "foldkit-successor/sqlite": ["./src/sqlite.ts"],
+      "foldkit-successor/surface": ["./src/surface.ts"],
+      "metakit": ["../metakit/src/index.ts"],
+      "metakit/aggregates": ["../metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../metakit/src/aggregatesSql.ts"],
+      "metakit/build": ["../metakit/src/build.ts"],
+      "metakit/conformance": ["../metakit/src/conformance.ts"],
+      "metakit/domain": ["../metakit/src/domain.ts"],
+      "metakit/drizzle": ["../metakit/src/drizzle.ts"],
+      "metakit/graph": ["../metakit/src/graph.ts"],
+      "metakit/graph/match": ["../metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../metakit/src/inspect.ts"],
+      "metakit/machine": ["../metakit/src/machine.ts"],
+      "metakit/operation": ["../metakit/src/operation.ts"],
+      "metakit/operation/sql": ["../metakit/src/operationSql.ts"],
+      "metakit/pairs": ["../metakit/src/pairs.ts"],
+      "metakit/policy": ["../metakit/src/policy.ts"],
+      "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/relation": ["../metakit/src/relation.ts"],
+      "metakit/sql": ["../metakit/src/sql.ts"],
+      "metakit/store": ["../metakit/src/store.ts"],
+      "metakit/temporal": ["../metakit/src/temporal.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
+  "references": [
+    { "path": "../durable/tsconfig.build.json" },
+    { "path": "../metakit/tsconfig.build.json" }
+  ]
+}

@@ -15,6 +15,7 @@
     { "path": "./packages/sync" },
     { "path": "./packages/metadata" },
     { "path": "./packages/metakit" },
+    { "path": "./packages/successor" },
     { "path": "./packages/media" },
     { "path": "./packages/plus" },
     { "path": "./packages/composition" },

@@ -1,0 +1,8 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "tsBuildInfoFile": "../.tsbuild/consumer.tsbuildinfo"
+  },
+  "files": ["eventSourced.test-d.ts", "todoSurface.test-d.ts"]
+}

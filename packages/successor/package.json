@@ -1,0 +1,61 @@
+{
+  "name": "foldkit-successor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./block": {
+      "foldkit-plus:source": "./src/block.ts",
+      "types": "./dist/block.d.ts",
+      "import": "./dist/block.js"
+    },
+    "./commands": {
+      "foldkit-plus:source": "./src/commands.ts",
+      "types": "./dist/commands.d.ts",
+      "import": "./dist/commands.js"
+    },
+    "./dom": {
+      "foldkit-plus:source": "./src/dom.ts",
+      "types": "./dist/dom.d.ts",
+      "import": "./dist/dom.js"
+    },
+    "./journal": {
+      "foldkit-plus:source": "./src/journal.ts",
+      "types": "./dist/journal.d.ts",
+      "import": "./dist/journal.js"
+    },
+    "./event-sourced": {
+      "foldkit-plus:source": "./src/eventSourced.ts",
+      "types": "./dist/eventSourced.d.ts",
+      "import": "./dist/eventSourced.js"
+    },
+    "./sqlite": {
+      "foldkit-plus:source": "./src/sqlite.ts",
+      "types": "./dist/sqlite.d.ts",
+      "import": "./dist/sqlite.js"
+    },
+    "./surface": {
+      "foldkit-plus:source": "./src/surface.ts",
+      "types": "./dist/surface.d.ts",
+      "import": "./dist/surface.js"
+    }
+  },
+  "scripts": {
+    "build": "node ../../scripts/declarations.mjs . && tsdown && node ../../scripts/declared-any.mjs .",
+    "test:declarations": "tsc -b test/tsconfig.consumer.json",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "effect": "4.1.4",
+    "metakit": "workspace:*"
+  },
+  "devDependencies": {
+    "foldkit-durable": "workspace:*",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
+  }
+}
