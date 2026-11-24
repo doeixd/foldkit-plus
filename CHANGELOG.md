@@ -55,6 +55,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-plus`: re-exports the MetaKit custom operation and SQL lowering APIs under `foldkit-plus/metakit/operation` and `foldkit-plus/metakit/operation/sql`.
 - `metakit/prove`: provide a solver backend through an Effect Layer. Solver calls release their resources on interruption, and proofs identify the backend and encoding (#627).
 - `metakit`: `Transition.stepObserved` reports successful state changes, including fields of keyed rows and collection membership changes (#614).
 - `metakit/machine`: `Machine.intent` derives admission and client message construction from one registered transition. `Machine.canDispatch` accepts that transition's known supplied values (#613).

@@ -17,6 +17,8 @@ depends on them, so one install brings the set, and re-exports each:
 | `foldkit-remote/port` | `foldkit-plus/remote/port` |
 | `foldkit-remote-server` | `foldkit-plus/remote-server` |
 | `foldkit-mixins/theme` | `foldkit-plus/mixins/theme` |
+| `metakit/operation` | `foldkit-plus/metakit/operation` |
+| `metakit/operation/sql` | `foldkit-plus/metakit/operation/sql` |
 
 A subpath is the package itself, re-exported: `foldkit-plus/remote`'s `Remote`
 is `foldkit-remote`'s, so the two can be mixed in one application. This package

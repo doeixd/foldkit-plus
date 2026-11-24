@@ -154,6 +154,8 @@
       "foldkit-plus/metakit/graph/readiness": ["./src/metakit/graph/readiness.ts"],
       "foldkit-plus/metakit/inspect": ["./src/metakit/inspect.ts"],
       "foldkit-plus/metakit/machine": ["./src/metakit/machine.ts"],
+      "foldkit-plus/metakit/operation": ["./src/metakit/operation.ts"],
+      "foldkit-plus/metakit/operation/sql": ["./src/metakit/operation/sql.ts"],
       "foldkit-plus/metakit/pairs": ["./src/metakit/pairs.ts"],
       "foldkit-plus/metakit/policy": ["./src/metakit/policy.ts"],
       "foldkit-plus/metakit/prove": ["./src/metakit/prove.ts"],

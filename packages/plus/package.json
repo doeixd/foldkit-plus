@@ -368,6 +368,16 @@
       "types": "./dist/metakit/policy.d.mts",
       "import": "./dist/metakit/policy.mjs"
     },
+    "./metakit/operation": {
+      "foldkit-plus:source": "./src/metakit/operation.ts",
+      "types": "./dist/metakit/operation.d.mts",
+      "import": "./dist/metakit/operation.mjs"
+    },
+    "./metakit/operation/sql": {
+      "foldkit-plus:source": "./src/metakit/operation/sql.ts",
+      "types": "./dist/metakit/operation/sql.d.mts",
+      "import": "./dist/metakit/operation/sql.mjs"
+    },
     "./metakit/store": {
       "foldkit-plus:source": "./src/metakit/store.ts",
       "types": "./dist/metakit/store.d.mts",
