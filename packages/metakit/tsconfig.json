@@ -20,6 +20,8 @@
       "metakit/graph/readiness": ["./src/graph/readiness.ts"],
       "metakit/inspect": ["./src/inspect.ts"],
       "metakit/machine": ["./src/machine.ts"],
+      "metakit/operation": ["./src/operation.ts"],
+      "metakit/operation/sql": ["./src/operationSql.ts"],
       "metakit/pairs": ["./src/pairs.ts"],
       "metakit/policy": ["./src/policy.ts"],
       "metakit/prove": ["./src/prove.ts"],
