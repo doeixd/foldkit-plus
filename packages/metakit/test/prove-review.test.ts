@@ -247,4 +247,29 @@ describe('a transition and the paths it writes', () => {
     expect(Schema.is(State)(witness.after)).toBe(false)
     expect(report.format()).toContain(`repro:    ${witness.reproducer}`)
   }, 30_000)
+
+  it.each([
+    { schema: Schema.Undefined, expected: undefined },
+    { schema: Schema.Null, expected: null },
+  ])(
+    'replays a solver witness with input $expected',
+    async ({ schema, expected }) => {
+      const state = Schema.Struct({ count: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)) })
+      const subtract = Transition.make({
+        state,
+        input: schema,
+        apply: ({ state }) => [Transition.add(state.count, -1)],
+      })
+      const report = await run(
+        Prove.machine(Machine.make({ state, transitions: { Subtract: subtract } })),
+      )
+      const [entry] = report.entries
+      expect(entry!.status).toBe('refuted')
+      const witness = Option.getOrThrow(entry!.witness)
+      expect(witness.input).toBe(expected)
+      const before = Schema.decodeUnknownSync(state)(witness.before)
+      expect(Result.getOrThrow(Transition.run(subtract, before, expected))).toEqual({ count: -1 })
+    },
+    30_000,
+  )
 })

@@ -196,7 +196,7 @@ export const proveTransition = <State, Input, Emit, Supplied>(
   return Effect.map(
     refute(slices, [tr.when.node], goals, options, env => {
       const before = at(env, ['state']) as State
-      const input = (at(env, ['input']) ?? {}) as Input
+      const input = at(env, ['input']) as Input
       const supplied = (at(env, ['supplied']) ?? {}) as Supplied
       const stepped = Transition.run(
         tr as Transition.Transition<State, Input, Emit, unknown>,

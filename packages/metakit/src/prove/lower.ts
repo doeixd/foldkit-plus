@@ -61,7 +61,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
   const flagVar = (name: string): ZBool => {
     const known = flagVars.get(name)
     if (known !== undefined) return known
-    const made = z3.Bool.const(name)
+    const made = shape.absences.get(name)?.always === true ? z3.Bool.val(true) : z3.Bool.const(name)
     flagVars.set(name, made)
     return made
   }

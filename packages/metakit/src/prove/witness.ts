@@ -117,9 +117,9 @@ export interface Replay {
 
 /** Structured counterexample report for a refuted transition. */
 export interface WitnessReport {
-  readonly before: Readonly<Record<string, unknown>>
-  readonly input: Readonly<Record<string, unknown>>
-  readonly after: Readonly<Record<string, unknown>>
+  readonly before: unknown
+  readonly input: unknown
+  readonly after: unknown
   /** The rules the state after breaks; never empty. */
   readonly violated: ReadonlyArray<string>
   readonly reproducer: string
@@ -134,9 +134,9 @@ export const witnessReport = <State>(
     .filter(rule => !holdsOf(rule.node, after))
     .map(rule => Expr.show(rule))
   return {
-    before: before as Readonly<Record<string, unknown>>,
-    input: input as Readonly<Record<string, unknown>>,
-    after: after as Readonly<Record<string, unknown>>,
+    before,
+    input,
+    after,
     // A replayed state the Schema refuses breaks a rule, or a check no rule reads.
     violated: broken.length > 0 ? broken : ['a check of the state Schema that is no rule'],
     reproducer: `Transition.run(${tag}, ${JSON.stringify(before)}, ${JSON.stringify(input)})`,

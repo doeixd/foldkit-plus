@@ -30,6 +30,7 @@ export interface PathInfo {
 export interface Absence {
   readonly segments: ReadonlyArray<string>
   readonly as: 'null' | 'undefined' | 'omitted'
+  readonly always: boolean
 }
 
 export interface Shape {
@@ -128,6 +129,7 @@ const readShape = (
     shape.absences.set(flag, {
       segments,
       as: admitsNull ? 'null' : admitsUndefined ? 'undefined' : 'omitted',
+      always: present.length === 0,
     })
   }
   const inner = present.length === 1 ? present[0]! : ast

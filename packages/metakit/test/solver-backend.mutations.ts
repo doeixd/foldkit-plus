@@ -26,4 +26,26 @@ export default [
     ],
     tests: ['packages/metakit/test/z3-interrupt.test.ts'],
   },
+  {
+    name: 'nullish transition inputs become empty objects during replay',
+    edits: [
+      {
+        file: '../src/prove/transition.ts',
+        find: "const input = at(env, ['input']) as Input",
+        replace: "const input = (at(env, ['input']) ?? {}) as Input",
+      },
+    ],
+    tests: ['packages/metakit/test/prove-review.test.ts'],
+  },
+  {
+    name: 'the solver can invent a non-null value for a null-only input',
+    edits: [
+      {
+        file: '../src/prove/lower.ts',
+        find: 'const made = shape.absences.get(name)?.always === true ? z3.Bool.val(true) : z3.Bool.const(name)',
+        replace: 'const made = z3.Bool.const(name)',
+      },
+    ],
+    tests: ['packages/metakit/test/prove-review.test.ts'],
+  },
 ]
