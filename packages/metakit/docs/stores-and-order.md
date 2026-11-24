@@ -205,18 +205,18 @@ Remove the `request < page.latest` check from `reply` and the same walk answers:
   reason: 'shows 10 after the second reply' }
 ```
 
-Repeat `Temporal.discharge` with the same scenario and options to replay a forced order. For a failure from `Temporal.walk`, pass its `seed` with `runs: 1`. `interleaving` lists the steps through the failure, and `minimal` keeps the steps the failure depends on.
+Repeat `Temporal.discharge` with the same scenario and options to replay the failure. For a failure returned directly by `Temporal.walk`, pass its `seed` with `runs: 1`. `interleaving` lists the steps through the failure, and `minimal` keeps the steps the failure depends on.
 
 ## Fail the build while an obligation is open
 
-`Temporal.undischarged` lists the obligations that no walk has held for. Assert that it is empty:
+`Temporal.undischarged` lists the obligations that still need evidence. A generated pair needs a passing sample of both relative orders. Assert that the list is empty.
 
 ```ts
 const open = Temporal.undischarged(report.obligations, discharges).map(({ name }) => name)
 // ['Deposit/Withdraw', 'Withdraw/Withdraw']: two walks still to write
 ```
 
-In a test, `expect(open).toEqual([])` fails until every obligation has a walk, and that is how the build fails: the test is red while any is open. A walk that broke does not count, and a discharge naming an obligation that is not in the list is a type error. To close `Deposit/Withdraw`, write a scenario the same way: one step `of` `Deposit`, one `of` `Withdraw`, the replies that can arrive in either order, and a `holds` that says what the page must never show.
+In a test, `expect(open).toEqual([])` fails while any obligation is open. To close `Deposit/Withdraw`, mark one reply step `of: 'Deposit'` and the other `of: 'Withdraw'`. Let the replies arrive in either order and use `holds` to check what the page displays. Any failing walk keeps the obligation open.
 
 ## What this does not do
 

@@ -78,7 +78,6 @@ One difference remains between SQL and memory. SQL has no refusal to give, so a 
 `CalendarDay.schema` stores calendar dates as integer days since `1970-01-01` (no hours, minutes, or local timezone offsets).
 
 ```ts
-import { Result } from 'effect'
 import { CalendarDay } from 'metakit/domain'
 
 const Booking = Schema.Struct({
@@ -137,10 +136,10 @@ const rows = [
   { amount: 40, active: false },
 ]
 const initial = activeSum.evaluate(rows) // 100
-const afterInsert = initial + activeSum.insertDelta({ amount: 25, active: true }) // 125
+const afterInsert = activeSum.apply(initial, activeSum.insertDelta({ amount: 25, active: true })) // 125
 const sqlAgg = Result.getOrThrow(RowsSql.toSql(activeSum, { dialect: 'postgres' }))
-// sqlAgg.text -> COALESCE(SUM((CASE WHEN "active" THEN "amount" WHEN NOT "active" THEN $1 END)), 0)::DOUBLE PRECISION
-// sqlAgg.params -> [0]  (the `else: 0`, passed as the parameter $1)
+// SQL uses a CASE around the sum to return NULL when the total is out of range.
+// sqlAgg.params -> [0], the parameter for else: 0.
 ```
 
 To sum a plain column, pass it as the contribution: `Rows.sum(Entry, $ => $.amount)`.

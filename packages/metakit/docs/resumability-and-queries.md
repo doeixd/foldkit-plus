@@ -147,14 +147,14 @@ const step1 = Graph.queryReadiness(filter, { params: { countryId: 'US' } })
 const step2 = Graph.queryReadiness(filter, { params: { all: true } })
 // step2 -> { ready: true, residual } (`all` is true, so countryId and regionId are not required)
 
-const step3 = Graph.queryReadiness(filter, {
-  params: { all: false, countryId: 'US', regionId: 'CA' },
-})
+const prepare = (residual: typeof filter) => Sql.toWhere(residual, { dialect: 'postgres' })
+const step3 = Graph.queryReadiness(
+  filter,
+  { params: { all: false, countryId: 'US', regionId: 'CA' } },
+  { prepare },
+)
 if (step3.ready) {
-  const where = Result.getOrThrow(
-    Sql.toWhere(step3.residual, { dialect: 'postgres', rowPrefix: ['row'] }),
-  )
-  // where.text   -> (("countryId" IS NOT DISTINCT FROM $1) AND ("regionId" IS NOT DISTINCT FROM $2))
+  const where = Result.getOrThrow(prepare(step3.residual))
   // where.params -> ['US', 'CA']
   void where
 }

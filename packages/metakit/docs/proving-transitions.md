@@ -72,7 +72,7 @@ What happened: `Withdraw` is proved, and the label `(zone)` names the checker th
 
 By default (`strict: true`), `Prove.machine` sets `report.ok = false` when any transition is:
 
-1. **`refuted`**: Z3 proposed a `(before, input)` pair and it replayed: both pass their Schemas, the guard holds, and `Transition.run` gives a state `stateSchema` refuses. A proposal that does not replay is `undecided`, never `refuted`.
+1. **`refuted`**. The solver proposed a `(before, input)` pair that passed both Schemas and the guard. `Transition.run` replayed it and produced a state `stateSchema` refuses.
 2. **`undecided` without an entry in `allowUnknown`**: an `Opaque` term, a non-linear expression, a solver timeout (`timeoutMs`, default 10,000) or a proposal that did not replay prevented a proof, and no reason was documented.
 3. **`pinBroken`**: a transition listed in `pin` returned `undecided` or `refuted` instead of `proved`, even with `strict: false`.
 
@@ -107,7 +107,7 @@ A transition that writes a whole struct is checked against the rules that read i
 
 `z3-solver` is an optional peer, the solver `Prove.*` hands a goal to when the built-in checks cannot decide it. A goal the built-in checks prove never loads it; one they leave undecided needs it, and without it the Effect fails with `SolverUnavailableError`. Install it as a dev dependency (`pnpm add -D z3-solver`, or the same with your package manager).
 
-To use a different solver, provide `Prove.Solver` with an Effect Layer such as `Layer.succeed(Prove.Solver, backend)`. The backend's `solve` runs in a scope that closes when the proof finishes or is interrupted. Unsatisfiable results name the backend and its semantic encoding. MetaKit validates and replays candidate counterexamples before reporting them.
+To use a different solver, pass your `SolverBackend` to `Layer.succeed(Prove.Solver, backend)` and apply that layer with `Effect.provide` to `Prove.machine(...)`. The supplied backend handles escalation in place of Z3. Its `solve` runs in a scope that closes on completion or interruption. Unsatisfiable results name the backend and its encoding, and MetaKit replays candidate counterexamples.
 
 ## Reading a counterexample witness
 

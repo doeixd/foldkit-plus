@@ -96,15 +96,19 @@ export const AccountMachine = Machine.make({
 const frozen = { id: 'a1', balance: 50_000, reserved: 10_000, status: 'frozen' as const }
 const affordances = Machine.affordances(AccountMachine, frozen)
 // affordances -> { available: [], disabled: ['Withdraw', 'Freeze'], pending: [] }
+
+const withdraw = Machine.intent(AccountMachine, 'Withdraw')
+const admission = withdraw.can({ state: frozen }) // False
+const message = withdraw.message({ amount: 500 }) // { _tag: 'Withdraw', input: { amount: 500 } }
 ```
 
 `Machine.affordances` sorts every transition into `available` (its guard is true now), `disabled` (false now) or `pending` (it still needs input). On an open account, `Freeze` is `available` (its guard needs no input) and `Withdraw` is `pending` (it needs `input.amount`). On a frozen account, both are `disabled` without a separate UI check. To turn that into a button, put `disabled` on the button whose Message tag is in the `disabled` list.
 
-Use paths from `state` as write targets. You can read paths from `input` and `supplied` in guards, assignments and emitted records. Use `Transition.pathsOf` when you need the same typed accessors outside a transition callback.
+Use paths from `state` as write targets. Use `Transition.pathsOf(stateSchema, inputSchema, suppliedSchemas)` to get the same typed accessors outside a transition callback. `input` and `supplied` paths also work in read expressions.
 
-Use `Machine.intent(AccountMachine, 'Withdraw')` when the same control checks a transition and builds its message. Call the intent's `can` with the values you have and `message` with the completed input. If the transition needs supplied values, the host attaches them when dispatching. Dispatch always checks the guard against the state at that time.
+Use `Machine.intent` when the same control checks a transition and builds its message. The guard's `Verdict` is `Unknown` while it needs input. For a transition declared with `supplied: { now: Schema.Int }`, the host attaches the clock value by passing `{ ...message, supplied: { now } }` to `dispatch`. Dispatch checks the guard against the current state.
 
-Use `Transition.stepObserved` when you need to know what a successful step changed. `writes` gives state paths, collection membership changes, or an individual field at a keyed row. For a lifted transition, each path starts at the parent state. An opaque write reports the full subtree it writes.
+`Transition.stepObserved(Withdraw, account, { amount: 500 })` returns `{ state, emitted, writes }` on success. A same-value assignment adds no entry to `writes`. Other entries name a state path, a list with changed membership, or a field of a keyed row. Lifted paths start at the parent state, and opaque writes report the whole subtree they write.
 
 ## 4. Prove that every transition preserves the schema invariants
 
