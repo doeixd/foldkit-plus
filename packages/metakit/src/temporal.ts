@@ -88,6 +88,8 @@ export interface WalkObligation<Name extends string = string, Over extends strin
   readonly kind: 'walk'
   readonly name: Name
   readonly over: ReadonlyArray<Over>
+  /** Require a sample of each order of the two named transition occurrences. */
+  readonly eitherOrder?: true
 }
 
 /** A walk obligation a check of your own emits. */
@@ -164,6 +166,7 @@ export const obligations = <State, Transitions extends Readonly<Record<string, u
         name: `${first}/${second}` as const,
         detail: `answers to ${first} and ${second} arriving in either order leave the state their sending order leaves`,
         over: [first, second],
+        eitherOrder: true as const,
       })),
   )
 }
@@ -464,10 +467,24 @@ export interface Discharge<Name extends string = string> {
   readonly obligation: Name
   readonly result: WalkResult
   readonly answer?: 'order-matters'
+  readonly coverage?: PairCoverage
 }
 
-const closes = ({ result, answer }: Discharge): boolean =>
-  WalkResult.$is('Held')(result) || answer !== undefined
+export type OrderCoverage = 'observed' | 'causally-forbidden' | 'unsampled'
+
+/** The matched scenario occurrences and which directions the walk exercised. */
+export interface PairCoverage {
+  readonly steps: readonly [string, string]
+  readonly forward: OrderCoverage
+  readonly reverse: OrderCoverage
+}
+
+const closes = (obligation: WalkObligation, { result, answer, coverage }: Discharge): boolean =>
+  obligation.eitherOrder
+    ? WalkResult.$is('Held')(result) &&
+      coverage?.forward === 'observed' &&
+      coverage.reverse === 'observed'
+    : WalkResult.$is('Held')(result) || answer !== undefined
 
 /** A recorded walk that broke the ordinary question; an exploratory pair's answer is not one. */
 const broke = (walks: ReadonlyArray<Discharge>): Discharge | undefined =>
@@ -476,24 +493,87 @@ const broke = (walks: ReadonlyArray<Discharge>): Discharge | undefined =>
 /**
  * Walk `scenario` for `obligation`. Throws when the scenario has no step for
  * one of the obligation's `over` (a pair of one transition needs two steps of
- * it): such a walk would pass having shown nothing about it.
+ * it). An either-order obligation matches the first distinct occurrences in
+ * scenario order and runs each feasible direction before the seeded walk.
+ * Replay a forced order with the same scenario and
+ * discharge options, or use the step names in the failing interleaving.
  */
 export const discharge = <Name extends string, Over extends string, State, StepName extends string>(
   obligation: WalkObligation<Name, Over>,
   scenario: Scenario<State, StepName, NoInfer<Over>>,
   options?: WalkOptions,
 ): Discharge<Name> => {
-  const available = scenario.steps.flatMap(step => (step.of === undefined ? [] : [step.of]))
+  const available = [...scenario.steps]
+  const matched: Array<StepName> = []
   for (const needed of obligation.over) {
-    const at = available.indexOf(needed)
+    const at = available.findIndex(step => step.of === needed)
     if (at < 0) {
       throw new Error(
         `[metakit] Temporal.discharge: obligation "${obligation.name}" is over ${obligation.over.join(', ')}, but the scenario has too few steps of "${needed}"`,
       )
     }
+    matched.push(available[at]!.name)
     available.splice(at, 1)
   }
-  return { obligation: obligation.name, result: walk(scenario, options) }
+  if (!obligation.eitherOrder)
+    return { obligation: obligation.name, result: walk(scenario, options) }
+
+  const [first, second] = matched
+  if (first === undefined || second === undefined || matched.length !== 2) {
+    throw new Error(`[metakit] Temporal.discharge: "${obligation.name}" must name two occurrences`)
+  }
+  const byName = new Map(scenario.steps.map(step => [step.name, step]))
+  const canPrecede = (before: StepName, after: StepName): boolean => {
+    const seen = new Set<StepName>()
+    const pending = [before]
+    for (let name = pending.pop(); name !== undefined; name = pending.pop()) {
+      if (name === after) return false
+      if (seen.has(name)) continue
+      seen.add(name)
+      for (const dependency of byName.get(name)?.after ?? []) pending.push(dependency)
+    }
+    return true
+  }
+  const coverage: {
+    steps: readonly [StepName, StepName]
+    forward: OrderCoverage
+    reverse: OrderCoverage
+  } = {
+    steps: [first, second],
+    forward: canPrecede(first, second) ? 'unsampled' : 'causally-forbidden',
+    reverse: canPrecede(second, first) ? 'unsampled' : 'causally-forbidden',
+  }
+  const seed = options?.seed ?? 1
+  const runs = options?.runs ?? 200
+  if (!Number.isInteger(runs) || runs <= 0) {
+    throw new Error(`[metakit] Temporal.walk: runs must be a positive integer, got ${runs}`)
+  }
+  let sampled = 0
+  for (const [direction, before, after] of [
+    ['forward', first, second],
+    ['reverse', second, first],
+  ] as const) {
+    if (coverage[direction] === 'causally-forbidden') continue
+    const steps = scenario.steps.map(step =>
+      step.name === after ? { ...step, after: [...(step.after ?? []), before] } : step,
+    )
+    const result = walk({ ...scenario, steps }, { seed, runs: 1 })
+    if (WalkResult.$is('Broken')(result)) {
+      if (result.interleaving.includes(after)) coverage[direction] = 'observed'
+      return { obligation: obligation.name, result, coverage }
+    }
+    coverage[direction] = 'observed'
+    sampled++
+  }
+  const result = walk(scenario, options)
+  return {
+    obligation: obligation.name,
+    coverage,
+    result: WalkResult.$match(result, {
+      Held: () => WalkResult.Held({ seed, runs: runs + sampled }),
+      Broken: () => result,
+    }),
+  }
 }
 
 /**
@@ -510,12 +590,10 @@ export const undischarged = <Name extends string, Over extends string>(
     walks.push(discharge)
     byName.set(discharge.obligation, walks)
   }
-  const held = new Set(
-    [...byName]
-      .filter(([, walks]) => broke(walks) === undefined && walks.some(closes))
-      .map(([name]) => name),
-  )
-  return owed.filter(({ name }) => !held.has(name))
+  return owed.filter(owned => {
+    const walks = byName.get(owned.name) ?? []
+    return broke(walks) !== undefined || !walks.some(walk => closes(owned, walk))
+  })
 }
 
 /** Where an obligation belongs: `owner` names the machine or protocol, `where` the place that declared it. */
@@ -599,6 +677,12 @@ const describeResult = (result: WalkResult): string =>
       `broke at seed ${seed} in the order ${minimal.join(', ')}: ${reason}`,
   })
 
+const describeDischarge = ({ result, coverage }: Discharge): string => {
+  if (coverage === undefined) return describeResult(result)
+  const [first, second] = coverage.steps
+  return `${describeResult(result)} (sampled orders: ${first} before ${second}: ${coverage.forward}; ${second} before ${first}: ${coverage.reverse})`
+}
+
 /** The case a walk found where the order matters: its seed, and what differed. */
 const describeAnswer = (result: WalkResult): string =>
   WalkResult.$match(result, {
@@ -624,18 +708,22 @@ export const makeRegistry = (): Registry => {
       const walks = shown.get(key) ?? []
       const failure = broke(walks)
       if (failure !== undefined) {
-        open.push({ ...scope, obligation, why: describeResult(failure.result) })
+        open.push({ ...scope, obligation, why: describeDischarge(failure) })
+        continue
+      }
+      const closing = walks.reduce<Discharge | undefined>(
+        (found, walk) => (closes(obligation, walk) ? walk : found),
+        undefined,
+      )
+      if (closing !== undefined) {
+        discharged.push({ ...scope, obligation, discharge: closing })
         continue
       }
       const last = walks.at(-1)
-      if (last !== undefined && closes(last)) {
-        discharged.push({ ...scope, obligation, discharge: last })
-        continue
-      }
       open.push({
         ...scope,
         obligation,
-        why: last === undefined ? 'no walk has covered it' : describeResult(last.result),
+        why: last === undefined ? 'no walk has covered it' : describeDischarge(last),
       })
     }
     const all = [...decided.values()]
@@ -663,7 +751,7 @@ export const makeRegistry = (): Registry => {
             'discharged',
             discharged.map(({ owner, obligation, discharge }) =>
               discharge.answer === undefined
-                ? `${owner} ${obligation.name}: ${describeResult(discharge.result)}`
+                ? `${owner} ${obligation.name}: ${describeDischarge(discharge)}`
                 : `${owner} ${obligation.name}: the order matters (${describeAnswer(discharge.result)})`,
             ),
           ),

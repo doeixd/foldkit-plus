@@ -220,6 +220,7 @@ describe('walk obligations of a machine', () => {
       detail:
         'answers to Deposit and Deposit arriving in either order leave the state their sending order leaves',
       over: ['Deposit', 'Deposit'],
+      eitherOrder: true,
     })
   })
 
@@ -279,10 +280,10 @@ const twoEdits = (dropsStale: boolean): Temporal.Scenario<Page, string, 'Deposit
   return {
     initial: () => ({ shown: 'original', latest: 0 }),
     steps: [
-      { name: 'send first', of: 'Deposit', run: send(1, 'first') },
-      { name: 'send second', of: 'Deposit', after: ['send first'], run: send(2, 'second') },
-      { name: 'answer first', after: ['send first'], run: answer(1, 'first') },
-      { name: 'answer second', after: ['send second'], run: answer(2, 'second') },
+      { name: 'send first', run: send(1, 'first') },
+      { name: 'send second', after: ['send first'], run: send(2, 'second') },
+      { name: 'answer first', of: 'Deposit', after: ['send first'], run: answer(1, 'first') },
+      { name: 'answer second', of: 'Deposit', after: ['send second'], run: answer(2, 'second') },
       { name: 'reconnect', run: page => page },
     ],
     holds: (page, ran) =>
@@ -373,7 +374,12 @@ describe('discharging obligations', () => {
     const held = Temporal.discharge(deposits, twoEdits(true))
     expect(held).toEqual({
       obligation: 'Deposit/Deposit',
-      result: Temporal.WalkResult.Held({ seed: 1, runs: 200 }),
+      result: Temporal.WalkResult.Held({ seed: 1, runs: 202 }),
+      coverage: {
+        steps: ['answer first', 'answer second'],
+        forward: 'observed',
+        reverse: 'observed',
+      },
     })
     expect(Temporal.undischarged(owed, [held]).map(({ name }) => name)).toEqual([
       'Deposit/Withdraw',
@@ -386,6 +392,60 @@ describe('discharging obligations', () => {
     const broke = Temporal.discharge(deposits, twoEdits(false))
     expect(broke.result._tag).toBe('Broken')
     expect(Temporal.undischarged(owed, [broke])).toEqual(owed)
+  })
+
+  it('keeps a two-way obligation open when a causal chain forbids the reverse order', () => {
+    const pair = owed.find(({ name }) => name === 'Deposit/Withdraw')!
+    const scenario: Temporal.Scenario<string, string, 'Deposit' | 'Withdraw'> = {
+      initial: () => '',
+      steps: [
+        { name: 'A', of: 'Deposit', run: value => `${value}A` },
+        { name: 'ready', after: ['A'], run: value => value },
+        { name: 'B', of: 'Withdraw', after: ['ready'], run: value => `${value}B` },
+      ],
+      holds: value => (value === 'BA' ? Option.some('order changed the result') : Option.none()),
+    }
+    const evidence = Temporal.discharge(pair, scenario, { runs: 1 })
+    expect(evidence.coverage).toEqual({
+      steps: ['A', 'B'],
+      forward: 'observed',
+      reverse: 'causally-forbidden',
+    })
+    expect(Temporal.undischarged([pair], [evidence])).toEqual([pair])
+    const registry = Temporal.makeRegistry()
+    const scope = { owner: 'Bank', where: 'fixture' }
+    registry.declare(scope, [pair])
+    registry.record(scope, evidence)
+    expect(registry.report().ok).toBe(false)
+    expect(registry.report().format()).toContain('B before A: causally-forbidden')
+  })
+
+  it('finds and replays a counterexample in the reverse direction before random sampling', () => {
+    const pair = owed.find(({ name }) => name === 'Deposit/Withdraw')!
+    const scenario: Temporal.Scenario<string, string, 'Deposit' | 'Withdraw'> = {
+      initial: () => '',
+      steps: [
+        { name: 'A', of: 'Deposit', run: value => `${value}A` },
+        { name: 'B', of: 'Withdraw', run: value => `${value}B` },
+      ],
+      holds: value => (value === 'BA' ? Option.some('order changed the result') : Option.none()),
+    }
+    const evidence = Temporal.discharge(pair, scenario, { seed: 7, runs: 1 })
+    expect(evidence.result).toEqual(
+      Temporal.WalkResult.Broken({
+        seed: 7,
+        interleaving: ['B', 'A'],
+        minimal: ['B', 'A'],
+        reason: 'order changed the result',
+      }),
+    )
+    expect(evidence.coverage).toEqual({
+      steps: ['A', 'B'],
+      forward: 'observed',
+      reverse: 'observed',
+    })
+    expect(Temporal.discharge(pair, scenario, { seed: 7, runs: 1 })).toEqual(evidence)
+    expect(Temporal.undischarged([pair], [evidence])).toEqual([pair])
   })
 
   it('refuses a scenario with too few steps of what the obligation is over', () => {

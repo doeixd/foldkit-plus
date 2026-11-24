@@ -156,7 +156,7 @@ Each entry is an *obligation*: something a proof did not show and a test must. T
 
 ## Discharge an obligation with a walk
 
-A *walk* runs the steps of a scenario in many orders and checks a property after every step. You write the steps and say which must come before which. The walk picks each order from a *seed*, a number that fixes the random choices, so the same seed gives the same order and a failure can be run again. To *discharge* an obligation is to run a walk for it that finds no failure.
+A *walk* runs the steps of a scenario in many orders and checks a property after every step. You write the steps and say which must come before which. A *seed* fixes the walk's random choices so you can rerun it. A generated pair obligation needs passing samples in both relative orders.
 
 This scenario is a page that shows a balance. It sends two deposits, and each reply carries the balance the server held after that deposit. The page must not go back to an older balance.
 
@@ -176,10 +176,10 @@ const reply =
 const twoDeposits: Temporal.Scenario<Page, string, 'Deposit'> = {
   initial: () => ({ shown: 0, latest: 0 }),
   steps: [
-    { name: 'send first', of: 'Deposit', run: page => page },
-    { name: 'send second', of: 'Deposit', after: ['send first'], run: page => page },
-    { name: 'reply first', after: ['send first'], run: reply(1, 10) },
-    { name: 'reply second', after: ['send second'], run: reply(2, 30) },
+    { name: 'send first', run: page => page },
+    { name: 'send second', after: ['send first'], run: page => page },
+    { name: 'reply first', of: 'Deposit', after: ['send first'], run: reply(1, 10) },
+    { name: 'reply second', of: 'Deposit', after: ['send second'], run: reply(2, 30) },
   ],
   holds: (page, ran) =>
     ran.includes('reply second') && page.shown !== 30
@@ -189,10 +189,12 @@ const twoDeposits: Temporal.Scenario<Page, string, 'Deposit'> = {
 
 const deposits = report.obligations.find(obligation => obligation.name === 'Deposit/Deposit')
 const discharges = deposits === undefined ? [] : [Temporal.discharge(deposits, twoDeposits)]
-// [{ obligation: 'Deposit/Deposit', result: { _tag: 'Held', seed: 1, runs: 200 } }]
+// Held over 202 runs, with both orders of reply first and reply second observed.
 ```
 
-`after` names the steps that must run first, `holds` is asked after every step with the names of the steps run so far (`ran`) and answers a reason when the property is broken, and `of` says which transition a step is an instance of. `Temporal.discharge` throws unless the scenario has a step `of` each transition the obligation is over (two steps of `Deposit` for `Deposit/Deposit`), so a scenario about something else cannot discharge it. `Held` says no order broke the property: `runs` orders were tried, starting from `seed`. `Temporal.walk(twoDeposits)` runs the same walk without an obligation.
+`after` names the steps that must run first. `holds` receives the names of the steps run so far and returns a reason if the property fails. `of` matches the replies to the transitions in the obligation. `Temporal.discharge` picks the first distinct matching occurrences in the scenario and tries each feasible direction before its seeded walk.
+
+`Held` means every tried order passed. `coverage` names the matched steps and marks each direction as `observed`, `causally-forbidden`, or `unsampled`. A generated pair stays open when an `after` dependency prevents one direction.
 
 Remove the `request < page.latest` check from `reply` and the same walk answers:
 
@@ -203,7 +205,7 @@ Remove the `request < page.latest` check from `reply` and the same walk answers:
   reason: 'shows 10 after the second reply' }
 ```
 
-`seed` is the seed of the order that failed, which here was the first one tried: `Temporal.walk(twoDeposits, { seed: 1, runs: 1 })` runs that order again. `interleaving` is the order up to the failing step. `minimal` is that order without the steps the failure does not need; here it needs all four.
+Repeat `Temporal.discharge` with the same scenario and options to replay a forced order. For a failure from `Temporal.walk`, pass its `seed` with `runs: 1`. `interleaving` lists the steps through the failure, and `minimal` keeps the steps the failure depends on.
 
 ## Fail the build while an obligation is open
 

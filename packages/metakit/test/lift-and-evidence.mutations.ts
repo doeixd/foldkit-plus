@@ -50,7 +50,7 @@ export default [
         file: '../src/temporal.ts',
         find: `      const failure = broke(walks)
       if (failure !== undefined) {
-        open.push({ ...scope, obligation, why: describeResult(failure.result) })
+        open.push({ ...scope, obligation, why: describeDischarge(failure) })
         continue
       }
 `,
@@ -64,8 +64,8 @@ export default [
     edits: [
       {
         file: '../src/temporal.ts',
-        find: '      .filter(([, walks]) => broke(walks) === undefined && walks.some(closes))',
-        replace: '      .filter(([, walks]) => walks.some(closes))',
+        find: 'return broke(walks) !== undefined || !walks.some(walk => closes(owned, walk))',
+        replace: 'return !walks.some(walk => closes(owned, walk))',
       },
     ],
     tests,

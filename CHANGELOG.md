@@ -98,6 +98,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `metakit/temporal`: a generated pair obligation stays open until a walk passes in both relative orders. Coverage names the matched steps and identifies directions a causal dependency forbids (#633).
 - `metakit/aggregates/sql`: an exact sum outside the safe integer range returns SQL `NULL`. SQLite sums require `sqliteSum` bounds that prevent intermediate overflow (#625).
 - `foldkit-guard`: `may` omits permission hints that depend on fields hidden or redacted for the reader (#611).
 - `metakit/graph`: `queryReadiness` accepts a `prepare` function to check the selected SQL renderer's operation and relation mappings after binding the filter's parameters (#617).
