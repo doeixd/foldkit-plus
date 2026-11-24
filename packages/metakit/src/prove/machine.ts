@@ -40,11 +40,12 @@ const formatEntry = (entry: MachineProofEntry): string => {
     pinLabel = ' [pinned]'
   }
   if (entry.status === 'proved') {
-    const tier =
-      Verdict.isTrue(entry.verdict) && Option.isSome(entry.verdict.evidence)
-        ? entry.verdict.evidence.value.tier
-        : 'proved'
-    return `PROVED (${tier}) ${entry.tag}${pinLabel}`
+    const evidence = Verdict.isTrue(entry.verdict)
+      ? Option.getOrUndefined(entry.verdict.evidence)
+      : undefined
+    const solver = evidence?.solver
+    const source = solver === undefined ? '' : ` [${solver.backend}, ${solver.encoding}]`
+    return `PROVED (${evidence?.tier ?? 'proved'}) ${entry.tag}${pinLabel}${source}`
   }
   if (entry.status === 'undecided') {
     const reason = Verdict.isUnknown(entry.verdict) ? entry.verdict.reason : 'unknown'

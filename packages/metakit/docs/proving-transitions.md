@@ -107,6 +107,8 @@ A transition that writes a whole struct is checked against the rules that read i
 
 `z3-solver` is an optional peer, the solver `Prove.*` hands a goal to when the built-in checks cannot decide it. A goal the built-in checks prove never loads it; one they leave undecided needs it, and without it the Effect fails with `SolverUnavailableError`. Install it as a dev dependency (`pnpm add -D z3-solver`, or the same with your package manager).
 
+To use a different solver, provide `Prove.Solver` with an Effect Layer such as `Layer.succeed(Prove.Solver, backend)`. The backend's `solve` runs in a scope that closes when the proof finishes or is interrupted. Unsatisfiable results name the backend and its semantic encoding. MetaKit validates and replays candidate counterexamples before reporting them.
+
 ## Reading a counterexample witness
 
 When a transition is refuted, `entry.witness` holds `Option.some(report)` with structured `before` (the state it started from), `input`, `after` (the state it produced, which the Schema refuses), the `violated` rules as text, and a `reproducer` string, a `Transition.run` call you can paste into a test where your transition is in scope. `report.format()` prints all five. If `Withdraw` above lost its `Num.lte(input.amount, …)` guard, it would print:

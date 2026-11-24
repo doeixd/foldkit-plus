@@ -22,6 +22,13 @@ export { machine } from './prove/machine.js'
 export type { MachineProofEntry, MachineProofReport } from './prove/machine.js'
 export { policy, policyConsistent, policyImplies } from './prove/policy.js'
 export { SolverUnavailableError }
+export {
+  Solver,
+  SolverAnswer,
+  z3SolverLayer,
+  type SolverBackend,
+  type SolverProblem,
+} from './prove/solve.js'
 export type { WitnessReport } from './prove/witness.js'
 
 export interface ProveOptions {

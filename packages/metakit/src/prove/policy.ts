@@ -4,7 +4,7 @@ import type * as Path from '../path.js'
 import * as Policy from '../policy.js'
 import type { ProveOptions } from '../prove.js'
 import * as Verdict from '../verdict.js'
-import { proved, refute, type Proof, type SolverUnavailableError } from './solve.js'
+import { refute, type Proof, type SolverUnavailableError } from './solve.js'
 import { holdsOf } from './witness.js'
 import type { Slice } from '../abstract/unordered.js'
 
@@ -79,7 +79,7 @@ export const policyConsistent = <
     reachable =>
       Verdict.match(reachable, {
         True: () => Verdict.False(Option.none()),
-        False: () => proved,
+        False: () => Verdict.True(Option.some(Verdict.Proved('concrete'))),
         Unknown: unknown => unknown,
       }),
   )

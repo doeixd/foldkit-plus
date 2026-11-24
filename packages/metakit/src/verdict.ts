@@ -8,15 +8,25 @@
 import { Data, Option } from 'effect'
 
 /** Which tier established a `True` verdict. */
-export type ProofTier = 'concrete' | 'interval' | 'zone' | 'z3'
+export type ProofTier = 'concrete' | 'interval' | 'zone' | 'z3' | 'solver'
+
+export interface SolverEvidence {
+  readonly backend: string
+  readonly encoding: string
+}
 
 /** Evidence attached to a `True` verdict from a static checker or prover. */
 export interface ProofEvidence {
   readonly _tag: 'Proved'
   readonly tier: ProofTier
+  readonly solver?: SolverEvidence
 }
 
-export const Proved = (tier: ProofTier): ProofEvidence => ({ _tag: 'Proved', tier })
+export const Proved = (tier: ProofTier, solver?: SolverEvidence): ProofEvidence => ({
+  _tag: 'Proved',
+  tier,
+  ...(solver === undefined ? {} : { solver }),
+})
 
 /**
  * A goal left to something else: a higher tier when a lower one returns

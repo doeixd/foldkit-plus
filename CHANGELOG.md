@@ -55,6 +55,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `metakit/prove`: provide a solver backend through an Effect Layer. Solver calls release their resources on interruption, and proofs identify the backend and encoding (#627).
 - `metakit`: `Transition.stepObserved` reports successful state changes, including fields of keyed rows and collection membership changes (#614).
 - `metakit/machine`: `Machine.intent` derives admission and client message construction from one registered transition. `Machine.canDispatch` accepts that transition's known supplied values (#613).
 - `metakit/aggregates`: `replaceTotal(total, before, after)` moves a kept total across a replacement as one exact integer expression, where the difference of the two contributions leaves ±(2^53−1) while their total does not; `updateDelta` refuses such a difference instead of rounding it (#623).

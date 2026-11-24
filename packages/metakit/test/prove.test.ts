@@ -98,7 +98,14 @@ describe('metakit/prove (Tier 3 Zone -> Tier 4 Z3 escalation)', () => {
     }
     const Bounded = ledger(1_000_000)
     expect(await Effect.runPromise(Prove.invariant(Bounded, doubled(Bounded)))).toEqual(
-      Verdict.True(Option.some(Verdict.Proved('z3'))),
+      Verdict.True(
+        Option.some(
+          Verdict.Proved('z3', {
+            backend: 'z3',
+            encoding: 'metakit-smt-v1',
+          }),
+        ),
+      ),
     )
 
     // With no ceiling `2 * c` can pass 2^53 - 1, where evaluation refuses and the goal does not hold.
