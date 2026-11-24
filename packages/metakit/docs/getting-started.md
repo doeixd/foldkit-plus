@@ -100,6 +100,8 @@ const affordances = Machine.affordances(AccountMachine, frozen)
 
 `Machine.affordances` sorts every transition into `available` (its guard is true now), `disabled` (false now) or `pending` (it still needs input). On an open account, `Freeze` is `available` (its guard needs no input) and `Withdraw` is `pending` (it needs `input.amount`). On a frozen account, both are `disabled` without a separate UI check. To turn that into a button, put `disabled` on the button whose Message tag is in the `disabled` list.
 
+Use paths from `state` as write targets. You can read paths from `input` and `supplied` in guards, assignments and emitted records. Use `Transition.pathsOf` when you need the same typed accessors outside a transition callback.
+
 ## 4. Prove that every transition preserves the schema invariants
 
 `Prove.machine` checks that no state a transition's guard allows can break a rule of the Schema. It runs the built-in interval and zone checkers first and starts Z3 only for a goal they cannot decide. `pin` names the transitions that must stay proved.

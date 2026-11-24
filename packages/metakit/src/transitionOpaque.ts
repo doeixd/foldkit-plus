@@ -9,7 +9,7 @@ import { Option, Schema } from 'effect'
 import * as Node from './node.js'
 import { toNode, wrap, type ExprInput } from './ops/core.js'
 import * as Path from './path.js'
-import type { Path as PathType } from './path.js'
+import type { Path as PathType, StatePath } from './path.js'
 import {
   pathsOf,
   targetOf,
@@ -74,7 +74,7 @@ export const opaque = <
   ) => ReadonlyArray<PathType<TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>, unknown>>
   readonly writes: (
     env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>,
-  ) => ReadonlyArray<PathType<TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>, unknown>>
+  ) => ReadonlyArray<StatePath<TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>, unknown>>
   readonly run: (state: S['Type'], input: I['Type'], supplied: Path.EnvOf<Sup>) => S['Type']
 }): Transition<S['Type'], I['Type'], never, Path.EnvOf<Sup>> => {
   type Env = TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>

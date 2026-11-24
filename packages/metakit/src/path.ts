@@ -3,7 +3,7 @@
  *
  * Every `Path<Env, A>` is also an `Expr<Env, A>` (they share the same carrier
  * brand and `node` field), so paths drop straight into expressions while
- * `Transition.set` requires a `Path` as its write target.
+ * `Transition.set` requires a path from the transition's state accessor.
  */
 import { Option, Predicate, SchemaAST } from 'effect'
 import type { Schema } from 'effect'
@@ -11,6 +11,7 @@ import * as Node from './node.js'
 
 export const ExprTypeId: unique symbol = Symbol.for('metakit/Expr')
 export const PathTypeId: unique symbol = Symbol.for('metakit/Path')
+declare const StatePathTypeId: unique symbol
 
 /**
  * Pure, terminating expression reading paths from `Env` and producing `A`.
@@ -40,6 +41,9 @@ export interface Path<Env, A> extends Expr<Env, A> {
 
 export type AnyPath = Path<never, unknown>
 
+/** A path rooted in the state slice of a transition. */
+export type StatePath<Env, A> = Path<Env, A> & { readonly [StatePathTypeId]: true }
+
 /** Construct a `Path` from raw segments and an optional Schema AST. */
 export const make = <Env, A>(
   segments: ReadonlyArray<string>,
@@ -67,10 +71,20 @@ export const field = <Env extends object, K extends keyof Env & string>(
 ): Path<Env, Env[K]> => make<Env, Env[K]>([key], ast)
 
 /** Compose `Outer -> Mid` with `Mid -> Inner`. */
-export const compose = <Outer, Mid, Inner>(
+export function compose<Outer, Mid, Inner>(
+  outer: StatePath<Outer, Mid>,
+  inner: Path<Mid, Inner>,
+): StatePath<Outer, Inner>
+export function compose<Outer, Mid, Inner>(
   outer: Path<Outer, Mid>,
   inner: Path<Mid, Inner>,
-): Path<Outer, Inner> => make<Outer, Inner>([...outer.segments, ...inner.segments], inner.ast)
+): Path<Outer, Inner>
+export function compose<Outer, Mid, Inner>(
+  outer: Path<Outer, Mid>,
+  inner: Path<Mid, Inner>,
+): Path<Outer, Inner> {
+  return make<Outer, Inner>([...outer.segments, ...inner.segments], inner.ast)
+}
 
 /** True for a path whose Schema declares it an `Option` (`Schema.Option`, `Schema.OptionFromNullOr`). */
 const optionPath = <Env, A>(path: Path<Env, A>): boolean =>
@@ -193,9 +207,12 @@ type NullIn<A> = null extends A ? null : undefined extends A ? null : never
  * not reached by its name, which reads the member: compose it,
  * `Path.compose(parent, Path.field('segments'))`.
  */
-export type PathAccessor<Env, A> = Path<Env, Read<A>> & Fields<Env, Read<A>>
+export type PathAccessor<Env, A, Writable extends boolean = false> = (Writable extends true
+  ? StatePath<Env, Read<A>>
+  : Path<Env, Read<A>>) &
+  Fields<Env, Read<A>, Writable>
 
-type Fields<Env, A> = [NonNullable<A>] extends [
+type Fields<Env, A, Writable extends boolean> = [NonNullable<A>] extends [
   ((...args: never) => unknown) | ReadonlyArray<unknown> | Date,
 ]
   ? unknown
@@ -203,7 +220,7 @@ type Fields<Env, A> = [NonNullable<A>] extends [
     ? {
         readonly [
           K in Exclude<keyof NonNullable<A> & string, keyof Path<unknown, unknown>>
-        ]: PathAccessor<Env, NonNullable<A>[K] | NullIn<A>>
+        ]: PathAccessor<Env, NonNullable<A>[K] | NullIn<A>, Writable>
       }
     : unknown
 

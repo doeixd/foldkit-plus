@@ -25,7 +25,7 @@ import { andOp } from './ops/bool.js'
 import { isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
 import { isNotOp, isOp } from './ops/eq.js'
 import * as Path from './path.js'
-import type { Path as PathType } from './path.js'
+import type { StatePath } from './path.js'
 import {
   targetOf,
   Way,
@@ -35,7 +35,7 @@ import {
   type WriteEquation,
 } from './transition.js'
 
-type List<State, Input, Supplied, E> = PathType<
+type List<State, Input, Supplied, E> = StatePath<
   TransitionEnv<State, Input, Supplied>,
   ReadonlyArray<E>
 >

@@ -161,10 +161,13 @@ describe('a transition', () => {
     })
     type Env = Transition.TransitionEnv<typeof State.Type, typeof Input.Type>
     const writing = (
-      apply: (env: {
-        readonly state: Path.PathAccessor<Env, typeof State.Type>
-        readonly input: Path.PathAccessor<Env, typeof Input.Type>
-      }) => ReadonlyArray<Transition.WriteEquation<typeof State.Type, typeof Input.Type>>,
+      apply: (
+        env: Transition.TransitionPaths<
+          typeof State.Type,
+          typeof Input.Type,
+          Transition.NoSupplied
+        >,
+      ) => ReadonlyArray<Transition.WriteEquation<typeof State.Type, typeof Input.Type>>,
     ) =>
       Abstract.checkTransition(State, Transition.make({ state: State, input: Input, apply }))._tag
     // Paths typed as the field they are written to, reading an input field that is wider.

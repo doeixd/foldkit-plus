@@ -26,7 +26,7 @@ import { evalNode } from './ops/eval.js'
 import { addOp } from './ops/num.js'
 import { readsOfNode } from './ops/reads.js'
 import * as Path from './path.js'
-import type { Expr as ExprType, Path as PathType, PathAccessor } from './path.js'
+import type { Expr as ExprType, PathAccessor, StatePath } from './path.js'
 import type { WayOfWriting } from './properties.js'
 import type { ReaderOptions } from './expr.js'
 
@@ -151,7 +151,7 @@ export interface Transition<State, Input, Emit = never, Supplied = NoSupplied> {
 
 /** The paths a transition's functions are given: one accessor per slice. */
 export interface TransitionPaths<State, Input, Supplied> {
-  readonly state: PathAccessor<TransitionEnv<State, Input, Supplied>, State>
+  readonly state: PathAccessor<TransitionEnv<State, Input, Supplied>, State, true>
   readonly input: PathAccessor<TransitionEnv<State, Input, Supplied>, Input>
   readonly supplied: PathAccessor<TransitionEnv<State, Input, Supplied>, Supplied>
 }
@@ -162,19 +162,26 @@ export const pathsOf = <S extends Schema.Top, I extends Schema.Top, Sup extends 
   input: I,
   supplied: Sup,
 ): TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>> => {
-  const { state: s, input: i } = Path.forEnv({ state, input })
+  type Env = TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>
   return {
-    state: s,
-    input: i,
+    state: Path.accessor<Env, S['Type']>(['state'], Option.some(state.ast)) as PathAccessor<
+      Env,
+      S['Type'],
+      true
+    >,
+    input: Path.accessor(['input'], Option.some(input.ast)),
     supplied: Path.accessor(['supplied'], Option.some(Schema.Struct(supplied).ast)),
-  } as unknown as TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>
+  }
 }
 
 /** The Schema of each supplied value, by name: `{ now: Schema.Int, id: Schema.String }`. */
 export type SuppliedShape = Readonly<Record<string, Schema.Top>>
 
 /** A write's target, checked to lie under `state`, without the leading segment. */
-export const targetOf = (target: PathType<never, unknown>, name: string): ReadonlyArray<string> => {
+export const targetOf = (target: unknown, name: string): ReadonlyArray<string> => {
+  if (!Path.isPath(target)) {
+    throw new Error(`[metakit] Transition.${name} target must be a path under "state"`)
+  }
   if (target.segments[0] !== 'state') {
     throw new Error(
       `[metakit] Transition.${name} target must be a path under "state", got "${Path.format(target.segments)}"`,
@@ -189,7 +196,7 @@ export const targetOf = (target: PathType<never, unknown>, name: string): Readon
  * The target decides the type: a value wider than the field is refused.
  */
 export const set = <State, Input, V, Supplied = NoSupplied>(
-  target: PathType<TransitionEnv<State, Input, Supplied>, V>,
+  target: StatePath<TransitionEnv<State, Input, Supplied>, V>,
   value: ExprInput<TransitionEnv<State, Input, Supplied>, NoInfer<V>>,
 ): WriteEquation<State, Input, V, Supplied, 'set'> => ({
   _tag: 'WriteEquation',
@@ -204,7 +211,7 @@ export const set = <State, Input, V, Supplied = NoSupplied>(
  * and null where either is null, as `Num.add` is.
  */
 export const add = <State, Input, V extends number | null, Supplied = NoSupplied>(
-  target: PathType<TransitionEnv<State, Input, Supplied>, V>,
+  target: StatePath<TransitionEnv<State, Input, Supplied>, V>,
   amount: ExprInput<TransitionEnv<State, Input, Supplied>, NoInfer<V>>,
 ): WriteEquation<State, Input, V, Supplied, 'add'> => {
   const by = toNode(amount)
@@ -229,7 +236,7 @@ export interface BinaryOver<V> {
  * binary operation `op`: `target := op(target, value)`.
  */
 export const combine = <State, Input, V, Supplied = NoSupplied>(
-  target: PathType<TransitionEnv<State, Input, Supplied>, V>,
+  target: StatePath<TransitionEnv<State, Input, Supplied>, V>,
   op: BinaryOver<NonNullable<NoInfer<V>>>,
   value: ExprInput<TransitionEnv<State, Input, Supplied>, NoInfer<V>>,
 ): WriteEquation<State, Input, V, Supplied, 'combine'> => {
