@@ -13,7 +13,7 @@ import type * as Expr from './expr.js'
 import * as Path from './path.js'
 import * as Transition from './transition.js'
 
-export { affordances, canDispatch } from './can.js'
+export { affordances, canDispatch, intent, type Intent } from './can.js'
 
 type AnyTransition<State> = {
   readonly _tag: 'Transition'
@@ -30,7 +30,8 @@ export type InputOf<T> = T extends {
 
 type TransitionInput<T> = InputOf<T>
 type TransitionEmit<T> = T extends { readonly _emit?: () => infer E } ? E : never
-type TransitionSupplied<T> = T extends { readonly _supplied?: () => infer S } ? S : never
+/** Values the host supplies to a transition. */
+export type SuppliedOf<T> = T extends { readonly _supplied?: () => infer S } ? S : never
 
 /**
  * Tagged message union derived from a `Record<Tag, Transition>` map. A
@@ -41,9 +42,9 @@ export type MessageOf<Transitions extends Readonly<Record<string, unknown>>> = {
   readonly [K in keyof Transitions & string]: {
     readonly _tag: K
     readonly input: TransitionInput<Transitions[K]>
-  } & ([keyof TransitionSupplied<Transitions[K]>] extends [never]
+  } & ([keyof SuppliedOf<Transitions[K]>] extends [never]
     ? unknown
-    : { readonly supplied: TransitionSupplied<Transitions[K]> })
+    : { readonly supplied: SuppliedOf<Transitions[K]> })
 }[keyof Transitions & string]
 
 export type EmitOf<Transitions extends Readonly<Record<string, unknown>>> = TransitionEmit<
@@ -157,7 +158,7 @@ export interface Lifted<Outer, Transitions extends Readonly<Record<string, unkno
       Outer,
       TransitionInput<Transitions[K]>,
       TransitionEmit<Transitions[K]>,
-      TransitionSupplied<Transitions[K]>
+      SuppliedOf<Transitions[K]>
     >
   }
 }

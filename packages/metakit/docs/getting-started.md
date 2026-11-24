@@ -102,6 +102,8 @@ const affordances = Machine.affordances(AccountMachine, frozen)
 
 Use paths from `state` as write targets. You can read paths from `input` and `supplied` in guards, assignments and emitted records. Use `Transition.pathsOf` when you need the same typed accessors outside a transition callback.
 
+Use `Machine.intent(AccountMachine, 'Withdraw')` when the same control checks a transition and builds its message. Call the intent's `can` with the values you have and `message` with the completed input. If the transition needs supplied values, the host attaches them when dispatching. Dispatch always checks the guard against the state at that time.
+
 ## 4. Prove that every transition preserves the schema invariants
 
 `Prove.machine` checks that no state a transition's guard allows can break a rule of the Schema. It runs the built-in interval and zone checkers first and starts Z3 only for a goal they cannot decide. `pin` names the transitions that must stay proved.

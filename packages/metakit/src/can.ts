@@ -5,9 +5,9 @@
  * evaluation a transition has, so it lives here: a page that runs
  * transitions and reads their footprints carries none.
  */
-import { Option } from 'effect'
+import { Option, Schema } from 'effect'
 import type * as Expr from './expr.js'
-import type { InputOf, Machine } from './machine.js'
+import type { InputOf, Machine, SuppliedOf } from './machine.js'
 import { judgeNode } from './ops/judge.js'
 import { loadRows } from './ops/rowsLoad.js'
 import type { Transition, TransitionEnv } from './transition.js'
@@ -36,7 +36,15 @@ const transitionOf = <State, Transitions extends Readonly<Record<string, unknown
     ? Option.some(machine.transitions[tag] as Transition<State, unknown, unknown, unknown>)
     : Option.none()
 
-/** Whether `machine` can dispatch `tag` from a partial state and input: `False` for a tag it has none of. */
+type PartialDispatch<State, Arm> = {
+  readonly state?: Expr.PartialEnv<State>
+  readonly input?: Expr.PartialEnv<InputOf<Arm>>
+  readonly supplied?: [keyof SuppliedOf<Arm>] extends [never]
+    ? never
+    : Expr.PartialEnv<SuppliedOf<Arm>>
+}
+
+/** Whether `machine` can dispatch `tag` from the values known so far. Unknown tags give `False`. */
 export const canDispatch = <
   State,
   Transitions extends Readonly<Record<string, unknown>>,
@@ -44,15 +52,39 @@ export const canDispatch = <
 >(
   machine: Machine<State, Transitions>,
   tag: K,
-  partial: {
-    readonly state?: Expr.PartialEnv<State>
-    readonly input?: Expr.PartialEnv<InputOf<Transitions[K]>>
-  },
+  partial: PartialDispatch<State, Transitions[NoInfer<K>]>,
 ): Verdict.Verdict<never> =>
   Option.match(transitionOf(machine, tag), {
     onNone: () => Verdict.False(),
     onSome: transition => can(transition, partial),
   })
+
+/** Admission and client message construction for a machine's registered arm. */
+export interface Intent<State, Tag extends string, Arm> {
+  readonly can: (partial: PartialDispatch<State, Arm>) => Verdict.Verdict<never>
+  /** The host attaches any supplied values when it dispatches the message. */
+  readonly message: (input: InputOf<Arm>) => { readonly _tag: Tag; readonly input: InputOf<Arm> }
+}
+
+/** Select a registered arm. The intent checks the guard against the values you give it. */
+export const intent = <
+  State,
+  Transitions extends Readonly<Record<string, unknown>>,
+  K extends keyof Transitions & string,
+>(
+  machine: Machine<State, Transitions>,
+  tag: K,
+): Intent<State, K, Transitions[K]> => {
+  const transition = Option.getOrThrowWith(
+    transitionOf(machine, tag),
+    () => new Error(`[metakit] Machine.intent: unknown message "${tag}"`),
+  )
+  const Message = Schema.TaggedStruct(tag, { input: Schema.Unknown })
+  return {
+    can: partial => can(transition, partial),
+    message: input => Message.make({ input }) as { readonly _tag: K; readonly input: typeof input },
+  }
+}
 
 /** Every tag of `machine`, as `available`, `disabled`, or `pending` (its guard needs the input). */
 export const affordances = <State, Transitions extends Readonly<Record<string, unknown>>>(

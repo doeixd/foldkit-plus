@@ -138,6 +138,46 @@ describe('Phase 3: metakit/machine (TEA / Sync host)', () => {
     transitions: { Withdraw, Freeze, Unfreeze },
   })
 
+  it('uses the registered withdrawal for admission and message construction', () => {
+    const withdraw = Machine.intent(AccountMachine, 'Withdraw')
+    const open: Account = { id: 'u1', balance: 100, reserved: 20, status: 'open' }
+    const frozen: Account = { ...open, status: 'frozen' }
+    expect(Verdict.isUnknown(withdraw.can({ state: open }))).toBe(true)
+    expect(Verdict.isFalse(withdraw.can({ state: frozen }))).toBe(true)
+    const message = withdraw.message({ amount: 25 })
+    expect(message).toEqual({ _tag: 'Withdraw', input: { amount: 25 } })
+    expect(Result.getOrThrow(AccountMachine.dispatch(open, message)).state.balance).toBe(75)
+    expect(Result.isFailure(AccountMachine.dispatch(frozen, message))).toBe(true)
+  })
+
+  it('judges supplied facts independently of the client intent', () => {
+    const Approve = Transition.make({
+      state: Account,
+      input: Schema.Struct({ amount: Schema.Int }),
+      supplied: { threshold: Schema.Int },
+      when: ({ supplied, input }) => Num.gte(supplied.threshold, input.amount),
+      apply: ({ state, input }) => [Transition.add(state.reserved, input.amount)],
+    })
+    const machine = Machine.make({ state: Account, transitions: { Approve } })
+    const approve = Machine.intent(machine, 'Approve')
+    const input = { amount: 5 }
+    expect(Verdict.isUnknown(approve.can({ input }))).toBe(true)
+    expect(Verdict.isTrue(approve.can({ input, supplied: { threshold: 5 } }))).toBe(true)
+    expect(
+      Verdict.isFalse(
+        Machine.canDispatch(machine, 'Approve', {
+          input,
+          supplied: { threshold: 4 },
+        }),
+      ),
+    ).toBe(true)
+    const message = approve.message(input)
+    expect(message).toEqual({ _tag: 'Approve', input })
+    const open: Account = { id: 'u1', balance: 100, reserved: 20, status: 'open' }
+    const applied = machine.dispatch(open, { ...message, supplied: { threshold: 5 } })
+    expect(Result.getOrThrow(applied).state.reserved).toBe(25)
+  })
+
   it('derives affordances, footprints, and preserves identity on refused update', () => {
     const open: Account = { id: 'u1', balance: 100, reserved: 20, status: 'open' }
     const frozen: Account = { id: 'u1', balance: 100, reserved: 20, status: 'frozen' }
@@ -191,6 +231,9 @@ describe('Phase 3: metakit/machine (TEA / Sync host)', () => {
       expect(
         Verdict.isFalse(Machine.canDispatch(AccountMachine, tag as 'Withdraw', { state: open })),
       ).toBe(true)
+      expect(() => Machine.intent(AccountMachine, tag as 'Withdraw')).toThrow(
+        `unknown message "${tag}"`,
+      )
     },
   )
 })
