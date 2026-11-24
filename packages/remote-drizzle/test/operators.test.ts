@@ -183,7 +183,7 @@ describe('A primitive operator in SQL', () => {
       {},
       'Folded',
     )
-    expect(renderedSqlite(folded!).sql).toBe('lower(("items"."code" || ?)) < ?')
+    expect(renderedSqlite(folded!).sql).toBe('lower(("items"."code" || ?)) COLLATE BINARY < ?')
   })
 
   it('refuses text holding NUL given to an operator', () => {

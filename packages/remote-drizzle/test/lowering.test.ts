@@ -126,7 +126,7 @@ describe('who asks', () => {
     lite(compile(mine, { ...sqliteLanes, context: { viewer, now: Option.none() } })).sql
 
   it('is the id a viewer of the Entity gives', () => {
-    expect(asked(Option.some({ entity: 'Lane', id: 'l1' }))).toBe('"lanes"."id" = ?')
+    expect(asked(Option.some({ entity: 'Lane', id: 'l1' }))).toBe('"lanes"."id" COLLATE BINARY = ?')
   })
 
   it('is no one for a visitor, or a viewer of another Entity, so the comparison is null', () => {
@@ -188,7 +188,7 @@ describe('an operator that compares text itself', () => {
   it('is metakit’s own operation, so a table implements none of the kernel’s', () => {
     const where = Text.startsWith(Lane.fields.name, 'ab')
     expect(lite(compile(where, sqliteLanes)).sql).toBe(
-      'substr(lower("lanes"."name"), 1, length(?)) = ?',
+      'substr(lower("lanes"."name"), 1, length(?)) COLLATE BINARY = ?',
     )
   })
 })
