@@ -6,8 +6,10 @@
  * lower both sides, which no index serves), and the numbers Postgres cannot
  * type for itself.
  */
+import { Schema } from 'effect'
 import { Collation } from 'foldkit-entity'
 import { Node, Ord } from 'metakit'
+import { define } from 'metakit/operation'
 
 /** The segment under `row` a path not of the judged row is read at, so it lowers as a column of its own. */
 const PAST = { next: '#next', viewer: '#viewer', now: '#now', input: '#input' } as const
@@ -39,7 +41,13 @@ const collatedOp = (id: TextOrder, fold: Fold): Node.ForeignOp => {
   const name = `foldkit-remote-drizzle.${id}.${fold}`
   const known = collatedOps.get(name)
   if (known !== undefined) return known
-  const made = Node.foreign({ id: name, version: 1, returns: 'boolean', nulls: 'strict' })
+  const made = define({
+    id: name,
+    version: 1,
+    args: [Schema.String, Schema.String],
+    returns: Schema.Boolean,
+    nulls: 'strict',
+  }).descriptor
   collatedOps.set(name, made)
   collatedInfo.set(made, {
     symbol: TEXT_ORDERS[id].symbol,
@@ -95,12 +103,13 @@ const ARITHMETIC: ReadonlySet<string> = new Set(['num.add', 'num.sub', 'num.mul'
  * operator. Both are cast to `double precision`, as the operator's own number
  * input always cast them.
  */
-export const typedNumber = Node.foreign({
+export const typedNumber = define({
   id: 'foldkit-remote-drizzle.number',
   version: 1,
-  returns: 'number',
+  args: [Schema.NullOr(Schema.Finite)],
+  returns: Schema.NullOr(Schema.Finite),
   nulls: 'own',
-})
+}).descriptor
 
 const needsType = (arg: Node.Node): boolean =>
   Node.$is('Lit')(arg) &&
