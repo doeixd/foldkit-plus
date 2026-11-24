@@ -6,7 +6,7 @@
 import { PGlite } from '@electric-sql/pglite'
 import { DatabaseSync } from 'node:sqlite'
 import { Result, Schema } from 'effect'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Arr, Expr, Node, Num, Ord, Path, Transition, Verdict } from 'metakit'
 import * as Rows from 'metakit/aggregates'
 import * as RowsSql from 'metakit/aggregates/sql'
@@ -240,35 +240,83 @@ describe('a total past the safe range is refused', () => {
 })
 
 describe('the same total in SQL', () => {
-  const rows = [entry('a', MAX - 1), entry('b', 1), entry('c', 1)]
-  const sum = Result.getOrThrow(RowsSql.toSql(Total, { dialect: 'sqlite' }))
-  const sumPg = Result.getOrThrow(RowsSql.toSql(Total))
-  const lite = new DatabaseSync(':memory:')
-  lite.exec(`CREATE TABLE "entries" ("id" TEXT PRIMARY KEY, "amount" INTEGER NOT NULL)`)
-  const pg = new PGlite()
+  let lite: DatabaseSync
+  let pg: PGlite
+  beforeAll(async () => {
+    lite = new DatabaseSync(':memory:')
+    lite.exec('CREATE TABLE entries (amount INTEGER NOT NULL)')
+    pg = await PGlite.create()
+  })
   afterAll(async () => {
     lite.close()
     await pg.close()
   })
 
-  it('disagrees with memory: SQLite and Postgres answer past 2^53 where memory refuses', async () => {
-    expect(refusal(() => Total.evaluate(rows))).toBe('unsafe-integer')
-    await pg.exec(`CREATE TABLE "entries" ("id" TEXT PRIMARY KEY, "amount" BIGINT NOT NULL)`)
-    for (const row of rows) {
-      lite.prepare(`INSERT INTO "entries" VALUES (?, ?)`).run(row.id, row.amount)
-      await pg.query(`INSERT INTO "entries" VALUES ($1, $2)`, [row.id, row.amount])
+  it('requires SQLite bounds that rule out intermediate integer overflow', () => {
+    for (const sqliteSum of [undefined, { maxRows: 2050, maxAbsContribution: MAX }]) {
+      const lowered = RowsSql.toSql(Total, { dialect: 'sqlite', ...(sqliteSum && { sqliteSum }) })
+      expect(Result.isFailure(lowered) && lowered.failure.reason).toContain('signed 64-bit')
     }
-    // The driver reads an integer past 2^53 only as a bigint: it too refuses it as a number.
-    const statement = lite.prepare(`SELECT ${sum.text} AS total FROM "entries"`)
-    expect(() => statement.get(...(sum.params as ReadonlyArray<never>))).toThrow(RangeError)
-    statement.setReadBigInts(true)
-    const answered = statement.get(...(sum.params as ReadonlyArray<never>)) as { total: bigint }
-    const answeredPg = await pg.query<{ total: number }>(
-      `SELECT ${sumPg.text} AS total FROM "entries"`,
-      [...sumPg.params],
+  })
+
+  const grouped = [...Array<number>(32).fill(MAX), ...Array<number>(32).fill(-MAX)]
+  const interleaved = Array.from({ length: 32 }, () => [MAX, -MAX]).flat()
+  it.each([
+    { group: 'positive boundary', amounts: [MAX - 1, 1], expected: MAX },
+    { group: 'negative boundary', amounts: [-MAX + 1, -1], expected: -MAX },
+    { group: 'positive overflow', amounts: [MAX, 2], expected: null },
+    { group: 'negative overflow', amounts: [-MAX, -2], expected: null },
+    { group: 'grouped cancellation', amounts: grouped, expected: 0 },
+    { group: 'interleaved cancellation', amounts: interleaved, expected: 0 },
+  ])('agrees with exact evaluation for $group', async ({ amounts, expected }) => {
+    const entries = amounts.map((amount, index) => entry(String(index), amount))
+    if (expected === null) expect(refusal(() => Total.evaluate(entries))).toBe('unsafe-integer')
+    else expect(Total.evaluate(entries)).toBe(expected)
+
+    const sum = Result.getOrThrow(
+      RowsSql.toSql(Total, {
+        dialect: 'sqlite',
+        sqliteSum: { maxRows: 64, maxAbsContribution: MAX },
+      }),
     )
-    // Neither raises: SQLite sums int64 exactly and Postgres sums bigint as numeric.
-    expect(answered.total).toBe(BigInt(MAX) + 1n)
-    expect(answeredPg.rows[0]!.total).toBe(MAX + 1)
+    lite.exec('DELETE FROM entries')
+    const insert = lite.prepare('INSERT INTO entries VALUES (?)')
+    for (const amount of amounts) insert.run(amount)
+    const statement = lite.prepare(`SELECT ${sum.text} AS total FROM entries`)
+    const decode = Schema.decodeUnknownSync(Schema.NullOr(Schema.Int))
+    expect(decode(statement.get()!['total'])).toBe(expected)
+    statement.setReadBigInts(true)
+    expect(statement.get()!['total']).toBe(expected === null ? null : BigInt(expected))
+
+    const sumPg = Result.getOrThrow(RowsSql.toSql(Total))
+    const result = await pg.query<{ total: unknown }>(
+      `SELECT ${sumPg.text} AS total FROM unnest($1::bigint[]) AS entries(amount)`,
+      [amounts.map(String)],
+    )
+    expect(decode(result.rows[0]!.total)).toBe(expected)
+  })
+
+  it('cancels a grouped PostgreSQL sum whose intermediate total exceeds int64', async () => {
+    const sum = Result.getOrThrow(RowsSql.toSql(Total))
+    const result = await pg.query<{ total: number }>(
+      `SELECT ${sum.text} AS total FROM (
+        SELECT ${MAX}::bigint AS amount FROM generate_series(1, 1025)
+        UNION ALL
+        SELECT ${-MAX}::bigint AS amount FROM generate_series(1, 1025)
+      ) AS entries`,
+    )
+    expect(result.rows[0]!.total).toBe(0)
+  })
+
+  it('binds the SQLite contribution in each occurrence of the sum', () => {
+    const incremented = Rows.sum(Entry, row => Num.add(row.amount, 1))
+    const sum = Result.getOrThrow(
+      RowsSql.toSql(incremented, {
+        dialect: 'sqlite',
+        sqliteSum: { maxRows: 1, maxAbsContribution: 10 },
+      }),
+    )
+    const statement = lite.prepare(`SELECT ${sum.text} AS total FROM (SELECT 5 AS amount)`)
+    expect(statement.get(...sum.params.map(param => Number(param)))!['total']).toBe(6)
   })
 })

@@ -98,6 +98,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `metakit/aggregates/sql`: an exact sum outside the safe integer range returns SQL `NULL`. SQLite sums require `sqliteSum` bounds that prevent intermediate overflow (#625).
 - `foldkit-guard`: `may` omits permission hints that depend on fields hidden or redacted for the reader (#611).
 - `metakit/graph`: `queryReadiness` accepts a `prepare` function to check the selected SQL renderer's operation and relation mappings after binding the filter's parameters (#617).
 - `metakit/path`: `Path.get` and `Path.set` on a path built from a Schema read and write the logical value of an `Option` field (its value or null, stored as `some` or `none`), read through an `Option` to a field inside it, and refuse a write inside one; a path made from raw segments still reads and writes storage (#630).

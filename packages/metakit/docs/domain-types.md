@@ -145,4 +145,6 @@ const sqlAgg = Result.getOrThrow(RowsSql.toSql(activeSum, { dialect: 'postgres' 
 
 To sum a plain column, pass it as the contribution: `Rows.sum(Entry, $ => $.amount)`.
 
-`metakit/aggregates` imports no SQL, so a page can evaluate aggregates without carrying the lowering; `RowsSql.toSql` lives in `metakit/aggregates/sql`. On Postgres it casts `sum`, `min` and `max` to `DOUBLE PRECISION` (exact over the safe integer range, and read as a number by every driver, where a `bigint` arrives as text) and `count` to `INTEGER`. SQLite answers `every` and `any` with `0` or `1`.
+`RowsSql.toSql` skips null contributions and returns zero for an empty sum. An exact final total outside the JavaScript safe integer range returns SQL `NULL`. Decode a sum as a nullable safe integer and treat `NULL` as an out-of-range result. PostgreSQL accumulates in `NUMERIC` and converts a safe total to `DOUBLE PRECISION` for the driver.
+
+For SQLite, pass `sqliteSum: { maxRows, maxAbsContribution }` and enforce those bounds for each group. The product must fit a signed 64-bit integer so SQLite can sum the contributions in any order. If you cannot guarantee the bounds, use the in-memory fold or PostgreSQL. SQLite answers `every` and `any` with `0` or `1`.

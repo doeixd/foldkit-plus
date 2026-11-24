@@ -43,7 +43,12 @@ const inMemory = (rows: ReadonlyArray<Entry>): Record<Name, unknown> => ({
 const selectList = (dialect: 'postgres' | 'sqlite') => {
   const params: Array<unknown> = []
   const columns = names.map(name => {
-    const fragment = Result.getOrThrow(RowsSql.toSql(aggregates[name], { dialect }))
+    const fragment = Result.getOrThrow(
+      RowsSql.toSql(aggregates[name], {
+        dialect,
+        sqliteSum: { maxRows: 4, maxAbsContribution: 4_000_000_000 },
+      }),
+    )
     // Each fragment numbers its own parameters from 1; renumber them in order.
     const text =
       dialect === 'postgres'

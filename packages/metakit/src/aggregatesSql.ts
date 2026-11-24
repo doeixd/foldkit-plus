@@ -1,13 +1,13 @@
 /**
  * `metakit/aggregates/sql`: compile a `metakit/aggregates` aggregate to one SQL
- * aggregate expression for Postgres or SQLite, giving the answer the in-memory
- * `evaluate` gives. Kept apart from `metakit/aggregates` so a page that
+ * aggregate expression for Postgres or SQLite. Kept apart from
+ * `metakit/aggregates` so a page that
  * evaluates aggregates carries no SQL lowering.
  *
- * - `sum` is `COALESCE(SUM(x), 0)`, and `min` and `max` are `MIN(x)` and
- *   `MAX(x)`, which skip nulls. Postgres casts each to `DOUBLE PRECISION`,
- *   which every driver reads as a number and which is exact over the safe
- *   integer range (a `bigint` reaches most drivers as text).
+ * - `sum` accumulates integers exactly and returns SQL NULL when the final
+ *   total is outside JavaScript's safe integer range. SQLite needs bounds
+ *   that keep every intermediate sum within its integer accumulator.
+ * - `min` and `max` skip nulls. Postgres casts each to `DOUBLE PRECISION`.
  * - `count` is `COUNT(*)`, or a sum of `CASE WHEN p THEN 1 ELSE 0 END`; Postgres
  *   casts it to `INTEGER`.
  * - `every` counts an unknown predicate as failing on both dialects
@@ -22,7 +22,15 @@ import * as Sql from './sql.js'
 export interface AggregateSqlOptions {
   readonly dialect?: Sql.SqlDialect
   readonly column?: (segments: ReadonlyArray<string>) => string
+  /** Required for SQLite sums. The caller must enforce both bounds per aggregate group. */
+  readonly sqliteSum?: {
+    readonly maxRows: number
+    readonly maxAbsContribution: number
+  }
 }
+
+const SQLITE_MAX_INTEGER = (1n << 63n) - 1n
+const MAX_SAFE = Number.MAX_SAFE_INTEGER
 
 /** Compile `aggregate` to a SQL aggregate expression over the rows' columns. */
 export const toSql = <Row>(
@@ -30,28 +38,52 @@ export const toSql = <Row>(
   options?: AggregateSqlOptions,
 ): Result.Result<Sql.SqlFragment, Sql.SqlUnsupportedError> => {
   const postgres = (options?.dialect ?? 'postgres') === 'postgres'
+  const lower = (expr: Expr<Row, unknown>) =>
+    // `toWhere` lowers any expression; its name reflects its usual caller.
+    Sql.toWhere(expr as Expr<Row, boolean>, {
+      rowPrefix: [],
+      ...(options?.dialect !== undefined ? { dialect: options.dialect } : {}),
+      ...(options?.column !== undefined ? { column: options.column } : {}),
+    })
   const around = (
     expr: Expr<Row, unknown>,
     text: (inner: string) => string,
   ): Result.Result<Sql.SqlFragment, Sql.SqlUnsupportedError> =>
-    Result.map(
-      // `toWhere` lowers any expression; its name reflects its usual caller.
-      Sql.toWhere(expr as Expr<Row, boolean>, {
-        rowPrefix: [],
-        ...(options?.dialect !== undefined ? { dialect: options.dialect } : {}),
-        ...(options?.column !== undefined ? { column: options.column } : {}),
-      }),
-      fragment => ({ text: text(fragment.text), params: fragment.params }),
-    )
+    Result.map(lower(expr), fragment => ({ text: text(fragment.text), params: fragment.params }))
   const counted = (inner: string): string => {
     const total = `COALESCE(SUM(CASE WHEN ${inner} THEN 1 ELSE 0 END), 0)`
     return postgres ? `${total}::INTEGER` : total
   }
   return Match.valueTags(aggregate, {
-    Sum: ({ contribution }) =>
-      around(contribution, x =>
-        postgres ? `COALESCE(SUM(${x}), 0)::DOUBLE PRECISION` : `COALESCE(SUM(${x}), 0)`,
-      ),
+    Sum: ({ contribution }) => {
+      if (!postgres) {
+        const bounds = options?.sqliteSum
+        if (
+          bounds === undefined ||
+          !Number.isSafeInteger(bounds.maxRows) ||
+          bounds.maxRows < 0 ||
+          !Number.isSafeInteger(bounds.maxAbsContribution) ||
+          bounds.maxAbsContribution < 0 ||
+          BigInt(bounds.maxRows) * BigInt(bounds.maxAbsContribution) > SQLITE_MAX_INTEGER
+        ) {
+          return Result.fail(
+            new Sql.SqlUnsupportedError({
+              reason:
+                'SQLite sum needs sqliteSum bounds whose product fits a signed 64-bit integer',
+            }),
+          )
+        }
+      }
+      return Result.map(lower(contribution), ({ text, params }) => {
+        const total = `COALESCE(SUM(CAST(${text} AS ${postgres ? 'NUMERIC' : 'INTEGER'})), 0)`
+        const value = postgres ? `${total}::DOUBLE PRECISION` : total
+        return {
+          text: `(CASE WHEN ${total} BETWEEN ${-MAX_SAFE} AND ${MAX_SAFE} THEN ${value} END)`,
+          // PostgreSQL reuses its numbered placeholders. SQLite binds each occurrence.
+          params: postgres ? params : [...params, ...params],
+        }
+      })
+    },
     Count: ({ predicate }) =>
       Option.match(predicate, {
         onNone: () =>
