@@ -118,7 +118,9 @@ const pruned = Graph.pruneStatic(bindings, { promoEnabled: false })
 
 ## Gate dependent queries (`Graph.queryReadiness`)
 
-For a cascading filter over `{ row, params }` (the row being tested and the choices made so far), `Graph.queryReadiness(expr, partialEnv)` fills in the choices you have and reports whether any parameter the filter still reads is unbound. The result is `{ ready: true, residual }` when none is and what is left lowers to SQL; `residual` is the filter simplified by what you supplied. Otherwise it is `{ ready: false, missing, unsupported, residual }`: `missing` lists the parameters still needed, and a predicate SQL refuses (an `Expr.opaque` term over the row, a fraction beside an integer column) has nothing missing and names the reason in `unsupported`.
+For a cascading filter over `{ row, params }`, `Graph.queryReadiness(expr, partialEnv)` fills in the choices you have. The `residual` is the filter simplified by those choices. It is ready by default once its remaining reads are row fields and its expression can be lowered to SQL pieces.
+
+To check a specific renderer, pass a `prepare` function that sends the residual to `Sql.toWhere` or `Drizzle.toWhere` with your configuration. Readiness then includes the renderer's checks for foreign operations, columns and relation mappings. `missing` lists any unbound parameters. Once they are bound, `unsupported` gives the reason preparation refused the filter.
 
 ```ts
 import { Result } from 'effect'

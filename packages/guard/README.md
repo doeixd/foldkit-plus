@@ -582,6 +582,8 @@ May.canLink(row.may, Todo, 'project', 'Link')
 - `may` covers `Update`, `Delete`, custom interactions, member `Update` rules,
   and relation `Link`/`Unlink` rules over the loaded row (members/relations
   without rules inherit `Update`).
+- A rule that reads a field hidden or redacted for the reader leaves its `may`
+  entry out. The server evaluates the rule when it receives a write.
 - `May.reason(row.may, 'Delete')` returns `Option<string>` from `Guards.explain`.
 - `foldkit-crud` passes `locks: May.locks(Todo)` to lock disallowed fields in
   `foldkit-mixins-form` while keeping undecided fields editable.

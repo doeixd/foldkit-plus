@@ -3,8 +3,10 @@ import { Eq, Expr, Null, Num, Ord, Path, Transition } from 'metakit'
 import { Text } from 'metakit/domain'
 import * as Graph from 'metakit/graph'
 import * as Machine from 'metakit/machine'
+import * as Relation from 'metakit/relation'
 import * as Sql from 'metakit/sql'
 import { describe, expect, it } from 'vitest'
+import { define } from '../src/operation.js'
 
 const Account = Schema.Struct({
   id: Schema.String,
@@ -267,6 +269,78 @@ describe('metakit/graph', () => {
       const bare = Ord.gt(Path.from(Row).rank, 1)
       expect(Graph.queryReadiness(bare, {}, { rowPrefix: [] }).ready).toBe(true)
       expect(Result.getOrThrow(Sql.toWhere(bare, { rowPrefix: [] })).text).toBe('("rank" > $1)')
+    })
+
+    it('checks foreign operations against the selected renderer after binding parameters', () => {
+      const ahead = define({
+        id: 'test.ahead',
+        version: 1,
+        args: [Schema.Int, Schema.Int],
+        returns: Schema.Boolean,
+        nulls: 'strict',
+      })
+      const filter = Expr.in({ row: Row, params: Params }, ({ row, params }) =>
+        ahead(row.rank, params.floor),
+      )
+      const bound = { params: { floor: 1 } }
+      expect(Graph.queryReadiness(filter, bound).ready).toBe(true)
+      const missing = Graph.queryReadiness(filter, {}, { prepare: Sql.toWhere })
+      expect(missing).toMatchObject({
+        ready: false,
+        missing: Option.some([['params', 'floor']]),
+        unsupported: Option.none(),
+      })
+      const unsupported = Graph.queryReadiness(filter, bound, { prepare: Sql.toWhere })
+      expect(unsupported).toMatchObject({
+        ready: false,
+        missing: Option.some([]),
+        unsupported: Option.some(expect.stringContaining('test.ahead@1')),
+      })
+      expect(
+        Graph.queryReadiness(filter, bound, {
+          prepare: residual =>
+            Sql.toWhere(residual, {
+              dialect: 'sqlite',
+              foreign: {
+                'test.ahead@1': {
+                  sql: ([rank, floor]) => [...rank!, Sql.SqlPiece.Text({ text: ' > ' }), ...floor!],
+                },
+              },
+            }),
+        }).ready,
+      ).toBe(true)
+    })
+
+    it('checks the selected renderer has a mapping for related rows', () => {
+      const children = Relation.make('Child.parentId', Row)
+      const filter = Expr.in({ row: Row }, ({ row }) =>
+        Relation.any(row, children, child => Num.gt(child.rank, 0)),
+      )
+      const noMapping = Graph.queryReadiness(
+        filter,
+        {},
+        {
+          prepare: residual => Sql.toWhere(residual, { table: 'parents' }),
+        },
+      )
+      expect(noMapping).toMatchObject({
+        ready: false,
+        missing: Option.some([]),
+        unsupported: Option.some(expect.stringContaining('Child.parentId')),
+      })
+      expect(
+        Graph.queryReadiness(
+          filter,
+          {},
+          {
+            prepare: residual =>
+              Sql.toWhere(residual, {
+                table: 'parents',
+                relations: { 'Child.parentId': { table: 'children', foreignKey: 'parent_id' } },
+              }),
+          },
+        ).ready,
+      ).toBe(true)
     })
 
     it('names what is missing, and nothing unsupported, while a parameter is unbound', () => {

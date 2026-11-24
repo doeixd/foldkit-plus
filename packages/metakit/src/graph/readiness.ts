@@ -19,22 +19,25 @@ export type QueryReadiness<Env, A> =
       readonly ready: false
       /** The parameter paths still unbound; none when an opaque term declares no reads. */
       readonly missing: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
-      /** Why the predicate cannot be lowered to SQL although every parameter is bound. */
+      /** Why preparation failed after every parameter was bound. */
       readonly unsupported: Option.Option<string>
       readonly residual: Expr.Expr<Env, A>
     }
 
 /**
- * Whether a query's filter can be lowered to SQL yet: every parameter path it
- * still reads is bound in `partialEnv`, and what is left lowers
- * (`Sql.toWhere`, `Drizzle.toWhere`). An opaque term over the row alone has
- * nothing missing and is still not ready: `unsupported` says so.
+ * Fills in parameters and checks the residual filter. By default it checks
+ * structural SQL lowering. Pass `prepare` to check the actual renderer and its
+ * configuration, including foreign operations and relation mappings.
  */
 export const queryReadiness = <Env, A>(
   expr: Expr.Expr<Env, A>,
   partialEnv: Expr.PartialEnv<NoInfer<Env>>,
   options?: {
     readonly rowPrefix?: ReadonlyArray<string>
+    /** The selected backend's preparation, called after all parameters are bound. */
+    readonly prepare?: (
+      residual: Expr.Expr<Env, A>,
+    ) => Result.Result<unknown, { readonly reason: string }>
   },
 ): QueryReadiness<Env, A> => {
   const rowPrefix = options?.rowPrefix ?? ['row']
@@ -47,7 +50,11 @@ export const queryReadiness = <Env, A>(
   if (missing.length > 0) {
     return { ready: false, missing: Option.some(missing), unsupported: Option.none(), residual }
   }
-  return Result.match(lowerNode(residual.node, { dialect: 'postgres', rowPrefix }), {
+  const prepared =
+    options?.prepare === undefined
+      ? lowerNode(residual.node, { dialect: 'postgres', rowPrefix })
+      : options.prepare(residual)
+  return Result.match(prepared, {
     onSuccess: (): QueryReadiness<Env, A> => ({ ready: true, residual }),
     onFailure: ({ reason }) => ({
       ready: false,

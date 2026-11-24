@@ -317,7 +317,7 @@ supplied: true } }`). Select `may: true` and read it with
 (an `explain`'s sentence for a refusal, else none).
 
 `may` says one of three things of a row interaction: yes, no, or nothing, where
-its rule reads another row and one row cannot decide it. `May.answer(may,
+its rule needs a hidden or redacted field or another row. `May.answer(may,
 'Update')` is the three as a metakit `Verdict` (`True`, `False`, `Unknown`). `May.can` is true only on a
 yes and `May.refused(may, 'Update')` only on a no: hide or disable on
 `refused`, so what was not said stays live and the server decides it.

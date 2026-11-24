@@ -19,9 +19,8 @@ import { Condition, deciding, type MemberRead, type RowRule } from './condition.
  *
  * `row` says one of three things of an interaction: `true`, its rule let the
  * reader; `false`, it refused; and nothing, the key left out, where the rule
- * reads another row and one row cannot decide it. The write's statement
- * decides that one. Read the three with `May.answer`, which gives a `Verdict`;
- * this shape is the JSON on the wire and does not change.
+ * needs data unavailable to the reader. The server decides that rule at
+ * write time. Read the three with `May.answer`, which gives a `Verdict`.
  */
 export const MaySchema = Schema.Struct({
   row: Schema.Record(Schema.String, Schema.Boolean),
@@ -140,18 +139,19 @@ export const mayConditions = (rules: MayRules): ReadonlyArray<Condition> => [
 
 /**
  * The answer over one row, each condition decided by `decide`. A row
- * interaction it cannot decide over one row (a rule reading another row,
- * which the write's statement judges) is left out, and so refuses nothing.
+ * interaction it cannot decide for the reader is left out, and so refuses
+ * nothing. The wire carries both directions of a relation as one entry.
  */
 export const answerOf = (
   rules: MayRules,
   decide: (condition: Condition) => Option.Option<boolean>,
 ): MayAnswer => {
-  // Member and relation rules never read another row (`Guards.attach` refuses one).
-  const holds = (condition: Condition) => Option.getOrElse(decide(condition), () => false)
   // A relation without a rule for one direction leaves it to the row's Update.
   const allows = (rule: Option.Option<RowRule>) =>
-    Option.match(rule, { onNone: () => true, onSome: ({ condition }) => holds(condition) })
+    Option.match(rule, {
+      onNone: () => Option.some(true),
+      onSome: ({ condition }) => decide(condition),
+    })
   const decided = rules.rows.flatMap(([interaction, rule]) =>
     Option.match(decide(rule.condition), {
       onNone: () => [],
@@ -175,13 +175,19 @@ export const answerOf = (
       ),
     ),
     members: Object.fromEntries(
-      rules.members.map(({ member, condition }) => [member, holds(condition)]),
+      rules.members.flatMap(({ member, condition }) =>
+        Option.toArray(Option.map(decide(condition), answer => [member, answer] as const)),
+      ),
     ),
     relations: Object.fromEntries(
-      rules.relations.map(({ relation, link, unlink }) => [
-        relation,
-        { Link: allows(link), Unlink: allows(unlink) },
-      ]),
+      rules.relations.flatMap(({ relation, link, unlink }) =>
+        Option.toArray(
+          Option.map(
+            Option.all({ Link: allows(link), Unlink: allows(unlink) }),
+            answer => [relation, answer] as const,
+          ),
+        ),
+      ),
     ),
   }
 }

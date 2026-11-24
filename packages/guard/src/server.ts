@@ -191,68 +191,66 @@ export const GuardServer = {
         principal: Option.Option<User>,
         fields: readonly string[],
       ): Effect.Effect<ReadPlan, never, R> =>
-        Effect.map(
-          Effect.all([
-            policy.readMembers(entity, principal, fields),
-            // `may` is answered here, where the row is read as its principal sees it.
-            asksMay(entity, fields)
-              ? Effect.map(mayOf(entity, policy, principal), Option.some)
-              : Effect.succeed(Option.none<MayPlan>()),
-          ]),
-          ([members, may]): ReadPlan => {
-            if (members.length === 0 && Option.isNone(may)) return { fields, apply: noMembers }
-            const input = policy.inputOf(principal)
-            const decided = members.map(member => ({
-              ...member,
-              // A redacted value is a decoded one; the record holds what the store holds.
-              redacted: Match.valueTags(member.deny, {
-                Redact: deny =>
-                  Option.some(
-                    Schema.encodeSync(
-                      (entity.members as Readonly<Record<string, { readonly schema: Schema.Top }>>)[
-                        member.member
-                      ]!.schema as unknown as Schema.Codec<unknown, unknown>,
-                    )(deny.value),
-                  ),
-                NotFound: () => Option.none(),
-                Omit: () => Option.none(),
-                Forbidden: () => Option.none(),
-                Explain: () => Option.none(),
-              }),
-            }))
-            return {
-              fields: [
-                ...new Set([
-                  ...fields,
-                  ...members.flatMap(({ condition }) => Condition.members(condition)),
-                  ...Option.match(may, { onNone: () => [], onSome: ({ fields }) => fields }),
-                ]),
-              ],
-              apply: record => {
-                const values: Record<string, unknown> = { ...record.values }
-                for (const { member, condition, redacted } of decided) {
-                  // Member rules carry no inherited Read: only a row's Read may inherit.
-                  if (
-                    Condition.holds(condition, record.values, input, () => false, policy.operators)
-                  )
-                    continue
-                  Option.match(redacted, {
-                    onNone: () => {
-                      delete values[member]
-                    },
-                    onSome: value => {
-                      values[member] = value
-                    },
-                  })
-                }
-                Option.map(may, ({ answer }) => {
-                  values.may = answer(record.values)
+        Effect.gen(function* () {
+          const may = asksMay(entity, fields)
+            ? Option.some(yield* mayOf(entity, policy, principal))
+            : Option.none<MayPlan>()
+          const requested = Option.match(may, {
+            onNone: () => fields,
+            onSome: plan => [...new Set([...fields, ...plan.fields])],
+          })
+          const members = yield* policy.readMembers(entity, principal, requested)
+          if (members.length === 0 && Option.isNone(may)) return { fields, apply: noMembers }
+          const input = policy.inputOf(principal)
+          const decided = members.map(member => ({
+            ...member,
+            // A redacted value is a decoded one; the record holds what the store holds.
+            redacted: Match.valueTags(member.deny, {
+              Redact: deny =>
+                Option.some(
+                  Schema.encodeSync(
+                    (entity.members as Readonly<Record<string, { readonly schema: Schema.Top }>>)[
+                      member.member
+                    ]!.schema as unknown as Schema.Codec<unknown, unknown>,
+                  )(deny.value),
+                ),
+              NotFound: () => Option.none(),
+              Omit: () => Option.none(),
+              Forbidden: () => Option.none(),
+              Explain: () => Option.none(),
+            }),
+          }))
+          return {
+            fields: [
+              ...new Set([
+                ...requested,
+                ...members.flatMap(({ condition }) => Condition.members(condition)),
+              ]),
+            ],
+            apply: record => {
+              const values: Record<string, unknown> = { ...record.values }
+              const hidden = new Set<string>()
+              for (const { member, condition, redacted } of decided) {
+                // Member rules carry no inherited Read: only a row's Read may inherit.
+                if (Condition.holds(condition, record.values, input, () => false, policy.operators))
+                  continue
+                hidden.add(member)
+                Option.match(redacted, {
+                  onNone: () => {
+                    delete values[member]
+                  },
+                  onSome: value => {
+                    values[member] = value
+                  },
                 })
-                return { ...record, values }
-              },
-            }
-          },
-        ),
+              }
+              Option.map(may, ({ answer }) => {
+                values.may = answer(record.values, hidden)
+              })
+              return { ...record, values }
+            },
+          }
+        }),
       policy,
       [entity],
     )
@@ -1564,7 +1562,10 @@ const asksMay = (entity: AnyEntity, fields: ReadonlyArray<string>) =>
 /** How one principal's `may` is answered: the fields its rules read, and the answer over a row. */
 interface MayPlan {
   readonly fields: ReadonlyArray<string>
-  readonly answer: (values: Readonly<Record<string, unknown>>) => MayAnswer
+  readonly answer: (
+    values: Readonly<Record<string, unknown>>,
+    hidden: ReadonlySet<string>,
+  ) => MayAnswer
 }
 
 /**
@@ -1587,14 +1588,20 @@ const mayOf = <User, R>(
     }),
     (rules): MayPlan => {
       const input = policy.inputOf(principal)
+      const dependencies = new Map(
+        mayConditions(rules).map(condition => [condition, Condition.members(condition)]),
+      )
       return {
         // `id` too, so a row is read when its rules read none of it (an admin's).
-        fields: ['id', ...new Set(mayConditions(rules).flatMap(Condition.members))],
+        fields: [...new Set(['id', ...[...dependencies.values()].flat()])],
         // A rule reading another row is the write's statement's to judge: not answered here.
-        answer: values =>
-          answerOf(rules, condition =>
-            Condition.decided(Condition.residual(condition, values, input, policy.operators)),
-          ),
+        answer: (values, hidden) =>
+          answerOf(rules, condition => {
+            if (dependencies.get(condition)!.some(member => hidden.has(member))) {
+              return Option.none()
+            }
+            return Condition.decided(Condition.residual(condition, values, input, policy.operators))
+          }),
       }
     },
   )

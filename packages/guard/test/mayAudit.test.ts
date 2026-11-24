@@ -46,6 +46,7 @@ const G = Guards.declare(
   guard => ({
     isAdmin: guard.principal(),
     isOwner: guard.row(Related.Todo, p => Expr.eq(Related.Todo.fields.ownerId, p.id)),
+    hasEditableTitle: guard.row(Related.Todo, () => Expr.eq(Related.Todo.fields.title, 'Own')),
   }),
   { key: user => user.id, unguarded: 'deny' },
 )
@@ -164,6 +165,68 @@ describe('may, as its reader receives it', () => {
 
   it('reads no row to a visitor', async () => {
     expect((await read(visitor, ['t1', 't2'], ['may'])).entities).toEqual([])
+  })
+
+  it('omits answers that need a redacted member, including when only may was requested', async () => {
+    const PrivateTitle = Related.Todo.pipe(
+      Guards.attach(G, {
+        row: { Read: [Guards.anyone], Update: [G.hasEditableTitle] },
+        members: {
+          title: { Read: Guards.on([G.isAdmin], Guards.redact('Private')) },
+          ownerId: { Update: [G.hasEditableTitle] },
+        },
+        relations: { project: { Link: [G.hasEditableTitle] } },
+      }),
+      Guards.may,
+    )
+    const visible = GuardDrizzle.visible(Policy, [PrivateTitle, Project])
+    const db = bind(
+      { Todo: PrivateTitle, Project },
+      {
+        Todo: {
+          table: todos,
+          relations: { project: { field: todos.projectId } },
+          derived: { may: { supplied: true } },
+          visible: visible.Todo,
+        },
+        Project: { table: projects, visible: visible.Project },
+      },
+    )
+    const protectedServer = RemoteServer.make({
+      entities: [source(db.Todo, { filter: GuardServer.filter(PrivateTitle, Policy) })],
+    })
+    const sqlite = open()
+    try {
+      const readBoth = (principal: Option.Option<User>, fields: ReadonlyArray<string>) =>
+        Effect.runPromise(
+          RemoteServer.handlers(protectedServer, principal)
+            .FoldkitRemoteRead({
+              version: REMOTE_PROTOCOL_VERSION,
+              requests: ['t1', 't2'].map(id => ({ entity: 'Todo', id, fields })),
+            })
+            .pipe(Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+        )
+      const restricted = { row: { Delete: false }, reasons: {}, members: {}, relations: {} }
+      for (const fields of [['may'], ['title', 'may']]) {
+        const result = await readBoth(ada, fields)
+        expect(result.entities.map(entity => entity.values)).toEqual(
+          Array.from({ length: 2 }, () =>
+            fields.includes('title') ? { title: 'Private', may: restricted } : { may: restricted },
+          ),
+        )
+      }
+      const result = await readBoth(root, ['may'])
+      expect(result.entities.map(entity => entity.values.may)).toEqual(
+        [true, false].map(allowed => ({
+          row: { Update: allowed, Delete: false },
+          reasons: {},
+          members: { ownerId: allowed },
+          relations: { project: { Link: allowed, Unlink: true } },
+        })),
+      )
+    } finally {
+      sqlite.close()
+    }
   })
 })
 
