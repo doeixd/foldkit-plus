@@ -224,18 +224,32 @@ const scalarKindOf = (ast: SchemaAST.AST): Node.ValueKind | undefined => {
   return undefined
 }
 
-const validateSchema = (schema: Schema.Top, id: string, label: string): Node.ValueKind => {
+const storedSchema = (schema: Schema.Top, id: string, label: string): SchemaAST.AST => {
   const encoded = encodingName(schema.ast)
   if (encoded !== undefined) {
     throw new Error(
       `[metakit] Operation.define: ${label} of "${id}" decodes from another form (${encoded}); declare the Schema of the value as stored, such as Schema.Number.`,
     )
   }
-  const kind = scalarKindOf(schema.ast)
+  return schema.ast
+}
+
+const unsupportedSchema = (schema: Schema.Top, id: string, label: string): never => {
+  throw new Error(
+    `[metakit] Operation.define: ${label} of "${id}" holds ${describeSchema(schema)}; an operation takes and gives numbers, booleans and text.`,
+  )
+}
+
+const scalarArgument = (ast: SchemaAST.AST): boolean =>
+  SchemaAST.isUnion(ast)
+    ? ast.types.some(member => !SchemaAST.isNull(member)) &&
+      ast.types.every(member => SchemaAST.isNull(member) || scalarArgument(member))
+    : scalarKindOf(ast) !== undefined
+
+const resultKind = (schema: Schema.Top, id: string): Node.ValueKind => {
+  const kind = scalarKindOf(storedSchema(schema, id, 'result'))
   if (kind === undefined) {
-    throw new Error(
-      `[metakit] Operation.define: ${label} of "${id}" holds ${describeSchema(schema)}; an operation takes and gives numbers, booleans and text.`,
-    )
+    return unsupportedSchema(schema, id, 'result')
   }
   return kind
 }
@@ -310,9 +324,11 @@ export const define = <
     )
   }
   for (let index = 0; index < spec.args.length; index++) {
-    validateSchema(spec.args[index]!, id, `argument ${index + 1}`)
+    const argument = spec.args[index]!
+    const label = `argument ${index + 1}`
+    if (!scalarArgument(storedSchema(argument, id, label))) unsupportedSchema(argument, id, label)
   }
-  const returns = validateSchema(spec.returns, id, 'result')
+  const returns = resultKind(spec.returns, id)
 
   const checkArgs: ReadonlyArray<Node.ForeignSchemaCheck> = spec.args.map(arg => ({
     is: Schema.is(arg),

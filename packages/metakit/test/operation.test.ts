@@ -96,6 +96,28 @@ describe('Operation.define (Phase 4 bout 4.4)', () => {
     }
   })
 
+  it('checks an argument whose Schema accepts different scalar kinds', () => {
+    const Value = Schema.Union([Schema.Boolean, Schema.Int])
+    const present = Operation.define({
+      id: 'flags.present',
+      version: 1,
+      args: [Value],
+      returns: Schema.Boolean,
+      nulls: 'strict',
+    })
+    const foreign = Operation.implementations(
+      'mixed scalars',
+      Operation.implement(present, value => (typeof value === 'boolean' ? value : value > 0)),
+    )
+    const state = Schema.Struct({ value: Value })
+    const call = present(Path.from(state).value)
+    expect(Expr.evaluate(call, { value: true }, { foreign })).toBe(true)
+    expect(Expr.evaluate(call, { value: -1 }, { foreign })).toBe(false)
+    expect(Result.getFailure(Expr.evalResult(call, { value: 0.5 }, { foreign }))).toMatchObject({
+      value: { reason: 'ill-typed' },
+    })
+  })
+
   it('refuses invalid declarations with exact error messages', () => {
     expect(() =>
       Operation.define({

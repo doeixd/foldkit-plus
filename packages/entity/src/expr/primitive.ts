@@ -7,9 +7,8 @@
  * takes from its caller. A collation reaches no operation: it folds text
  * arguments where the call is built.
  */
-import { Option, Schema } from 'effect'
+import { Option, Schema, SchemaAST } from 'effect'
 import { Node } from 'metakit'
-import * as Operation from 'metakit/operation'
 import type { Collation } from '../collation.js'
 import { kindOfAst } from './kind.js'
 import { folded } from './operand.js'
@@ -37,14 +36,21 @@ const returnsOf = (operator: OperatorDescriptor): Node.ValueKind | 'other' => {
   return kind === 'null' ? 'other' : kind
 }
 
-/** Whether every argument Schema stores a scalar kind a foreign operation accepts. */
-const scalarInput = (operator: OperatorDescriptor): boolean =>
-  operator.input.every(schema => {
-    const kind = storedKindOf(schema)
-    return kind !== 'other' && kind !== 'null'
-  })
+const scalarArgument = (ast: SchemaAST.AST): boolean => {
+  if (SchemaAST.isUnion(ast)) {
+    return (
+      ast.types.some(member => !SchemaAST.isNull(member)) &&
+      ast.types.every(member => SchemaAST.isNull(member) || scalarArgument(member))
+    )
+  }
+  const kind = kindOfAst(ast)
+  return kind !== 'other' && kind !== 'null'
+}
 
-const foreignOps = new WeakMap<OperatorDescriptor, Node.ForeignOp>()
+const scalarInput = (operator: OperatorDescriptor): boolean =>
+  operator.input.every(schema => scalarArgument(Schema.toEncoded(schema).ast))
+
+const foreignOps = new WeakMap<OperatorDescriptor, () => Node.ForeignOp>()
 const declarations = new WeakMap<Node.ForeignOp, OperatorDescriptor>()
 
 /** What a reader in memory refuses a value of a kind no foreign operation declares with. */
@@ -54,39 +60,24 @@ const unheldKind = (operator: OperatorDescriptor): string =>
 const unheldInputKind = (operator: OperatorDescriptor): string =>
   `${Node.foreignName(operator)} takes an argument that is neither a number, a boolean nor text, which a foreign operation declares`
 
-/** Adapt `Node.ForeignClaims` (where `invertible.inverse` is a `ForeignOp`) to `Operation.define`'s input. */
-const adaptClaims = (claims: Node.ForeignClaims): Record<string, unknown> => {
-  if (claims.invertible === undefined || claims.invertible.inverse === 'self') {
-    return claims as Record<string, unknown>
-  }
-  const inv = claims.invertible.inverse
-  return {
-    ...claims,
-    invertible: {
-      inverse: 'descriptor' in inv ? inv : { descriptor: inv },
-    },
-  }
+/** Register the constructor on user-declared operations so reading core calls needs no constructor. */
+export const registerForeign = (operator: OperatorDescriptor, make: () => Node.ForeignOp): void => {
+  let cached: Node.ForeignOp | undefined
+  foreignOps.set(operator, () => {
+    if (cached === undefined) {
+      cached = make()
+      declarations.set(cached, operator)
+    }
+    return cached
+  })
 }
 
-/** A primitive operator as a foreign operation, made once per declaration through `Operation.define`. */
+/** A primitive operator as a foreign operation, made once per declaration. */
 export const foreignOpOf = (operator: OperatorDescriptor): Node.ForeignOp => {
-  const known = foreignOps.get(operator)
-  if (known !== undefined) return known
-  const returns = returnsOf(operator)
-  if (returns === 'other') throw new Error(`[foldkit-entity] ${unheldKind(operator)}`)
-  if (!scalarInput(operator)) throw new Error(`[foldkit-entity] ${unheldInputKind(operator)}`)
-  const defined = Operation.define({
-    id: operator.id,
-    version: operator.version,
-    args: operator.input.map(Schema.toEncoded) as ReadonlyArray<Schema.Top>,
-    returns: Schema.toEncoded(operator.output),
-    nulls: operator.nulls,
-    ...(Object.keys(operator.claims).length > 0 ? { claims: adaptClaims(operator.claims) } : {}),
-  } as Parameters<typeof Operation.define>[0])
-  const made = defined.descriptor
-  foreignOps.set(operator, made)
-  declarations.set(made, operator)
-  return made
+  const make = foreignOps.get(operator)
+  if (make === undefined)
+    throw new Error(`[foldkit-entity] No foreign declaration for ${Node.foreignName(operator)}`)
+  return make()
 }
 
 /** The declaration a foreign operation was made from, when entity made it. */

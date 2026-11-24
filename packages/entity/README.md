@@ -1239,9 +1239,8 @@ compiles into the statement and a client predicts by its own table. A
 computation does not repeat without effect, so a retry of one is held to it as
 an increment's is; without a revision it lands only under a ledger, and there
 only where the writer pins the row it read (a guarded writer with a `revision`)
-or by an operator whose commutativity and associativity are tested over every
-value for each implementation the writer runs (`Conformance.laws` in memory,
-`Conformance.lawsBy` in SQL).
+or by an operator declared both commutative and associative and supplied in
+memory and SQL.
 
 ### The row a write leaves: `Write.apply`
 
@@ -1747,9 +1746,8 @@ proved, `Enumerated` for the rest (by disjointness, by enumeration, a create
 against a transition invariant, a delete). A pair
 kept on its author's word (`declared`), refused or undecided carries none:
 for those, the evidence is a walk through the writer, a scenario, or
-`Evidence.runtimeOnly` with its reason. These records are
-`foldkit-metadata`'s `Evidence`; the `Evidence` this package exports is an
-operator law's (`Tested`, `Proven`, [below](#laws-and-holding-an-implementation-to-them)).
+`Evidence.runtimeOnly` with its reason. These records use `Evidence` from
+`foldkit-metadata`.
 
 ```ts
 import { Option } from 'effect'
@@ -1927,79 +1925,11 @@ refused where it is written.
 - **A write refuses text holding a NUL** where its input is decoded
   (`Entity.input`'s schema), naming the key, so no stored row holds one.
 
-### Laws, and holding an implementation to them
+### Check what a primitive operator promises
 
-An operator may declare the equations every implementation of it keeps. A law
-is descriptive: interpreters execute expressions as written without algebraic
-rewrites. `Conformance.laws` tests an implementation against them, and what it
-finds is evidence its table records.
+Pass `claims` to `Expr.operator` to declare properties such as commutativity. A commutative operator gives the same result when its two arguments are exchanged. The declaration travels with calls to that operator.
 
-```ts
-import { Schema } from 'effect'
-import { Expr, Law, Operators } from 'foldkit-entity'
-import { Conformance } from 'foldkit-entity/conformance'
-
-const concat = Expr.operator('acme.concat', {
-  input: [Schema.String, Schema.String],
-  output: Schema.String,
-  collation: 'operands',
-  laws: [Law.associative, Law.identity(''), Law.preservesCollation],
-})
-const table = Operators.memory(Operators.implement(concat, (left, right) => `${left}${right}`))
-
-const verdict = Conformance.laws(concat, table) // { _tag: 'Holds', evidence: [...] }
-const recorded =
-  verdict._tag === 'Holds' ? Operators.withEvidence(table, verdict.evidence) : table
-Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence }]
-```
-
-- **A law is checked where it is declared.** `Law.commutative`, `associative`,
-  `idempotent`, `identity(value, side?)`, `absorbing(value, side?)`,
-  `inverse(other, identity)` and `distributes(over)` are laws of an operator of
-  two arguments; `monotonic(direction, position)` names an argument it has, and
-  `preservesCollation` needs `collation: 'operands'`. A witness that is not a
-  value the argument's schema stores is refused.
-- **Its domain** is every non-null value of the input schemas, narrowed with
-  `Law.within(law, schema)` where a law holds of less (a square is increasing
-  over the non-negative numbers only). Strict null makes both sides null, so no
-  law needs a null case.
-- **Testing is sampling, seeded.** Cases come from a fixed sample of each kind
-  (the empty string, mixed case, non-ASCII and astral text, `%`, `_` and `\`; zero, negatives, a
-  fraction), kept where the schemas decode them, up to `cases` (200) a law
-  chosen by `seed` (0), under each of `binary` and `asciiFold` where the
-  operator or a witness its law calls compares text (so a record of such a law
-  counts twice the cases). The verdict is `Holds` with one `Tested` record a law, or the
-  first `Counterexample` with both sides and its collation: declaring `concat` commutative
-  finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`. Two sides that both refuse agree,
-  but are no case: a record counts only cases whose sides both answered, and a law with
-  none is `Unanswered`, with the reason the first left side refused for, and records nothing.
-- **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
-  of an operator the table lacks or a law it does not declare, and a `Tested`
-  record `Conformance.laws` did not make of this table's own implementation
-  (`Operators.testedOn(record)` names the one it did), or tested beside another
-  implementation of a witness its law calls; `override` drops a
-  replaced implementation's records, and those of a law that called it as a
-  witness (`inverse`, `distributes`); `merge` keeps both tables'. An SQL table
-  (`DrizzleOperators.withEvidence`) takes only records `Conformance.lawsBy`
-  made (`Operators.testedByRunner`): not one built by hand, copied, or tested
-  in memory. Which runner made it, the database's or another, is the caller's
-  word, so run it over the table's own SQL (`compileCall`). `Evidence.Proven`
-  records a proof made elsewhere, never checked here. A law's domain is
-  described as a JSON Schema with the definitions it refers to.
-- **A defined operator's laws describe it; nothing records them.** It has no
-  implementation to hold evidence. A write computing through it is expanded
-  first, so it commutes by the primitive operator it calls, by that one's
-  evidence.
-
-`Conformance.operator(op, { implementations })` runs one set of calls through
-every implementation given and reports where they disagree, a refusal included:
-generated from each argument's samples, null where its schema admits one, and
-text holding NUL, under `binary` and `asciiFold` where the operator compares
-text. `Conformance.memory(table)` is the reference interpreter's runner; a
-defined operator's expansion runs beside the others as `expansion`, a name an
-implementation of a defined operator may not take. `foldkit-remote-drizzle`
-runs the kernel's operators and an application's through it on SQLite and
-Postgres.
+Await `Conformance.operator(op, { implementations })` from `foldkit-entity/conformance` and read the report's `disagreements`. It compares results on generated inputs and counts a refusal on both sides as agreement. `Conformance.memory(table)` supplies the memory runner. To test the algebraic properties of a custom MetaKit operation, see [Test a primitive operator's claims](../../docs/operators.md#test-a-primitive-operators-claims).
 
 ### Describing what a table runs
 
@@ -2008,10 +1938,10 @@ whoever asks what a server runs: the guide carries one operator the whole way
 ([An operator of your own](../../docs/operators.md#an-operator-of-your-own) to
 [Publishing what a server runs](../../docs/operators.md#publishing-what-a-server-runs)).
 
-`Operators.describe` gives an `OperatorDescription`, a Schema whose decoder
-checks a description another server publishes; it says what an operator takes
-and keeps, never a defined operator's body. `Operators.describeTable(table)`
-lists each operator a table implements so, with its evidence, and
+`Operators.describe(op)` returns the operator's signature and claims.
+`OperatorDescription` is the schema that checks descriptions from another service.
+`Operators.describeTable(table)`
+lists each operator a table implements, with its claims, and
 `Query.operators(body)` names each operator a body calls (a defined one and the
 primitive ones it calls). A version is part of an operator's name: a table
 holding `acme.slug` does not answer a body calling `acme.slug@2`, and the
@@ -2108,9 +2038,9 @@ server on different deploys see which side is behind.
 | `Expr.unsupported` / `dependenciesOf` | Inspect what an expression reads and needs |
 | `Operators.memory` / `implement` / `kernel` | Build and compose in-memory primitive operator tables |
 | `Operators.merge` / `override` / `checked` | Combine operator tables and validate outputs in tests |
-| `Law.*` (`associative`, `monotonic`, …) | Algebraic laws declared on primitive operators |
-| `Conformance.laws` / `lawsBy` / `operator` | Test operator implementations against laws and each other |
-| `Operators.withEvidence` / `describeTable` | Record conformance evidence and serialize table capabilities |
+| `Expr.operator` with `claims` | Declare algebraic properties on a primitive operator |
+| `Conformance.operator` | Compare operator implementations on generated inputs |
+| `Operators.describe` / `describeTable` | Describe operator signatures and claims for other services |
 | `Collation.*` / `ReadFilter.*` | Collation metadata and server-filtered member metadata |
 | `valueOfOperand(node, { operators })` | Evaluate a row-independent scalar expression |
 

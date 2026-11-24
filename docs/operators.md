@@ -2,7 +2,7 @@
 
 Query predicates and invariants use a small built-in vocabulary: `eq`, `contains`, `in`, comparisons, and boolean connectives. When your application needs a domain rule shared across queries and guards (`listed`), a search or sort operation not built into the core (prefix matching, numeric distance), or a server-computed field write, declaring an **operator** lets you write it once as data.
 
-Every interpreter—server SQL, client list filtering, guards, invariants, and forms—shares the exact same meaning and rejects mismatches by name. Read [Expressions](./expressions.md) first if `Expr` is new to you.
+The same operator declaration can reach server SQL, client filtering, guards, invariants, and forms. Each interpreter rejects a missing primitive implementation by name. Read [Expressions](./expressions.md) first if `Expr` is new to you.
 
 ## Who owns what
 
@@ -12,7 +12,7 @@ Every interpreter—server SQL, client list filtering, guards, invariants, and f
 | Defined operator (`definedAs`) | `foldkit-entity` | Meaning expanded to core `Expr` nodes |
 | In-memory table (`Operators`) | `foldkit-entity` | JS implementation for client, guards, invariants |
 | SQL table (`DrizzleOperators`) | `foldkit-remote-drizzle` | Drizzle SQL compilation matching memory |
-| Law evidence (`withEvidence`) | Implementation table | Proof that tested laws hold for that table |
+| Claim checks (`checkOperation`) | `metakit/conformance` | A report of the cases each implementation passed or failed |
 
 Operator tables are passed explicitly as values (`evaluate`, `Remote.make`, `bind`, policies) rather than registered globally. If a client lacks an operator the server uses, it refuses by name instead of guessing.
 
@@ -25,7 +25,7 @@ Every `Expr.operator` declaration branches into one of two paths:
 - **Defined (`definedAs` provided):** Expands directly into core `Expr` nodes so every interpreter runs it automatically with no implementation tables needed.
 - **Primitive (no `definedAs`):** Declares the signature and laws once, then pairs an in-memory implementation (`Operators.memory`) for clients and tests with a SQL implementation (`DrizzleOperators.make`) for `foldkit-remote-drizzle`.
 
-A body's meaning equals the core kernel's meaning plus each operator's meaning—either its `definedAs` expression or the tested equivalence of its tables checked by `Conformance`.
+A defined operator uses the same expression in each interpreter. Use `Conformance.operator` to compare primitive implementations on generated inputs.
 
 ## A first named rule: `listed`
 
@@ -114,7 +114,7 @@ const sqlOperators = DrizzleOperators.merge(
 
 - **Server wiring:** Pass `{ operators: { memory, sql: sqlOperators } }` to `bind` and `{ operators }` to `GuardDrizzle.visible`. Missing implementations fail at registration rather than on the first request.
 - **Client wiring:** Pass `{ operators: memory }` to `Remote.make` so browser filtering and sorting match the server.
-- **Null handling:** Arguments are strict by default (any `null` produces `null` without calling your function); pass `nulls: 'handled'` with `Operators.implementHandlingNulls` to customize null behavior.
+- **Null handling** By default, any null argument returns null. Set `nulls: 'own'` on the declaration and use `Operators.implementHandlingNulls` to give null arguments to your function.
 - **Text collations:** Pass `collation: 'operands'` on string-returning operators so output inherits input collation.
 
 ## Ordering by a computed value
@@ -152,7 +152,7 @@ const retitle = Write.update(Retitle, {
 })
 ```
 
-`Write.apply(row, bound, { operators })` computes the optimistic row for guards, writers, and Remote previews while concurrent live updates layer cleanly underneath. Without `expect: 'revision'`, computed writes require a ledger plus either a revision-pinned guard or a verified commutative/associative operator.
+`Write.apply(row, bound, { operators })` computes the optimistic row for guards, writers, and Remote previews while concurrent live updates layer underneath. Without `expect: 'revision'`, computed writes require a ledger plus either a revision-pinned guard or an operator declared both commutative and associative and supplied in memory and SQL.
 
 ## Filtering held client rows with `matching`
 
@@ -160,40 +160,37 @@ Because client and server share operator tables, `matching(store, Query, input, 
 
 `filtered(Data, model, list, Query, input)` (`foldkit-remote/filter`) applies `matching` to a loaded list and reports `complete: false` whenever an operator is missing from the client's table so uncertain filters defer to the server.
 
-## Testing operator laws and parity
+## Test a primitive operator's claims
 
-Declare algebraic laws (`Law.associative`, `Law.identity`, `Law.preservesCollation`) on primitive operators and verify them with `Conformance`:
+A claim states a property you expect each implementation to keep. For example, a commutative operator gives the same result when you swap its two inputs. Use `Operation.define` from `metakit/operation` to declare claims beside the argument and result schemas. Use `checkOperation` from `metakit/conformance` to test an implementation against those claims.
 
-```ts
-import { Law } from 'foldkit-entity'
-import { Conformance } from 'foldkit-entity/conformance'
+```ts standalone
+import { Schema } from 'effect'
+import { checkOperation } from 'metakit/conformance'
+import * as Operation from 'metakit/operation'
 
-const concat = Expr.operator('acme.concat', {
-  input: [Schema.String, Schema.String],
-  output: Schema.String,
-  collation: 'operands',
-  laws: [Law.associative, Law.identity(''), Law.preservesCollation],
+const either = Operation.define({
+  id: 'acme.either',
+  version: 1,
+  args: [Schema.Boolean, Schema.Boolean],
+  returns: Schema.Boolean,
+  nulls: 'strict',
+  claims: { commutative: true },
 })
-const concatMemory = Operators.memory(
-  Operators.implement(concat, (left, right) => `${left}${right}`),
+const memory = Operation.implementations(
+  'memory',
+  Operation.implement(either, (left, right) => left || right),
 )
-
-const verdict = Conformance.laws(concat, concatMemory)
-const recorded =
-  verdict._tag === 'Holds' ? Operators.withEvidence(concatMemory, verdict.evidence) : concatMemory
-
-const report = await Conformance.operator(concat, {
-  implementations: { memory: Conformance.memory(concatMemory) },
-})
+const report = checkOperation(either, memory)
 ```
 
-- **Sampling checks:** `Conformance.laws` tests edge inputs (empty strings, mixed case, astral Unicode, zero, negatives, fractions) and returns `Counterexample` when a law fails (for instance, `concat` fails commutativity on `"a"` and `"A"`).
-- **Per-table evidence:** Attach `Conformance.laws` evidence to memory tables and `Conformance.lawsBy` evidence to SQL tables; overriding an implementation clears its evidence automatically.
-- **Cross-backend parity:** Pass both memory and SQL runners to `Conformance.operator` to verify matching results and refusals across every edge case.
+`report.ok` is `true` for this implementation. Read `report.failures` to see why a check failed, including the arguments and results when a call breaks a claim. The checks combine fixed cases with seeded samples. Pass SQL runners in the `sql` option to compare the recorded calls that returned a value or null in memory.
+
+If you declare an operator using `Expr.operator`, use `claims` to declare its algebraic properties. Check its Entity implementations against each other with `Conformance.operator` from `foldkit-entity/conformance`.
 
 ## Publishing what a server runs
 
-`Operators.describe(op)` and `Operators.describeTable(table)` emit JSON-Schema metadata (ID, version, input/output schemas, null and collation rules, laws, and attached evidence, omitting internal `definedAs` bodies) validated by `OperatorDescription`.
+`Operators.describe(op)` and `Operators.describeTable(table)` emit metadata with the ID, version, input and output schemas, null and collation rules, and declared claims. `OperatorDescription` decodes a description from another service.
 
 Versions form part of the operator's identity: a table providing `acme.slug` (v1) refuses a query calling `acme.slug@2` with `acme.slug@2 (this table has acme.slug)` so client/server deploy skew surfaces immediately.
 
@@ -207,8 +204,7 @@ Versions form part of the operator's identity: a table providing `acme.slug` (v1
 | Server lacks operator used in body | At registration | Fails boot instead of first request |
 | Client lacks operator used in body | Client marks incomplete | Safe fallback to server query |
 | Text contains NUL character | Row skipped or run refused | Postgres text rejects NUL; SQLite `LIKE` stops |
-| Implementation violates a law | `Conformance.laws` `Counterexample` | Law is unverified until tested |
-| Every law test call refused | `Conformance.laws` `Unanswered` | Refusals prove nothing about the law |
+| Implementation violates a claim | `checkOperation` reports the failing inputs and results | The tested implementation disagrees with its declaration |
 
 Uncertain client checks always report incomplete (`skipped`, `complete: false`, `unknown`) rather than returning false empty lists. Strict null handling intercepts `null` inputs before implementations execute.
 
@@ -218,7 +214,7 @@ Uncertain client checks always report incomplete (`skipped`, `complete: false`, 
 - Locale collations (`Collation.locale(name)`) run on Postgres only and are unavailable for operators.
 - Computed writes modify one row from its pre-write fields and input.
 - Ordering by a computed operator uses standard database indexes you define separately.
-- `Conformance` tests laws by randomized sampling; `Evidence.Proven` records external proofs without re-verifying them.
+- A passing `checkOperation` report records sampled runs.
 
 ## Next
 

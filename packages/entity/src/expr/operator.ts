@@ -6,6 +6,7 @@
  */
 import { Option, Schema, SchemaAST } from 'effect'
 import { Node } from 'metakit'
+import * as Operation from 'metakit/operation'
 import type { Collation } from '../collation.js'
 import { readKeys } from './dependencies.js'
 import {
@@ -21,7 +22,13 @@ import {
   type ReadsOf,
 } from './operand.js'
 import { kindOf } from './kind.js'
-import { callOperator, kernel, storedKindOf, type KernelBuild } from './primitive.js'
+import {
+  callOperator,
+  kernel,
+  registerForeign,
+  storedKindOf,
+  type KernelBuild,
+} from './primitive.js'
 import { show } from './show.js'
 import type { EntityField } from '../index.js'
 
@@ -415,6 +422,15 @@ export const makeOperator = (
   >
 }
 
+const adaptClaims = (claims: Node.ForeignClaims): Record<string, unknown> => {
+  const inverse = claims.invertible?.inverse
+  if (inverse === undefined || inverse === 'self') return claims as Record<string, unknown>
+  return {
+    ...claims,
+    invertible: { inverse: 'descriptor' in inverse ? inverse : { descriptor: inverse } },
+  }
+}
+
 /**
  * An operator, defined by what a call of it means: `definedAs` builds that
  * expression from the call's arguments, once per call, and every interpreter
@@ -471,4 +487,22 @@ export const operator = <const In extends ReadonlyArray<Schema.Top>, Out extends
         readonly claims?: Node.ForeignClaims | undefined
       }
   ),
-): Operator<In, Out> => makeOperator(id, options as OperatorOptions) as unknown as Operator<In, Out>
+): Operator<In, Out> => {
+  const made = makeOperator(id, options as OperatorOptions) as unknown as Operator<In, Out>
+  const descriptor = made.descriptor
+  if (Option.isNone(descriptor.definedAs)) {
+    registerForeign(
+      descriptor,
+      () =>
+        Operation.define({
+          id: descriptor.id,
+          version: descriptor.version,
+          args: descriptor.input.map(schema => Schema.toEncoded(schema)),
+          returns: Schema.toEncoded(descriptor.output),
+          nulls: descriptor.nulls,
+          claims: adaptClaims(descriptor.claims),
+        } as Parameters<typeof Operation.define>[0]).descriptor,
+    )
+  }
+  return made
+}
