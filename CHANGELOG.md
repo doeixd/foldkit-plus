@@ -55,6 +55,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `metakit`: `Transition.stepObserved` reports successful state changes, including fields of keyed rows and collection membership changes (#614).
 - `metakit/machine`: `Machine.intent` derives admission and client message construction from one registered transition. `Machine.canDispatch` accepts that transition's known supplied values (#613).
 - `metakit/aggregates`: `replaceTotal(total, before, after)` moves a kept total across a replacement as one exact integer expression, where the difference of the two contributions leaves ±(2^53−1) while their total does not; `updateDelta` refuses such a difference instead of rounding it (#623).
 - `metakit`: new operations `Eq.equals` and `Eq.among` (SQL's `=` and `in`, null-preserving), `Str.lowerAscii`, `Str.trim`, `Str.lt`, `Str.lte`, `Str.gt`, `Str.gte` (code-point order), `Null.coalesce`; foreign operations (`Node.foreign`), carried by id and version, with implementations passed to evaluation, `Expr.residualize`, `Expr.judge`, `Sql.toWhere` and `Drizzle.toWhere`; supplied values (`supplied` in `Transition.make`: the time, a new id, who asks, bound once by whoever runs the step), `Transition.add`, `Transition.opaque` and `Abstract.checkGoal`; `opProperties`, the declared properties of each operation, with `checkProperties` and `checkAllProperties` in `metakit/conformance`; the subpath `metakit/build`; `PathAccessor` and `EnvOf` from the main entry. `Sql.toWhere`, `Drizzle.toWhere` and `Prove.invariant` accept a goal that may be null.

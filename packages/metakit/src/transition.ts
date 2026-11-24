@@ -372,6 +372,92 @@ const accepts = (schema: Schema.Top): ((value: unknown) => boolean) => {
   return accept
 }
 
+type StepResult<State, Emit> = { readonly state: State; readonly emitted: ReadonlyArray<Emit> }
+
+/** An observed change under a state path. A keyed field names the domain key, not a list index. */
+export type ObservedWrite =
+  | { readonly kind: 'path'; readonly path: ReadonlyArray<string> }
+  | { readonly kind: 'membership'; readonly path: ReadonlyArray<string> }
+  | {
+      readonly kind: 'keyed-field'
+      readonly path: ReadonlyArray<string>
+      readonly key: { readonly field: string; readonly value: string | number | boolean }
+      readonly field: string
+    }
+
+const readMember = (row: object, key: string): unknown =>
+  Object.hasOwn(row, key) ? Path.readable((row as Record<string, unknown>)[key]) : undefined
+
+/** A patch preserves element order, so each changed reference identifies the element it replaced. */
+const observePatch = <State>(
+  path: ReadonlyArray<string>,
+  key: string,
+  fields: ReadonlyArray<readonly [string, Node.Node]>,
+  before: State,
+  after: State,
+): ReadonlyArray<ObservedWrite> => {
+  const list = Path.make<State, unknown>(path)
+  const previous = Path.readable(Option.getOrUndefined(Path.get(list, before)))
+  const next = Path.readable(Option.getOrUndefined(Path.get(list, after)))
+  const whole = [{ kind: 'path', path }] as const
+  if (!Array.isArray(previous) || !Array.isArray(next) || previous.length !== next.length)
+    return whole
+  const keys = new Set<string | number | boolean>()
+  const changes: Array<ObservedWrite> = []
+  for (let at = 0; at < previous.length; at++) {
+    const prior: unknown = previous[at]
+    const updated: unknown = next[at]
+    if (Object.is(prior, updated)) continue
+    if (
+      typeof prior !== 'object' ||
+      prior === null ||
+      typeof updated !== 'object' ||
+      updated === null
+    )
+      return whole
+    const value = readMember(prior, key)
+    if (
+      (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') ||
+      !Object.is(value, readMember(updated, key)) ||
+      keys.has(value)
+    )
+      return whole
+    keys.add(value)
+    for (const [field] of fields) {
+      if (
+        Object.hasOwn(prior, field) !== Object.hasOwn(updated, field) ||
+        !Object.is(readMember(prior, field), readMember(updated, field))
+      ) {
+        changes.push({ kind: 'keyed-field', path, key: { field: key, value }, field })
+      }
+    }
+  }
+  return changes.length === 0 ? whole : changes
+}
+
+const observeWrite = <State>(
+  path: ReadonlyArray<string>,
+  way: Way,
+  before: State,
+  after: State,
+): ReadonlyArray<ObservedWrite> => {
+  const subtree = (): ReadonlyArray<ObservedWrite> => [{ kind: 'path', path }]
+  const membership = (): ReadonlyArray<ObservedWrite> => [{ kind: 'membership', path }]
+  return Way.$match(way, {
+    set: subtree,
+    add: subtree,
+    combine: subtree,
+    append: membership,
+    insert: membership,
+    remove: membership,
+    removeWhere: membership,
+    patch: ({ key, set }) => observePatch(path, key, set, before, after),
+    patchWhere: subtree,
+    include: membership,
+    exclude: membership,
+  })
+}
+
 /**
  * Execute `transition` on `(state, input)` with the values it is `supplied`,
  * returning the next state and the records it emits, or
@@ -389,8 +475,33 @@ export const step = <State, Input, Emit, Supplied>(
   transition: Transition<State, Input, Emit, Supplied>,
   state: State,
   input: Input,
-  ...[supplied, options]: SuppliedArgs<Supplied>
-): Result.Result<{ readonly state: State; readonly emitted: ReadonlyArray<Emit> }, Refused> => {
+  ...args: SuppliedArgs<Supplied>
+): Result.Result<StepResult<State, Emit>, Refused> => evaluateStep(transition, state, input, args)
+
+/** Run one step and return the observed state writes when it succeeds. */
+export const stepObserved = <State, Input, Emit, Supplied>(
+  transition: Transition<State, Input, Emit, Supplied>,
+  state: State,
+  input: Input,
+  ...args: SuppliedArgs<Supplied>
+): Result.Result<
+  StepResult<State, Emit> & { readonly writes: ReadonlyArray<ObservedWrite> },
+  Refused
+> => {
+  const writes: Array<ObservedWrite> = []
+  return Result.map(evaluateStep(transition, state, input, args, writes), result => ({
+    ...result,
+    writes,
+  }))
+}
+
+const evaluateStep = <State, Input, Emit, Supplied>(
+  transition: Transition<State, Input, Emit, Supplied>,
+  state: State,
+  input: Input,
+  [supplied, options]: SuppliedArgs<Supplied>,
+  observed?: Array<ObservedWrite>,
+): Result.Result<StepResult<State, Emit>, Refused> => {
   const given = supplied ?? ({} as Supplied)
   const env: TransitionEnv<State, Input, Supplied> = { state, input, supplied: given }
   if (Option.isSome(transition.inputSchema) && !accepts(transition.inputSchema.value)(input)) {
@@ -412,10 +523,7 @@ export const step = <State, Input, Emit, Supplied>(
     if (Node.isRefusal(value)) refusals.push(value)
     return value
   }
-  const computed = transition.writes.map(eq => ({
-    target: eq.target,
-    value: valueOf(eq.value.node),
-  }))
+  const computed = transition.writes.map(eq => valueOf(eq.value.node))
   const emitted: Array<Emit> = []
   for (const entry of transition.emits) {
     const fires = Option.match(entry.when, { onNone: () => true, onSome: valueOf })
@@ -429,9 +537,14 @@ export const step = <State, Input, Emit, Supplied>(
     return Result.fail(new Refused({ reason: `evaluation refused: ${refusals[0]!.message}` }))
   }
   let nextState = state
-  for (const { target, value } of computed) {
+  for (const [index, value] of computed.entries()) {
+    const { target, way } = transition.writes[index]!
     const written = writeAt(nextState, target, value)
     if (Result.isFailure(written)) return Result.fail(written.failure)
+    if (observed !== undefined && !Object.is(nextState, written.success)) {
+      for (const change of observeWrite(target, way, nextState, written.success))
+        observed.push(change)
+    }
     nextState = written.success
   }
   return Result.succeed({ state: nextState, emitted })

@@ -104,6 +104,8 @@ Use paths from `state` as write targets. You can read paths from `input` and `su
 
 Use `Machine.intent(AccountMachine, 'Withdraw')` when the same control checks a transition and builds its message. Call the intent's `can` with the values you have and `message` with the completed input. If the transition needs supplied values, the host attaches them when dispatching. Dispatch always checks the guard against the state at that time.
 
+Use `Transition.stepObserved` when you need to know what a successful step changed. `writes` gives state paths, collection membership changes, or an individual field at a keyed row. For a lifted transition, each path starts at the parent state. An opaque write reports the full subtree it writes.
+
 ## 4. Prove that every transition preserves the schema invariants
 
 `Prove.machine` checks that no state a transition's guard allows can break a rule of the Schema. It runs the built-in interval and zone checkers first and starts Z3 only for a goal they cannot decide. `pin` names the transitions that must stay proved.
