@@ -49,6 +49,10 @@ export class DispatchConflict extends Data.TaggedError('SuccessorDispatchConflic
   readonly dispatchId: string
 }> {}
 
+export class TransactionConflict extends Data.TaggedError('SuccessorTransactionConflict')<{
+  readonly transactionId: string
+}> {}
+
 export interface History {
   readonly snapshot: Option.Option<WireSnapshot>
   readonly commits: ReadonlyArray<WireCommit>
@@ -79,6 +83,37 @@ export class Journal extends Context.Service<Journal, JournalStore>()(
   'foldkit/successor/Journal',
 ) {}
 
+const transactionEntry = Schema.Struct({ stream: Schema.NonEmptyString, commit: wireCommit })
+export const transactionReceipt = Schema.Array(transactionEntry)
+export type TransactionReceipt = typeof transactionReceipt.Type
+
+const appendEntry = Schema.Struct({
+  ...transactionEntry.fields,
+  expectedRevision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+})
+export type TransactionEntry = typeof appendEntry.Type
+
+export type TransactionFailure =
+  | JournalFailure
+  | TransactionConflict
+  | DispatchConflict
+  | RevisionConflict
+
+export interface AtomicJournalStore extends JournalStore {
+  readonly findTransaction: (
+    id: string,
+  ) => Effect.Effect<Option.Option<TransactionReceipt>, JournalFailure>
+  /** Commit every stream and the ordered receipt under one transactional authority. */
+  readonly appendTransaction: (
+    id: string,
+    entries: ReadonlyArray<TransactionEntry>,
+  ) => Effect.Effect<TransactionReceipt, TransactionFailure>
+}
+
+export class AtomicJournal extends Context.Service<AtomicJournal, AtomicJournalStore>()(
+  'foldkit/successor/AtomicJournal',
+) {}
+
 export const canonicalJson = (value: Schema.Json): string => {
   if (typeof value !== 'object' || value === null) return JSON.stringify(value)
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
@@ -101,6 +136,59 @@ export const isSameDispatch = (previous: WireCommit, input: WireFact): boolean =
   previous.input.type === input.type &&
   canonicalJson(previous.input.payload) === canonicalJson(input.payload)
 
+export interface DispatchIdentity {
+  readonly stream: string
+  readonly dispatchId: string
+  readonly input: WireFact
+}
+
+/** The expected revision admits a new write. The durable identity survives a retry. */
+export const sameTransaction = (
+  saved: TransactionReceipt,
+  requested: ReadonlyArray<DispatchIdentity>,
+): boolean =>
+  saved.length === requested.length &&
+  requested.every(({ stream, dispatchId, input }, index) => {
+    const entry = saved[index]!
+    return (
+      entry.stream === stream &&
+      entry.commit.dispatchId === dispatchId &&
+      isSameDispatch(entry.commit, input)
+    )
+  })
+
+export const validateTransaction = (
+  id: string,
+  entries: ReadonlyArray<{ readonly stream: string }>,
+): Effect.Effect<void, JournalFailure> => {
+  const streams = new Set(entries.map(entry => entry.stream))
+  return id.length > 0 && entries.length >= 2 && streams.size === entries.length && !streams.has('')
+    ? Effect.void
+    : Effect.fail(
+        new JournalFailure({
+          operation: 'transaction',
+          cause: 'A transaction needs an identity and at least two distinct nonempty streams',
+        }),
+      )
+}
+
+const readEntries = Schema.decodeUnknownSync(Schema.Array(appendEntry), {
+  onExcessProperty: 'error',
+})
+
+export const checkTransaction = (id: string, entries: ReadonlyArray<TransactionEntry>) =>
+  Effect.gen(function* () {
+    const decoded = yield* Effect.try({
+      try: () => readEntries(entries),
+      catch: cause => new JournalFailure({ operation: 'transaction', cause }),
+    })
+    yield* validateTransaction(id, decoded)
+    return decoded
+  })
+
+export const receiptFor = (entries: ReadonlyArray<TransactionEntry>): TransactionReceipt =>
+  entries.map(({ stream, commit }) => ({ stream, commit }))
+
 export const memoryCapabilities = {
   name: 'successor memory journal',
   isolation: 'serializable',
@@ -116,13 +204,27 @@ interface MemoryStream {
 
 const empty: MemoryStream = { snapshot: Option.none(), commits: [], byDispatch: new Map() }
 
+const appendTo = (current: MemoryStream, saved: WireCommit): MemoryStream => ({
+  ...current,
+  byDispatch: new Map(current.byDispatch).set(saved.dispatchId, saved),
+  commits: [...current.commits, saved],
+})
+
+interface MemoryJournal {
+  readonly streams: ReadonlyMap<string, MemoryStream>
+  readonly transactions: ReadonlyMap<string, TransactionReceipt>
+}
+
 export const memory = Effect.gen(function* () {
-  const streams = yield* Ref.make(new Map<string, MemoryStream>())
-  const store: JournalStore = {
+  const storage = yield* Ref.make<MemoryJournal>({
+    streams: new Map(),
+    transactions: new Map(),
+  })
+  const store: AtomicJournalStore = {
     capabilities: memoryCapabilities,
     read: (stream, from = 'checkpoint') =>
-      Effect.map(Ref.get(streams), all => {
-        const current = all.get(stream) ?? empty
+      Effect.map(Ref.get(storage), ({ streams }) => {
+        const current = streams.get(stream) ?? empty
         const snapshot = from === 'initial' ? Option.none<WireSnapshot>() : current.snapshot
         return {
           snapshot: Option.map(snapshot, saved => structuredClone(saved)),
@@ -137,49 +239,107 @@ export const memory = Effect.gen(function* () {
         }
       }),
     find: (stream, dispatchId) =>
-      Effect.map(Ref.get(streams), all =>
-        Option.map(Option.fromUndefinedOr(all.get(stream)?.byDispatch.get(dispatchId)), saved =>
+      Effect.map(Ref.get(storage), ({ streams }) =>
+        Option.map(Option.fromUndefinedOr(streams.get(stream)?.byDispatch.get(dispatchId)), saved =>
           structuredClone(saved),
         ),
       ),
     append: (stream, expected, commit) =>
       Effect.flatten(
         Ref.modify(
-          streams,
+          storage,
           (
-            all,
+            data,
           ): readonly [
             Effect.Effect<WireCommit, DispatchConflict | RevisionConflict | JournalFailure>,
-            Map<string, MemoryStream>,
+            MemoryJournal,
           ] => {
-            const current = all.get(stream) ?? empty
+            const current = data.streams.get(stream) ?? empty
             const previous = current.byDispatch.get(commit.dispatchId)
             if (previous !== undefined) {
-              return [sameDispatch(structuredClone(previous), commit.input), all]
+              return [sameDispatch(structuredClone(previous), commit.input), data]
             }
             const actual = current.commits.length
             if (expected !== actual) {
-              return [Effect.fail(new RevisionConflict({ expected, actual })), all]
+              return [Effect.fail(new RevisionConflict({ expected, actual })), data]
             }
             if (commit.revision !== expected + 1) {
               return [
                 Effect.fail(new JournalFailure({ operation: 'append', cause: 'invalid revision' })),
-                all,
+                data,
               ]
             }
-            const saved = structuredClone(commit)
-            const byDispatch = new Map(current.byDispatch).set(saved.dispatchId, saved)
-            const next = { ...current, byDispatch, commits: [...current.commits, saved] }
-            return [Effect.succeed(commit), new Map(all).set(stream, next)]
+            const next = appendTo(current, structuredClone(commit))
+            return [
+              Effect.succeed(commit),
+              { ...data, streams: new Map(data.streams).set(stream, next) },
+            ]
           },
+        ),
+      ),
+    findTransaction: id =>
+      Effect.map(Ref.get(storage), ({ transactions }) =>
+        Option.map(Option.fromUndefinedOr(transactions.get(id)), saved => structuredClone(saved)),
+      ),
+    appendTransaction: (id, entries) =>
+      Effect.flatMap(checkTransaction(id, entries), decoded =>
+        Effect.flatten(
+          Ref.modify(
+            storage,
+            (
+              data,
+            ): readonly [Effect.Effect<TransactionReceipt, TransactionFailure>, MemoryJournal] => {
+              const saved = data.transactions.get(id)
+              if (saved !== undefined) {
+                const identities = decoded.map(({ stream, commit }) => ({
+                  ...commit,
+                  stream,
+                }))
+                return [
+                  sameTransaction(saved, identities)
+                    ? Effect.succeed(structuredClone(saved))
+                    : Effect.fail(new TransactionConflict({ transactionId: id })),
+                  data,
+                ]
+              }
+              const streams = new Map(data.streams)
+              const stored = structuredClone(decoded)
+              for (const { stream, commit, expectedRevision: expected } of stored) {
+                const current = streams.get(stream) ?? empty
+                const actual = current.commits.length
+                if (current.byDispatch.has(commit.dispatchId)) {
+                  return [
+                    Effect.fail(new DispatchConflict({ dispatchId: commit.dispatchId })),
+                    data,
+                  ]
+                }
+                if (expected !== actual) {
+                  return [Effect.fail(new RevisionConflict({ expected, actual })), data]
+                }
+                if (commit.revision !== expected + 1) {
+                  return [
+                    Effect.fail(
+                      new JournalFailure({ operation: 'transaction', cause: 'invalid revision' }),
+                    ),
+                    data,
+                  ]
+                }
+                streams.set(stream, appendTo(current, commit))
+              }
+              return [
+                Effect.succeed(receiptFor(decoded)),
+                { streams, transactions: new Map(data.transactions).set(id, receiptFor(stored)) },
+              ]
+            },
+          ),
         ),
       ),
     saveSnapshot: (stream, snapshot) =>
       Effect.flatten(
         Ref.modify(
-          streams,
-          (all): readonly [Effect.Effect<void, JournalFailure>, Map<string, MemoryStream>] => {
-            const current = all.get(stream) ?? empty
+          storage,
+          (data): readonly [Effect.Effect<void, JournalFailure>, MemoryJournal] => {
+            const current = data.streams.get(stream) ?? empty
             if (snapshot.revision > current.commits.length) {
               return [
                 Effect.fail(
@@ -188,21 +348,24 @@ export const memory = Effect.gen(function* () {
                     cause: 'revision is ahead of history',
                   }),
                 ),
-                all,
+                data,
               ]
             }
             if (
               Option.isSome(current.snapshot) &&
               current.snapshot.value.revision > snapshot.revision
             ) {
-              return [Effect.void, all]
+              return [Effect.void, data]
             }
             return [
               Effect.void,
-              new Map(all).set(stream, {
-                ...current,
-                snapshot: Option.some(structuredClone(snapshot)),
-              }),
+              {
+                ...data,
+                streams: new Map(data.streams).set(stream, {
+                  ...current,
+                  snapshot: Option.some(structuredClone(snapshot)),
+                }),
+              },
             ]
           },
         ),
@@ -211,4 +374,7 @@ export const memory = Effect.gen(function* () {
   return store
 })
 
-export const memoryLayer = Layer.effect(Journal, memory)
+export const journalContext = (store: AtomicJournalStore) =>
+  Context.add(Context.make(Journal, store), AtomicJournal, store)
+
+export const memoryLayer = Layer.effectContext(Effect.map(memory, journalContext))

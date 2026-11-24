@@ -1,14 +1,22 @@
 import { Data, Effect, Option, Schema, Scope, type Context } from 'effect'
 import { StoreRefused, refused, type Requirement, type StoreCapabilities } from 'metakit/store'
 import {
+  AtomicJournal,
+  DispatchConflict,
   Journal,
   RevisionConflict,
+  TransactionConflict,
   sameDispatch,
+  sameTransaction,
+  validateTransaction,
   wireCommit,
   wireSnapshot,
-  type DispatchConflict,
+  type DispatchIdentity,
   type History,
   type JournalFailure,
+  type JournalStore,
+  type TransactionFailure,
+  type TransactionReceipt,
   type WireCommit,
   type WireFact,
   type WireSnapshot,
@@ -181,11 +189,101 @@ export const atomicCommit: Requirement<'atomic event batch'> = {
   because: 'competing writers must publish at most one commit for each stream revision',
 }
 
+const atomicStreams: Requirement<'atomic event streams'> = {
+  rule: 'atomic event streams',
+  needs: 'row-atomic',
+  judged: 'read-first',
+  because: 'all streams and their receipt must commit in the same serializable transaction',
+}
+
+export interface TransactionMember<Answer, Failure, Services> {
+  readonly stream: string
+  readonly dispatchId: string
+  readonly expectedRevision: number
+  readonly input: Effect.Effect<WireFact, InvalidHistory>
+  readonly prepare: (
+    journal: JournalStore,
+    input: WireFact,
+  ) => Effect.Effect<
+    WireCommit,
+    InvalidHistory | JournalFailure | RevisionConflict | Failure,
+    Services
+  >
+  readonly describe: (record: WireCommit) => Effect.Effect<Answer, InvalidHistory>
+}
+
+type AnyMember = TransactionMember<unknown, unknown, unknown>
+type MemberAnswer<T> = T extends TransactionMember<infer A, unknown, unknown> ? A : never
+type MemberFailure<T> = T extends TransactionMember<unknown, infer E, unknown> ? E : never
+type MemberServices<T> = T extends TransactionMember<unknown, unknown, infer R> ? R : never
+type TransactionDispatchFailure = InvalidHistory | StoreRefused | TransactionFailure
+
+/** Publish every member's disposition in one commit, including recorded domain rejections. */
+export const commitTogether = <
+  const Members extends readonly [AnyMember, AnyMember, ...AnyMember[]],
+>(
+  id: string,
+  members: Members,
+): Effect.Effect<
+  { readonly [K in keyof Members]: MemberAnswer<Members[K]> },
+  TransactionDispatchFailure | MemberFailure<Members[number]>,
+  AtomicJournal | MemberServices<Members[number]>
+> => {
+  const work = Effect.gen(function* () {
+    const journal = yield* AtomicJournal
+    const missing = refused(journal.capabilities, [atomicStreams])
+    if (missing.length !== 0) {
+      return yield* new StoreRefused({ store: journal.capabilities, refused: missing })
+    }
+    yield* validateTransaction(id, members)
+    const inputs = yield* Effect.forEach(members, member => member.input)
+    const identities: ReadonlyArray<DispatchIdentity> = members.map(
+      ({ stream, dispatchId }, index) => ({ stream, dispatchId, input: inputs[index]! }),
+    )
+    const answers = (receipt: TransactionReceipt) =>
+      sameTransaction(receipt, identities)
+        ? Effect.forEach(members, (member, index) => member.describe(receipt[index]!.commit))
+        : Effect.fail(new TransactionConflict({ transactionId: id }))
+    const previous = yield* journal.findTransaction(id)
+    if (Option.isSome(previous)) return yield* answers(previous.value)
+    const attempt = Effect.gen(function* () {
+      const entries = yield* Effect.forEach(members, (member, index) =>
+        Effect.map(member.prepare(journal, inputs[index]!), commit => ({
+          stream: member.stream,
+          expectedRevision: member.expectedRevision,
+          commit,
+        })),
+      )
+      const receipt = yield* journal.appendTransaction(id, entries)
+      return yield* answers(receipt)
+    })
+    return yield* Effect.catch(attempt, error =>
+      Effect.gen(function* () {
+        if (error instanceof RevisionConflict || error instanceof DispatchConflict) {
+          const saved = yield* journal.findTransaction(id)
+          if (Option.isSome(saved)) return yield* answers(saved.value)
+        }
+        return yield* Effect.fail(error)
+      }),
+    )
+  })
+  // The receipt is checked against the member identity at every position before decoding.
+  return work as Effect.Effect<
+    { readonly [K in keyof Members]: MemberAnswer<Members[K]> },
+    TransactionDispatchFailure | MemberFailure<Members[number]>,
+    AtomicJournal | MemberServices<Members[number]>
+  >
+}
+
 export interface Definition<State, Arms extends Messages<State>> {
   readonly replay: (aggregate: string, history: History) => Revision<State>
   readonly open: (
     aggregate: string,
   ) => Effect.Effect<LiveMachine<State, Arms>, StoreRefused, Journal | Scope.Scope>
+  readonly member: <K extends Key<Arms>>(
+    aggregate: string,
+    request: Request<Arms[K], K>,
+  ) => TransactionMember<Answer<Arms[K]>, FailureOf<Arms[K]>, ServicesOf<Arms[K]>>
 }
 
 export type TransportOf<Plan, Failure> =
@@ -326,8 +424,99 @@ export const define = <State, Events extends Codecs, Reasons extends Codecs>(con
     const checked = <A>(operation: string, work: () => A) =>
       Effect.try({ try: work, catch: cause => new InvalidHistory({ operation, cause }) })
 
+    const routeOf = <K extends Key<Arms>>(stream: string, request: Request<Arms[K], K>) => {
+      type Arm = Arms[K]
+      // The message builder links the schema, decision and decoders before this lookup.
+      const arm = arms[request.type] as unknown as Message<
+        State,
+        InputOf<Arm>,
+        EventOf<Arm>,
+        ReasonOf<Arm>,
+        FailureOf<Arm>,
+        ServicesOf<Arm>
+      >
+      const describe = (raw: WireCommit) =>
+        checked('read disposition', (): Answer<Arm> => {
+          const found = prepare(raw)
+          const disposition = found.disposition
+          if (disposition.kind === 'rejected') {
+            return {
+              kind: 'rejected',
+              revision: found.revision,
+              reason: arm.readReason(disposition.reason),
+            }
+          }
+          return {
+            kind: 'accepted',
+            revision: found.revision,
+            events: disposition.events.map(arm.readEvent),
+            commands: disposition.commands,
+          }
+        })
+      const input = checked('dispatch input', () => {
+        armOf(request.type)
+        if (request.id.length === 0) throw new Error('A dispatch needs a stable identity')
+        return { type: request.type, payload: encodeJson(arm.input, request.input) }
+      })
+      const makeCommit = (current: Revision<State>, fact: WireFact) =>
+        Effect.flatMap(arm.decide(current.state, request.input), decision =>
+          checked('prepare commit', () => {
+            const disposition: WireCommit['disposition'] =
+              decision.kind === 'accepted'
+                ? {
+                    kind: 'accepted',
+                    events: decision.events.map(event => factTo(config.events, event)),
+                    commands: (decision.commands ?? []).map((entry, index) => ({
+                      id: JSON.stringify([stream, request.id, index]),
+                      fact: entry,
+                    })),
+                  }
+                : { kind: 'rejected', reason: factTo(config.reasons, decision.reason) }
+            const record = decode(wireCommit, {
+              version: config.version,
+              dispatchId: request.id,
+              revision: current.revision + 1,
+              input: fact,
+              disposition,
+            })
+            applyCommit(current.state, record)
+            return record
+          }),
+        )
+      return { input, describe, makeCommit }
+    }
+
+    const readStream = (journal: JournalStore, stream: string, aggregate: string) =>
+      Effect.suspend(() =>
+        Effect.flatMap(journal.read(stream), history =>
+          checked('replay', () => replay(aggregate, history)),
+        ),
+      )
+
     return {
       replay,
+      member: (aggregate, request) => {
+        const stream = streamId(config.name, aggregate)
+        const route = routeOf(stream, request)
+        return {
+          stream,
+          dispatchId: request.id,
+          expectedRevision: request.expectedRevision,
+          input: route.input,
+          describe: route.describe,
+          prepare: (journal, input) =>
+            Effect.gen(function* () {
+              const current = yield* readStream(journal, stream, aggregate)
+              if (current.revision !== request.expectedRevision) {
+                return yield* new RevisionConflict({
+                  expected: request.expectedRevision,
+                  actual: current.revision,
+                })
+              }
+              return yield* route.makeCommit(current, input)
+            }),
+        }
+      },
       open: aggregate =>
         Effect.gen(function* () {
           const journal = yield* Journal
@@ -346,12 +535,7 @@ export const define = <State, Events extends Codecs, Reasons extends Codecs>(con
           const guard = Effect.suspend(() =>
             active ? Effect.void : Effect.fail(new MachineClosed({ stream })),
           )
-          const read = Effect.andThen(
-            guard,
-            Effect.flatMap(journal.read(stream), history =>
-              checked('replay', () => replay(aggregate, history)),
-            ),
-          )
+          const read = Effect.andThen(guard, readStream(journal, stream, aggregate))
           const checkpoint = Effect.gen(function* () {
             const current = yield* read
             const saved = yield* checked('checkpoint', () => ({
@@ -364,47 +548,16 @@ export const define = <State, Events extends Codecs, Reasons extends Codecs>(con
           })
 
           const dispatch: LiveMachine<State, Arms>['dispatch'] = request => {
-            type Arm = (typeof arms)[typeof request.type]
-            // The route is the only dynamic lookup. The message builder links its
-            // schema, decision, and decoders before the arm enters this table.
-            const arm = arms[request.type] as unknown as Message<
-              State,
-              InputOf<Arm>,
-              EventOf<Arm>,
-              ReasonOf<Arm>,
-              FailureOf<Arm>,
-              ServicesOf<Arm>
-            >
-            const describe = (raw: WireCommit): Disposition<EventOf<Arm>, ReasonOf<Arm>> => {
-              const found = prepare(raw)
-              const disposition = found.disposition
-              if (disposition.kind === 'rejected') {
-                return {
-                  kind: 'rejected',
-                  revision: found.revision,
-                  reason: arm.readReason(disposition.reason),
-                }
-              }
-              return {
-                kind: 'accepted',
-                revision: found.revision,
-                events: disposition.events.map(arm.readEvent),
-                commands: disposition.commands,
-              }
-            }
+            const route = routeOf(stream, request)
             const retrieve = (raw: WireCommit, input: WireFact) =>
               Effect.gen(function* () {
                 const migrated = yield* checked('migrate dispatch', () => prepare(raw))
                 yield* sameDispatch(migrated, input)
-                return yield* checked('read disposition', () => describe(migrated))
+                return yield* route.describe(migrated)
               })
             return Effect.gen(function* () {
               yield* guard
-              const input = yield* checked('dispatch input', () => {
-                armOf(request.type)
-                if (request.id.length === 0) throw new Error('A dispatch needs a stable identity')
-                return { type: request.type, payload: encodeJson(arm.input, request.input) }
-              })
+              const input = yield* route.input
               const previous = yield* journal.find(stream, request.id)
               if (Option.isSome(previous)) return yield* retrieve(previous.value, input)
               const current = yield* read
@@ -417,32 +570,10 @@ export const define = <State, Events extends Codecs, Reasons extends Codecs>(con
                   actual: current.revision,
                 })
               }
-              const decision = yield* arm.decide(current.state, request.input)
-              const commit = yield* checked('prepare commit', () => {
-                const disposition: WireCommit['disposition'] =
-                  decision.kind === 'accepted'
-                    ? {
-                        kind: 'accepted',
-                        events: decision.events.map(event => factTo(config.events, event)),
-                        commands: (decision.commands ?? []).map((fact, index) => ({
-                          id: JSON.stringify([stream, request.id, index]),
-                          fact,
-                        })),
-                      }
-                    : { kind: 'rejected', reason: factTo(config.reasons, decision.reason) }
-                const record = decode(wireCommit, {
-                  version: config.version,
-                  dispatchId: request.id,
-                  revision: current.revision + 1,
-                  input,
-                  disposition,
-                })
-                applyCommit(current.state, record)
-                return record
-              })
+              const commit = yield* route.makeCommit(current, input)
               yield* guard
               const stored = yield* journal.append(stream, request.expectedRevision, commit)
-              return yield* checked('read disposition', () => describe(stored))
+              return yield* route.describe(stored)
             })
           }
           return { read, dispatch, checkpoint }

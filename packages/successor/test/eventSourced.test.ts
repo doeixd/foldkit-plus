@@ -1,12 +1,19 @@
 import { mkdtempSync, rmdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context, Deferred, Effect, Layer, Option, Result, Schema } from 'effect'
+import { Context, Deferred, Effect, Fiber, Layer, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Journal as Durable, actorId, opId } from 'foldkit-durable'
 import { recover } from 'foldkit-successor/commands'
-import { client, serve, streamId, type TransportOf } from 'foldkit-successor/event-sourced'
 import {
+  client,
+  commitTogether,
+  serve,
+  streamId,
+  type TransportOf,
+} from 'foldkit-successor/event-sourced'
+import {
+  AtomicJournal,
   Journal,
   JournalFailure,
   memory,
@@ -24,6 +31,196 @@ const toggle = (owner: string, id: string, key = '7', expectedRevision = 0) => (
 })
 const stamp = Layer.succeed(Stamp, { allocate: Effect.succeed(77) })
 const run = <A, E>(effect: Effect.Effect<A, E, never>): Promise<A> => Effect.runPromise(effect)
+
+const pair = (key = '7', expected = 0) =>
+  [
+    todos.member('work', toggle('work', 'shared-click', key, expected)),
+    todos.member('home', toggle('home', 'shared-click', '7', expected)),
+  ] as const
+
+const histories = (journal: typeof Journal.Service) =>
+  Effect.forEach(['work', 'home'], name => journal.read(streamId('Todos', name), 'initial'))
+
+describe('cross-stream commits', () => {
+  it('recovers the original ordered receipt and commands after a lost SQLite acknowledgement', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'successor-transaction-'))
+    const file = join(directory, 'todos.db')
+    let allocations = 0
+    const work = commitTogether('toggle both', pair())
+    try {
+      const failed = await run(
+        Effect.gen(function* () {
+          const journal = yield* AtomicJournal
+          const lost = new JournalFailure({ operation: 'acknowledge', cause: 'connection closed' })
+          return yield* work.pipe(
+            Effect.provideService(AtomicJournal, {
+              ...journal,
+              appendTransaction: (id, entries) =>
+                Effect.andThen(journal.appendTransaction(id, entries), Effect.fail(lost)),
+            }),
+            Effect.result,
+          )
+        }).pipe(
+          Effect.provideService(Stamp, { allocate: Effect.sync(() => ++allocations) }),
+          Effect.provide(sqliteLayer(file)),
+        ),
+      )
+      expect(Result.getFailure(failed)).toMatchObject({ value: { operation: 'acknowledge' } })
+      const recovered = await run(
+        Effect.gen(function* () {
+          const journal = yield* AtomicJournal
+          const first = yield* work
+          const repeated = yield* commitTogether('toggle both', pair('7', 1))
+          const altered = yield* Effect.result(commitTogether('toggle both', pair('8')))
+          const saved = yield* histories(journal)
+          const replayed = saved.map((history, index) =>
+            todos.replay(index === 0 ? 'work' : 'home', history),
+          )
+          return { first, repeated, altered, saved, replayed }
+        }).pipe(
+          Effect.provideService(Stamp, {
+            allocate: Effect.die(new Error('Acknowledgement retry allocated a new stamp')),
+          }),
+          Effect.provide(sqliteLayer(file)),
+        ),
+      )
+      expect(allocations).toBe(2)
+      expect(recovered.first).toEqual(recovered.repeated)
+      expect(Result.getFailure(recovered.altered)).toMatchObject({
+        value: { transactionId: 'toggle both' },
+      })
+      expect(recovered.saved.map(({ commits }) => commits.length)).toEqual([1, 1])
+      expect(recovered.replayed.map(({ state }) => state.remaining)).toEqual([1, 1])
+      const accepted = recovered.first.map(answer => {
+        if (answer.kind !== 'accepted') throw new Error('Expected the committed Toggle')
+        return answer
+      })
+      expect(accepted.map(answer => answer.events[0]?.payload.stamp)).toEqual([1, 2])
+      expect(accepted.map(answer => answer.commands[0]?.id)).toEqual(
+        ['work', 'home'].map(name => JSON.stringify([streamId('Todos', name), 'shared-click', 0])),
+      )
+    } finally {
+      rmSync(file, { force: true })
+      rmdirSync(directory)
+    }
+  })
+
+  it.each(['memory', 'SQLite'] as const)(
+    'rolls back the first stream if a competing writer advances the second on %s',
+    async adapter => {
+      const directory = mkdtempSync(join(tmpdir(), 'successor-contention-'))
+      const file = join(directory, 'todos.db')
+      try {
+        const checked = await run(
+          Effect.gen(function* () {
+            const readers = adapter === 'SQLite' ? sqliteLayer(file) : memoryLayer
+            const first = Context.get(yield* Layer.build(readers), AtomicJournal)
+            const competing =
+              adapter === 'SQLite'
+                ? Context.get(yield* Layer.build(sqliteLayer(file)), Journal)
+                : first
+            const ready = yield* Deferred.make<void>()
+            const release = yield* Deferred.make<void>()
+            let decisions = 0
+            const attempt = yield* commitTogether('winner or rollback', pair()).pipe(
+              Effect.provideService(AtomicJournal, first),
+              Effect.provideService(Stamp, {
+                allocate: Effect.suspend(() => {
+                  decisions++
+                  if (decisions === 1) return Effect.succeed(20)
+                  return Effect.andThen(
+                    Deferred.succeed(ready, undefined),
+                    Deferred.await(release),
+                  ).pipe(Effect.as(21))
+                }),
+              }),
+              Effect.result,
+              Effect.forkScoped,
+            )
+            yield* Deferred.await(ready)
+            const during = yield* histories(competing)
+            const home = yield* Effect.provideService(todos.open('home'), Journal, competing)
+            yield* Effect.provide(home.dispatch(toggle('home', 'competing', '8')), stamp)
+            yield* Deferred.succeed(release, undefined)
+            const outcome = yield* Fiber.join(attempt)
+            return {
+              during,
+              outcome,
+              after: yield* histories(competing),
+              receipt: yield* first.findTransaction('winner or rollback'),
+            }
+          }).pipe(Effect.scoped),
+        )
+        expect(checked.during.map(history => history.commits.length)).toEqual([0, 0])
+        expect(Result.getFailure(checked.outcome)).toMatchObject({
+          value: { expected: 0, actual: 1 },
+        })
+        expect(
+          checked.after.map(history => history.commits.map(entry => entry.dispatchId)),
+        ).toEqual([[], ['competing']])
+        expect(Option.isNone(checked.receipt)).toBe(true)
+      } finally {
+        rmSync(file, { force: true })
+        rmdirSync(directory)
+      }
+    },
+  )
+
+  it('refuses duplicate streams and incapable hosts before executing decisions', async () => {
+    const failures = await run(
+      Effect.gen(function* () {
+        const original = yield* AtomicJournal
+        const incapable = {
+          ...original,
+          capabilities: { ...original.capabilities, isolates: 'statement' as const },
+        }
+        const [first] = pair()
+        const duplicate = yield* Effect.result(commitTogether('duplicate', [first, first]))
+        const refused = yield* Effect.result(
+          Effect.provideService(commitTogether('wrong host', pair()), AtomicJournal, incapable),
+        )
+        return { duplicate, refused, saved: yield* histories(original) }
+      }).pipe(
+        Effect.provideService(Stamp, { allocate: Effect.die(new Error('Unexpected decision')) }),
+        Effect.provide(memoryLayer),
+      ),
+    )
+    expect(Result.getFailure(failures.duplicate)).toMatchObject({
+      value: { operation: 'transaction' },
+    })
+    expect(Result.getFailure(failures.refused)).toMatchObject({
+      value: { refused: [{ rule: 'atomic event streams' }] },
+    })
+    expect(failures.saved.map(history => history.commits.length)).toEqual([0, 0])
+  })
+
+  it('does not adopt an existing single-stream dispatch as part of a new transaction', async () => {
+    const result = await run(
+      Effect.gen(function* () {
+        const journal = yield* AtomicJournal
+        const home = yield* todos.open('home')
+        yield* home.dispatch(toggle('home', 'shared-click'))
+        const [work] = pair()
+        const attempt = yield* Effect.result(
+          commitTogether('new transaction', [
+            work,
+            todos.member('home', toggle('home', 'shared-click', '7', 1)),
+          ]),
+        )
+        return {
+          attempt,
+          saved: yield* histories(journal),
+          receipt: yield* journal.findTransaction('new transaction'),
+        }
+      }).pipe(Effect.scoped, Effect.provide(stamp), Effect.provide(memoryLayer)),
+    )
+    expect(Result.getFailure(result.attempt)).toMatchObject({
+      value: { dispatchId: 'shared-click' },
+    })
+    expect(result.saved.map(history => history.commits.length)).toEqual([0, 1])
+    expect(Option.isNone(result.receipt)).toBe(true)
+  })
+})
 
 describe('the successor event-sourced machine', () => {
   it('recovers every parent revision from events and from a checkpoint after closing SQLite', async () => {

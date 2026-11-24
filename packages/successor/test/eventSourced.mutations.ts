@@ -7,6 +7,36 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 })
 
 export default [
+  edit(
+    'a cross-stream retry ignores the saved transaction',
+    'eventSourced',
+    'if (Option.isSome(previous)) return yield* answers(previous.value)',
+    '',
+  ),
+  edit(
+    'a SQLite transaction publishes its first write even when a later stream fails',
+    'sqlite',
+    "db.exec('ROLLBACK')",
+    "db.exec('COMMIT')",
+  ),
+  edit(
+    'an in-memory transaction leaks the first stream on later conflict',
+    'journal',
+    'const streams = new Map(data.streams)\n              const stored = structuredClone(decoded)',
+    'const streams = data.streams as Map<string, MemoryStream>\n              const stored = structuredClone(decoded)',
+  ),
+  edit(
+    'a cross-stream transaction can overwrite an existing dispatch identity',
+    'journal',
+    'if (current.byDispatch.has(commit.dispatchId))',
+    'if (false)',
+  ),
+  edit(
+    'a transaction trusts an adapter without transaction isolation',
+    'eventSourced',
+    'if (missing.length !== 0)',
+    'if (false)',
+  ),
   {
     name: 'a retry never retrieves its saved disposition',
     edits: [

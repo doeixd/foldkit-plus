@@ -1,14 +1,15 @@
-import { Context, Effect, Result, Schema, type Scope } from 'effect'
+import { Context, Effect, Layer, Result, Schema, type Scope } from 'effect'
 import { expectTypeOf } from 'vitest'
 import {
   client,
+  commitTogether,
   define,
   serializes,
   serve,
   type TransportOf,
 } from 'foldkit-successor/event-sourced'
 import { keyed } from 'foldkit-successor/block'
-import { Journal, memoryCapabilities } from 'foldkit-successor/journal'
+import { AtomicJournal, Journal, memoryCapabilities } from 'foldkit-successor/journal'
 import { model as paths, plan, rows, Stamp, TodoRow, todos, type Model } from './fixtures/todos.js'
 
 declare const model: Model
@@ -45,6 +46,29 @@ class Link extends Context.Service<Link, TransportOf<typeof todos, Error>>()(
 const connected = client(Link).dispatch(request)
 expectTypeOf<Effect.Services<typeof connected>>().toEqualTypeOf<Link>()
 expectTypeOf<Effect.Success<typeof connected>>().toEqualTypeOf<Effect.Success<typeof dispatch>>()
+
+const combined = commitTogether('two lists', [
+  todos.member('work', request),
+  todos.member('home', {
+    id: 'rename',
+    expectedRevision: 0,
+    type: 'RenameTodo',
+    input: { target, label: 'Tea' },
+  }),
+])
+expectTypeOf<Effect.Services<typeof combined>>().toEqualTypeOf<AtomicJournal | Stamp>()
+type Combined = Effect.Success<typeof combined>
+expectTypeOf<Combined[0]>().toEqualTypeOf<Effect.Success<typeof dispatch>>()
+expectTypeOf<
+  Extract<Combined[1], { kind: 'accepted' }>['events'][number]['type']
+>().toEqualTypeOf<'TodoRenamed'>()
+declare const journal: typeof Journal.Service
+const singleStream = Layer.merge(
+  Layer.succeed(Journal, journal),
+  Layer.succeed(Stamp, { allocate: Effect.succeed(6) }),
+)
+// @ts-expect-error A single-stream host cannot run a declared cross-stream transaction.
+Effect.runPromise(Effect.provide(combined, singleStream))
 
 const illegalDecision = {
   kind: 'accepted',

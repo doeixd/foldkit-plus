@@ -2,13 +2,20 @@ import { DatabaseSync } from 'node:sqlite'
 import { Effect, Layer, Option, Schema } from 'effect'
 import {
   DispatchConflict,
-  Journal,
   JournalFailure,
   RevisionConflict,
+  TransactionConflict,
+  checkTransaction,
   isSameDispatch,
+  journalContext,
+  receiptFor,
+  sameTransaction,
+  transactionReceipt,
   wireCommit,
   wireSnapshot,
-  type JournalStore,
+  type AtomicJournalStore,
+  type TransactionFailure,
+  type WireCommit,
 } from './journal.js'
 
 const readCommit = Schema.decodeUnknownSync(Schema.fromJsonString(wireCommit), {
@@ -19,11 +26,22 @@ const readSnapshot = Schema.decodeUnknownSync(Schema.fromJsonString(wireSnapshot
 })
 const writeCommit = Schema.encodeSync(Schema.fromJsonString(wireCommit))
 const writeSnapshot = Schema.encodeSync(Schema.fromJsonString(wireSnapshot))
+const readReceipt = Schema.decodeUnknownSync(Schema.fromJsonString(transactionReceipt), {
+  onExcessProperty: 'error',
+})
+const writeReceipt = Schema.encodeSync(Schema.fromJsonString(transactionReceipt))
 
 const attempt = <A>(operation: string, work: () => A) =>
   Effect.try({ try: work, catch: cause => new JournalFailure({ operation, cause }) })
 
-const make = (db: DatabaseSync): JournalStore => {
+const writeFailure = (operation: string, cause: unknown): TransactionFailure =>
+  cause instanceof DispatchConflict ||
+  cause instanceof RevisionConflict ||
+  cause instanceof TransactionConflict
+    ? cause
+    : new JournalFailure({ operation, cause })
+
+const make = (db: DatabaseSync): AtomicJournalStore => {
   db.exec(`
     PRAGMA busy_timeout = 5000;
     CREATE TABLE IF NOT EXISTS successor_commits (
@@ -38,6 +56,10 @@ const make = (db: DatabaseSync): JournalStore => {
       stream TEXT PRIMARY KEY,
       revision INTEGER NOT NULL,
       record TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS successor_transactions (
+      id TEXT PRIMARY KEY,
+      receipt TEXT NOT NULL
     ) STRICT;
   `)
   const lookup = db.prepare(
@@ -58,6 +80,8 @@ const make = (db: DatabaseSync): JournalStore => {
     ON CONFLICT (stream) DO UPDATE SET revision = excluded.revision, record = excluded.record
     WHERE excluded.revision >= successor_snapshots.revision
   `)
+  const lookupReceipt = db.prepare('SELECT receipt FROM successor_transactions WHERE id = ?')
+  const insertReceipt = db.prepare('INSERT INTO successor_transactions (id, receipt) VALUES (?, ?)')
 
   const transaction = <A>(begin: 'BEGIN' | 'BEGIN IMMEDIATE', work: () => A): A => {
     db.exec(begin)
@@ -73,6 +97,14 @@ const make = (db: DatabaseSync): JournalStore => {
   const revision = (stream: string) => Number(latest.get(stream)?.revision ?? 0)
   const find = (stream: string, id: string) =>
     Option.map(Option.fromUndefinedOr(lookup.get(stream, id)), row => readCommit(row.record))
+  const findTransaction = (id: string) =>
+    Option.map(Option.fromUndefinedOr(lookupReceipt.get(id)), row => readReceipt(row.receipt))
+  const appendNew = (stream: string, expected: number, commit: WireCommit) => {
+    const actual = revision(stream)
+    if (actual !== expected) throw new RevisionConflict({ expected, actual })
+    if (commit.revision !== expected + 1) throw new Error('Invalid commit revision')
+    insert.run(stream, commit.revision, commit.dispatchId, writeCommit(commit))
+  }
 
   return {
     capabilities: {
@@ -110,10 +142,7 @@ const make = (db: DatabaseSync): JournalStore => {
               }
               return previous.value
             }
-            const actual = revision(stream)
-            if (actual !== expected) throw new RevisionConflict({ expected, actual })
-            if (commit.revision !== expected + 1) throw new Error('Invalid commit revision')
-            insert.run(stream, commit.revision, commit.dispatchId, writeCommit(commit))
+            appendNew(stream, expected, commit)
             return commit
           }),
         catch: cause =>
@@ -121,6 +150,33 @@ const make = (db: DatabaseSync): JournalStore => {
             ? cause
             : new JournalFailure({ operation: 'append', cause }),
       }),
+    findTransaction: id => attempt('read transaction', () => findTransaction(id)),
+    appendTransaction: (id, entries) =>
+      Effect.flatMap(checkTransaction(id, entries), decoded =>
+        Effect.try({
+          try: () =>
+            transaction('BEGIN IMMEDIATE', () => {
+              const previous = findTransaction(id)
+              if (Option.isSome(previous)) {
+                const identities = decoded.map(({ stream, commit }) => ({ ...commit, stream }))
+                if (!sameTransaction(previous.value, identities)) {
+                  throw new TransactionConflict({ transactionId: id })
+                }
+                return previous.value
+              }
+              for (const { stream, commit, expectedRevision } of decoded) {
+                if (Option.isSome(find(stream, commit.dispatchId))) {
+                  throw new DispatchConflict({ dispatchId: commit.dispatchId })
+                }
+                appendNew(stream, expectedRevision, commit)
+              }
+              const receipt = receiptFor(decoded)
+              insertReceipt.run(id, writeReceipt(receipt))
+              return receipt
+            }),
+          catch: cause => writeFailure('append transaction', cause),
+        }),
+      ),
     saveSnapshot: (stream, checkpoint) =>
       attempt('checkpoint', () =>
         transaction('BEGIN IMMEDIATE', () => {
@@ -134,13 +190,12 @@ const make = (db: DatabaseSync): JournalStore => {
 
 /** A scoped SQLite host that records one complete batch per stream revision. */
 export const sqliteLayer = (file: string) =>
-  Layer.effect(
-    Journal,
+  Layer.effectContext(
     Effect.gen(function* () {
       const db = yield* Effect.acquireRelease(
         attempt('open', () => new DatabaseSync(file)),
         connection => Effect.sync(() => connection.close()),
       )
-      return yield* attempt('initialize', () => make(db))
+      return journalContext(yield* attempt('initialize', () => make(db)))
     }),
   )
