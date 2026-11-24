@@ -3,6 +3,28 @@ const browser = ['packages/successor/test/todoSurface.browser.test.ts']
 
 export default [
   {
+    name: 'replaying a completion event leaves the old count',
+    edits: [
+      {
+        file: 'fixtures/todos.ts',
+        find: 'incomplete.replaceTotal(parent.remaining, before, after)',
+        replace: 'parent.remaining',
+      },
+    ],
+    tests: check,
+  },
+  {
+    name: 'the keyed count scans sibling rows after every toggle',
+    edits: [
+      {
+        file: 'fixtures/todoProof.ts',
+        find: "Verdict.isTrue(report.verdict) ? 'incremental' : 'recompute'",
+        replace: "'recompute'",
+      },
+    ],
+    tests: check,
+  },
+  {
     name: 'the composed proof skips the publication invariant',
     edits: [
       { file: 'fixtures/todoProof.ts', find: 'if (!invariant(after))', replace: 'if (false)' },
@@ -14,7 +36,7 @@ export default [
     edits: [
       {
         file: 'fixtures/todoProof.ts',
-        find: "Verdict.isTrue(report.verdict) && bounded(before, key) ? 'incremental' : 'recompute'",
+        find: "Verdict.isTrue(report.verdict) ? 'incremental' : 'recompute'",
         replace: "'incremental'",
       },
     ],

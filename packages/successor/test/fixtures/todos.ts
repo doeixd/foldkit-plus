@@ -89,7 +89,7 @@ export const TodoRow = make(
 )
 export const rows = keyed('Todos.rows', model.rows, TodoRow)
 
-export const completionDelta = <State>(
+const completionDelta = <State>(
   done: Expr.Expr<State, boolean>,
   sign: 1 | -1,
 ): Expr.Expr<State, number> => Num.mul(Expr.when(done, { then: -1, else: 1 }), sign)
@@ -107,6 +107,7 @@ const Todos = make(
     transitions: { RemainingChanged: parentDelta(1) },
   }),
 )
+export const countedToggle = Todos.machine.transitions.RemainingChanged
 const unchanged = (state: Model): Observed<Model> => ({ state, writes: [] })
 const remainingPath = model.remaining.segments
 
@@ -116,7 +117,7 @@ export const toggle = (
   parent: Model,
   target: Target,
   maintenance: Maintenance,
-  delta = Todos.machine.transitions.RemainingChanged,
+  delta = countedToggle,
 ) => {
   const fold = (candidate: Model): Observed<Model> => {
     const nextRow = Option.getOrThrow(rows.get(candidate, target.key)).model
@@ -214,7 +215,14 @@ export const plan = define({
       const next = evolveTarget(parent, event.target, event.done, (row, input) =>
         Transition.stepObserved(rows.child.machine.transitions.ChangeDone, row, input),
       )
-      return next === parent ? parent : { ...next, remaining: freshCount(next) }
+      if (next === parent) return parent
+      const before = Option.getOrThrow(rows.get(parent, event.target.key)).model
+      const after = Option.getOrThrow(rows.get(next, event.target.key)).model
+      return Path.set(
+        model.remaining,
+        next,
+        incomplete.replaceTotal(parent.remaining, before, after),
+      )
     },
     TodoRemoved: (parent, { target }) => remove(parent, target),
   },

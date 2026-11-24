@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { page } from 'vitest/browser'
+import { keySegment } from 'foldkit-successor/block'
 import { freshCount, initial, target } from './fixtures/todos.js'
 import { prepareToggle, verifyToggle } from './fixtures/todoProof.js'
 import { envelope, html, install } from './fixtures/todoSurface.js'
@@ -9,8 +10,11 @@ afterEach(() => {
   for (const done of clean.splice(0)) done()
 })
 
-const fixture = (mode: 'fresh' | 'resume', adjust?: Parameters<typeof install>[1]['adjust']) => {
-  const state = { ...initial('work'), draft: '' }
+const fixture = (
+  mode: 'fresh' | 'resume',
+  adjust?: Parameters<typeof install>[1]['adjust'],
+  state = { ...initial('work'), draft: '' },
+) => {
   const root = document.createElement('div')
   root.innerHTML = html(state)
   document.body.append(root)
@@ -73,6 +77,27 @@ describe.each(['fresh', 'resume'] as const)('%s successor Todo Surface', mode =>
     expect(() => assertFreshFold(root, mounted.read())).toThrow()
     expect(root.querySelector('output')?.textContent).toBe('2')
     expect(freshCount(mounted.read())).toBe(1)
+  })
+
+  it('routes a punctuation key through the same checked count on the first click', async () => {
+    const start = initial('work')
+    const state = {
+      ...start,
+      rows: {
+        ...start.rows,
+        [keySegment('*')]: { incarnation: '3', model: { label: 'Wildcard', done: false } },
+      },
+      remaining: 3,
+      generation: 3,
+      draft: '',
+    }
+    const { root, mounted } = fixture(mode, undefined, state)
+    await page.getByRole('checkbox', { name: 'Wildcard' }).click()
+    await mounted.settled()
+    expect(mounted.routed).toEqual([target(state, '*')])
+    expect(mounted.paints[0]?.evaluated).toEqual(['todo:*:done', 'remaining', 'clear'])
+    expect(root.querySelector('output')?.textContent).toBe('2')
+    assertFreshFold(root, mounted.read())
   })
 
   it('clears completed rows and keeps the surviving checkbox bound to its key', async () => {

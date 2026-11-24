@@ -1,16 +1,63 @@
 import { Option, Result } from 'effect'
-import { Verdict } from 'metakit'
+import { Bool, Expr, Node, Num, Path, Verdict } from 'metakit'
 import { keySegment } from 'foldkit-successor/block'
-import { initial, invariant, invertedDelta, target, toggle, type Model } from './todos.js'
+import {
+  countedToggle,
+  incomplete,
+  initial,
+  invariant,
+  rows,
+  target,
+  toggle,
+  type Model,
+} from './todos.js'
 
 const keys = ['7', '8'] as const
 type Key = (typeof keys)[number]
 const statuses = ['missing', 'incomplete', 'completed'] as const
 type Status = (typeof statuses)[number]
 
-const bounded = (state: Model, key: string): boolean =>
-  keys.some(candidate => candidate === key) &&
-  Object.keys(state.rows).every(segment => keys.some(expected => segment === keySegment(expected)))
+const sameTerm = (left: Node.Node, right: Node.Node): boolean => Node.key(left) === Node.key(right)
+const isTrue = (node: Node.Node) => sameTerm(node, Expr.lit(true).node)
+
+// The binding replaces exactly one occurrence and runs the parent once for each output.
+// These terms certify that the only effect is that row's contribution changing by ±1.
+export const countTerms = (delta: typeof countedToggle) => {
+  const done = Path.forSchema(rows.child.model).done
+  const toggleRow = rows.child.machine.transitions.Toggle
+  const child = toggleRow.writes[0]
+  const output = toggleRow.emits[0]
+  const parent = delta.writes[0]
+  if (
+    !isTrue(toggleRow.when.node) ||
+    toggleRow.writes.length !== 1 ||
+    child?.target.length !== 1 ||
+    child.target[0] !== 'done' ||
+    !sameTerm(child.value.node, Bool.not(Path.make<unknown, boolean>(['state', 'done'])).node) ||
+    toggleRow.emits.length !== 1 ||
+    output?.tag !== 'ChangedCompletion' ||
+    Option.isSome(output.when) ||
+    output.fields.length !== 1 ||
+    output.fields[0]?.[0] !== 'done' ||
+    !sameTerm(output.fields[0][1], child.value.node) ||
+    !isTrue(delta.when.node) ||
+    delta.writes.length !== 1 ||
+    parent?.target.length !== 1 ||
+    parent.target[0] !== 'remaining' ||
+    !sameTerm(incomplete.contribution.node, Expr.when(Bool.not(done), { then: 1, else: 0 }).node)
+  )
+    return Option.none()
+
+  const remaining = Path.make<unknown, number>(['state', 'remaining'])
+  const newDone = Path.make<unknown, boolean>(['input'])
+  const amount = Expr.when(newDone, { then: -1, else: 1 })
+  if (
+    !sameTerm(parent.value.node, Num.add(remaining, Num.mul(amount, 1)).node) &&
+    !sameTerm(parent.value.node, Num.add(remaining, Num.mul(amount, -1)).node)
+  )
+    return Option.none()
+  return Option.some({ nextDone: child.value.node, nextRemaining: parent.value.node })
+}
 
 const stateFor = (left: Status, right: Status): Model => {
   const base = initial('work')
@@ -44,21 +91,21 @@ interface Witness {
 export interface Report {
   readonly claim: 'remaining is the number of incomplete rows after the Toggle commit'
   readonly transition: 'Todos.rows.TodoRow.Toggle'
-  readonly encoding: 'successor-todo/1'
-  readonly domain: 'keys 7 and 8, each absent, incomplete, or complete'
+  readonly encoding: 'successor-todo/2'
+  readonly domain: 'any key in a valid list of at most Number.MAX_SAFE_INTEGER rows'
   readonly arithmetic: 'safe integers; no null fields'
   readonly atomicity: 'child and parent publish one commit'
   readonly checked: number
   readonly verdict: Verdict.Verdict<Witness>
 }
 
-/** Exhausts the stated finite quotient. Labels, owner and incarnation are never read by the count. */
-export const verifyToggle = (delta?: typeof invertedDelta): Report => {
+/** Check both contributions; the untouched rows add the same bounded total before and after. */
+export const verifyToggle = (delta: typeof countedToggle = countedToggle): Report => {
   const metadata = {
     claim: 'remaining is the number of incomplete rows after the Toggle commit',
     transition: 'Todos.rows.TodoRow.Toggle',
-    encoding: 'successor-todo/1',
-    domain: 'keys 7 and 8, each absent, incomplete, or complete',
+    encoding: 'successor-todo/2',
+    domain: 'any key in a valid list of at most Number.MAX_SAFE_INTEGER rows',
     arithmetic: 'safe integers; no null fields',
     atomicity: 'child and parent publish one commit',
   } as const
@@ -68,6 +115,13 @@ export const verifyToggle = (delta?: typeof invertedDelta): Report => {
       ...metadata,
       checked,
       verdict: Verdict.Unknown('Initialization violates the count invariant'),
+    }
+  }
+  if (Option.isNone(countTerms(delta))) {
+    return {
+      ...metadata,
+      checked,
+      verdict: Verdict.Unknown('The composed writes exceed the keyed count proof fragment'),
     }
   }
   for (const left of statuses) {
@@ -118,15 +172,15 @@ export interface CheckedPlan {
   readonly toggle: (before: Model, key: string) => ReturnType<typeof toggle>
 }
 
-export const prepareToggle = (delta?: typeof invertedDelta, assess = verifyToggle): CheckedPlan => {
-  const report = assess(delta)
+export const prepareToggle = (delta: typeof countedToggle = countedToggle): CheckedPlan => {
+  const report = verifyToggle(delta)
   return {
     report,
     toggle: (before, key) =>
       toggle(
         before,
         target(before, key),
-        Verdict.isTrue(report.verdict) && bounded(before, key) ? 'incremental' : 'recompute',
+        Verdict.isTrue(report.verdict) ? 'incremental' : 'recompute',
         delta,
       ),
   }
