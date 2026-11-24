@@ -101,7 +101,7 @@ describe('Str and Arr core ops across eval, residualize, SQL/PGlite, Zone, and Z
         { dialect: 'sqlite', rowPrefix: ['row'] },
       ),
     )
-    expect(sqliteStarts.text).toContain('substr("name", 1, length(?)) = ?')
+    expect(sqliteStarts.text).toContain('substr("name", 1, length(?)) COLLATE BINARY = ?')
     expect(sqliteStarts.params).toEqual(['pre', 'pre'])
   })
 

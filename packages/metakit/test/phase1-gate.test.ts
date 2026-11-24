@@ -154,8 +154,26 @@ describe('an operand past the safe range is refused by every reader', () => {
 
   it('the prover, whose counterexample replays', async () => {
     const proof = await Effect.runPromise(Prove.invariant(Row, Ord.gte(Num.mul($.f, 0), 0)))
-    expect(Verdict.isTrue(proof)).toBe(false)
-    expect(Verdict.isFalse(proof)).toBe(true)
+    expect(Verdict.isFalse(proof), Verdict.isUnknown(proof) ? proof.reason : 'unsafe operand').toBe(
+      true,
+    )
+  }, 30_000)
+
+  it('refuses an out-of-range Float64 result only for integer operands', async () => {
+    const limit = Number.MAX_SAFE_INTEGER
+    const Boundary = Schema.Struct({
+      n: Schema.Finite.check(Schema.isBetween({ minimum: limit, maximum: limit })),
+    })
+    const { n } = Path.from(Boundary)
+    const integer = Num.gt(Num.add(n, 2), 0)
+    const fractional = Num.gt(Num.mul(n, 1.5), 0)
+    const env = { n: limit }
+    expect(Result.isFailure(Expr.evalResult(integer, env))).toBe(true)
+    expect(Expr.evaluate(fractional, env)).toBe(true)
+    expect(Verdict.isFalse(await Effect.runPromise(Prove.invariant(Boundary, integer)))).toBe(true)
+    expect(Verdict.isTrue(await Effect.runPromise(Prove.invariant(Boundary, fractional)))).toBe(
+      true,
+    )
   }, 30_000)
 })
 

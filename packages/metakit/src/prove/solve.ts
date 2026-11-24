@@ -164,10 +164,16 @@ const z3Backend: SolverBackend = {
           try: signal => {
             const z3 = open()
             const solver = new z3.Solver()
-            const interrupt = () => z3.interrupt()
+            let retry: ReturnType<typeof setInterval> | undefined
+            const interrupt = () => {
+              z3.interrupt()
+              // A cold WASM worker can enter check after the first interrupt.
+              retry = setInterval(() => z3.interrupt(), 25)
+            }
             signal.addEventListener('abort', interrupt, { once: true })
             running = solve(z3, solver, problem, signal).finally(() => {
               signal.removeEventListener('abort', interrupt)
+              clearInterval(retry)
               solver.release()
             })
             return running

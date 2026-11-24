@@ -60,17 +60,19 @@ describe('Phase 1 Leftover 2: Soundness (Bout 1.5)', () => {
     expect(Verdict.isFalse(z3Res)).toBe(true)
   })
 
-  it('proves IEEE-754 Schema.Finite arithmetic past 2^53-1 and returns Unknown on timeout', async () => {
+  it('matches Float64 arithmetic refusals and reports its solver budget', async () => {
     const BoundedFinite = Schema.Struct({
       x: Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: 1e100 })),
       y: Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: 1e100 })),
     })
     const $b = Path.forSchema(BoundedFinite)
-    // Past 2^53 - 1, integer/real `unsafe` previously refused; IEEE-754 Float64 proves x + y >= x!
-    const proved = await Effect.runPromise(
-      Prove.invariant(BoundedFinite, Ord.gte(Num.add($b.x, $b.y), $b.x)),
-    )
-    expect(Verdict.isTrue(proved)).toBe(true)
+    const increasing = Ord.gte(Num.add($b.x, $b.y), $b.x)
+    expect(Result.isFailure(Expr.evalResult(increasing, { x: 2 ** 60, y: 1 }))).toBe(true)
+    const checked = await Effect.runPromise(Prove.invariant(BoundedFinite, increasing))
+    expect(
+      Verdict.isFalse(checked),
+      Verdict.isUnknown(checked) ? checked.reason : 'unsafe operand',
+    ).toBe(true)
 
     // Tight timeout on a non-trivial FP formula yields Unknown with budget obligation.
     const HardFp = Schema.Struct({

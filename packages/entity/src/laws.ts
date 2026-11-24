@@ -672,6 +672,7 @@ const shownVerdict = (verdict: LawVerdict): string =>
         interval: `kept: proved from the intervals on ${over.join(' and ')}, for every row and input within them`,
         zone: `kept: proved from the bounds and differences of ${over.join(' and ')}, for every row and input within them`,
         z3: `kept: proved by the solver over ${over.join(' and ')}`,
+        solver: `kept: proved by the solver over ${over.join(' and ')}`,
       })[by],
     Refused: ({ witness }) => `refused: ${witness.message}`,
     Undecided: ({ reason }) => `undecided: ${reason}`,

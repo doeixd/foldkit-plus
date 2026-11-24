@@ -221,10 +221,10 @@ export default [
     aggregateTests,
   ),
   mutation(
-    "Postgres's sum stays a bigint",
+    "Postgres's sum reaches the driver as numeric text",
     aggregatesSql,
-    '`COALESCE(SUM(${x}), 0)::DOUBLE PRECISION`',
-    '`COALESCE(SUM(${x}), 0)`',
+    'const value = postgres ? `${total}::DOUBLE PRECISION` : total',
+    'const value = total',
     aggregateTests,
   ),
   {

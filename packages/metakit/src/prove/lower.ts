@@ -222,6 +222,21 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
   /** The values of two branches in one sort; a null branch borrows the other's, which is never read. */
   const f64 = z3.Float.sort64()
   const rne = z3.FloatRM.RNE()
+  const fpSafe = z3.Float.val(Number.MAX_SAFE_INTEGER, f64)
+  const unsafeFp = (value: ZFP): ZBool => value.abs().gt(fpSafe)
+  const fpInteger = (value: ZFP): ZBool => {
+    // The exponent determines how many low significand bits are fractional.
+    const bits = value.toIEEEBV()
+    const exponent = bits.extract(62, 52)
+    const fraction = bits.extract(51, 0)
+    const shift = z3.BitVec.val(1075, exponent.size()).sub(exponent).zeroExt(41)
+    const low = z3.BitVec.val(1, fraction.size()).shl(shift).sub(1)
+    return z3.Or(
+      value.isZero(),
+      exponent.uge(1075),
+      z3.And(exponent.uge(1023), fraction.and(low).eq(z3.BitVec.val(0, fraction.size()))),
+    )
+  }
   const toFp = (value: ZExpr): ZFP => {
     if (z3.isFP(value)) return value
     if (z3.isIntVal(value)) return z3.Float.val(Number(value.value()), f64)
@@ -306,15 +321,26 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       }
       return strict('bool', [a!, b!], apply(...aligned(number(a!), number(b!))))
     }
-  // The solver's integer numbers are exact; IEEE-754 Float64 handles `Schema.Finite`
-  // with `isNaN`/`isInf` refusal matching JavaScript's `num.*` non-finite refusal.
+  // IEEE-754 arithmetic shares JavaScript's operand limit. An out-of-range
+  // result is refused when both inputs were integers.
   const arithmetic =
     (apply: (a: ZArith, b: ZArith) => ZArith, applyFp: (a: ZFP, b: ZFP) => ZFP) =>
     ([a, b]: ReadonlyArray<Term>): Term => {
       if (isFpPair(a!, b!)) {
         const [x, y] = fpPair(a!.value, b!.value)
         const result = applyFp(x, y)
-        return strict('num', [a!, b!], result, z3.Or(result.isNaN(), result.isInf()))
+        return strict(
+          'num',
+          [a!, b!],
+          result,
+          z3.Or(
+            unsafeFp(x),
+            unsafeFp(y),
+            z3.And(unsafeFp(result), fpInteger(x), fpInteger(y)),
+            result.isNaN(),
+            result.isInf(),
+          ),
+        )
       }
       const [x, y] = aligned(number(a!), number(b!))
       const result = apply(x, y)
@@ -431,7 +457,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     'num.neg': ([a]) => {
       if (z3.isFP(a!.value)) {
         const result = a!.value.neg()
-        return strict('num', [a!], result, z3.Or(result.isNaN(), result.isInf()))
+        return strict('num', [a!], result, z3.Or(unsafeFp(result), result.isNaN(), result.isInf()))
       }
       const result = number(a!).neg()
       return strict('num', [a!], result, unsafe(result))

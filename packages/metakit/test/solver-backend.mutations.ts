@@ -15,4 +15,15 @@ export default [
     'valid(slices, env) && given.every(rule => holdsOf(rule, env)) && reproduces(env)',
     'true',
   ),
+  {
+    name: 'a cold Z3 worker receives only one interrupt',
+    edits: [
+      {
+        file: '../src/prove/solve.ts',
+        find: 'retry = setInterval(() => z3.interrupt(), 25)',
+        replace: '',
+      },
+    ],
+    tests: ['packages/metakit/test/z3-interrupt.test.ts'],
+  },
 ]
