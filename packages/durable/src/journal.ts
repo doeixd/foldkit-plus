@@ -366,6 +366,28 @@ export interface JournalStore {
   readonly parentRowLock: boolean
 }
 
+/**
+ * The outcome of `replay` for a reconnecting client: either the incremental
+ * operations committed after the client's cursor, or the authoritative
+ * snapshot when the client's epoch changed, its cursor fell behind the
+ * compaction floor, or its cursor is ahead of the document.
+ */
+export type ReplayResult<Operation, Snapshot> =
+  | {
+      readonly _tag: 'Operations'
+      readonly epoch: string
+      readonly cursor: Cursor
+      readonly operations: ReadonlyArray<Committed<Operation>>
+      readonly hasMore: boolean
+    }
+  | {
+      readonly _tag: 'Snapshot'
+      readonly epoch: string
+      readonly cursor: Cursor
+      readonly snapshot: Snapshot
+      readonly reason: 'epoch-changed' | 'compacted' | 'cursor-ahead'
+    }
+
 export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unknown> {
   /**
    * What this journal's store guarantees of concurrent appends: serializable
@@ -404,6 +426,20 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
     ReadonlyArray<Committed<Operation>>,
     InvalidCursorError | CompactedCursorError | JournalError
   >
+  /**
+   * Replays committed operations after `after` for a reconnecting client.
+   * Returns `Operations` when the client's cursor is within the retained log
+   * and its `epoch` (if given) matches; otherwise returns `Snapshot` with the
+   * authoritative state and the reason it could not replay incrementally.
+   */
+  readonly replay: (
+    key: DocumentId,
+    options: {
+      readonly after: Cursor
+      readonly epoch?: string | undefined
+      readonly limit?: number | undefined
+    },
+  ) => Effect.Effect<ReplayResult<Operation, Snapshot>, JournalError>
   /**
    * Commits an operation. A repeat of a known `opId` returns `Committed` with the
    * stored operation while its payload is retained, and `AlreadyCommitted`
@@ -1930,6 +1966,71 @@ const makeShape = <
 
   const subscribe: Shape['subscribe'] = Stream.fromPubSub(changes)
 
+  const replay: Shape['replay'] = Effect.fn('Journal.replay')(function* (
+    key: DocumentId,
+    options: {
+      readonly after: Cursor
+      readonly epoch?: string | undefined
+      readonly limit?: number | undefined
+    },
+  ) {
+    const limit = options.limit
+    if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) {
+      return yield* Effect.die(new Error('Journal.replay: limit must be a positive integer'))
+    }
+    yield* Effect.annotateCurrentSpan({ key, after: options.after })
+    const currentEpoch = yield* epoch(key)
+    if (options.epoch !== undefined && options.epoch !== currentEpoch) {
+      const loaded = yield* load(key)
+      return {
+        _tag: 'Snapshot',
+        epoch: currentEpoch,
+        cursor: loaded.cursor,
+        snapshot: loaded.snapshot,
+        reason: 'epoch-changed',
+      } satisfies ReplayResult<Operation, Snapshot>
+    }
+    const readResult = yield* Effect.result(
+      read(key, options.after, limit === undefined ? undefined : { limit: limit + 1 }),
+    )
+    if (Result.isFailure(readResult)) {
+      const err = readResult.failure
+      if (err._tag === 'CompactedCursorError') {
+        const loaded = yield* load(key)
+        return {
+          _tag: 'Snapshot',
+          epoch: currentEpoch,
+          cursor: loaded.cursor,
+          snapshot: loaded.snapshot,
+          reason: 'compacted',
+        } satisfies ReplayResult<Operation, Snapshot>
+      }
+      if (err._tag === 'InvalidCursorError') {
+        const loaded = yield* load(key)
+        return {
+          _tag: 'Snapshot',
+          epoch: currentEpoch,
+          cursor: loaded.cursor,
+          snapshot: loaded.snapshot,
+          reason: 'cursor-ahead',
+        } satisfies ReplayResult<Operation, Snapshot>
+      }
+      return yield* Effect.fail(err)
+    }
+    const fetched = readResult.success
+    const hasMore = limit !== undefined && fetched.length > limit
+    const operations = hasMore ? fetched.slice(0, limit) : fetched
+    const nextCursor =
+      operations.length > 0 ? toCursor(operations[operations.length - 1]!.sequence) : options.after
+    return {
+      _tag: 'Operations',
+      epoch: currentEpoch,
+      cursor: nextCursor,
+      operations,
+      hasMore,
+    } satisfies ReplayResult<Operation, Snapshot>
+  })
+
   return {
     store: d1 ? D1_STORE : SQLITE_STORE,
     load,
@@ -1937,6 +2038,7 @@ const makeShape = <
     epoch,
     floor,
     read,
+    replay,
     append,
     appendAll,
     compact,

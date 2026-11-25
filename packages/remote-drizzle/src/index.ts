@@ -114,6 +114,7 @@ import { declarations, ObservedStatements } from './observed.js'
 import { quoted } from './quoted.js'
 import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
+import { lockParents, sortParentIds, withParentLock, type ParentLock } from './parentLock.js'
 
 export * from './bind.js'
 export { checkConstraints, entityChecks, type EntityCheckOptions } from './checks.js'
@@ -126,6 +127,13 @@ export * from './operators.js'
 export * from './database.js'
 export * from './page.js'
 export * from './pagination.js'
+export {
+  lockParents,
+  sortParentIds,
+  withParentLock,
+  type ParentLock,
+  type ParentLockTransaction,
+} from './parentLock.js'
 export { queryPlans, type PlanVerdict, type QueryPlan } from './plans.js'
 export * from './window.js'
 export * from './poll.js'
@@ -1370,14 +1378,14 @@ const writeOperations = supported.filter(operation => operation !== 'viewer' && 
  * once under READ COMMITTED unless it is set otherwise, each transaction one
  * unit, and the writer locks no row but the one it writes.
  */
-const storeOf = (table: Table, serializable: boolean): StoreCapabilities =>
+const storeOf = (table: Table, serializable: boolean, parentRowLock: boolean): StoreCapabilities =>
   is(table, SQLiteTable)
     ? { name: 'SQLite', isolation: 'serializable', isolates: 'statement', parentRowLock: false }
     : {
         name: 'Postgres',
         isolation: serializable ? 'serializable' : 'read-committed',
         isolates: 'transaction',
-        parentRowLock: false,
+        parentRowLock,
       }
 
 export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBinding>(
@@ -1392,6 +1400,12 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
      */
     readonly isolation?: 'serializable'
     /**
+     * Postgres-only parent-row lock (`SELECT ... FOR UPDATE` in ascending id
+     * order) and optional transactional stored-total update (`onWrite`). When
+     * set, the writer declares `store.parentRowLock = true`.
+     */
+    readonly parentLock?: ParentLock<keyof B['fields'] & string> | undefined
+    /**
      * The column holding the row's revision, a number: every update moves it
      * on by one in its statement, whatever it `expect`s, and answers it
      * (`EntityWriter.revision`). Beside `revisionTrigger` it moves once: the
@@ -1401,6 +1415,29 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
   } = {},
 ): EntityWriter<P, DrizzleDatabase> => {
   const ledger = options.ledger
+  const parentLock = options.parentLock
+  if (parentLock !== undefined && is(binding.table, SQLiteTable)) {
+    throw new Error(
+      `[foldkit-remote-drizzle] writer: parentLock on ${binding.name} is supported on Postgres only; SQLite/D1 has no SELECT ... FOR UPDATE.`,
+    )
+  }
+  const parentIdsFrom = (
+    values: Readonly<Record<string, unknown>>,
+    links: Readonly<Record<string, Option.Option<EntityRef>>>,
+  ): ReadonlyArray<string> => {
+    if (parentLock === undefined) return []
+    const ids: Array<string> = []
+    for (const field of parentLock.by) {
+      if (Object.hasOwn(links, field)) {
+        const ref = links[field]
+        if (ref !== undefined && Option.isSome(ref)) ids.push(ref.value.id)
+      } else if (Object.hasOwn(values, field)) {
+        const val = values[field]
+        if (val !== null && val !== undefined) ids.push(String(val))
+      }
+    }
+    return sortParentIds(ids)
+  }
   // `set` is keyed by the table's own property names, not by its columns' SQL names.
   const keys = new Map<unknown, string>(
     Object.entries(getTableColumns(binding.table)).map(([key, column]) => [column, key]),
@@ -2454,7 +2491,7 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
     assignments: true,
     requires: true,
     revision: revisionField,
-    store: storeOf(binding.table, options.isolation === 'serializable'),
+    store: storeOf(binding.table, options.isolation === 'serializable', parentLock !== undefined),
     // `when`, `requires`, invariants and the postcondition are clauses of the UPDATE or
     // DELETE; what a cascade or a cleared link must hold gates each statement of its batch.
     judgesInStatement: true,
@@ -2628,6 +2665,24 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
           rows = yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
             where,
           })
+        } else if (parentLock !== undefined) {
+          const parentIds = parentIdsFrom(values, links)
+          rows = yield* withParentLock(
+            parentLock.table,
+            parentLock.id,
+            parentIds,
+            async (tx, lockedIds) => {
+              const updated = (await tx
+                .update(binding.table)
+                .set(set)
+                .where(where)
+                .returning(answered.columns)) as ReadonlyArray<Record<string, unknown>>
+              if (updated.length > 0 && parentLock.onWrite !== undefined) {
+                await parentLock.onWrite({ parentIds: lockedIds, tx })
+              }
+              return updated
+            },
+          )
         } else {
           rows = yield* runStatement(
             () => writes.update(binding.table).set(set).where(where).returning(answered.columns),
@@ -2780,6 +2835,22 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
           )
           if (done._tag === 'Recorded') return yield* answerOfRecord(id, answered, done.answer)
           inserted = done.rows
+        } else if (parentLock !== undefined) {
+          const parentIds = parentIdsFrom(values, links)
+          inserted = yield* withParentLock(
+            parentLock.table,
+            parentLock.id,
+            parentIds,
+            async (tx, lockedIds) => {
+              const rows = (await (statement(tx) as PromiseLike<
+                ReadonlyArray<Record<string, unknown>>
+              >)) as ReadonlyArray<Record<string, unknown>>
+              if (rows.length > 0 && parentLock.onWrite !== undefined) {
+                await parentLock.onWrite({ parentIds: lockedIds, tx })
+              }
+              return rows
+            },
+          )
         } else {
           const writes = yield* drizzleWrites
           inserted = yield* runStatement(() => statement(writes), 'Database write failed')

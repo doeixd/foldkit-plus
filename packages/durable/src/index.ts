@@ -56,6 +56,7 @@ export {
   type ParkedRun,
   type RecoveryIntent,
   type RecoveryOptions,
+  type ReplayResult,
   type TrackedCursor,
   type ValidationRequest,
 } from './journal.js'

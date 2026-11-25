@@ -101,6 +101,7 @@ import {
   type InternalFailure,
 } from './diagnostics.js'
 import {
+  gives,
   mount,
   type Judged,
   type Requirement as StoreRequirement,
@@ -3917,6 +3918,39 @@ export type { StoreCapabilities }
 /** What a writer's own rules need of its store (`EntityWriter.needs`); `metakit/store`'s `Requirement`. */
 export type { StoreRequirement }
 export { bodyLimit } from './body.js'
+
+/**
+ * Verify that `store` can enforce a row-aggregate data rule (such as a parent
+ * entity summing its children). On stores that only isolate a single statement
+ * (like D1 / SQLite), refuses with an actionable message naming Postgres's
+ * parent lock or an in-statement guard.
+ */
+export const checkAggregateRule = (
+  store: StoreCapabilities,
+  rule: {
+    readonly name: string
+    readonly entity: string
+    readonly over: string
+    readonly judged?: 'in-statement' | 'read-first' | undefined
+  },
+): void => {
+  const judged = rule.judged ?? 'read-first'
+  if (gives(store, 'parent-serialized', judged)) return
+  const isolates = store.isolates ?? 'statement'
+  if (isolates !== 'transaction') {
+    throw new Error(
+      `[foldkit-remote-server] the rule "${rule.name}" of ${rule.entity} sums its ${rule.over} and needs parent-serialized; ${store.name} (${store.isolation} per ${isolates}) judges it from a read first. Judge it on Postgres with the parent lock, or as a guard in the statement.`,
+    )
+  }
+  mount(store, [
+    {
+      rule: `${rule.entity}.${rule.name}`,
+      needs: 'parent-serialized',
+      because: `it sums its ${rule.over}`,
+      judged,
+    },
+  ])
+}
 export type {
   AnswerUnread,
   CachedReadDiffers,
