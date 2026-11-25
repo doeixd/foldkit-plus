@@ -2,6 +2,7 @@ import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Ord, Path, Transition } from 'metakit'
 import * as Machine from 'metakit/machine'
+import * as Language from 'metakit/language'
 import * as Operation from 'metakit/operation'
 import { describe, expect, it } from 'vitest'
 import { Agent } from '../src/index.js'
@@ -106,5 +107,41 @@ describe('foldkit-agent/metakit machineTools over composed Machine (Bout 3.7)', 
     expect(Effect.runSync(runtime.messages.available)).toEqual([])
     model = { count: 3 }
     expect(Effect.runSync(runtime.messages.available).map(c => c.name)).toEqual(['dec'])
+  })
+
+  it('lists language.describe() in x-metakit-operations on tool input schemas (Bout 9.2)', () => {
+    const isPositive = Operation.define({
+      id: 'agent.isPositive',
+      version: 1,
+      args: [Schema.Int] as const,
+      returns: Schema.Boolean,
+      nulls: 'strict',
+    })
+    const Lang = Language.make({
+      check: { isPositive },
+    })
+    const CounterMsg = defineMessageUnion({ Dec: {} })
+    const CounterAgent = Agent.forModel<{ readonly count: number }>()
+    const Tools = machineTools({
+      agent: CounterAgent,
+      machine: CounterMachine,
+      language: Lang,
+    })
+    const definition = CounterAgent.make({
+      messages: CounterAgent.expose(CounterMsg, {
+        Dec: Tools.Dec('Decrement counter'),
+      }),
+    })
+    const runtime = CounterAgent.bind({
+      definition,
+      host: {
+        model: () => ({ count: 2 }),
+        principal: () => undefined,
+        dispatch: () => {},
+      },
+    })
+    const [tool] = Effect.runSync(runtime.messages.available)
+    const ops = (tool!.inputSchema as Readonly<Record<string, unknown>>)['x-metakit-operations']
+    expect(ops).toEqual(Lang.describe())
   })
 })

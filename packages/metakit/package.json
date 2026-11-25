@@ -97,6 +97,11 @@
       "types": "./dist/operationSql.d.ts",
       "import": "./dist/operationSql.js"
     },
+    "./language": {
+      "foldkit-plus:source": "./src/language.ts",
+      "types": "./dist/language.d.ts",
+      "import": "./dist/language.js"
+    },
     "./store": {
       "foldkit-plus:source": "./src/store.ts",
       "types": "./dist/store.d.ts",

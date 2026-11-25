@@ -11,6 +11,7 @@ import type { Schema } from 'effect'
 import { type Expr, Verdict } from 'metakit'
 import * as Inspect from 'metakit/inspect'
 import { canDispatch, type Machine, type MessageOf } from 'metakit/machine'
+import type { OperationDescription } from 'metakit/operation'
 import type { ExposedMessages, Variant } from './expose.js'
 import { type RefineInputJsonSchema, refineInputJsonSchema } from './jsonSchema.js'
 import { type SnakeCase, defaultName } from './naming.js'
@@ -112,29 +113,37 @@ const constrained = (
  * as a string, and an optional field as required.
  */
 const addDeclaredConstraints =
-  (declared: Readonly<Record<string, unknown>>): RefineInputJsonSchema =>
+  (
+    declared: Readonly<Record<string, unknown>>,
+    operations?: ReadonlyArray<OperationDescription>,
+  ): RefineInputJsonSchema =>
   derived => {
     const properties = derived['properties']
     const declaredProperties = declared['properties']
-    if (!Predicate.isObject(properties) || !Predicate.isObject(declaredProperties)) return derived
-    return {
-      ...derived,
-      properties: Object.fromEntries(
-        Object.entries(properties).map(([field, schema]) => {
-          const fieldDeclared = Object.hasOwn(declaredProperties, field)
-            ? declaredProperties[field]
-            : undefined
-          return [
-            field,
-            Predicate.isObject(schema) && Predicate.isObject(fieldDeclared)
-              ? constrained(schema, fieldDeclared)
-              : schema,
-          ]
-        }),
-      ),
-      // What dispatch enforces: it decodes with excess properties refused.
-      additionalProperties: false,
-    }
+    const base =
+      !Predicate.isObject(properties) || !Predicate.isObject(declaredProperties)
+        ? derived
+        : {
+            ...derived,
+            properties: Object.fromEntries(
+              Object.entries(properties).map(([field, schema]) => {
+                const fieldDeclared = Object.hasOwn(declaredProperties, field)
+                  ? declaredProperties[field]
+                  : undefined
+                return [
+                  field,
+                  Predicate.isObject(schema) && Predicate.isObject(fieldDeclared)
+                    ? constrained(schema, fieldDeclared)
+                    : schema,
+                ]
+              }),
+            ),
+            // What dispatch enforces: it decodes with excess properties refused.
+            additionalProperties: false,
+          }
+    return operations !== undefined && operations.length > 0
+      ? { ...base, 'x-metakit-operations': operations }
+      : base
   }
 
 /**
@@ -170,6 +179,8 @@ export const machineTools = <
     readonly machine: Machine<State, Transitions>
     /** Implementations for custom `Operation.define` operations called by transitions. */
     readonly foreign?: Expr.ReaderOptions['foreign'] | undefined
+    /** Domain language whose `describe()` is listed on each tool's input schema (`x-metakit-operations`). */
+    readonly language?: { readonly describe: () => ReadonlyArray<OperationDescription> } | undefined
   } & ([Model] extends [State]
     ? { readonly state?: ((model: Model) => State) | undefined }
     : { readonly state: (model: Model) => State }),
@@ -179,6 +190,7 @@ export const machineTools = <
     options.state ?? ((model: Model) => model as unknown as State)
   const readerOptions: Expr.ReaderOptions | undefined =
     options.foreign === undefined ? undefined : { foreign: options.foreign }
+  const operations = options.language?.describe()
   // A transition may be named `__proto__`, which a plain object would take as its prototype.
   const tools: Record<string, unknown> = Object.create(null)
 
@@ -190,7 +202,7 @@ export const machineTools = <
       transition.inputSchema,
       () => new Error(`Cannot make a tool of "${key}": the transition declares no input Schema`),
     )
-    const refine = addDeclaredConstraints(Inspect.toJsonSchema(input))
+    const refine = addDeclaredConstraints(Inspect.toJsonSchema(input), operations)
     const tag = key as keyof Transitions & string
 
     const available = (model: Model): boolean =>
