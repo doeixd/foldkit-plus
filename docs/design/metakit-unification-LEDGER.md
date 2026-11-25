@@ -239,6 +239,33 @@ Phase 1, step 10, read on 2026-11-22 the same way, before at `8c1dc9a7b` and aft
 
 Entity's own instantiations fell 9%; reference's aggregate rose 0.7%. The note predicted about equal counts, and the plan's bar (15% over the recorded time) holds.
 
+Phase 3 readings at `89fd7eb7a` with TypeScript 7.0.2 in the shared worktree. Run `pnpm exec tsc -b examples/todo-app examples/reference examples/foldkit/domains-plus --force --extendedDiagnostics --verbose --pretty false` and read each example's project block. The command built 53 projects in 105.287 s. It exited with TS2307 because the shared Remote refactor removed `foldkit-remote/aggregate` ahead of the Plus alias update. Use a clean build for a gate comparison.
+
+| Project | Own check time | Own instantiations |
+| --- | ---: | ---: |
+| `examples/todo-app` | 4.202 s | 2,177,856 |
+| `examples/reference` | 3.360 s | 3,071,559 |
+| `examples/foldkit/domains-plus` | 7.699 s | 2,177,516 |
+
+## Dependency checks
+
+Phase 2 readings at `be8cf74ef` in the shared worktree with the maintained-values refactor in progress. The machine was an AMD Ryzen 7 6800U on Windows 11 with Node 22.23.4. The graph timings use a Node unit test with five warm-ups and 20 samples. Build the modules before timing. Time `Graph.of` with `performance.now()` and report the median and range.
+
+| Module | Readers | Writers | Median | Range |
+| --- | ---: | ---: | ---: | ---: |
+| reference | 3 | 3 | 0.090 ms | 0.067–0.179 ms |
+| todo-app | 5 | 34 | 0.248 ms | 0.203–2.965 ms |
+
+Put the probe in `scripts/test/metakitGraphReading.test.ts` with `// @vitest-environment node`. Import `Graph` from `packages/surface/src/graph.ts` and `Module` and `Surface` from `packages/surface/src/index.ts` by relative path. For reference, construct `reference = Module.make(App, [Data, Session, Surface.contract(NotebookPage, { viewer: 'reader' }), Surface.contract(NotePage, { id: 'note' })])` with the exports from `examples/reference/src/main.ts`. Call `Graph.of(reference)` for every sample. For todo-app, call `Graph.of(TodoModule, { machine: todoMachine, sends: declared.messageEdges })` with the exports from `module.ts` and `surface.ts`. Reuse the assembled module for each run and count `graph.dependencies.readers.size` and `graph.dependencies.writers.size`. Run `pnpm exec vitest run scripts/test/metakitGraphReading.test.ts --project unit --maxWorkers=1 --silent=false`.
+
+At the same snapshot, the Todo test “draws only the Surfaces that read a field a Message declares it writes” counted one renderer call each for `DraftChanged` (Composer), `FilterSelected` (Board) and `RenamedList` (Header), with zero calls to the other instrumented renderers after each Message. The Remote test “without building the ask while the store is the same and the ask reads nothing else” counted zero additional projection builds for two draft changes, then one after the store received the answer. Re-run with `pnpm exec vitest run examples/todo-app/test/machine.test.ts packages/remote/test/readEntryReuse.test.ts --project unit --maxWorkers=1`.
+
+## Todo handler size
+
+Phase 3's 23 matching Todo handlers have a median of 4 lines in the handwritten update and 7 in the declared machine. The median of the per-handler ratios is 1.57, above the 1.5 target. Each property span includes its internal comments, blank lines and any state or input declaration. Count shared helpers separately when comparing complete implementations.
+
+Read the original handler object from `Message.match` in `git show "70585f667^:examples/todo-app/src/app.ts"` and the new object from `transitions` in `examples/todo-app/src/machine.ts` at `be8cf74ef`. Parse both files with `typescript-6`'s `createSourceFile`. Match members by Message name and count the lines from `property.getStart(source)` through `property.end`, inclusive. The only unmatched declared handler is the later `ListRenameRequested`. The unmatched handwritten handlers are `UrlChanged` and `MirrorRestored`, which `makeMachine` delegates to the mirror adapters.
+
 ## Phase readings
 
 Add a row per phase and per budget it touches. Keep the earlier rows.
