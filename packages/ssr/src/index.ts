@@ -96,7 +96,13 @@ import {
   type RouteMatch,
 } from './shared.js'
 
-/** The set `foldkit-mixins` collects drawn classes in, under the same registered symbol. */
+export {
+  isUnchangingPath,
+  liveSet,
+  omittedReadMessage,
+  type LiveSet,
+  type LiveSetOptions,
+} from './liveSet.js'
 const DRAWN_CLASSES = Symbol.for('foldkit-plus.drawnClasses')
 
 /** The projections of the plan's entries that are active for `model`. */
@@ -354,8 +360,8 @@ const browserModelOf = <Model, Fields extends Schema.Struct.Fields>(
       )
 }
 
-/** Where the browser gets a Model path's value: the envelope, itself, or nowhere it may. */
-export type Cover = 'state' | 'restored' | 'local' | 'part' | 'missing'
+/** Where the browser gets a Model path's value: the envelope, itself, unchanging HTML, or nowhere it may. */
+export type Cover = 'state' | 'restored' | 'local' | 'part' | 'unchanging' | 'missing'
 
 /** One Surface as a plan covers it, for the server's Model. */
 export interface SurfaceCoverage {
