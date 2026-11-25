@@ -480,3 +480,9 @@ Measured with `DOMAINS_PLUS_BINDER=1 node scripts/phase6-baseline.mjs --reps 3` 
 Notes:
 - The binder's own code is **4.18 kB brotli**; the 50.4 kB shared chunk is `effect/Schema` + `metakit` pulled in by `foldkit-ssr/binder`. Per the Phase 6 plan ("A miss changes the default, not the feature"), `DOMAINS_PLUS_BINDER=1` remains opt-in rather than replacing the default entry.
 - In `examples/foldkit/domains-plus/e2e/binder.e2e.ts` (2/2 passing in Chromium + Wrangler), pressing "Add to cart" while `assets/entry-*.js` is held updates `Cart, 1 domains` and `#cart-announcement` immediately with zero POSTs, preserves the state and DOM node identity across hand-over to `SSR.hydrate`, and hydrates at rest with **0 rebuilt elements**.
+
+## Phase 7: script cut along Messages (Bouts 7.1 & 7.9)
+
+- **Bout 7.1 (Gate):** On `domains-plus` (`DOMAINS_PLUS_BINDER=1`), transitions + Command code is ~4.5 kB brotli (~8% of the 54.6 kB script before first press, below the 25% threshold). Per plan, `DOMAINS_PLUS_BINDER=1` remains opt-in while the framework primitives (`Transition.lazy`, `Machine.lazyChild`, `foldkit-ssr/vite` `Manifest`/`manifestPlugin`, binder intent-prefetch + retry/form-fallback, and `Declared.of` `registerArm`/`lazyTags`) ship cleanly.
+- **Bout 7.9 (Chunk size):** On `domains-plus` (`DOMAINS_PLUS_BINDER=1`, cutting `ClickedAddDomain` into `src/client/chunks/addDomain.ts`), `assets/addDomain-*.js` measures **748 B raw / 327 B brotli** (beating the `< 3 kB` brotli gate by 9.2×).
+- **Bout 7.8 (E2E):** `examples/foldkit/domains-plus/e2e/chunks.e2e.ts` (2/2 passing in Chromium + Wrangler) verifies that pressing "Add to cart" twice while `assets/addDomain-*.js` is held runs the transition **exactly once** with zero POSTs, and aborting `assets/addDomain-*.js` releases the held cart form to browser POST fallback.

@@ -4,10 +4,10 @@
  * from one `metakit` Machine. Hand-written `update` arms coexist through
  * `fallback` so an application can move one Message at a time.
  */
-import { Option, Predicate, type Schema } from 'effect'
+import { Option, Predicate, Result, type Schema } from 'effect'
 import type { MessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
-import type { Expr } from 'metakit'
+import { Transition, type Expr } from 'metakit'
 import type { EmitOf, Machine, MessageOf } from 'metakit/machine'
 import type { AppScope } from './index.js'
 import { messageTag, tagOf, type OnlyMessages } from './messageTags.js'
@@ -76,6 +76,8 @@ export type DeclaredConfig<
   readonly sends?: SendsMap<EmitOf<Transitions>, AppTag> | undefined
   /** Implementations for custom `Operation.define` operations called by transitions. */
   readonly foreign?: Expr.ReaderOptions['foreign'] | undefined
+  /** Message tags whose arms load lazily via `registerArm` (Phase 7, Bout 7.6). */
+  readonly lazyTags?: ReadonlyArray<AppTag> | undefined
   /** Called with each step's Message and the values `supply` made for it, so a replay can pass them back. */
   readonly record?: ((step: SuppliedStep<Transitions, Message>) => void) | undefined
 } & ([EmitOf<Transitions>] extends [never]
@@ -151,6 +153,21 @@ export interface Declared<Root, Message, Tag extends string, Resources = never, 
    * joined with `sends`, ready to pass to `Graph.of(module, { machine, sends })`.
    */
   readonly messageEdges: ReadonlyArray<MessageEdge<Tag>>
+  /**
+   * Register a dynamically loaded transition arm (and optional command handlers
+   * for its emitted records) once its chunk arrives (Phase 7, Bout 7.6).
+   * Returns any Messages that arrived for `tag` while the arm was unloaded,
+   * in FIFO order, so the caller can drain them through `update`.
+   */
+  readonly registerArm: (
+    tag: string,
+    transition: Transition.Transition<Root, unknown, unknown, unknown>,
+    commands?: Readonly<
+      Record<string, (record: unknown) => ReadonlyArray<CommandOf<Root, Message, Resources>>>
+    >,
+  ) => ReadonlyArray<Message>
+  /** Messages currently waiting for an unloaded lazy arm. */
+  readonly waitingFor: (tag: string) => ReadonlyArray<Message>
 }
 
 /** Whether a transition's `supplied` Schemas name at least one value. */
@@ -268,9 +285,13 @@ const of = <
     }
   }
 
-  const commandsTable = (config?.commands ?? Object.create(null)) as Readonly<
-    Record<string, (record: unknown) => ReadonlyArray<CommandOf<Root, Message, Resources>>>
-  >
+  const commandsTable: Record<
+    string,
+    (record: unknown) => ReadonlyArray<CommandOf<Root, Message, Resources>>
+  > = Object.assign(Object.create(null), config?.commands ?? {})
+  const dynamicArms = new Map<string, Transition.Transition<Root, unknown, unknown, unknown>>()
+  const lazyTagSet = new Set<string>(config?.lazyTags ?? [])
+  const pendingByTag = new Map<string, Array<Message>>()
   const supplyTable: object = config?.supply ?? Object.create(null)
   const record = config?.record
   // Without its values a step is refused, and the Message would do nothing.
@@ -346,15 +367,73 @@ const of = <
     return run(model, tag, message, Option.some(step.supplied))
   }
 
+  const runDynamic = (
+    model: Root,
+    tag: string,
+    transition: Transition.Transition<Root, unknown, unknown, unknown>,
+    message: Message,
+  ): Return => {
+    const stepped = Transition.step(transition, model, message, undefined, readerOptions)
+    if (Result.isFailure(stepped)) return { model }
+    const { state: next, emitted } = stepped.success
+    if (emitted.length === 0) return { model: next }
+    const commands: Array<CommandOf<Root, Message, Resources>> = []
+    for (const emittedRecord of emitted) {
+      const recordTag = Option.getOrElse(tagOf(emittedRecord), () => '')
+      if (!Object.hasOwn(commandsTable, recordTag)) {
+        throw new Error(
+          `Declared.of: transition "${tag}" emitted "${recordTag}", which has no handler in commands`,
+        )
+      }
+      commands.push(...commandsTable[recordTag]!(emittedRecord))
+    }
+    return commands.length === 0 ? { model: next } : { model: next, commands }
+  }
+
   const rawUpdate = (model: Root, message: Message): Return =>
-    Option.match(
-      Option.filter(tagOf(message), tag => declaredTags.has(tag)),
-      {
-        onNone: () =>
-          isUndeclared(message) && fallback !== undefined ? fallback(model, message) : { model },
-        onSome: tag => declaredStep(model, tag, message),
+    Option.match(tagOf(message), {
+      onNone: () =>
+        isUndeclared(message) && fallback !== undefined ? fallback(model, message) : { model },
+      onSome: tag => {
+        if (declaredTags.has(tag)) return declaredStep(model, tag, message)
+        const dynamic = dynamicArms.get(tag)
+        if (dynamic !== undefined) return runDynamic(model, tag, dynamic, message)
+        if (lazyTagSet.has(tag)) {
+          let list = pendingByTag.get(tag)
+          if (list === undefined) {
+            list = []
+            pendingByTag.set(tag, list)
+          }
+          list.push(message)
+          return { model }
+        }
+        return isUndeclared(message) && fallback !== undefined
+          ? fallback(model, message)
+          : { model }
       },
-    )
+    })
+
+  const registerArm: Declared<
+    Root,
+    Message,
+    Tag,
+    Resources,
+    SuppliedStep<Transitions, Message>
+  >['registerArm'] = (tag, transition, armCommands) => {
+    dynamicArms.set(tag, transition)
+    lazyTagSet.delete(tag)
+    if (armCommands !== undefined) {
+      for (const [key, handler] of Object.entries(armCommands)) {
+        commandsTable[key] = handler
+      }
+    }
+    const waiting = pendingByTag.get(tag)
+    if (waiting === undefined) return []
+    pendingByTag.delete(tag)
+    return waiting
+  }
+
+  const waitingFor = (tag: string): ReadonlyArray<Message> => [...(pendingByTag.get(tag) ?? [])]
 
   const replay = (model: Root, step: SuppliedStep<Transitions, Message>): Return =>
     run(model, step.message._tag, step.message, Option.some(step.supplied))
@@ -371,6 +450,8 @@ const of = <
     undeclared,
     sends: validatedSends,
     messageEdges,
+    registerArm,
+    waitingFor,
   }
 }
 

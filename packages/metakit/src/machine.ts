@@ -563,19 +563,90 @@ export type Composed<Own, Children extends Parts<never>> = Own & {
  * one child Machine lifted at two paths gives two sets of Messages. Two
  * transitions that would share a tag do not compile, and throw.
  */
+/** Structural machine shape accepted as a lazy child (covariant in its transitions). */
+export interface LazyMachineLike<State> {
+  readonly transitions: Readonly<Record<string, AnyTransition<State>>>
+}
+
+/** A child machine whose code loads on demand (Phase 7, Bout 7.2). */
+export interface LazyChild<State, M extends LazyMachineLike<State> = LazyMachineLike<State>> {
+  readonly _tag: 'LazyChild'
+  readonly prefix: string
+  readonly isLoaded: () => boolean
+  readonly current: () => Option.Option<M>
+  readonly resolve: () => Promise<M>
+}
+
+/**
+ * Wrap a dynamic import of a child machine so callers can check `isLoaded()`,
+ * read `current()`, or await `resolve()` (deduplicating concurrent loads and
+ * clearing in-flight state on failure so a retry can succeed).
+ */
+export const lazyChild = <State, M extends LazyMachineLike<State>>(
+  prefix: string,
+  loader: () => Promise<M | { readonly default: M }>,
+): LazyChild<State, M> => {
+  let loaded: Option.Option<M> = Option.none()
+  let inflight: Promise<M> | undefined
+  const resolve = (): Promise<M> => {
+    if (Option.isSome(loaded)) return Promise.resolve(loaded.value)
+    if (inflight !== undefined) return inflight
+    inflight = loader().then(
+      mod => {
+        const machine = 'default' in mod ? mod.default : mod
+        loaded = Option.some(machine)
+        inflight = undefined
+        return machine
+      },
+      err => {
+        inflight = undefined
+        throw err
+      },
+    )
+    return inflight
+  }
+  return {
+    _tag: 'LazyChild',
+    prefix,
+    isLoaded: () => Option.isSome(loaded),
+    current: () => loaded,
+    resolve,
+  }
+}
+
+type LazyChildResult<Loader> = Loader extends () => Promise<infer Mod>
+  ? Mod extends { readonly default: infer M }
+    ? M
+    : Mod
+  : never
+
 export const compose = <
   S extends Schema.Top,
   Own extends Readonly<Record<string, AnyTransition<S['Type']>>>,
   Children extends Parts<S['Type']>,
+  Lazy extends Readonly<
+    Record<
+      string,
+      () => Promise<LazyMachineLike<S['Type']> | { readonly default: LazyMachineLike<S['Type']> }>
+    >
+  > = Readonly<Record<string, never>>,
 >(
   config: {
     readonly state: S
     readonly transitions: Own
     readonly children: Children
+    readonly lazyChildren?: Lazy | undefined
   } & ([SharedTags<Own, Children>] extends [never]
     ? unknown
     : { readonly 'Machine.compose: two transitions share this tag': SharedTags<Own, Children> }),
-): Machine<S['Type'], Composed<Own, Children>> => {
+): Machine<S['Type'], Composed<Own, Children>> & {
+  readonly lazyChildren: {
+    readonly [K in keyof Lazy & string]: LazyChild<
+      S['Type'],
+      Extract<LazyChildResult<Lazy[K]>, LazyMachineLike<S['Type']>>
+    >
+  }
+} => {
   const from = new Map<string, string>()
   const transitions = new Map<string, AnyTransition<S['Type']>>()
   const add = (tag: string, transition: AnyTransition<S['Type']>, source: string): void => {
@@ -596,8 +667,22 @@ export const compose = <
       add(`${name}${tag}`, transition, `the child "${name}"`)
     }
   }
-  return make({
+  const lazyMap: Record<string, LazyChild<S['Type']>> = {}
+  if (config.lazyChildren !== undefined) {
+    for (const [name, loader] of Object.entries(config.lazyChildren)) {
+      lazyMap[name] = lazyChild(name, loader)
+    }
+  }
+  const base = make({
     state: config.state,
     transitions: Object.fromEntries(transitions) as Composed<Own, Children>,
+  })
+  return Object.assign(base, {
+    lazyChildren: lazyMap as {
+      readonly [K in keyof Lazy & string]: LazyChild<
+        S['Type'],
+        Extract<LazyChildResult<Lazy[K]>, LazyMachineLike<S['Type']>>
+      >
+    },
   })
 }

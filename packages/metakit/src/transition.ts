@@ -657,3 +657,58 @@ export const footprint = <State, Input, Emit, Supplied>(
     writes: transition.writes.flatMap(writtenPaths),
   }
 }
+
+/** A transition whose implementation loads on demand (Phase 7, Bout 7.2). */
+export interface LazyTransition<State, Input = unknown, Emit = never, Supplied = NoSupplied> {
+  readonly _tag: 'LazyTransition'
+  readonly isLoaded: () => boolean
+  readonly current: () => Option.Option<Transition<State, Input, Emit, Supplied>>
+  readonly resolve: () => Promise<Transition<State, Input, Emit, Supplied>>
+}
+
+/**
+ * Wrap a dynamic import of a `Transition` so callers can check `isLoaded()`,
+ * read `current()`, or await `resolve()` (deduplicating concurrent loads and
+ * clearing in-flight state on rejection so a retry can succeed).
+ */
+export const lazy = <State, Input = unknown, Emit = never, Supplied = NoSupplied>(
+  loader: () => Promise<
+    | Transition<State, Input, Emit, Supplied>
+    | { readonly default: Transition<State, Input, Emit, Supplied> }
+  >,
+): LazyTransition<State, Input, Emit, Supplied> => {
+  let loaded: Option.Option<Transition<State, Input, Emit, Supplied>> = Option.none()
+  let inflight: Promise<Transition<State, Input, Emit, Supplied>> | undefined
+  const resolve = (): Promise<Transition<State, Input, Emit, Supplied>> => {
+    if (Option.isSome(loaded)) return Promise.resolve(loaded.value)
+    if (inflight !== undefined) return inflight
+    inflight = loader().then(
+      mod => {
+        const transition = 'default' in mod ? mod.default : mod
+        loaded = Option.some(transition)
+        inflight = undefined
+        return transition
+      },
+      err => {
+        inflight = undefined
+        throw err
+      },
+    )
+    return inflight
+  }
+  return {
+    _tag: 'LazyTransition',
+    isLoaded: () => Option.isSome(loaded),
+    current: () => loaded,
+    resolve,
+  }
+}
+
+/** Whether `value` is a `LazyTransition`. */
+export const isLazy = (
+  value: unknown,
+): value is LazyTransition<unknown, unknown, unknown, unknown> =>
+  typeof value === 'object' &&
+  value !== null &&
+  // tag-check: open — runtime type guard over unknown values
+  Reflect.get(value, '_tag') === 'LazyTransition'

@@ -70,9 +70,24 @@ export interface BinderOptions<Model, Tag extends string = string, Keys extends 
   readonly envelope: BinderEnvelope<Model>
   /** Loads the Foldkit runtime chunk. Called at most once. */
   readonly wake: () => Promise<void>
+  /** Optional lazy transition loaders keyed by Message tag (Phase 7, Bouts 7.4–7.5). */
+  readonly chunks?: Readonly<
+    Record<
+      string,
+      () => Promise<
+        BinderTransition<Model, string> | { readonly default: BinderTransition<Model, string> }
+      >
+    >
+  >
+  /** Maximum milliseconds to wait for a lazy chunk on press (defaults to 3000). */
+  readonly chunkTimeoutMs?: number | undefined
+  /** Called when a non-form control's chunk fails after one retry. */
+  readonly onChunkFailed?:
+    | ((info: { readonly tag: string; readonly element: Element; readonly error: unknown }) => void)
+    | undefined
   /** Receives invalid-payload refusal messages (defaults to `console.warn`). */
   readonly onInvalidPayload?: ((message: string) => void) | undefined
-  /** If true, also calls `wake()` when the browser becomes idle. */
+  /** If true, also calls `wake()` (and prefetches on-screen lazy chunks) when idle. */
   readonly idleWake?: boolean | undefined
 }
 
@@ -268,33 +283,66 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
     })
 
   let cancelIdle: (() => void) | undefined
+  const loadedChunks = new Map<string, BinderTransition<Model, string>>()
+  const inflightChunks = new Map<string, Promise<BinderTransition<Model, string>>>()
+  const pendingPresses = new Set<Element>()
+  const chunkTimeoutMs = options.chunkTimeoutMs ?? 3000
 
-  const triggerWake = (): void => {
-    if (stopped || didWake) return
-    didWake = true
-    void options.wake().catch(() => {
-      // Never wedge the binder on a transient chunk-load failure: allow local
-      // transitions to keep working and a subsequent press to retry waking.
-      didWake = false
-      queue.length = 0
-    })
+  const loadChunk = (tag: string): Promise<BinderTransition<Model, string>> | undefined => {
+    const existing = loadedChunks.get(tag)
+    if (existing !== undefined) return Promise.resolve(existing)
+    const inflight = inflightChunks.get(tag)
+    if (inflight !== undefined) return inflight
+    const chunks = options.chunks
+    if (chunks === undefined || !Object.hasOwn(chunks, tag)) return undefined
+    const loader = chunks[tag]!
+    const promise = loader().then(
+      mod => {
+        const entry = 'default' in mod ? mod.default : mod
+        loadedChunks.set(tag, entry)
+        inflightChunks.delete(tag)
+        return entry
+      },
+      err => {
+        inflightChunks.delete(tag)
+        throw err
+      },
+    )
+    inflightChunks.set(tag, promise)
+    return promise
   }
 
-  const handleEvent = (event: Event): void => {
-    if (stopped || root === undefined) return
+  const withTimeout = <A>(promise: Promise<A>, ms: number): Promise<A> =>
+    new Promise<A>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`chunk load timed out after ${ms}ms`)), ms)
+      promise.then(
+        val => {
+          clearTimeout(timer)
+          resolve(val)
+        },
+        err => {
+          clearTimeout(timer)
+          reject(err)
+        },
+      )
+    })
+
+  const prefetchFromEvent = (event: Event): void => {
+    if (stopped || root === undefined || options.chunks === undefined) return
     const el = findMessageElement(event.target, root)
     if (el === null) return
     const tag = el.getAttribute(BINDER_MESSAGE_ATTRIBUTE)
-    if (tag === null || tag === '') return
-
-    if (!Object.hasOwn(options.manifest.transitions, tag)) {
-      triggerWake()
-      return
+    if (tag !== null && tag !== '') {
+      void loadChunk(tag)?.catch(() => undefined)
     }
-    const entry = (
-      options.manifest.transitions as Readonly<Record<string, BinderTransition<Model, Tag>>>
-    )[tag]!
+  }
 
+  const applyResolvedEntry = (
+    entry: BinderTransition<Model, string>,
+    tag: string,
+    el: Element,
+    event?: Event,
+  ): void => {
     const rawPayload = el.getAttribute(BINDER_PAYLOAD_ATTRIBUTE)
     let parsed: unknown = {}
     if (rawPayload !== null && rawPayload !== '') {
@@ -330,20 +378,17 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
         ? { ...(decoded.success as Readonly<Record<string, unknown>>), _tag: tag }
         : { _tag: tag }
 
-    // If an earlier press is already queued waiting for the runtime, queue this
-    // decoded Message behind it so ordering is strictly preserved on hand-over.
-    // A background idleWake with an empty queue still answers local presses immediately.
     if (queue.length > 0) {
       queue.push(messagePayload)
-      event.preventDefault()
-      event.stopImmediatePropagation()
+      event?.preventDefault()
+      event?.stopImmediatePropagation()
       return
     }
 
     if (!canAnswerLocally(entry.transition, options.manifest.bindings)) {
       queue.push(messagePayload)
-      event.preventDefault()
-      event.stopImmediatePropagation()
+      event?.preventDefault()
+      event?.stopImmediatePropagation()
       triggerWake()
       return
     }
@@ -355,10 +400,7 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
       undefined,
       entry.foreign === undefined ? undefined : { foreign: entry.foreign },
     )
-    if (Result.isFailure(stepped)) {
-      // Guard refused: no state change, no wake.
-      return
-    }
+    if (Result.isFailure(stepped)) return
 
     currentModel = stepped.success.state
     didMutate = true
@@ -366,10 +408,97 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
       currentModel,
       entry.foreign === undefined ? undefined : { foreign: entry.foreign },
     )
-    applyAnchors(root, values)
-    event.preventDefault()
-    event.stopImmediatePropagation()
+    if (root !== undefined) applyAnchors(root, values)
+    event?.preventDefault()
+    event?.stopImmediatePropagation()
   }
+
+  const triggerWake = (): void => {
+    if (stopped || didWake) return
+    didWake = true
+    void options.wake().catch(() => {
+      // Never wedge the binder on a transient chunk-load failure: allow local
+      // transitions to keep working and a subsequent press to retry waking.
+      didWake = false
+      queue.length = 0
+    })
+  }
+
+  const handleEvent = (event: Event): void => {
+    if (stopped || root === undefined) return
+    const el = findMessageElement(event.target, root)
+    if (el === null) return
+    const tag = el.getAttribute(BINDER_MESSAGE_ATTRIBUTE)
+    if (tag === null || tag === '') return
+
+    if (Object.hasOwn(options.manifest.transitions, tag)) {
+      const entry = (
+        options.manifest.transitions as Readonly<Record<string, BinderTransition<Model, Tag>>>
+      )[tag]!
+      applyResolvedEntry(entry, tag, el, event)
+      return
+    }
+
+    const cached = loadedChunks.get(tag)
+    if (cached !== undefined) {
+      applyResolvedEntry(cached, tag, el, event)
+      return
+    }
+
+    if (options.chunks !== undefined && Object.hasOwn(options.chunks, tag)) {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      // Never dispatch the same control's press twice while its chunk is in flight.
+      if (pendingPresses.has(el)) return
+      pendingPresses.add(el)
+      const attemptLoad = () => {
+        const p = loadChunk(tag)
+        if (p === undefined) return Promise.reject(new Error(`missing chunk for "${tag}"`))
+        return withTimeout(p, chunkTimeoutMs)
+      }
+      const handleFailure = (error: unknown) => {
+        pendingPresses.delete(el)
+        if (stopped) return
+        const form = el.closest('form')
+        if (form !== null) {
+          form.submit()
+          return
+        }
+        el.setAttribute('aria-disabled', 'true')
+        el.setAttribute('data-fk-chunk-failed', tag)
+        options.onChunkFailed?.({ tag, element: el, error })
+      }
+      void attemptLoad().then(
+        entry => {
+          pendingPresses.delete(el)
+          if (!stopped) applyResolvedEntry(entry, tag, el)
+        },
+        firstError => {
+          if (stopped) {
+            pendingPresses.delete(el)
+            return
+          }
+          // Form controls release immediately to browser submission; non-form controls retry once.
+          if (el.closest('form') !== null) {
+            handleFailure(firstError)
+            return
+          }
+          void attemptLoad().then(
+            entry => {
+              pendingPresses.delete(el)
+              if (!stopped) applyResolvedEntry(entry, tag, el)
+            },
+            retryError => handleFailure(retryError),
+          )
+        },
+      )
+      return
+    }
+
+    triggerWake()
+  }
+
+  const INTENT_EVENTS = ['pointerover', 'focusin', 'touchstart'] as const
 
   const stop = (): void => {
     if (stopped) return
@@ -380,12 +509,22 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
       for (const type of events) {
         root.removeEventListener(type, handleEvent, true)
       }
+      if (options.chunks !== undefined) {
+        for (const type of INTENT_EVENTS) {
+          root.removeEventListener(type, prefetchFromEvent, true)
+        }
+      }
     }
   }
 
   if (root !== undefined) {
     for (const type of events) {
       root.addEventListener(type, handleEvent, true)
+    }
+    if (options.chunks !== undefined) {
+      for (const type of INTENT_EVENTS) {
+        root.addEventListener(type, prefetchFromEvent, true)
+      }
     }
   }
 
@@ -401,11 +540,21 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
   })
 
   if (options.idleWake === true) {
+    const onIdle = (): void => {
+      if (stopped) return
+      if (root !== undefined && options.chunks !== undefined) {
+        for (const el of root.querySelectorAll(`[${BINDER_MESSAGE_ATTRIBUTE}]`)) {
+          const tag = el.getAttribute(BINDER_MESSAGE_ATTRIBUTE)
+          if (tag !== null && tag !== '') void loadChunk(tag)?.catch(() => undefined)
+        }
+      }
+      triggerWake()
+    }
     if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-      const id = window.requestIdleCallback(triggerWake)
+      const id = window.requestIdleCallback(onIdle)
       cancelIdle = () => window.cancelIdleCallback(id)
     } else {
-      const id = setTimeout(triggerWake, 0)
+      const id = setTimeout(onIdle, 0)
       cancelIdle = () => clearTimeout(id)
     }
   }

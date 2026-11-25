@@ -23,7 +23,8 @@
 | **Phase 3 (3.1–3.8 — DONE)** | `Machine.each`, `Transition.move`, `Sheet`/`WindowList` machines, `domains-plus` 31/39 declared, `Bundle.make({ machine })`, Remote `storeRowPath` + `Can.withMachine`, Form `Declared.disabled`, Agent `machineTools` + Phase 3 audit fixes | `0a6d4aa98`, `bf4ea7d2f`, `d448df858`, `d78e57a09`, `9c16a1384`, `e71cdac1c`, `44c136b35`, `50dd7295f`, `d25530175` |
 | **Phase 4 Part A & B (DONE)** | Typed custom operations, `reduce`, `combine`, Entity migration, permissions example; maintained values (`foldkit-remote/maintained`: deltas, binary-search placement 17 comps / 2.8 ms at 100k rows, `coverage`, `asOf`, `classify`, `indexes`, `dependentQuery`, `Maintained.reduce`, `Maintained.join`, seeded differentials), Postgres `SELECT ... FOR UPDATE` parent lock + stored totals + D1 aggregate refusal, Durable Object `Journal.replay` + Phase 4 Part B audit fixes | Prior commits + `d2bded751`, `8986268f6`, `224000091`, `d4beb0f6f`, `c9b1c0172` |
 | **Phase 5 (DONE)** | Store capabilities & orderings + Bout 5.1 cleanup (`checksTargets` doc, `JournalStore === StoreCapabilities` type test) | `ab41873a8`, `12c2faa99` |
-| **Phase 6 (6.2–6.15 — DONE)** | Trusted-region browser probe, `liveSet`, `Binding`, `foldkit-ssr/binder`, hand-over in `SSR.hydrate` (with slice-preserving merge), `KeepTyped` extensions, `static.ts`, `domains-plus` on `DOMAINS_PLUS_BINDER=1` + `e2e/binder.e2e.ts` (2/2 passing, 0 rebuilt elements) + ledger measurements (binder chunk 4.18 kB brotli, stays opt-in due to 50.4 kB shared `effect/Schema` + `metakit` chunk), security & deep-review audits | `9e3380092`, `b60aa8d4d`, `8771d6cc9`, `3b86818a8`, `ad6a70b90`, `9b76bd4ac` |
+| **Phase 6 (6.2–6.15 — DONE)** | Trusted-region browser probe, `liveSet`, `Binding`, `foldkit-ssr/binder`, hand-over in `SSR.hydrate` (with slice-preserving merge), `KeepTyped` extensions, `static.ts`, `domains-plus` on `DOMAINS_PLUS_BINDER=1` + `e2e/binder.e2e.ts` (2/2 passing, 0 rebuilt elements) + ledger measurements (binder chunk 4.18 kB brotli, stays opt-in due to 50.4 kB shared `effect/Schema` + `metakit` chunk), security & deep-review audits | `9e3380092`, `b60aa8d4d`, `8771d6cc9`, `3b86818a8`, `ad6a70b90`, `9b76bd4ac`, `2be4d1b31` |
+| **Phase 7 (7.1–7.10 — DONE)** | `Transition.lazy`, `Machine.lazyChild`/`Machine.compose({ lazyChildren })`, `Manifest<Tag>` + `defineManifest` + `manifestFromChunks` + `manifestPlugin` (`foldkit-ssr/vite`), binder intent-prefetch (`pointerover`/`focusin`/`touchstart`/idle) + 3 s timeout + single-retry `aria-disabled` & form-POST fallback, `Declared.of` `registerArm`/`lazyTags`, `domains-plus` lazy `addDomain` chunk (**327 B brotli**) + `e2e/chunks.e2e.ts` (2/2 passing) | Phase 7 commit |
 | **Phase 9 (9.1–9.6 — DONE)** | `metakit/language`, `foldkit-agent` `x-metakit-operations`, `metakit/store/check` + store adapter tests (`remote-server`, `remote-drizzle`, `durable`, `sync`), `Temporal.protocol`, `examples/metakit` permissions language + differential tests | `8e7337927`, `19be7425f`, `2628828a5`, `12c2faa99`, `acccb125b` |
 
 ---
@@ -37,15 +38,7 @@
 
 ## 3. Remaining Work (Ordered Checklist)
 
-1. **Phase 7 (Script Cut Along Messages — Bouts 7.1–7.10):**
-   - **Bout 7.1 (Gate):** Measure transitions + Command code share via `scripts/bundle-report.mjs` after Phase 6.12 (threshold: >= 25% of script before first press; if below, cut by Surface & child machine only, keep failure handling).
-   - **Bout 7.2:** Lazy child machines (`Machine.compose({ cart: () => import(...) })`) and `Transition.lazy` (`packages/metakit/src/{machine,transition}.ts`).
-   - **Bout 7.3:** Manifest contract & Vite plugin (`packages/ssr/src/vite/manifest.ts`, absorbs `runtimeChunk.ts`).
-   - **Bout 7.4–7.5:** Loading policy (idle / pointerover / focus / touchstart / 3s wait) and chunk-failure handling in `packages/ssr/src/binder.ts`.
-   - **Bout 7.6:** Runtime takes arms as chunks arrive in `packages/surface/src/declared.ts`.
-   - **Bout 7.7–7.10:** `domains-plus` cut by Message, `e2e/chunks.e2e.ts`, ledger measurements, ordering review.
-
-7. **Phase 8 (Examples, Guides, Skill, Site, Post — Bouts 8.1–8.10):**
+1. **Phase 8 (Examples, Guides, Skill, Site, Post — Bouts 8.1–8.10):**
    - **Bouts 8.1–8.4:** Migrate remaining examples (`reference`, `chirp`, `registry`, `cms`, `pages`, `writes`, `writes-domain`, `cloudflare`, `auth`, `entity`, `remote`, `sync`, `todo`) to declared Messages + write verifier.
    - **Bouts 8.5–8.8:** Task guides (per `docs/agents/writing-docs.md`, each checked by a cold reader) + upgrade guide for Phases 1–4 breaks.
    - **Bout 8.9:** Update `skills/foldkit-plus/` (`SKILL.md` and references, all snippets compiled) and `examples/site/src/catalog.ts`.

@@ -1,66 +1,23 @@
 /**
- * Lightweight browser binder entry for `domains-plus` (Phase 6, Bout 6.10).
+ * Lightweight browser binder entry for `domains-plus` (Phase 6 Bout 6.10, Phase 7 Bout 7.7).
  *
  * Built with `DOMAINS_PLUS_BINDER=1`: answers declared cart presses before
- * `entry.ts` (Foldkit + Remote + Mixins-UI) loads, updates the cart button and
- * announcement anchors in place, and hands over its updated `cart` slice to
- * `SSR.hydrate` once the runtime chunk arrives.
+ * `entry.ts` (Foldkit + Remote + Mixins-UI) loads, loads `ClickedAddDomain`
+ * lazily from `./chunks/addDomain.js` on intent/idle/press, updates the cart
+ * button and announcement anchors in place, and hands over its updated `cart`
+ * slice to `SSR.hydrate` once the runtime chunk arrives.
  */
-import { Schema } from 'effect'
 import { Arr, Path, Transition } from 'metakit'
-import * as Operation from 'metakit/operation'
 import { Binder, Binding } from 'foldkit-ssr/binder'
-
-interface CartDomain {
-  readonly _tag: 'Available'
-  readonly name: string
-  readonly tld: string
-  readonly price: number
-  readonly renewalPrice: number
-  readonly years: number
-  readonly isPremium: boolean
-}
-
-const CartDomainSchema = Schema.Struct({
-  _tag: Schema.Literal('Available'),
-  name: Schema.String,
-  tld: Schema.String,
-  price: Schema.Number,
-  renewalPrice: Schema.Number,
-  years: Schema.Number,
-  isPremium: Schema.Boolean,
-})
-
-const BinderModelSchema = Schema.Struct({
-  cart: Schema.Array(CartDomainSchema),
-})
-type BinderModel = typeof BinderModelSchema.Type
-
-const formatCartLabel = Operation.define({
-  id: 'domains.formatCartLabel',
-  version: 1,
-  args: [Schema.Number] as const,
-  returns: Schema.String,
-  nulls: 'strict',
-})
-
-const formatCartAnnouncement = Operation.define({
-  id: 'domains.formatCartAnnouncement',
-  version: 1,
-  args: [Schema.Number] as const,
-  returns: Schema.String,
-  nulls: 'strict',
-})
-
-const binderForeign = Operation.implementations(
-  'domains-binder',
-  Operation.implement(formatCartLabel, count => `Cart, ${count} domains`),
-  Operation.implement(formatCartAnnouncement, count =>
-    count === 0
-      ? 'Your cart is empty.'
-      : `${count} ${count === 1 ? 'domain' : 'domains'} in your cart.`,
-  ),
-)
+import {
+  BinderModelSchema,
+  NameInput,
+  binderForeign,
+  formatCartAnnouncement,
+  formatCartLabel,
+  type BinderModel,
+  type CartDomain,
+} from './binderShared.js'
 
 const readResume = (
   root: Element,
@@ -87,6 +44,7 @@ const readResume = (
       for (const [key, entry] of Object.entries(entities)) {
         if (!key.startsWith('Domain:')) continue
         const row = entry.values
+        // tag-check: open — untrusted JSON resume envelope boundary
         if (row === undefined || row['_tag'] !== 'Available') continue
         const name = typeof row['name'] === 'string' ? row['name'] : key.slice('Domain:'.length)
         const tld = typeof row['tld'] === 'string' ? row['tld'] : ''
@@ -125,22 +83,6 @@ if (root !== null) {
     'cart-announcement': Binding.text(formatCartAnnouncement(cartCount)),
   })
 
-  const NameInput = Schema.Struct({ name: Schema.String })
-
-  const addDomain = Transition.opaque({
-    name: 'domains.binder.ClickedAddDomain',
-    state: BinderModelSchema,
-    input: NameInput,
-    reads: ({ state, input }) => [state.cart, input.name],
-    writes: ({ state }) => [state.cart],
-    run: (model, { name }) => {
-      if (model.cart.some(item => item.name === name)) return model
-      const quote = quotes.get(name)
-      if (quote === undefined) return model
-      return { cart: [...model.cart, quote] }
-    },
-  })
-
   const removeDomain = Transition.make({
     state: BinderModelSchema,
     input: NameInput,
@@ -150,12 +92,6 @@ if (root !== null) {
   Binder.start({
     manifest: {
       transitions: {
-        ClickedAddDomain: {
-          tag: 'ClickedAddDomain',
-          schema: NameInput,
-          transition: addDomain,
-          foreign: binderForeign,
-        },
         ClickedRemoveDomain: {
           tag: 'ClickedRemoveDomain',
           schema: NameInput,
@@ -165,6 +101,10 @@ if (root !== null) {
       },
       bindings,
       events: ['click'],
+    },
+    chunks: {
+      ClickedAddDomain: () =>
+        import('./chunks/addDomain.js').then(mod => mod.makeAddDomainEntry(quotes)),
     },
     envelope: { model: { cart }, root },
     wake: () => import('./entry.js').then(() => undefined),
