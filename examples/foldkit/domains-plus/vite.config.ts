@@ -8,13 +8,16 @@ export default defineConfig(({ command }) => {
   // One `vite build` makes the client and the Worker, which must agree on
   // the build's id, or the browser contains every page instead of resuming it.
   if (command === 'build') process.env.FOLDKIT_BUILD_ID ??= crypto.randomUUID()
-  // Opt-in (#472): the page loads `foldkit-ssr/loader`, and the plan starts
-  // idle. Not the default: its first press, Total Blocking Time and
-  // total script were measured against today's entry, and the default stays
-  // (decisions-2026-11-12-ssr-styling.md).
+  // Opt-in (#472): the page loads `foldkit-ssr/loader` or `foldkit-ssr/binder`
+  // (`DOMAINS_PLUS_BINDER=1`), and the runtime chunk loads on idle or wake.
   const loader = process.env.DOMAINS_PLUS_LOADER === '1'
+  const binder = process.env.DOMAINS_PLUS_BINDER === '1'
+  const deferred = loader || binder
   return {
-    define: { 'import.meta.env.DOMAINS_PLUS_LOADER': JSON.stringify(loader ? '1' : '') },
+    define: {
+      'import.meta.env.DOMAINS_PLUS_LOADER': JSON.stringify(loader ? '1' : ''),
+      'import.meta.env.DOMAINS_PLUS_BINDER': JSON.stringify(binder ? '1' : ''),
+    },
     // Workspace packages resolve to their source, so an edit shows without a build.
     resolve: { conditions: ['foldkit-plus:source'] },
     ssr: { resolve: { conditions: ['foldkit-plus:source'] } },
@@ -28,7 +31,11 @@ export default defineConfig(({ command }) => {
       foldkit({
         ssr: {
           serverEntry: '/src/server/entry.ts',
-          clientEntry: loader ? '/src/client/loader.ts' : '/src/client/entry.ts',
+          clientEntry: binder
+            ? '/src/client/binder.ts'
+            : loader
+              ? '/src/client/loader.ts'
+              : '/src/client/entry.ts',
           // Every page is rendered per request. A prerendered `/` would be the
           // file the static host serves for every `?q=`, whose box is empty
           // until the bundle runs; a render carries the query (#383). And
@@ -37,7 +44,7 @@ export default defineConfig(({ command }) => {
           build: { prerender: false },
         },
       }),
-      ...(loader ? [runtimeChunk({ entry: '/src/client/entry.ts' })] : []),
+      ...(deferred ? [runtimeChunk({ entry: '/src/client/entry.ts' })] : []),
     ],
     optimizeDeps: { entries: ['src/client/entry.ts'] },
   }

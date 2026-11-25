@@ -36,6 +36,7 @@ export const cartButton = (model: CartInput, slots: Slots, h: H): Html =>
       h.AriaLabel(`Cart, ${count(model)} domains`),
       h.AriaHasPopup('dialog'),
       h.AriaControls(model.cartSheet.dialog.id),
+      h.DataAttribute('fk-anchor', 'cart-button'),
       h.OnClick(Message.ClickedCart()),
     ]),
     [
@@ -47,11 +48,19 @@ export const cartButton = (model: CartInput, slots: Slots, h: H): Html =>
 
 /** What the live region says, kept on the page so a change is announced. */
 export const cartAnnouncement = (model: Pick<Model, 'cart'>, slots: Slots, h: H): Html =>
-  h.p(slots.srOnly.attrs([h.Id('cart-announcement'), h.AriaLive('polite'), h.AriaAtomic(true)]), [
-    count(model) === 0
-      ? 'Your cart is empty.'
-      : `${count(model)} ${count(model) === 1 ? 'domain' : 'domains'} in your cart.`,
-  ])
+  h.p(
+    slots.srOnly.attrs([
+      h.Id('cart-announcement'),
+      h.AriaLive('polite'),
+      h.AriaAtomic(true),
+      h.DataAttribute('fk-anchor', 'cart-announcement'),
+    ]),
+    [
+      count(model) === 0
+        ? 'Your cart is empty.'
+        : `${count(model)} ${count(model) === 1 ? 'domain' : 'domains'} in your cart.`,
+    ],
+  )
 
 /** A link to the cart for a page without scripts, where the Cart button opens nothing. */
 export const plainCartLink = (model: Pick<Model, 'cart'>, slots: Slots, h: H): Html =>

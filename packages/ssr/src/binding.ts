@@ -58,7 +58,10 @@ export interface Bindings<Model, Keys extends string = string> {
   /** Returns `[ANCHOR_ATTRIBUTE, key]` for tests or custom renderers. */
   readonly anchor: (key: Keys) => readonly [typeof ANCHOR_ATTRIBUTE, Keys]
   /** Evaluates every binding against `model` (used by server checks and the binder). */
-  readonly evaluate: (model: Model) => Readonly<Record<Keys, BindingValue>>
+  readonly evaluate: (
+    model: Model,
+    options?: Expr.ReaderOptions,
+  ) => Readonly<Record<Keys, BindingValue>>
 }
 
 const readsOfBinding = <Model>(
@@ -74,14 +77,18 @@ const readsOfBinding = <Model>(
   }
 }
 
-const evaluateBinding = <Model>(binding: AnyBinding<Model>, model: Model): BindingValue => {
+const evaluateBinding = <Model>(
+  binding: AnyBinding<Model>,
+  model: Model,
+  options?: Expr.ReaderOptions,
+): BindingValue => {
   switch (binding._tag) {
     case 'Text': {
-      const value = Expr.evaluate(binding.expr, model)
+      const value = Expr.evaluate(binding.expr, model, options)
       return { _tag: 'Text', text: value === null || value === undefined ? '' : String(value) }
     }
     case 'Attribute': {
-      const value = Expr.evaluate(binding.expr, model)
+      const value = Expr.evaluate(binding.expr, model, options)
       return {
         _tag: 'Attribute',
         name: binding.name,
@@ -89,7 +96,7 @@ const evaluateBinding = <Model>(binding: AnyBinding<Model>, model: Model): Bindi
       }
     }
     case 'Shown': {
-      const value = Expr.evaluate(binding.expr, model)
+      const value = Expr.evaluate(binding.expr, model, options)
       return { _tag: 'Shown', shown: value === true }
     }
     case 'Order': {
@@ -188,10 +195,10 @@ export const Binding = {
         assertDeclared(key)
         return [ANCHOR_ATTRIBUTE, key] as const
       },
-      evaluate: model => {
+      evaluate: (model, options) => {
         const out: Record<string, BindingValue> = Object.create(null)
         for (const key of keys) {
-          out[key] = evaluateBinding(spec[key]!, model)
+          out[key] = evaluateBinding(spec[key]!, model, options)
         }
         return out as Readonly<Record<Keys, BindingValue>>
       },

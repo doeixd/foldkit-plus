@@ -722,7 +722,8 @@ export const CartControls = App.surface('CartControls', {
  * `DOMAINS_PLUS_LOADER=1`). Read with `?.`: a module tsx runs has no
  * `import.meta.env`.
  */
-const loaderBuild = import.meta.env?.DOMAINS_PLUS_LOADER === '1'
+const loaderBuild =
+  import.meta.env?.DOMAINS_PLUS_LOADER === '1' || import.meta.env?.DOMAINS_PLUS_BINDER === '1'
 
 /**
  * What crosses from the server's render to the browser, which starts from it

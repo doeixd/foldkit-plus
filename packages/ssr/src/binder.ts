@@ -330,9 +330,10 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
         ? { ...(decoded.success as Readonly<Record<string, unknown>>), _tag: tag }
         : { _tag: tag }
 
-    // If the runtime is already waking, queue the decoded Message so it runs
-    // once in order after hand-over rather than racing with hydration.
-    if (didWake) {
+    // If an earlier press is already queued waiting for the runtime, queue this
+    // decoded Message behind it so ordering is strictly preserved on hand-over.
+    // A background idleWake with an empty queue still answers local presses immediately.
+    if (queue.length > 0) {
       queue.push(messagePayload)
       event.preventDefault()
       event.stopImmediatePropagation()
@@ -361,7 +362,10 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
 
     currentModel = stepped.success.state
     didMutate = true
-    const values = options.manifest.bindings.evaluate(currentModel)
+    const values = options.manifest.bindings.evaluate(
+      currentModel,
+      entry.foreign === undefined ? undefined : { foreign: entry.foreign },
+    )
     applyAnchors(root, values)
     event.preventDefault()
     event.stopImmediatePropagation()

@@ -363,9 +363,24 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       plan.restore === undefined ? resumed.success : plan.restore(resumed.success)
     // If the binder already stepped the Model before the runtime booted, start
     // from the binder's state through `SSR.hydrate`'s `init` substitution.
+    // Shallow-merging onto `resumedModel` lets a lightweight binder operate on
+    // a slice of Model without losing `plan.restore` or non-binder fields.
     startingModel = Option.match(binderSnapshot, {
       onNone: () => resumedModel,
-      onSome: snap => (snap.mutated ? (snap.model as Model) : resumedModel),
+      onSome: snap => {
+        if (!snap.mutated) return resumedModel
+        if (
+          typeof resumedModel === 'object' &&
+          resumedModel !== null &&
+          typeof snap.model === 'object' &&
+          snap.model !== null &&
+          !Array.isArray(resumedModel) &&
+          !Array.isArray(snap.model)
+        ) {
+          return { ...resumedModel, ...(snap.model as Partial<Model>) }
+        }
+        return snap.model as Model
+      },
     })
   } catch (error) {
     report(pageContained('Invalid', error instanceof Error ? error.message : String(error)))
