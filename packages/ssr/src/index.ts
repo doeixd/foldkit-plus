@@ -97,6 +97,17 @@ import {
 } from './shared.js'
 
 export {
+  ANCHOR_ATTRIBUTE,
+  Binding,
+  type AnyBinding,
+  type AttributeBinding,
+  type BindingValue,
+  type Bindings,
+  type OrderBinding,
+  type ShownBinding,
+  type TextBinding,
+} from './binding.js'
+export {
   isUnchangingPath,
   liveSet,
   omittedReadMessage,
