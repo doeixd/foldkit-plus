@@ -26,7 +26,10 @@ import {
 import { edge, hasNext, hasPrevious, isGapped, items, type Connection } from './connection.js'
 import { RowPlace, placeIn, withEdge, withoutEdge } from './placement.js'
 import { Data, Match, Option } from 'effect'
+import { pathsOverlap } from 'metakit/graph/match'
+import type { ListQuery, Lists } from './capability.js'
 import { belongsEncoded, type BelongsOptions } from './matching.js'
+import type { RemoteModel } from './model.js'
 import type { ConnectionSpec, QueryDescriptor } from './query.js'
 import { entityKey, type EntityKey, type EntityStore } from './store.js'
 import { EntityChange } from './changes.js'
@@ -69,7 +72,12 @@ const kept = Impact.Kept()
  */
 interface Reached {
   readonly own: ReadonlySet<string>
-  readonly others: ReadonlyMap<string, ReadonlySet<string>>
+  /** Row read paths `[entity, field]` (or `[entity]` when server-ordered) on `body.entity`. */
+  readonly ownPaths: ReadonlyArray<ReadonlyArray<string>>
+  /** Row read paths `[entity, field]` read through other rows (paths, exists, viewer paths). */
+  readonly otherPaths: ReadonlyArray<ReadonlyArray<string>>
+  /** All row read paths of `body` (`ownPaths` + `otherPaths`). */
+  readonly allPaths: ReadonlyArray<ReadonlyArray<string>>
 }
 
 const reachedBy = new WeakMap<AnyQuery, Reached>()
@@ -89,7 +97,8 @@ const reachedOf = (body: AnyQuery): Reached => {
     via.forEach((relation, index) =>
       index === 0 ? own.add(relation.key) : other(relation.owner.name, relation.key),
     )
-  for (const reach of Relational.dependencies(body).reaches)
+  const deps = Relational.dependencies(body)
+  for (const reach of deps.reaches)
     Match.value(reach).pipe(
       Match.tagsExhaustive({
         Path: path => {
@@ -109,9 +118,94 @@ const reachedOf = (body: AnyQuery): Reached => {
         },
       }),
     )
-  const reached = { own, others }
+  const ownKeys = new Set<string>(['id', ...own])
+  for (const field of deps.fields) {
+    if (field.entity === body.entity.name) ownKeys.add(field.key)
+  }
+  const ownPaths: Array<ReadonlyArray<string>> =
+    body.orderBy.length === 0
+      ? [[body.entity.name]]
+      : [...ownKeys].map(key => [body.entity.name, key])
+  const otherPaths: Array<ReadonlyArray<string>> = []
+  for (const [entity, keys] of others) {
+    for (const key of keys) otherPaths.push([entity, key])
+  }
+  const allPaths: ReadonlyArray<ReadonlyArray<string>> = [...ownPaths, ...otherPaths]
+  const reached: Reached = { own, ownPaths, otherPaths, allPaths }
   reachedBy.set(body, reached)
   return reached
+}
+
+const changeWritePaths = (change: EntityChange): ReadonlyArray<ReadonlyArray<string>> =>
+  EntityChange.match(change, {
+    Deleted: () => [[change.entity]],
+    Changed: ({ fields, created }) =>
+      created ? [[change.entity]] : fields.map(field => [change.entity, field]),
+  })
+
+const pathsMatch = (
+  writes: ReadonlyArray<ReadonlyArray<string>>,
+  reads: ReadonlyArray<ReadonlyArray<string>>,
+): boolean => writes.some(w => reads.some(r => pathsOverlap(w, r)))
+
+interface HeldReader {
+  readonly identity: string
+  readonly query: ListQuery
+  readonly reads: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
+}
+
+const heldIndexBy = new WeakMap<
+  Lists,
+  WeakMap<RemoteModel['connections'], ReadonlyArray<HeldReader>>
+>()
+
+const heldIndexOf = (lists: Lists, connections: RemoteModel['connections']) => {
+  let byConnections = heldIndexBy.get(lists)
+  if (byConnections === undefined) heldIndexBy.set(lists, (byConnections = new WeakMap()))
+  const known = byConnections.get(connections)
+  if (known !== undefined) return known
+
+  const built: HeldReader[] = []
+  for (const identity of Object.keys(connections)) {
+    const registered = lists.queryOf(identity)
+    if (Option.isNone(registered)) continue
+    const query = registered.value
+    const body = query.descriptor.body
+    let reads: HeldReader['reads'] = Option.none()
+    if (body !== undefined) {
+      const paths = reachedOf(body).allPaths
+      try {
+        Relational.orderFor(body, query.encoded)
+        reads = Option.some([...paths, ...query.filtered.map(field => [body.entity.name, field])])
+      } catch {
+        // An invalid chosen order must still be reported by impactOn.
+        reads = Option.some([...paths, [body.entity.name]])
+      }
+    }
+    built.push({ identity, query, reads })
+  }
+  byConnections.set(connections, built)
+  return built
+}
+
+/**
+ * Which changes each held query must judge. A query with no body can read
+ * any row, so it receives all changes.
+ */
+export const affectedQueries = (
+  lists: Lists,
+  connections: RemoteModel['connections'],
+  changes: ReadonlyArray<EntityChange>,
+) => {
+  const writes = changes.map(change => ({ change, paths: changeWritePaths(change) }))
+  return heldIndexOf(lists, connections).flatMap(({ identity, query, reads }) => {
+    const judged = Option.match(reads, {
+      onNone: () => changes,
+      onSome: paths =>
+        writes.filter(write => pathsMatch(write.paths, paths)).map(write => write.change),
+    })
+    return judged.length === 0 ? [] : [{ identity, query, changes: judged }]
+  })
 }
 
 /**
@@ -120,14 +214,9 @@ const reachedOf = (body: AnyQuery): Reached => {
  * of it. Any row of the list may have moved.
  */
 export const readsThrough = (body: AnyQuery, change: EntityChange): boolean => {
-  const read = reachedOf(body).others.get(change.entity)
-  return (
-    read !== undefined &&
-    EntityChange.match(change, {
-      Deleted: () => true,
-      Changed: ({ fields }) => fields.some(field => read.has(field)),
-    })
-  )
+  const otherPaths = reachedOf(body).otherPaths
+  if (otherPaths.length === 0) return false
+  return pathsMatch(changeWritePaths(change), otherPaths)
 }
 
 /**
@@ -237,6 +326,15 @@ export const impactOn = (
         return Impact.Invalidated({
           reason: `${key} changed, and "${descriptor.name}" is ordered by the server, by fields its body does not name`,
         })
+      }
+      if (
+        !created &&
+        !pathsMatch(
+          fields.map(field => [change.entity, field]),
+          reached.ownPaths,
+        )
+      ) {
+        return kept
       }
       const pages = connection.connection
       const reorders = touches(dependenciesOf(...order).fields)

@@ -10,6 +10,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Order, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
+import { EntityChange, readsThrough } from '../src/impact.js'
 import { Query, Remote, type NormalizedPatch } from '../src/index.js'
 import { Answers } from './answers.js'
 
@@ -151,6 +152,17 @@ describe('a held list over a path, after a write to what the path reaches', () =
   })
 
   it('keeps its rows when the reached row changes a field no path reads', () => {
+    expect(
+      readsThrough(
+        OfTeam.body!,
+        EntityChange.Changed({
+          entity: 'Team',
+          id: 't1',
+          fields: ['motto'],
+          created: false,
+        }),
+      ),
+    ).toBe(false)
     const model = answered([{ entity: 'Team', id: 't1', values: { motto: 'stop' } }])
     expect(shown(model, ofRed)).toEqual(['m1', 'm2'])
   })

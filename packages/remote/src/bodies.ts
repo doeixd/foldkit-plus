@@ -13,6 +13,7 @@ import { items, type Connection } from './connection.js'
 import {
   EntityChange,
   Impact,
+  affectedQueries,
   changesOf,
   impactOn,
   readsThrough,
@@ -80,6 +81,8 @@ const answer: BodyCapability['answer'] = (
   const invalidated = new Map<string, string>()
   const changes = changesOf(answered, before)
   if (changes.length === 0) return { placed, invalidated }
+  const affected = affectedQueries(lists, remote.connections, changes)
+  if (affected.length === 0) return { placed, invalidated }
   // A row the answer itself put in or took out of a list is where the server
   // says; every other change to that list's rows is judged as anywhere.
   const named = new Map<string, Set<string>>()
@@ -91,15 +94,13 @@ const answer: BodyCapability['answer'] = (
   const visible = visibleOf(capabilities, remote, lists.operators)
   const operators = tableOf(lists.operators)
   const whole = wholeListsOf(remote.connections, lists.queryOf, context)
-  for (const identity of Object.keys(remote.connections)) {
+  for (const { identity, query, changes } of affected) {
     const keys = named.get(identity)
     const judged =
       keys === undefined
         ? changes
         : changes.filter(change => !keys.has(entityKey(change.entity, change.id)))
     if (judged.length === 0) continue
-    const query = lists.queryOf(identity)
-    if (Option.isNone(query)) continue
     const original = remote.connections[identity]!
     // Each change is judged against the pages the one before it left. What the
     // list holds is read once: a change is of a row of its own, judged against
@@ -109,12 +110,12 @@ const answer: BodyCapability['answer'] = (
         entityKey(edge.ref.entity, edge.ref.id),
       ),
     )
-    const body = query.value.descriptor.body
+    const body = query.descriptor.body
     const through = (change: EntityChange) => body !== undefined && readsThrough(body, change)
     let pages = original
     let invalid: Option.Option<string> = Option.none()
     for (const change of judged) {
-      const held: HeldConnection = { ...query.value, connection: pages, holds }
+      const held: HeldConnection = { ...query, connection: pages, holds }
       const after = Impact.$match(impactOn(held, visible, change, operators, context), {
         Kept: () => Result.succeed(pages),
         Placed: ({ connection }) => Result.succeed(connection),
@@ -136,14 +137,14 @@ const answer: BodyCapability['answer'] = (
         ...holds,
         ...items(pages).map(each => entityKey(each.ref.entity, each.ref.id)),
       ])
-      pages = rejudged({ ...query.value, connection: pages, holds: now }, visible, {
+      pages = rejudged({ ...query, connection: pages, holds: now }, visible, {
         operators,
         context,
         whole,
       })
       invalidated.set(
         identity,
-        `a write changed what "${query.value.descriptor.name}" reads through other rows, which may have moved rows the client does not hold`,
+        `a write changed what "${query.descriptor.name}" reads through other rows, which may have moved rows the client does not hold`,
       )
     }
     if (pages !== original) placed[identity] = pages

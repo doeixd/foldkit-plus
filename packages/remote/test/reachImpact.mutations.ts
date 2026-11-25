@@ -12,14 +12,18 @@ const edit = (name: string, find: string, replace: string) => ({
 export default [
   edit(
     'a change to a row another reads is never looked at',
-    'const read = reachedOf(body).others.get(change.entity)',
-    'const read: ReadonlySet<string> | undefined = undefined',
+    'return pathsMatch(changeWritePaths(change), otherPaths)',
+    'return false',
   ),
-  edit('a reached row deleted keeps the list', 'Deleted: () => true,', 'Deleted: () => false,'),
+  edit(
+    'a reached row deleted keeps the list',
+    '    Deleted: () => [[change.entity]],',
+    '    Deleted: () => [],',
+  ),
   edit(
     'any change to a reached Entity fetches the list again',
-    'Changed: ({ fields }) => fields.some(field => read.has(field)),',
-    'Changed: () => true,',
+    'return pathsMatch(changeWritePaths(change), otherPaths)',
+    'return pathsMatch([[change.entity]], otherPaths)',
   ),
   edit(
     'a change to the link a path starts from is not judged',
