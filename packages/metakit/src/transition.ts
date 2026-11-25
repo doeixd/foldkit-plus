@@ -38,6 +38,7 @@ export {
   exclude,
   include,
   insert,
+  move,
   patch,
   patchWhere,
   remove,
@@ -92,6 +93,7 @@ export type Way = Data.TaggedEnum<{
   }
   include: { readonly value: Node.Node }
   exclude: { readonly value: Node.Node }
+  move: { readonly key: string; readonly value: Node.Node; readonly toIndex: Node.Node }
 }>
 
 export const Way = Data.taggedEnum<Way>()
@@ -455,6 +457,7 @@ const observeWrite = <State>(
     patchWhere: subtree,
     include: membership,
     exclude: membership,
+    move: membership,
   })
 }
 

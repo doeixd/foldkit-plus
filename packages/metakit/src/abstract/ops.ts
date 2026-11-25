@@ -778,4 +778,5 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
   'arr.append': { _tag: 'Value', unportable: false },
   'arr.include': text,
   'arr.exclude': text,
+  'arr.move': { _tag: 'Value', unportable: false },
 }

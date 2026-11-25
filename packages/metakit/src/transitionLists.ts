@@ -17,6 +17,7 @@ import {
   elementAst,
   excludeOp,
   includeOp,
+  moveOp,
   rowsOver,
   type Each,
   type EachEnv,
@@ -321,5 +322,33 @@ export const exclude = <State, Input, E extends number | string, Supplied = NoSu
     'exclude',
     Node.Call({ op: excludeOp, args: [list.node, by] }),
     Way.exclude({ value: by }),
+  )
+}
+
+/**
+ * The list with the element whose key is `value` moved to `toIndex` (clamped
+ * to `[0, length - 1]`). Commutes with nothing; idempotent (moving an element
+ * already at `toIndex` or absent keeps the list's identity).
+ */
+export const move = <
+  State,
+  Input,
+  E,
+  Supplied = NoSupplied,
+  K extends keyof E & string = 'id' & keyof E,
+>(
+  list: List<State, Input, Supplied, E>,
+  value: ExprInput<TransitionEnv<State, Input, Supplied>, NoInfer<E[K]>>,
+  toIndex: ExprInput<TransitionEnv<State, Input, Supplied>, number>,
+  options?: { readonly key?: K },
+): WriteEquation<State, Input, ReadonlyArray<E>, Supplied, 'move'> => {
+  const key = options?.key ?? 'id'
+  const by = toNode(value)
+  const index = toNode(toIndex)
+  return write(
+    list,
+    'move',
+    Node.Call({ op: moveOp, args: [list.node, Node.Lit({ value: key }), by, index] }),
+    Way.move({ key, value: by, toIndex: index }),
   )
 }

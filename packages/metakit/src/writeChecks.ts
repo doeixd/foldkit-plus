@@ -125,6 +125,10 @@ const writesOf = (
       return literals.map(value => write(state => Transition.include(state.set, value)))
     case 'exclude':
       return literals.map(value => write(state => Transition.exclude(state.set, value)))
+    case 'move':
+      return ['p', 'q'].flatMap(id =>
+        [0, 1, 2].map(toIndex => write(state => Transition.move(state.list, id, toIndex))),
+      )
   }
 }
 

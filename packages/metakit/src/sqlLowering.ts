@@ -537,6 +537,7 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'arr.append': () => listWrite('arr.append'),
   'arr.include': () => listWrite('arr.include'),
   'arr.exclude': () => listWrite('arr.exclude'),
+  'arr.move': () => listWrite('arr.move'),
 }
 
 /**

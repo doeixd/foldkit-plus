@@ -102,6 +102,8 @@ const moveWay = (way: Way, move: (node: Node.Node) => Node.Node): Way => {
     patchWhere: ({ test, set }) => Way.patchWhere({ test: move(test), set: fields(set) }),
     include: ({ value }) => Way.include({ value: move(value) }),
     exclude: ({ value }) => Way.exclude({ value: move(value) }),
+    move: ({ key, value, toIndex }) =>
+      Way.move({ key, value: move(value), toIndex: move(toIndex) }),
   })
 }
 

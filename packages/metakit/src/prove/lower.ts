@@ -623,6 +623,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     'arr.append': () => listWrite('arr.append'),
     'arr.include': () => listWrite('arr.include'),
     'arr.exclude': () => listWrite('arr.exclude'),
+    'arr.move': () => listWrite('arr.move'),
   }
 
   const lower = (node: Node.Node): Term =>

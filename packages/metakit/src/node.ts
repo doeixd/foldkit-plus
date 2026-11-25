@@ -58,6 +58,7 @@ export type CoreOpId =
   | 'arr.append'
   | 'arr.include'
   | 'arr.exclude'
+  | 'arr.move'
 
 export type OpId = CoreOpId
 

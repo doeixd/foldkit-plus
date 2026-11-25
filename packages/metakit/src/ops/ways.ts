@@ -32,6 +32,7 @@ export type WayOfWriting =
   | 'patchWhere'
   | 'include'
   | 'exclude'
+  | 'move'
 
 /**
  * When two writes to one path give one state in either order:
@@ -142,4 +143,6 @@ export const writeProperties: { readonly [Way in WayOfWriting]: WriteProperties 
     commutes: { exclude: 'one-kind', include: 'different-literals' },
     idempotent: 'always',
   },
+  // Reordering commutes with nothing, and moving the same key to the same index twice is a no-op.
+  move: { commutes: {}, idempotent: 'always' },
 }

@@ -80,6 +80,7 @@ export const opLaws: { readonly [Id in Node.CoreOpId]: OpLaws } = {
   'arr.append': {},
   'arr.include': {},
   'arr.exclude': {},
+  'arr.move': {},
 }
 
 /** What partial evaluation reads of `any` and `every`: the answer that decides each. */

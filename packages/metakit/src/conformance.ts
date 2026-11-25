@@ -91,6 +91,7 @@ export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
   'arr.append': Arr.appendOp,
   'arr.include': Arr.includeOp,
   'arr.exclude': Arr.excludeOp,
+  'arr.move': Arr.moveOp,
 }
 
 /** What an operand is drawn from: a field of a kind, or a literal the call is written with. */
@@ -152,6 +153,7 @@ const operands: Readonly<Record<Node.CoreOpId, ReadonlyArray<Operand>>> = {
   'arr.append': ['items', 'value'],
   'arr.include': ['items', 'text'],
   'arr.exclude': ['items', 'text'],
+  'arr.move': ['items', 'day', 'day', 'day'],
 }
 
 /** One operand: what the environment holds, and a Schema that admits it (none: a literal). */

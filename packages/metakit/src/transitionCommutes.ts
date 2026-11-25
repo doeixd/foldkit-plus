@@ -81,6 +81,7 @@ const ownReadsLeft = (write: AnyWrite): ReadonlyArray<Segments> =>
     patchWhere: ({ test, set }) => [test, ...setBodies(set)].flatMap(outside),
     include: ({ value }) => readsOf([value]),
     exclude: ({ value }) => readsOf([value]),
+    move: ({ value, toIndex }) => readsOf([value, toIndex]),
   })
 
 /** The fields of an element a list write reads to find or change the elements it does. */
@@ -94,6 +95,7 @@ const elementFieldsRead = (write: AnyWrite): ReadonlyArray<string> =>
     exclude: () => [],
     insert: ({ key }) => [key],
     remove: ({ key }) => [key],
+    move: ({ key }) => [key],
     removeWhere: ({ test }) => fieldsRead(test),
     patch: ({ key, set }) => [key, ...setBodies(set).flatMap(fieldsRead)],
     patchWhere: ({ test, set }) => [test, ...setBodies(set)].flatMap(fieldsRead),
@@ -112,6 +114,7 @@ const fieldsSet = (write: AnyWrite): ReadonlyArray<string> =>
     removeWhere: () => [],
     include: () => [],
     exclude: () => [],
+    move: () => [],
   })
 
 const touches = (read: ReadonlyArray<string>, set: ReadonlyArray<string>): boolean =>
@@ -179,6 +182,7 @@ const inRange = (a: AnyTransition, wa: AnyWrite, b: AnyTransition, wb: AnyWrite)
       patchWhere: () => Option.none(),
       include: () => Option.none(),
       exclude: () => Option.none(),
+      move: () => Option.none(),
     })
   const total = integerOf(a, Node.Path({ segments: ['state', ...wa.target], ast: Option.none() }))
   const byA = Option.flatMap(amount(wa), node => integerOf(a, node))
@@ -203,6 +207,7 @@ const valueOf = (write: AnyWrite): Option.Option<Node.Node> =>
     removeWhere: () => Option.none(),
     patch: () => Option.none(),
     patchWhere: () => Option.none(),
+    move: () => Option.none(),
   })
 
 const literals = (wa: AnyWrite, wb: AnyWrite): Option.Option<readonly [unknown, unknown]> => {
@@ -267,6 +272,7 @@ const steady = (write: AnyWrite): boolean => {
     insert: () => false,
     include: () => false,
     exclude: () => false,
+    move: () => false,
   })
 }
 
@@ -390,6 +396,7 @@ const setValues = (write: AnyWrite): ReadonlyArray<Node.Node> =>
     removeWhere: () => [],
     include: () => [],
     exclude: () => [],
+    move: () => [],
   })
 
 /**

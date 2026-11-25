@@ -210,6 +210,73 @@ const setOp = <Id extends 'arr.include' | 'arr.exclude'>(id: Id): Node.Op<Id> =>
 export const includeOp: Node.Op<'arr.include'> = /* @__PURE__ */ setOp('arr.include')
 export const excludeOp: Node.Op<'arr.exclude'> = /* @__PURE__ */ setOp('arr.exclude')
 
+/**
+ * `arr.move(list, keyField, keyValue, toIndex)`: move the first element whose
+ * `elem[keyField]` equals `keyValue` to `toIndex` (clamped to `[0, list.length - 1]`).
+ * Returns `list` unchanged (preserving identity) when no element matches or it
+ * is already at the target index, so `move` is idempotent.
+ */
+export const moveOp: Node.Op<'arr.move'> = {
+  id: 'arr.move',
+  returns: 'operand',
+  nulls: 'own',
+  evaluate: args => {
+    const refused = refusedOf(args)
+    if (refused !== undefined) return refused
+    const [list, keyField, keyValue, toIndex] = args
+    if (list === null) return null
+    if (!Array.isArray(list)) return Node.illTyped('arr.move', 'an array', list)
+    if (typeof keyField !== 'string')
+      return Node.illTyped('arr.move', 'a string key field', keyField)
+    if (keyValue === null) return list
+    if (typeof keyValue === 'string' && Node.holdsNul([keyValue])) {
+      return Node.unportable('arr.move')
+    }
+    if (typeof keyValue === 'number' && !Number.isFinite(keyValue)) {
+      return new Node.Refusal({
+        reason: 'non-finite',
+        at: 'arr.move',
+        detail: `key is ${keyValue}`,
+      })
+    }
+    if (typeof toIndex !== 'number' || !Number.isInteger(toIndex)) {
+      return Node.illTyped('arr.move', 'an integer index', toIndex)
+    }
+    if (list.length === 0) return list
+    const normKey =
+      typeof keyValue === 'string'
+        ? wellFormed(keyValue)
+        : typeof keyValue === 'number' && Object.is(keyValue, -0)
+          ? 0
+          : keyValue
+    let from = -1
+    for (let i = 0; i < list.length; i++) {
+      const item = list[i]
+      if (item === null || typeof item !== 'object') continue
+      const candidate = Object.hasOwn(item, keyField)
+        ? (item as Record<string, unknown>)[keyField]
+        : undefined
+      const normCand =
+        typeof candidate === 'string'
+          ? wellFormed(candidate)
+          : typeof candidate === 'number' && Object.is(candidate, -0)
+            ? 0
+            : candidate
+      if (normCand === normKey) {
+        from = i
+        break
+      }
+    }
+    if (from === -1) return list
+    const target = Math.max(0, Math.min(list.length - 1, toIndex))
+    if (from === target) return list
+    const next = list.slice()
+    const [moved] = next.splice(from, 1)
+    next.splice(target, 0, moved)
+    return next
+  },
+}
+
 /** The element type of a list expression. */
 export type ElementOf<L> =
   L extends Expr<never, infer A>
