@@ -6,6 +6,7 @@
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
 export * from './can.js'
+export { storeRowPath } from './storePath.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
 export {

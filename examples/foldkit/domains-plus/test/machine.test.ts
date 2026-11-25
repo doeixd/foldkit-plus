@@ -34,9 +34,10 @@ const seedModel = (): Model => {
 }
 
 describe('domains-plus declared transitions (Phase 3, Bouts 3.4 & 3.5)', () => {
-  it('declares 30 of 39 own transitions with exact write footprints', () => {
+  it('declares 31 of 39 own transitions with exact write footprints', () => {
     const tags = Object.keys(domainsMachine.transitions)
-    expect(tags).toHaveLength(30)
+    expect(tags).toHaveLength(31)
+    expect(domainsMachine.footprints.ClickedAddDomain.writes).toEqual([['cart']])
     expect(domainsMachine.footprints.UpdatedTldSearch.writes).toEqual([['tldSearchQuery']])
     expect(domainsMachine.footprints.ClickedRemoveDomain.writes).toEqual([['cart']])
     expect(domainsMachine.footprints.ClickedRemoveCartDomain.writes).toEqual([['cart']])

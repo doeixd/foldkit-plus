@@ -7,14 +7,14 @@
  *   - 5 search/address Messages (`UpdatedSearch`, `PressedEscape`, `ClickedClearSearch`, `ClickedRetrySearch`, `ChangedUrl`): call debounce `update`, `Data.refresh`, and `routeOf`.
  *   - 1 `ClickedAddDomain`: reads Remote's `Quote` store entry by name.
  */
-import { Option, Schema } from 'effect'
+import { Array, Option, Schema } from 'effect'
 import { UrlRequest } from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import { Sheet, WindowList } from 'foldkit-mixins-ui'
 import { Transition } from 'metakit'
 import * as Machine from 'metakit/machine'
 import * as Operation from 'metakit/operation'
-import { DomainLabel, queryToMaybeDomainLabel } from '../shared/domain'
+import { Domain as DomainCase, DomainLabel, queryToMaybeDomainLabel } from '../shared/domain'
 import { AvailabilityFilter, Cart, SortOrder, TldFilter } from './domain'
 import { ResultsListScrollKey } from './resultsList.js'
 import type { Model as ModelType } from './app.js'
@@ -39,7 +39,13 @@ export const domainsForeign = Operation.implementations(
  * Build the `domains-plus` Machine over `ModelSchema` (passed in from `app.ts`
  * to avoid a circular runtime dependency between `app.ts` and `machine.ts`).
  */
-export const makeDomainsMachine = (ModelSchema: Schema.Codec<ModelType, unknown>) => {
+export const makeDomainsMachine = (
+  ModelSchema: Schema.Codec<ModelType, unknown>,
+  readAvailableQuote?: (
+    model: ModelType,
+    name: string,
+  ) => Option.Option<typeof DomainCase.Available.Type>,
+) => {
   const emptyInput = Schema.Struct({})
   const noop = Transition.make({
     state: ModelSchema,
@@ -258,6 +264,24 @@ export const makeDomainsMachine = (ModelSchema: Schema.Codec<ModelType, unknown>
           return next === model.resultsList && model.from === 0
             ? model
             : modifyFields(model, { resultsList: () => next, from: () => 0 })
+        },
+      }),
+      // 1 store-read + cart-insert Message (Phase 3 Bout 3.6)
+      ClickedAddDomain: Transition.opaque({
+        name: 'domains.ClickedAddDomain',
+        state: ModelSchema,
+        input: Schema.Struct({ name: Cart.Name }),
+        reads: ({ state, input }) => [state.remote, state.cart, input.name],
+        writes: ({ state }) => [state.cart],
+        run: (model, { name }) => {
+          if (readAvailableQuote === undefined) return model
+          return Option.match(readAvailableQuote(model, name), {
+            onNone: () => model,
+            onSome: domain =>
+              Array.some(model.cart, held => held.name === domain.name)
+                ? model
+                : modifyFields(model, { cart: cart => Array.append(cart, domain) }),
+          })
         },
       }),
     },

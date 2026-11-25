@@ -63,6 +63,30 @@ export const Can = {
     }),
 
   /**
+   * Combine a Remote write's `Can` with a metakit `Machine` / `Transition`
+   * guard `Verdict` (`Transition.can` or `Machine.canDispatch`). A `False`
+   * machine guard refuses with `CanRefusal.Unmet`; an `Unknown` guard leaves
+   * an otherwise-allowed write undecided with its reason.
+   */
+  withMachine: (can: Can, machineVerdict: Verdict.Verdict<unknown>): Can =>
+    Verdict.match<CanRefusal, Can>(can, {
+      False: () => can,
+      True: () =>
+        Verdict.match(machineVerdict, {
+          True: () => Verdict.True(),
+          False: () => Verdict.False(Option.some(CanRefusal.Unmet({}))),
+          Unknown: ({ reason }) => undecided([reason]),
+        }),
+      Unknown: ({ reason }) =>
+        Verdict.match(machineVerdict, {
+          True: () => can,
+          False: () => Verdict.False(Option.some(CanRefusal.Unmet({}))),
+          Unknown: ({ reason: machineReason }) =>
+            undecided([reason, machineReason].filter(part => part.length > 0)),
+        }),
+    }),
+
+  /**
    * The wire value of a `Can`. Throws for a `False` with no refusal, which
    * `Data.can` never answers: a `No` on the wire names its refusal.
    */

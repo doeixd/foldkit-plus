@@ -611,7 +611,9 @@ const Settled = Page.at(Search, {
     },
 })
 
-export const domainsMachine: DomainsMachine = makeDomainsMachine(Model)
+export const domainsMachine: DomainsMachine = makeDomainsMachine(Model, (model, name) =>
+  Array.findFirst(shown(Data.get(Quote, name).read(model)), DomainCase.guards.Available),
+)
 
 const declared = Declared.of(App, domainsMachine, {
   foreign: domainsForeign,
