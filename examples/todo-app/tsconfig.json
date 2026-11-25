@@ -67,6 +67,7 @@
       "metakit/graph/prune": ["../../packages/metakit/src/graph/prune.ts"],
       "metakit/graph/readiness": ["../../packages/metakit/src/graph/readiness.ts"],
       "metakit/inspect": ["../../packages/metakit/src/inspect.ts"],
+      "metakit/language": ["../../packages/metakit/src/language.ts"],
       "metakit/machine": ["../../packages/metakit/src/machine.ts"],
       "metakit/operation": ["../../packages/metakit/src/operation.ts"],
       "metakit/operation/sql": ["../../packages/metakit/src/operationSql.ts"],
@@ -76,6 +77,7 @@
       "metakit/relation": ["../../packages/metakit/src/relation.ts"],
       "metakit/sql": ["../../packages/metakit/src/sql.ts"],
       "metakit/store": ["../../packages/metakit/src/store.ts"],
+      "metakit/store/check": ["../../packages/metakit/src/storeCheck.ts"],
       "metakit/temporal": ["../../packages/metakit/src/temporal.ts"]
     }
   },

@@ -42,6 +42,7 @@
       "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
       "foldkit-remote/why": ["../../packages/remote/src/why.ts"],
       "foldkit-ssr": ["../../packages/ssr/src/index.ts"],
+      "foldkit-ssr/binder": ["../../packages/ssr/src/binder.ts"],
       "foldkit-ssr/client": ["../../packages/ssr/src/client.ts"],
       "foldkit-ssr/loader": ["../../packages/ssr/src/loader.ts"],
       "foldkit-ssr/vite": ["../../packages/ssr/src/vite.ts"],
@@ -60,6 +61,7 @@
       "metakit/graph/prune": ["../../packages/metakit/src/graph/prune.ts"],
       "metakit/graph/readiness": ["../../packages/metakit/src/graph/readiness.ts"],
       "metakit/inspect": ["../../packages/metakit/src/inspect.ts"],
+      "metakit/language": ["../../packages/metakit/src/language.ts"],
       "metakit/machine": ["../../packages/metakit/src/machine.ts"],
       "metakit/operation": ["../../packages/metakit/src/operation.ts"],
       "metakit/operation/sql": ["../../packages/metakit/src/operationSql.ts"],
@@ -69,6 +71,7 @@
       "metakit/relation": ["../../packages/metakit/src/relation.ts"],
       "metakit/sql": ["../../packages/metakit/src/sql.ts"],
       "metakit/store": ["../../packages/metakit/src/store.ts"],
+      "metakit/store/check": ["../../packages/metakit/src/storeCheck.ts"],
       "metakit/temporal": ["../../packages/metakit/src/temporal.ts"]
     }
   },
