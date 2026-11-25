@@ -12,10 +12,9 @@
  */
 import { Option, Result } from 'effect'
 import { typedMessage, type DecodedBinding } from './listen.js'
+import { BINDER_TOUCHED_ATTRIBUTE } from './marks.js'
+export { BINDER_TOUCHED_ATTRIBUTE } from './marks.js'
 import { KEEP_ATTRIBUTE } from './resumable.js'
-
-/** Attribute the pre-boot binder stamps on controls it updated before runtime takeover. */
-export const BINDER_TOUCHED_ATTRIBUTE = 'data-fk-binder-touched' as const
 
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 
@@ -167,6 +166,7 @@ const holdField = (element: Field): Held => {
 }
 
 const restoreField = ({ element, value, checked, selected, selection }: Held): void => {
+  if (element instanceof HTMLInputElement && element.type === 'file') return
   if (checked !== undefined && element instanceof HTMLInputElement) {
     element.checked = checked
   } else if (element instanceof HTMLSelectElement && selected !== undefined) {
@@ -177,7 +177,11 @@ const restoreField = ({ element, value, checked, selected, selection }: Held): v
   } else {
     element.value = value
   }
-  if (selection !== undefined && !(element instanceof HTMLSelectElement)) {
+  if (
+    selection !== undefined &&
+    !(element instanceof HTMLSelectElement) &&
+    element.selectionStart !== null
+  ) {
     element.setSelectionRange(...selection)
   }
 }
@@ -194,8 +198,7 @@ export const restore = (held: ReadonlyArray<Held>): void => {
   for (const entry of held) restoreField(entry)
 }
 
-const TOUCHED_ATTRIBUTES = ['aria-pressed', 'aria-expanded', 'open'] as const
-type TouchedAttribute = (typeof TOUCHED_ATTRIBUTES)[number]
+const FALLBACK_TOUCHED_ATTRIBUTES: ReadonlyArray<string> = ['aria-pressed', 'aria-expanded', 'open']
 
 /** A scrolled element and the offsets it held before hydration. */
 export interface HeldScroll {
@@ -214,7 +217,7 @@ export interface HeldDetails {
 export interface HeldBinderControl {
   readonly element: Element
   readonly field?: Held | undefined
-  readonly attributes: Readonly<Record<TouchedAttribute, Option.Option<string>>>
+  readonly attributes: ReadonlyArray<readonly [string, Option.Option<string>]>
 }
 
 /**
@@ -230,11 +233,11 @@ export interface HeldPageState {
 
 const readTouchedAttributes = (
   element: Element,
-): Readonly<Record<TouchedAttribute, Option.Option<string>>> => ({
-  'aria-pressed': Option.fromNullishOr(element.getAttribute('aria-pressed')),
-  'aria-expanded': Option.fromNullishOr(element.getAttribute('aria-expanded')),
-  open: Option.fromNullishOr(element.getAttribute('open')),
-})
+): ReadonlyArray<readonly [string, Option.Option<string>]> => {
+  const raw = element.getAttribute(BINDER_TOUCHED_ATTRIBUTE)?.trim() ?? ''
+  const names = raw.length > 0 ? raw.split(/\s+/) : FALLBACK_TOUCHED_ATTRIBUTES
+  return names.map(name => [name, Option.fromNullishOr(element.getAttribute(name))] as const)
+}
 
 /**
  * Captures scroll offsets, `<details>` open states, and binder-touched control
@@ -244,21 +247,31 @@ export const holdPageState = (root: Element): HeldPageState => {
   const scrolls: Array<HeldScroll> = []
   const details: Array<HeldDetails> = []
   const binderTouched: Array<HeldBinderControl> = []
-  for (const element of [root, ...Array.from(root.querySelectorAll('*'))]) {
-    if (element.scrollTop !== 0 || element.scrollLeft !== 0) {
+  const docEl = typeof document !== 'undefined' ? document.documentElement : null
+
+  const visit = (element: Element): void => {
+    if (element !== docEl && (element.scrollTop !== 0 || element.scrollLeft !== 0)) {
       scrolls.push({ element, scrollTop: element.scrollTop, scrollLeft: element.scrollLeft })
     }
     if (element instanceof HTMLDetailsElement) {
       details.push({ element, open: element.open })
     }
     if (element.hasAttribute(BINDER_TOUCHED_ATTRIBUTE)) {
+      const holdableField =
+        isField(element) && !(element instanceof HTMLInputElement && element.type === 'file')
       binderTouched.push({
         element,
-        ...(isField(element) ? { field: holdField(element) } : {}),
+        ...(holdableField ? { field: holdField(element) } : {}),
         attributes: readTouchedAttributes(element),
       })
     }
   }
+
+  visit(root)
+  for (const element of root.querySelectorAll('*')) {
+    visit(element)
+  }
+
   const windowScroll =
     typeof window !== 'undefined' && (window.scrollX !== 0 || window.scrollY !== 0)
       ? Option.some({ scrollX: window.scrollX, scrollY: window.scrollY })
@@ -272,14 +285,14 @@ export const holdPageState = (root: Element): HeldPageState => {
  */
 export const restorePageState = (held: HeldPageState): void => {
   for (const { element, open } of held.details) {
-    element.open = open
+    if (element.open !== open) element.open = open
   }
   for (const { element, field, attributes } of held.binderTouched) {
     if (field !== undefined) restoreField(field)
-    for (const name of TOUCHED_ATTRIBUTES) {
-      Option.match(attributes[name], {
+    for (const [name, value] of attributes) {
+      Option.match(value, {
         onNone: () => element.removeAttribute(name),
-        onSome: value => element.setAttribute(name, value),
+        onSome: v => element.setAttribute(name, v),
       })
     }
   }
@@ -291,7 +304,7 @@ export const restorePageState = (held: HeldPageState): void => {
     onNone: () => {},
     onSome: ({ scrollX, scrollY }) => {
       if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
-        window.scrollTo(scrollX, scrollY)
+        window.scrollTo({ left: scrollX, top: scrollY, behavior: 'instant' })
       }
     },
   })

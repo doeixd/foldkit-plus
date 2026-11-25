@@ -151,6 +151,9 @@ describe('static regions (Phase 6, Bout 6.9)', () => {
       // `siteName` is in `live.reads` (CartSurface reads it), so it stays in the envelope;
       // `heroTitle` is untouched by live readers and writers, so it can be omitted.
       expect(checked.success.omittedPaths).toEqual([['heroTitle']])
+      const values = evaluateStaticBindings(sharedBindings, initial, checked.success.omittedPaths)
+      expect(values.title).toEqual({ _tag: 'Text', text: 'Find your domain' })
+      expect(values.site).toEqual({ _tag: 'Text', text: 'Foldkit' })
     }
   })
 

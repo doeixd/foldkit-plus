@@ -133,6 +133,12 @@ const mergePath = (
 
   if (!Object.hasOwn(readable, segment)) return dst
   const nextSrc = (readable as Record<string, unknown>)[segment]
+  if (Array.isArray(readable) && /^\d+$/.test(segment)) {
+    const idx = Number(segment)
+    const prevArr = Array.isArray(dst) ? [...dst] : []
+    prevArr[idx] = mergePath(prevArr[idx], nextSrc, segments, index + 1)
+    return prevArr
+  }
   const prevObj =
     dst !== null && typeof dst === 'object' && !Array.isArray(dst)
       ? (dst as Record<string, unknown>)
@@ -232,7 +238,7 @@ export const evaluateStaticBindings = <Model, Keys extends string>(
     const entry = bindings.entries[key]
     const raw = Object.hasOwn(pruned.staticValues, key)
       ? pruned.staticValues[key]
-      : fallbackRaw(entry, pruned.liveBindings[key] as Expr.Expr<never, unknown>, slice as Model)
+      : fallbackRaw(entry, pruned.liveBindings[key] as Expr.Expr<never, unknown>, staticModel)
     out[key] = toBindingValue(entry, raw)
   }
   return out as Readonly<Record<Keys, BindingValue>>

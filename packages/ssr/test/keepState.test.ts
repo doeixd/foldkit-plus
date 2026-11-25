@@ -41,12 +41,32 @@ describe('holdPageState and restorePageState', () => {
       expect(root.scrollLeft).toBe(15)
       expect(scroller.scrollTop).toBe(240)
       expect(scroller.scrollLeft).toBe(30)
-      expect(scrollToSpy).toHaveBeenCalledWith(12, 340)
+      expect(scrollToSpy).toHaveBeenCalledWith({ left: 12, top: 340, behavior: 'instant' })
     } finally {
       Object.defineProperty(window, 'scrollX', { configurable: true, value: 0 })
       Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 })
       vi.unstubAllGlobals()
     }
+  })
+
+  it('preserves listed binder-touched attributes without clobbering untouched attributes', () => {
+    const root = rootOf(
+      `<button id="btn" ${BINDER_TOUCHED_ATTRIBUTE}="data-badge disabled" data-badge="3" disabled>Cart</button>`,
+    )
+    const btn = root.querySelector<HTMLButtonElement>('#btn')!
+    const held = holdPageState(root)
+
+    // Simulate hydration resetting data-badge/disabled AND legitimately setting aria-expanded.
+    btn.setAttribute('data-badge', '0')
+    btn.removeAttribute('disabled')
+    btn.setAttribute('aria-expanded', 'true')
+
+    restorePageState(held)
+
+    expect(btn.getAttribute('data-badge')).toBe('3')
+    expect(btn.hasAttribute('disabled')).toBe(true)
+    // Untouched attribute set by hydration must NOT be clobbered.
+    expect(btn.getAttribute('aria-expanded')).toBe('true')
   })
 
   it('captures and restores <details> elements toggled open or closed before boot', () => {

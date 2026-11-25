@@ -29,6 +29,12 @@ export const BINDING_ATTRIBUTE = 'data-foldkit-plus-on-'
 export const KEEP_ATTRIBUTE = 'data-foldkit-plus-keep'
 
 /**
+ * The attribute written on controls the pre-boot binder updated (holding a
+ * space-separated list of mutated attribute names, or empty for field state).
+ */
+export const BINDER_TOUCHED_ATTRIBUTE = 'data-fk-binder-touched' as const
+
+/**
  * The longest a served page waits on the runtime: for a fresh application to
  * satisfy `until`, and for the runtime's chunk to answer a press the loader
  * holds, counted from the press.

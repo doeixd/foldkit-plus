@@ -180,6 +180,16 @@ it('keeps external DOM mutations inside an SSR.static region across later render
   document.body.append(host)
   containers.push(host)
 
+  // Capture nodes and apply an external pre-hydration mutation BEFORE Client.hydrate runs.
+  const preRegion = host.querySelector<HTMLElement>('[data-foldkit-plus-static="probe-region"]')!
+  const preCopy = host.querySelector<HTMLElement>('#static-copy')!
+  preCopy.textContent = 'mutated-before-hydrate'
+  preCopy.setAttribute('data-pre-hydrate', 'kept')
+  const preInjected = document.createElement('span')
+  preInjected.id = 'pre-hydrate-injected'
+  preInjected.textContent = 'injected-before'
+  preRegion.append(preInjected)
+
   Client.hydrate(appConfig, plan, { buildId: 'b' })
   await vi.waitFor(() => expect(host.querySelector('[data-foldkit-app]')).toBeNull())
 
@@ -187,15 +197,25 @@ it('keeps external DOM mutations inside an SSR.static region across later render
   const copy = host.querySelector<HTMLElement>('#static-copy')!
   const inc = host.querySelector<HTMLButtonElement>('#static-inc')!
 
-  // External script mutates the adopted SSR.static region after hydration.
+  // Pre-hydration mutations and node identity survived Client.hydrate itself.
+  expect(region).toBe(preRegion)
+  expect(copy).toBe(preCopy)
+  expect(copy.textContent).toBe('mutated-before-hydrate')
+  expect(copy.getAttribute('data-pre-hydrate')).toBe('kept')
+  expect(host.querySelector('#pre-hydrate-injected')).toBe(preInjected)
+
+  // External script mutates the adopted SSR.static region after hydration too.
   copy.textContent = 'mutated-after-hydrate'
   copy.setAttribute('data-script-edit', 'kept')
 
   await userEvent.click(inc)
   await vi.waitFor(() => expect(inc.textContent).toBe('1'))
+  await userEvent.click(inc)
+  await vi.waitFor(() => expect(inc.textContent).toBe('2'))
 
-  expect(host.querySelector('[data-foldkit-plus-static="probe-region"]')).toBe(region)
-  expect(host.querySelector('#static-copy')).toBe(copy)
+  expect(host.querySelector('[data-foldkit-plus-static="probe-region"]')).toBe(preRegion)
+  expect(host.querySelector('#static-copy')).toBe(preCopy)
   expect(copy.textContent).toBe('mutated-after-hydrate')
   expect(copy.getAttribute('data-script-edit')).toBe('kept')
+  expect(host.querySelector('#pre-hydrate-injected')).toBe(preInjected)
 })

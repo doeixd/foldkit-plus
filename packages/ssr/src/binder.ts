@@ -10,7 +10,8 @@ import { covers } from 'metakit/graph/match'
 import { ANCHOR_ATTRIBUTE, type Bindings, type BindingValue } from './binding.js'
 export { ANCHOR_ATTRIBUTE, Binding, type Bindings, type BindingValue } from './binding.js'
 import { offerBinder } from './handoff.js'
-import { FOLDKIT_APP_ATTRIBUTE } from './marks.js'
+import { BINDER_TOUCHED_ATTRIBUTE, FOLDKIT_APP_ATTRIBUTE } from './marks.js'
+export { BINDER_TOUCHED_ATTRIBUTE } from './marks.js'
 
 /** Attribute naming the Message tag an element dispatches. */
 export const BINDER_MESSAGE_ATTRIBUTE = 'data-fk-msg' as const
@@ -21,8 +22,18 @@ export const BINDER_PAYLOAD_ATTRIBUTE = 'data-fk-payload' as const
 /** Attribute naming a child element's key inside an `Order`-bound container. */
 export const BINDER_KEY_ATTRIBUTE = 'data-fk-key' as const
 
-/** Marker written on controls the binder updated, so `KeepTyped` preserves them across hydration. */
-export const BINDER_TOUCHED_ATTRIBUTE = 'data-fk-binder-touched' as const
+const markTouchedAttribute = (el: Element, attrName: string): void => {
+  const existing = el.getAttribute(BINDER_TOUCHED_ATTRIBUTE)
+  if (existing === null || existing === '') {
+    el.setAttribute(BINDER_TOUCHED_ATTRIBUTE, attrName)
+    return
+  }
+  const names = existing.split(/\s+/).filter(Boolean)
+  if (!names.includes(attrName)) {
+    names.push(attrName)
+    el.setAttribute(BINDER_TOUCHED_ATTRIBUTE, names.join(' '))
+  }
+}
 
 /** Any declared `Transition` over `Model`, regardless of its `Input`, `Emit`, or `Supplied` types. */
 export interface BinderTransitionLike<Model> {
@@ -178,13 +189,13 @@ export const applyAnchors = <Keys extends string>(
         if (value.value === null) {
           if (el.hasAttribute(value.name)) {
             el.removeAttribute(value.name)
-            el.setAttribute(BINDER_TOUCHED_ATTRIBUTE, '')
+            markTouchedAttribute(el, value.name)
           }
         } else if (isUnsafeAttributeValue(value.name, value.value)) {
           break
         } else if (el.getAttribute(value.name) !== value.value) {
           el.setAttribute(value.name, value.value)
-          el.setAttribute(BINDER_TOUCHED_ATTRIBUTE, '')
+          markTouchedAttribute(el, value.name)
         }
         break
       }
