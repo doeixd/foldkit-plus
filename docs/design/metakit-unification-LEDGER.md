@@ -260,6 +260,20 @@ Put the probe in `scripts/test/metakitGraphReading.test.ts` with `// @vitest-env
 
 At the same snapshot, the Todo test “draws only the Surfaces that read a field a Message declares it writes” counted one renderer call each for `DraftChanged` (Composer), `FilterSelected` (Board) and `RenamedList` (Header), with zero calls to the other instrumented renderers after each Message. The Remote test “without building the ask while the store is the same and the ask reads nothing else” counted zero additional projection builds for two draft changes, then one after the store received the answer. Re-run with `pnpm exec vitest run examples/todo-app/test/machine.test.ts packages/remote/test/readEntryReuse.test.ts --project unit --maxWorkers=1`.
 
+### Who reads the paths
+
+The Phase 2 review inventory at `8ac9a987e` follows readers found by `rg -n 'readsOfNode|readKeys|membersRead|Closure\.reads|\.footprints|pathsOverlap' packages -g '**/src/**/*.ts'` and the node matches in the files below.
+
+| Reader | What it derives |
+| --- | --- |
+| `readsOfNode` in `packages/metakit/src/ops/reads.ts` | Static paths from an expression. `Expr.reads` uses it directly, and `Transition.footprint` uses it on the guard, write values and emissions. `Machine` records that footprint once. |
+| `judge` in `packages/metakit/src/ops/judge.ts` | Paths that can still affect the answer after evaluating known inputs. An unsettled fold expands its source and body reads with `readsOfRows`. An unknown read stays unknown. `residualJudge.ts` uses the static walker on the expression left after partial evaluation. |
+| `visit` and `envOf` in `packages/entity/src/environment.ts` | `visit` walks the expression nodes to build a tree of requested fields. It places a related fold's element fields under its relation slot and leaves opaque nodes out of the tree. `envOf` uses that tree to assemble the values the holder already has. |
+| `dependenciesOf`, `readKeys` and `membersRead` in `packages/entity/src/expr/dependencies.ts` | Entity-owned fields, input keys, relation reaches and operator descriptions from origin metadata. Remote's `reaches.ts` and `impact.ts` use those Entity facts for row and query impact. |
+| `membersRead` in `packages/guard/src/attach.ts` | A rule's row fields from `Query.dependencies`, plus relation names from inherited rules. This walks guard declarations. |
+| `Graph.analyze` and `Graph.of` in `packages/metakit/src/graph.ts` and `packages/surface/src/graph.ts` | Paths become graph edges. `Graph.analyze` gets binding paths from `Expr.reads`. Surface builds edges from contracts and machine footprints. SSR's `coverOf` matches the declared paths through `metakit/graph/match`. |
+| `Closure.reads` in `packages/surface/src/closure.ts` and `readsOutside` in `packages/sync/src/mount.ts` | `Closure.reads` probes a handwritten `app.update` with the same Message and Models whose outside fields are reset to their initial values. The results reflect those sampled updates. Declared Sync Messages use their transition footprint. |
+
 ## Todo handler size
 
 Phase 3's 23 matching Todo handlers have a median of 4 lines in the handwritten update and 7 in the declared machine. The median of the per-handler ratios is 1.57, above the 1.5 target. Each property span includes its internal comments, blank lines and any state or input declaration. Count shared helpers separately when comparing complete implementations.
