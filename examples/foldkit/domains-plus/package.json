@@ -30,6 +30,7 @@
     "foldkit-site": "workspace:*",
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
+    "metakit": "workspace:*",
     "parse5": "^8.0.1"
   },
   "devDependencies": {

@@ -18,6 +18,8 @@ import { ListboxView, Sheet, WindowList } from 'foldkit-mixins-ui'
 import { Remote, RemoteData, RemotePolicy, entityKey, type RemoteClient } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
+import { Declared } from 'foldkit-surface/declared'
+import { makeDomainsMachine, type DomainsMachine } from './machine.js'
 import {
   Domain as DomainCase,
   type Domain as DomainValue,
@@ -609,6 +611,23 @@ const Settled = Page.at(Search, {
     },
 })
 
+export const domainsMachine: DomainsMachine = makeDomainsMachine(Model)
+
+const declared = Declared.of(App, domainsMachine, {
+  commands: {
+    RevealResultsListStart: () => [RevealResultsListStart()],
+    ScrollPage: ({ key }) => [ScrollPage({ key })],
+    FollowLink: ({ request }) => [
+      UrlRequest.match(request, {
+        Internal: ({ url }) => NavigateInternal({ url: urlToString(url) }),
+        External: ({ href }) => LoadExternal({ href }),
+      }),
+    ],
+    FocusCartCloseButton: () => [FocusCartCloseButton()],
+  },
+  fallback: (model, message) => own(model, message as Own),
+})
+
 const placements = Page.assemble(
   SearchInUrl.wiring('ChangedUrl'),
   CartInCookie.wiring(),
@@ -616,7 +635,7 @@ const placements = Page.assemble(
   Data.wiring(actives, { policy: freshness, grace: '1 minute' }),
 )
 
-export const update = placements.update(own)
+export const update = placements.update((model, message) => declared.step(model, message))
 
 /**
  * The page at `route` for the search the address names, read at once: the
