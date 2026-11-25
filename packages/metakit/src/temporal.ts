@@ -832,6 +832,50 @@ const sharedKey = Symbol.for('metakit/temporal/registry')
  * a second copy of this module (a workspace and a published build side by
  * side) reads and adds to the same one.
  */
+/** Typed obligation/discharge factory for an application-defined protocol (Phase 9 Bout 9.5). */
+export interface Protocol<Names extends string> {
+  readonly names: ReadonlyArray<Names>
+  readonly obligation: <const Name extends Names, const Over extends string>(declared: {
+    readonly name: Name
+    readonly over: ReadonlyArray<Over>
+    readonly shows: string
+  }) => WalkObligation<Name, Over>
+  readonly discharge: <Name extends Names, Over extends string, State, StepName extends string>(
+    obligation: WalkObligation<Name, Over>,
+    scenario: Scenario<State, StepName, NoInfer<Over>>,
+    options?: WalkOptions,
+  ) => Discharge<Name>
+}
+
+/**
+ * Define a typed protocol whose `obligation` and `discharge` only accept the
+ * declared `names`, so an unknown obligation name fails to compile and throws
+ * at runtime.
+ */
+export const protocol = <const Names extends string>(
+  names: ReadonlyArray<Names>,
+): Protocol<Names> => {
+  const allowed = new Set<string>(names)
+  const check = (name: string, where: string): void => {
+    if (!allowed.has(name)) {
+      throw new Error(
+        `[metakit] Temporal.protocol.${where}: "${name}" is not in protocol [${names.join(', ')}]`,
+      )
+    }
+  }
+  return {
+    names,
+    obligation: declared => {
+      check(declared.name, 'obligation')
+      return obligation(declared)
+    },
+    discharge: (ob, scenario, options) => {
+      check(ob.name, 'discharge')
+      return discharge(ob, scenario, options)
+    },
+  }
+}
+
 export const registry: Registry = (() => {
   const held: Registry | undefined = Reflect.get(globalThis, sharedKey)
   if (held !== undefined) return held
