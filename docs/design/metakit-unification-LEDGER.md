@@ -442,4 +442,17 @@ On `f414a1d42`, `aggregateCost.test.ts` handed the aggregate one row per change 
 
 On `a68afc7fd`, `impactGraph.test.ts` recorded zero calls to `impactOn` and `rejudged` when the mutation answer changed two fields read by neither held query. The test also covers a direct membership change, a related-row change that rejudges one query, and a query whose body is known only to the server.
 
+GitHub Actions measured the following bundles before this work at `09a4a00c4` and after it at `aa6b81d99`. Each listed bundle exceeded its ceiling in both runs. The Phase 2 byte gate remains open. [Before](https://github.com/doeixd/foldkit-plus/actions/runs/45612061063) · [After](https://github.com/doeixd/foldkit-plus/actions/runs/45617389376)
+
+| Bundle | Before (bytes) | After (bytes) | Change |
+| --- | ---: | ---: | ---: |
+| chirp client, Brotli | 254,070 | 254,288 | +218 |
+| cloudflare client, Brotli | 230,691 | 231,148 | +457 |
+| cms client, Brotli | 170,739 | 171,096 | +357 |
+| entity client, Brotli | 228,338 | 228,867 | +529 |
+| api-cache client, Brotli | 209,243 | 209,646 | +403 |
+| reference client, Brotli | 259,608 | 259,964 | +356 |
+| registry client, Brotli | 268,907 | 269,479 | +572 |
+| cloudflare Worker, raw | 4,705,175 | 4,708,000 | +2,825 |
+
 For bout 4.13, run `pnpm bench packages/remote/bench/pendingPlacement.bench.ts --maxWorkers=1 --silent=false`. The fixture inserts one row before the last of 100,000 loaded rows and checks its resulting position. It counted 100,000 order comparisons per read on `a68afc7fd` and after removing the temporary edge array and deriving the read fields once per placement. The latter run measured a median of 2,534 ms over five samples after two warm-ups on Windows 11, Ryzen 7 6800U, Node 22.23.4. That timing includes reading the full maintained list, Vite's module runner, and the comparison counter. The comparison count is the gate for the order index.
