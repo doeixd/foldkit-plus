@@ -20,41 +20,25 @@
 | --- | --- | --- |
 | **Phase 0 & 1** | CI, kernel, soundness leftovers | Prior commits + `89fd7eb7a`, `be8cf74ef`, `bfd905329` |
 | **Phase 2** | One dependency graph (Bouts 2.1–2.6) | `8ac9a987e`, `09a4a00c4`, `a68afc7fd`, `85a169b01`, `4ae1faebc`, `92767cd4a`, `447b68cfd` |
-| **Phase 3 (3.1–3.5, 3.6 Bundle, 3.7–3.8)** | `Machine.each`, `Transition.move`, `Sheet`/`WindowList` machines, `domains-plus` 30/39 declared, `Bundle.make({ machine })` + placement `Machine.lift`, Form `Declared.disabled`, Agent `machineTools` + Phase 3 audit fixes | `0a6d4aa98`, `bf4ea7d2f`, `d448df858`, `d78e57a09`, `9c16a1384`, `e71cdac1c`, `44c136b35`, `50dd7295f` |
-| **Phase 4 Part A** | Typed custom operations, `reduce`, `combine`, Entity migration, permissions example | Prior commits (`89fd7eb7a`, `be8cf74ef`, etc.) |
-| **Phase 5 (core)** | Store capabilities & orderings (audited 3×) | `ab41873a8` and prior |
+| **Phase 3 (3.1–3.8 — DONE)** | `Machine.each`, `Transition.move`, `Sheet`/`WindowList` machines, `domains-plus` 31/39 declared, `Bundle.make({ machine })`, Remote `storeRowPath` + `Can.withMachine`, Form `Declared.disabled`, Agent `machineTools` + Phase 3 audit fixes | `0a6d4aa98`, `bf4ea7d2f`, `d448df858`, `d78e57a09`, `9c16a1384`, `e71cdac1c`, `44c136b35`, `50dd7295f`, `d25530175` |
+| **Phase 4 Part A (DONE)** | Typed custom operations, `reduce`, `combine`, Entity migration, permissions example | Prior commits (`89fd7eb7a`, `be8cf74ef`, etc.) |
+| **Phase 5 (DONE)** | Store capabilities & orderings + Bout 5.1 cleanup (`checksTargets` doc, `JournalStore === StoreCapabilities` type test) | `ab41873a8`, `12c2faa99` |
 | **Phase 6 (6.2–6.9, 6.13–6.15)** | Trusted-region browser probe, `liveSet`, `Binding`, `foldkit-ssr/binder`, hand-over in `SSR.hydrate`, `KeepTyped` extensions, `static.ts` (`BindingInStaticRegion`), security & deep-review audits + fixes | `9e3380092`, `b60aa8d4d`, `8771d6cc9`, `3b86818a8`, `ad6a70b90` |
-| **Phase 9 (9.1–9.3, 9.5)** | `metakit/language`, `foldkit-agent` `x-metakit-operations`, `metakit/store/check`, `Temporal.protocol` | `8e7337927`, `19be7425f`, `2628828a5` |
+| **Phase 9 (9.1–9.6 — DONE)** | `metakit/language`, `foldkit-agent` `x-metakit-operations`, `metakit/store/check` + store adapter tests (`remote-server`, `remote-drizzle`, `durable`, `sync`), `Temporal.protocol`, `examples/metakit` permissions language + differential tests | `8e7337927`, `19be7425f`, `2628828a5`, `12c2faa99`, `acccb125b` |
 
 ---
 
-## 2. Immediate First Actions for the Next Agent
+## 2. Minor Open Review Follow-Ups (Non-Blocking)
 
-- **Workspace `tsconfig.json` path syncs:** Run `node scripts/workspace-paths.mjs` (or check the remaining modified `tsconfig.json` files in the working tree from adding `foldkit-ssr/binder`, `metakit/language`, and `metakit/store/check`) and commit them cleanly.
-- **Minor open review follow-ups (non-blocking):**
-  - `packages/ssr/src/client.ts`: async `options.prepare` gap between `claimBinder().take()` and `adoptFrom()`, and `plan.restore` interaction when `binderSnapshot.mutated === true` (Phase 6 audit #6 & #7).
-  - `packages/bundle/src/bundle.ts`: if a caller passes a `Machine | undefined` union to `Bundle.make`, preserve `| undefined` in the inferred `bundle.machine` type (Bundle deep review #2).
+- `packages/ssr/src/client.ts`: async `options.prepare` gap between `claimBinder().take()` and `adoptFrom()`, and `plan.restore` interaction when `binderSnapshot.mutated === true` (Phase 6 audit #6 & #7).
+- `packages/bundle/src/bundle.ts`: if a caller passes a `Machine | undefined` union to `Bundle.make`, preserve `| undefined` in the inferred `bundle.machine` type (Bundle deep review #2).
 
 ---
 
 ## 3. Remaining Work (Ordered Checklist)
 
-### Quick Wins (Close Out Phases 3, 5, and 9)
-1. **Phase 5 Bout 5.1 (Cleanup):**
-   - Fix doc comment L3 on `EntityWriter.checksTargets` in `packages/remote-server/src/index.ts`.
-   - Pin L1's safe extra read in `packages/remote/test/`.
-   - Add `packages/durable/test/store.test-d.ts` holding `foldkit-durable`'s `StoreCapabilities` equal to metakit's.
-2. **Phase 3 Bout 3.6 (Remote Part):**
-   - `packages/remote/src/{domain,can}.ts`: reducer steps as writers of store paths in `Graph.of`; store rows readable as paths (`$.remote.store.Quote.<name>`) by transition guards; `Data.can` asks the machine.
-   - Declare `ClickedAddDomain` (#31 of 39) in `examples/foldkit/domains-plus/src/client/machine.ts` using store-path reads + `Transition.insert`.
-   - Clean up any dead arms in `examples/foldkit/domains-plus/src/client/app.ts`'s `own` fallback.
-3. **Phase 9 Bouts 9.4, 9.6, 9.7:**
-   - **Bout 9.4:** Adopt `checkStore` (`metakit/store/check`) in tests for `packages/remote-server/test`, `packages/remote-drizzle/test`, `packages/durable/test`, and `packages/sync/test`.
-   - **Bout 9.6:** Permissions consumers in `examples/metakit` (maintained total over rows using `reduce` with `flags.or`/`flags.xor`; Sync replica with `combine` convergence report & 2-replica walk).
-   - **Bout 9.7:** Phase 9 adversarial review + fixes.
-
-### Medium-Sized Remaining Slices
-4. **Phase 6 Bouts 6.10–6.12 (`domains-plus` on the Binder):**
+### Medium-Sized Remaining Slice
+1. **Phase 6 Bouts 6.10–6.12 (`domains-plus` on the Binder):**
    - **Bout 6.10:** Wire `examples/foldkit/domains-plus` onto `foldkit-ssr/binder` (bindings for cart/filter anchors, binder entry, hand-over to `SSR.hydrate`).
    - **Bout 6.11:** Add `examples/foldkit/domains-plus/e2e/binder.e2e.ts` (press before runtime loads -> load -> press after hand-over; verify zero rebuilt elements; navigation to unserved page).
    - **Bout 6.12:** Run `scripts/phase6-baseline.mjs` & `scripts/bundle-budget.mjs` (two runs) and record measurements in `docs/design/metakit-unification-LEDGER.md` (targets: < 20 kB compressed script before first press, < 200 ms blocking, 0 rebuilt elements, envelope <= 10,741 B).
