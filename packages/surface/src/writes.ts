@@ -11,7 +11,7 @@
 import { Option, type Schema } from 'effect'
 import { createLazy, type Html } from 'foldkit/html'
 import type { MessageUnion } from 'foldkit/message'
-import { affectedTags, pathsOverlap } from 'metakit/graph/match'
+import { affectedTags, covers, pathsOverlap } from 'metakit/graph/match'
 import type { Machine } from 'metakit/machine'
 import {
   Metadata,
@@ -217,7 +217,7 @@ const of = <
         Option.isSome(candidate) &&
         candidate.value.length > 0 &&
         candidate.value.every(readPath =>
-          registeredPaths.some(regPath => pathsOverlap(readPath, regPath)),
+          registeredPaths.some(regPath => covers(regPath, readPath)),
         )
       const reads =
         Metadata.summarize(projection.metadata).length > 0 && !coveredByRegistered

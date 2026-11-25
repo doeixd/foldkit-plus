@@ -48,7 +48,7 @@ import type {
   SurfaceFamily,
   SurfaceSource,
 } from 'foldkit-surface'
-import { minimizePaths, pathsOverlap } from 'metakit/graph/match'
+import { covers, minimizePaths } from 'metakit/graph/match'
 import { withContext, type Binding, type Region, type UnnamedHandler } from './context.js'
 import { cachedPageDiffers, handlerUnnamed, pageFailed, reportingTo } from './diagnostics.js'
 import {
@@ -425,9 +425,7 @@ const coverOf = (
   reads: ReadonlyArray<string> = [],
 ): Cover => {
   const coveredBy = (outers: ReadonlyArray<ReadonlyArray<string>>): boolean =>
-    minimizePaths(outers.filter(outer => outer.length > 0)).some(
-      outer => outer.length <= path.length && pathsOverlap(outer, path),
-    )
+    minimizePaths(outers.filter(outer => outer.length > 0)).some(outer => covers(outer, path))
   if (coveredBy(plan.state.dependencies)) return 'state'
   if (coveredBy(plan.restored.map(({ path: outer }) => outer))) return 'restored'
   if (coveredBy(plan.local)) return 'local'

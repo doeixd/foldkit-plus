@@ -1,9 +1,9 @@
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Machine from 'metakit/machine'
 import { Transition } from 'metakit'
 import { describe, expect, it } from 'vitest'
-import { Projection, Surface } from '../src/index.js'
+import { Metadata, Projection, Surface } from '../src/index.js'
 import { Writes } from '../src/writes.js'
 
 const Model = Schema.Struct({
@@ -113,5 +113,59 @@ describe('Projection.derive pathEpoch memo skipping (Bout 2.2)', () => {
     const m3 = update(m2, Message.Inc()).model
     expect(withEpoch.read(m3)).toBe(2)
     expect(withoutEpoch.read(m3)).toBe(2)
+  })
+
+  it('recomputes Projection.derive on wildcard dependency paths instead of indexing literal "*" (Bout 2.6 M1)', () => {
+    const TodoModel = Schema.Struct({
+      todos: Schema.Array(Schema.Struct({ title: Schema.String })),
+    })
+    type TodoModel = typeof TodoModel.Type
+    const titles = Projection.derive(
+      [{ dependencies: [['todos', '*', 'title']] }],
+      (m: TodoModel) => m.todos.map(t => t.title),
+    )
+    expect(titles.read({ todos: [{ title: 'a' }] })).toEqual(['a'])
+    expect(titles.read({ todos: [{ title: 'b' }] })).toEqual(['b'])
+  })
+
+  it('does not treat a narrower registered writer path as covering a parent metadata read (Bout 2.6 M2)', () => {
+    const StoreModel = Schema.Struct({
+      remote: Schema.Struct({ entities: Schema.String, meta: Schema.String }),
+      other: Schema.String,
+    })
+    type StoreModel = typeof StoreModel.Type
+    const StoreMsg = defineMessageUnion({
+      PatchEntities: {},
+      PatchOther: {},
+    })
+    const StoreApp = Surface.application({ Model: StoreModel, Message: StoreMsg })
+    const StoreMachine = Machine.make({
+      state: StoreModel,
+      transitions: {
+        PatchOther: Transition.make({
+          state: StoreModel,
+          input: Schema.Struct({}),
+          apply: ({ state }) => [Transition.set(state.other, 'x')],
+        }),
+      },
+    })
+    const Asked = Metadata.key<string>('asked', {
+      merge: values => values,
+      summarize: value => value,
+    })
+    const WholeRemote = StoreApp.surface('WholeRemote', {
+      model: () =>
+        Projection.fromReader(Schema.String, (m: StoreModel) => m.remote.meta, {
+          dependencies: [['remote']],
+          metadata: Asked.of('remote'),
+        }),
+    })
+    const writes = Writes.of(StoreApp, StoreMachine, {
+      writers: { PatchEntities: [['remote', 'entities']] },
+    })
+    writes.rootView(WholeRemote, undefined, () => null)
+    const region = writes.regions().find(r => r.name === 'WholeRemote')
+    // Narrow writer `['remote', 'entities']` does NOT cover `['remote']`, so reads stays unknown.
+    expect(region?.reads).toEqual(Option.none())
   })
 })

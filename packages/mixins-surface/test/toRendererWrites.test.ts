@@ -174,4 +174,73 @@ describe('SurfaceView.toRenderer under writes.install() & SlotView.region pathEp
     pageView(m3, h)
     expect(readsCount).toBe(2)
   })
+
+  it('activates skipping for a Surface.rootView created before writes.install() and restores plain rendering on dispose (Bout 2.6 H2)', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+
+    // Create the view at module-definition time, BEFORE writes.install().
+    let draws = 0
+    const counterView = SurfaceView.define(CounterSurface, CounterSlots, (model, slots, h) => {
+      draws += 1
+      return h.div([h.Id('counter-late'), ...slots.root.attrs()], [String(model.count)])
+    })
+    const rootView = Surface.rootView(
+      CounterSurface,
+      undefined,
+      SurfaceView.toRenderer(counterView),
+    )
+
+    const writes = Writes.of(App, emptyMachine, { writers })
+    const tracked = writes.track(rawUpdate)
+    const dispose = writes.install()
+
+    const container = document.createElement('div')
+    container.id = 'to-renderer-writes-late'
+    document.body.appendChild(container)
+
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        container,
+        init: () => ({ model: initial }),
+        update: (model: Model, message: Message) => ({
+          model: tracked(model, message).model,
+          commands: [],
+        }),
+        view: (model: Model, h: HtmlBuilder<Message>) =>
+          h.div(
+            [],
+            [
+              rootView(model, h),
+              h.button(
+                [h.Id('set-note-late'), h.OnClick(Message.SetNote({ text: 'hello' }))],
+                ['note'],
+              ),
+            ],
+          ),
+      }),
+    )
+
+    try {
+      await waitFrame()
+      expect(draws).toBe(1)
+
+      // Late writes.install() took effect -> unrelated SetNote does NOT redraw.
+      ;(document.getElementById('set-note-late') as HTMLElement).click()
+      await waitFrame()
+      expect(draws).toBe(1)
+
+      // Disposing writes.install() restores plain rendering -> next SetNote DOES redraw.
+      dispose()
+      ;(document.getElementById('set-note-late') as HTMLElement).click()
+      await waitFrame()
+      expect(draws).toBe(2)
+    } finally {
+      handle.dispose()
+      dispose()
+    }
+  })
 })

@@ -24,8 +24,9 @@ import {
   type RowToModelLink,
   type WriterNode,
 } from 'metakit/graph'
+import { covers as pathCovers } from 'metakit/graph/match'
 import type { Contract, Finding, Module } from './index.js'
-import { isPrefix, labelOf, pathText, tableCell } from './text.js'
+import { labelOf, pathText, tableCell } from './text.js'
 
 /** Where a path is: a Model field (`['todos']`) or an Entity member (`['Product', 'stock']`). */
 export type GraphSpace = 'model' | 'entity'
@@ -358,7 +359,7 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
 
   // A level refines another when its paths cover every one of the other's and the reverse fails.
   const covers = (wider: Contract, narrower: Contract) =>
-    narrower.observes.every(path => wider.observes.some(own => isPrefix(own, path)))
+    narrower.observes.every(path => wider.observes.some(own => pathCovers(own, path)))
   for (const a of levels)
     for (const b of levels)
       if (a !== b && covers(a, b) && !covers(b, a))

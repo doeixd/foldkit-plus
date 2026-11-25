@@ -1,8 +1,14 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { expectTypeOf } from 'vitest'
-import { Module, Projection, Surface } from '../src/index.js'
-import { Graph, type GraphReaderId, type GraphWriterId } from '../src/graph.js'
+import {
+  Graph,
+  Module,
+  Projection,
+  Surface,
+  type GraphReaderId,
+  type GraphWriterId,
+} from '../src/index.js'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.String),
@@ -26,17 +32,23 @@ const FilterBar = App.surface('FilterBar', {
   messages: [Message.SetFilter],
 })
 
-const AppModule = Module.make(App, [TodoList, FilterBar])
+const Detail = Surface.make(App, 'Detail', {
+  Params: Schema.Struct({ id: Schema.String }),
+  model: ({ model }) => Projection.struct({ todos: model.todos }),
+})
+
+const AppModule = Module.make(App, [TodoList, FilterBar, Surface.contract(Detail, { id: '1' })])
 const graph = Graph.of(AppModule)
 
 expectTypeOf(graph.dependencies.affectedBy('message:AddTodo')).toEqualTypeOf<
-  ReadonlyArray<GraphReaderId<'TodoList' | 'FilterBar'>>
+  ReadonlyArray<GraphReaderId<'TodoList' | 'FilterBar' | 'Detail'>>
 >()
 expectTypeOf(graph.dependencies.writersOf({ kind: 'model', segments: ['todos'] })).toEqualTypeOf<
   ReadonlyArray<GraphWriterId<'AddTodo' | 'SetFilter'>>
 >()
 
 graph.dependencies.explain('message:AddTodo', 'surface:TodoList')
+graph.dependencies.explain('message:AddTodo', 'surface:Detail')
 graph.dependencies.explain('durable:AddTodo', 'closure:TodoList')
 
 // @ts-expect-error 'Typo' is not a declared writer id

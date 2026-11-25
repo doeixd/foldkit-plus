@@ -6,12 +6,12 @@
  * only where `import.meta.env.DEV` holds carries none of it.
  */
 import { Effect, Equal, Option } from 'effect'
-import { pathsOverlap } from 'metakit/graph/match'
+import { covers, pathsOverlap } from 'metakit/graph/match'
 import { movedOutside, type ClosedSurfaces } from './closure.js'
 import { Diagnostics, type Diagnostic } from './diagnostics.js'
 import type { DependencyTree } from './index.js'
 import { tagOf } from './messageTags.js'
-import { isPrefix, pathText } from './text.js'
+import { pathText } from './text.js'
 
 const source = 'foldkit-surface'
 
@@ -115,7 +115,7 @@ const collect = (
   path: ReadonlyArray<string>,
   found: Array<ReadonlyArray<string>>,
 ): void => {
-  if (Object.is(before, after) || declared.some(write => isPrefix(write, path))) return
+  if (Object.is(before, after) || declared.some(write => covers(write, path))) return
   const walk =
     structOrArray(before) &&
     structOrArray(after) &&
@@ -175,7 +175,7 @@ const verify = <Root, Message, Return extends { readonly model: Root }>(
       collect(model, result.model, [], [], changed)
       if (Option.isSome(declared)) {
         const undeclared = changed.filter(
-          path => !declared.value.some(write => isPrefix(write, path)),
+          path => !declared.value.some(write => covers(write, path)),
         )
         if (undeclared.length > 0) report(undeclaredWrite(tag, undeclared, declared.value))
       }

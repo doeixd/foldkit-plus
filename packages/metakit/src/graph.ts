@@ -48,7 +48,7 @@ export interface GraphAnalysis<
   Bindings extends Readonly<Record<string, unknown>>,
 > {
   /** Underlying unified `DependencyGraph` built from `machine` and `bindings`. */
-  readonly graph: DependencyGraph
+  readonly graph: DependencyGraph<keyof Transitions & string, keyof Bindings & string>
   /** For each transition tag, the exact binding IDs invalidated when it fires. */
   readonly affectedBy: {
     readonly [K in keyof Transitions & string]: ReadonlyArray<keyof Bindings & string>
@@ -80,7 +80,7 @@ export const analyze = <
   const modelPaths: Array<ReadonlyArray<string>> = []
   let unboundedModel = false
 
-  const readers: Array<ReaderNode> = []
+  const readers: Array<ReaderNode<keyof Bindings & string>> = []
   for (const id of bindingIds) {
     const r = Expr.reads(bindings[id]!)
     bindingReadsMap[id] = r
@@ -97,10 +97,11 @@ export const analyze = <
     }
   }
 
-  const writers: Array<WriterNode> = []
-  const tags: Array<string> = []
+  const writers: Array<WriterNode<keyof Transitions & string>> = []
+  const tags: Array<keyof Transitions & string> = []
   for (const [tag, fp] of Object.entries(machine.footprints)) {
-    tags.push(tag)
+    const typedTag = tag as keyof Transitions & string
+    tags.push(typedTag)
     const readEdges: Array<PathEdge> = []
     if (Option.isNone(fp.reads)) {
       unboundedModel = true
@@ -119,10 +120,10 @@ export const analyze = <
       modelPaths.push(w)
       writeEdges.push(knownEdge(modelPath(w), 'derived'))
     }
-    writers.push({ id: tag, kind: 'transition', writes: writeEdges, reads: readEdges })
+    writers.push({ id: typedTag, kind: 'transition', writes: writeEdges, reads: readEdges })
   }
 
-  const graph = build({ writers, readers })
+  const graph = build<keyof Transitions & string, keyof Bindings & string>({ writers, readers })
   const affectedBy: Record<string, ReadonlyArray<string>> = {}
   for (const tag of tags) {
     affectedBy[tag] = graph.affectedBy(tag)

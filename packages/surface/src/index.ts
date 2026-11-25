@@ -44,7 +44,9 @@ export {
   type GraphFacts,
   type GraphMachine,
   type GraphOptions,
+  type GraphReaderId,
   type GraphSpace,
+  type GraphWriterId,
 } from './graph.js'
 import { hasTagIn, messageTag, messageTags } from './messageTags.js'
 import { getRootViewHook } from './rootViewRegistry.js'
@@ -484,6 +486,9 @@ export interface ModeledDerived<Root, Value> extends Derived<Root, Value> {
 const valueAt = (root: unknown, path: ReadonlyArray<string>): unknown => {
   let value = root
   for (const key of path) {
+    // Wildcard segment: compare the container holding the matched elements
+    // rather than indexing literal `'*'` (which is always `undefined`).
+    if (key === '*') return value
     if (typeof value !== 'object' || value === null) return undefined
     value = (value as Record<string, unknown>)[key]
   }
@@ -1772,20 +1777,37 @@ export const Surface = {
     root: Root,
     h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
   ) => Html) => {
-    const hook = getRootViewHook(surface.owner)
-    if (hook !== undefined) {
-      return hook(surface, params, render) as <AppMessage>(
-        root: Root,
-        h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
-      ) => Html
-    }
-    const projection = surface.projection(params)
+    let activeHook = getRootViewHook(surface.owner)
+    let hookedView =
+      activeHook === undefined
+        ? undefined
+        : (activeHook(surface, params, render) as <AppMessage>(
+            root: Root,
+            h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
+          ) => Html)
+    let plainProjection: Projection<Root, Model> | undefined =
+      activeHook === undefined ? surface.projection(params) : undefined
     // Sound narrowing: the renderer can only construct this Surface's Messages,
     // and `Subset` guarantees the application builder accepts them.
     return <AppMessage>(
       root: Root,
       h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
-    ): Html => render(projection.read(root), h as unknown as ViewBuilder<Message>)
+    ): Html => {
+      const currentHook = getRootViewHook(surface.owner)
+      if (currentHook !== activeHook) {
+        activeHook = currentHook
+        hookedView =
+          currentHook === undefined
+            ? undefined
+            : (currentHook(surface, params, render) as <AppMessage>(
+                root: Root,
+                h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
+              ) => Html)
+      }
+      if (hookedView !== undefined) return hookedView(root, h)
+      plainProjection ??= surface.projection(params)
+      return render(plainProjection.read(root), h as unknown as ViewBuilder<Message>)
+    }
   },
 
   /**
@@ -1805,13 +1827,13 @@ export const Surface = {
    * A Surface as a `Contract` for `Module`: what it observes, requires, and may
    * emit. A parameterized Surface needs its `params` to build the projection.
    */
-  contract: <Root, Model, Message, Params>(
-    surface: Surface<Root, Model, Message, Params>,
+  contract: <Root, Model, Message, Params, Name extends string = string>(
+    surface: Surface<Root, Model, Message, Params, Name>,
     ...params: ParamsArgument<Params>
-  ): Contract => {
+  ): Contract<Name> & { readonly kind: 'surface' } => {
     const projection = surface.projection(params[0] as Params)
     return {
-      kind: 'surface',
+      kind: 'surface' as const,
       name: surface.name,
       owner: surface.owner,
       owns: [],
@@ -1855,9 +1877,9 @@ export const Surface = {
  * from a Surface. `owns` are the Model paths the contract is the authority for
  * (a replicated projection, a remote store); `observes` are the paths it reads.
  */
-export interface Contract {
+export interface Contract<Name extends string = string> {
   readonly kind: string
-  readonly name: string
+  readonly name: Name
   /** The application's identity token; absent when the value cannot know it. */
   readonly owner?: object | undefined
   readonly owns: DependencyTree
@@ -1924,7 +1946,11 @@ type SurfaceNameOf<Item> =
     ? string extends Name
       ? never
       : Name
-    : never
+    : Item extends { readonly kind: 'surface'; readonly name: infer Name extends string }
+      ? string extends Name
+        ? never
+        : Name
+      : never
 
 type ModuleSurfaces<Items extends readonly unknown[]> = [SurfaceNameOf<Items[number]>] extends [
   never,
