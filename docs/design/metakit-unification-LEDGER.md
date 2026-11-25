@@ -456,3 +456,27 @@ GitHub Actions measured the following bundles before this work at `09a4a00c4` an
 | cloudflare Worker, raw | 4,705,175 | 4,708,000 | +2,825 |
 
 For bout 4.13, run `pnpm bench packages/remote/bench/pendingPlacement.bench.ts --maxWorkers=1 --silent=false`. The fixture inserts one row before the last of 100,000 loaded rows and checks its resulting position. It counted 100,000 order comparisons per read on `a68afc7fd` and after removing the temporary edge array and deriving the read fields once per placement. The latter run measured a median of 2,534 ms over five samples after two warm-ups on Windows 11, Ryzen 7 6800U, Node 22.23.4. That timing includes reading the full maintained list, Vite's module runner, and the comparison counter. The comparison count is the gate for the order index.
+
+On `d2bded751`, binary-search placement (`packages/remote/src/placement.ts`) with O(1) cached keys and a single-insert delta fast path reduced 100,000-row placement to **17 comparisons/read** (down from 100,000) and **2.8 ms median** (beating the `< 16 ms` gate by 5.7×).
+
+## Phase 6: domains-plus on `foldkit-ssr/binder` (Bout 6.12, `9b76bd4ac`)
+
+Measured with `DOMAINS_PLUS_BINDER=1 node scripts/phase6-baseline.mjs --reps 3` (two consecutive runs at `9b76bd4ac`, Windows 11, Ryzen 7 6800U, Node v26.5.0, Chromium 156, 4× CPU throttle):
+
+| Metric | Baseline | Binder Run 1 (`9b76bd4ac`) | Binder Run 2 (`9b76bd4ac`) | Gate |
+| --- | ---: | ---: | ---: | --- |
+| Binder entry chunk (`app-*.js`, brotli) | — | 4,178 B | 4,178 B | — |
+| Shared chunk (`marks-*.js`, brotli: `effect/Schema` + `metakit`) | — | 50,401 B | 50,401 B | — |
+| Script before first press (`app` + `marks`, brotli) | 212,869 B | 54,579 B | 54,579 B | `< 20,000 B` (miss — stays opt-in) |
+| Runtime chunk (`entry-*.js`, brotli) | — | 181,509 B | 181,509 B | — |
+| Total script before takeover (brotli) | 212,869 B | 236,088 B | 236,088 B | — |
+| Envelope JSON (raw / brotli) | 10,741 B / 857 B | 10,756 B / 866 B | 10,756 B / 864 B | `<= 10,741 B` (+15 B from `start: "idle"`) |
+| Rebuilt elements (of 746 served) | 0 | **0** | **0** | `0` (pass) |
+| Blocking ms (median, 4× throttle, full takeover) | 1,474 ms | 1,512 ms | 1,357 ms | `< 200 ms` (miss — `idleWake` runs full takeover during measurement) |
+| Rest press to next paint (median) | 104 ms | **96 ms** | **80 ms** | — |
+| Rest press to cart shown (median) | 280 ms (range 123 ms) | **229 ms** | **205 ms** | `<= 403 ms` (pass) |
+| Load press to next paint (median) | — | 120 ms | 88 ms | — |
+
+Notes:
+- The binder's own code is **4.18 kB brotli**; the 50.4 kB shared chunk is `effect/Schema` + `metakit` pulled in by `foldkit-ssr/binder`. Per the Phase 6 plan ("A miss changes the default, not the feature"), `DOMAINS_PLUS_BINDER=1` remains opt-in rather than replacing the default entry.
+- In `examples/foldkit/domains-plus/e2e/binder.e2e.ts` (2/2 passing in Chromium + Wrangler), pressing "Add to cart" while `assets/entry-*.js` is held updates `Cart, 1 domains` and `#cart-announcement` immediately with zero POSTs, preserves the state and DOM node identity across hand-over to `SSR.hydrate`, and hydrates at rest with **0 rebuilt elements**.
