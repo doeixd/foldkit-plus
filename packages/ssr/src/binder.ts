@@ -6,7 +6,7 @@
  */
 import { Option, Result, Schema } from 'effect'
 import { type Expr, Transition } from 'metakit'
-import { pathsOverlap } from 'metakit/graph/match'
+import { covers } from 'metakit/graph/match'
 import { ANCHOR_ATTRIBUTE, type Bindings, type BindingValue } from './binding.js'
 export { ANCHOR_ATTRIBUTE, Binding, type Bindings, type BindingValue } from './binding.js'
 import { offerBinder } from './handoff.js'
@@ -78,9 +78,64 @@ export interface BinderHandle<Model> {
   readonly stop: () => void
 }
 
+const UNSAFE_ELEMENTS: ReadonlySet<string> = new Set([
+  'script',
+  'style',
+  'iframe',
+  'object',
+  'embed',
+  'base',
+])
+
+const URL_ATTRIBUTES: ReadonlySet<string> = new Set([
+  'href',
+  'xlink:href',
+  'src',
+  'action',
+  'data',
+  'poster',
+  'background',
+  'cite',
+  'ping',
+  'srcset',
+])
+
+const ALLOWED_URL_SCHEMES: ReadonlySet<string> = new Set(['http:', 'https:', 'mailto:', 'tel:'])
+
+const isUnsafeElement = (el: Element): boolean => UNSAFE_ELEMENTS.has(el.localName.toLowerCase())
+
 const isUnsafeAttribute = (name: string): boolean => {
   const lower = name.toLowerCase()
-  return lower.startsWith('on') || lower === 'srcdoc' || lower === 'formaction'
+  return (
+    lower.startsWith('on') ||
+    lower === 'srcdoc' ||
+    lower === 'formaction' ||
+    lower === 'style' ||
+    lower === 'is'
+  )
+}
+
+const isUnsafeUrl = (raw: string): boolean => {
+  // Strip ASCII control characters and whitespace that browsers ignore before schemes.
+  const cleaned = raw.replace(/[\u0000-\u0020\u007f]+/g, '')
+  const schemeMatch = /^([a-zA-Z][a-zA-Z0-9+.-]*:)/.exec(cleaned)
+  if (schemeMatch === null) return false
+  return !ALLOWED_URL_SCHEMES.has(schemeMatch[1]!.toLowerCase())
+}
+
+const isUnsafeAttributeValue = (name: string, value: string): boolean =>
+  URL_ATTRIBUTES.has(name.toLowerCase()) && isUnsafeUrl(value)
+
+const FORBIDDEN_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype'])
+
+const hasForbiddenKey = (value: unknown): boolean => {
+  if (value === null || typeof value !== 'object') return false
+  if (Array.isArray(value)) return value.some(hasForbiddenKey)
+  for (const key of Object.keys(value)) {
+    if (FORBIDDEN_KEYS.has(key)) return true
+    if (hasForbiddenKey((value as Record<string, unknown>)[key])) return true
+  }
+  return false
 }
 
 /** Whether every path `transition` writes is covered by at least one bound anchor's reads. */
@@ -93,7 +148,7 @@ export const canAnswerLocally = <Model, Keys extends string>(
   if (Option.isNone(bindings.reads)) return false
   const boundReads = bindings.reads.value
   for (const write of transition.writes) {
-    if (!boundReads.some(read => pathsOverlap(read, write.target))) {
+    if (!boundReads.some(read => covers(read, write.target))) {
       return false
     }
   }
@@ -107,6 +162,7 @@ export const applyAnchors = <Keys extends string>(
 ): void => {
   const anchors = Array.from(root.querySelectorAll(`[${ANCHOR_ATTRIBUTE}]`))
   for (const el of anchors) {
+    if (isUnsafeElement(el)) continue
     const key = el.getAttribute(ANCHOR_ATTRIBUTE)
     if (key === null || !Object.hasOwn(values, key)) continue
     const value = (values as Readonly<Record<string, BindingValue>>)[key]!
@@ -120,11 +176,16 @@ export const applyAnchors = <Keys extends string>(
       case 'Attribute': {
         if (isUnsafeAttribute(value.name)) break
         if (value.value === null) {
-          el.removeAttribute(value.name)
+          if (el.hasAttribute(value.name)) {
+            el.removeAttribute(value.name)
+            el.setAttribute(BINDER_TOUCHED_ATTRIBUTE, '')
+          }
+        } else if (isUnsafeAttributeValue(value.name, value.value)) {
+          break
         } else if (el.getAttribute(value.name) !== value.value) {
           el.setAttribute(value.name, value.value)
+          el.setAttribute(BINDER_TOUCHED_ATTRIBUTE, '')
         }
-        el.setAttribute(BINDER_TOUCHED_ATTRIBUTE, '')
         break
       }
       case 'Shown': {
@@ -155,8 +216,8 @@ const formatInvalidPayload = (tag: string, issue: string): string =>
   `[foldkit-ssr/binder] the element's "${tag}" payload did not decode: ${issue}; nothing was sent.`
 
 const findMessageElement = (target: EventTarget | null, root: Element): Element | null => {
-  if (!(target instanceof Element)) return null
-  let current: Element | null = target
+  let current: Element | null =
+    target instanceof Element ? target : target instanceof Node ? target.parentElement : null
   while (current !== null) {
     if (current.hasAttribute(BINDER_MESSAGE_ATTRIBUTE)) return current
     if (current === root) return null
@@ -195,10 +256,17 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
       console.warn(msg)
     })
 
+  let cancelIdle: (() => void) | undefined
+
   const triggerWake = (): void => {
-    if (didWake) return
+    if (stopped || didWake) return
     didWake = true
-    void options.wake()
+    void options.wake().catch(() => {
+      // Never wedge the binder on a transient chunk-load failure: allow local
+      // transitions to keep working and a subsequent press to retry waking.
+      didWake = false
+      queue.length = 0
+    })
   }
 
   const handleEvent = (event: Event): void => {
@@ -226,6 +294,14 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
         reportInvalid(formatInvalidPayload(tag, issue))
         return
       }
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        reportInvalid(formatInvalidPayload(tag, 'expected a JSON object payload'))
+        return
+      }
+      if (hasForbiddenKey(parsed)) {
+        reportInvalid(formatInvalidPayload(tag, 'payload contains a forbidden prototype key'))
+        return
+      }
     }
 
     const decoded = Schema.decodeUnknownResult(entry.schema as Schema.Codec<unknown, unknown>)(
@@ -236,25 +312,26 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
       return
     }
 
+    const messagePayload =
+      typeof decoded.success === 'object' &&
+      decoded.success !== null &&
+      !Array.isArray(decoded.success)
+        ? { ...(decoded.success as Readonly<Record<string, unknown>>), _tag: tag }
+        : { _tag: tag }
+
     // If the runtime is already waking, queue the decoded Message so it runs
     // once in order after hand-over rather than racing with hydration.
     if (didWake) {
-      queue.push({
-        _tag: tag,
-        ...(typeof decoded.success === 'object' && decoded.success !== null ? decoded.success : {}),
-      })
+      queue.push(messagePayload)
       event.preventDefault()
-      event.stopPropagation()
+      event.stopImmediatePropagation()
       return
     }
 
     if (!canAnswerLocally(entry.transition, options.manifest.bindings)) {
-      queue.push({
-        _tag: tag,
-        ...(typeof decoded.success === 'object' && decoded.success !== null ? decoded.success : {}),
-      })
+      queue.push(messagePayload)
       event.preventDefault()
-      event.stopPropagation()
+      event.stopImmediatePropagation()
       triggerWake()
       return
     }
@@ -276,12 +353,14 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
     const values = options.manifest.bindings.evaluate(currentModel)
     applyAnchors(root, values)
     event.preventDefault()
-    event.stopPropagation()
+    event.stopImmediatePropagation()
   }
 
   const stop = (): void => {
     if (stopped) return
     stopped = true
+    cancelIdle?.()
+    cancelIdle = undefined
     if (root !== undefined) {
       for (const type of events) {
         root.removeEventListener(type, handleEvent, true)
@@ -308,9 +387,11 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
 
   if (options.idleWake === true) {
     if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-      window.requestIdleCallback(triggerWake)
+      const id = window.requestIdleCallback(triggerWake)
+      cancelIdle = () => window.cancelIdleCallback(id)
     } else {
-      setTimeout(triggerWake, 0)
+      const id = setTimeout(triggerWake, 0)
+      cancelIdle = () => clearTimeout(id)
     }
   }
 

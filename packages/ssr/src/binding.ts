@@ -70,7 +70,7 @@ const readsOfBinding = <Model>(
     case 'Shown':
       return Expr.reads(binding.expr)
     case 'Order':
-      return Option.some([[...binding.listPath.segments, '*', binding.key]])
+      return Option.some([[...binding.listPath.segments]])
   }
 }
 

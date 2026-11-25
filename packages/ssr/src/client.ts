@@ -21,6 +21,7 @@ import {
 import { claim, claimBinder, type HeldEvent } from './handoff.js'
 import { UNTIL_LIMIT_MS } from './marks.js'
 import {
+  BINDER_TOUCHED_ATTRIBUTE,
   hold,
   holdPageState,
   keptFields,
@@ -304,8 +305,10 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     // With a loader, the page reads its bindings first: the loader may hold
     // events for them.
     if (eager && Option.isNone(loader) && root.querySelector(`[${KEEP_ATTRIBUTE}]`) === null) {
+      const heldPage = holdPageState(root)
       if (answered.length === 0) {
         boot()
+        restorePageState(heldPage)
       } else {
         boot({
           'foldkit-ssr.handover': {
@@ -314,7 +317,10 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
             dependenciesToStream: () =>
               Stream.fromEffect(
                 Effect.as(
-                  root.hasAttribute(FOLDKIT_APP_ATTRIBUTE) ? Render.afterCommit : Effect.void,
+                  Effect.andThen(
+                    root.hasAttribute(FOLDKIT_APP_ATTRIBUTE) ? Render.afterCommit : Effect.void,
+                    Effect.sync(() => restorePageState(heldPage)),
+                  ),
                   HANDOVER,
                 ),
               ),
@@ -385,7 +391,12 @@ const unmark = (root: Element): void => {
   root.removeAttribute(RESUME_ATTRIBUTE)
   for (const element of [root, ...root.querySelectorAll('*')]) {
     for (const name of element.getAttributeNames()) {
-      if (name.startsWith(BINDING_ATTRIBUTE) || name === KEEP_ATTRIBUTE || name === SLOT_ATTRIBUTE)
+      if (
+        name.startsWith(BINDING_ATTRIBUTE) ||
+        name === KEEP_ATTRIBUTE ||
+        name === SLOT_ATTRIBUTE ||
+        name === BINDER_TOUCHED_ATTRIBUTE
+      )
         element.removeAttribute(name)
     }
   }

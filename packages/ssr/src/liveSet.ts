@@ -35,7 +35,11 @@ export interface LiveSetOptions<Tag extends string = string> {
 }
 
 const stripMessagePrefix = (id: string): string =>
-  id.startsWith('message:') ? id.slice('message:'.length) : id
+  id.startsWith('message:')
+    ? id.slice('message:'.length)
+    : id.startsWith('durable:')
+      ? id.slice('durable:'.length)
+      : id
 
 /**
  * Compute the live set of a page from its `ResumePlan` and `Graph`.
@@ -130,7 +134,9 @@ export const liveSet = <
       continue
     }
     for (const edge of reader.reads) {
-      if (Option.isSome(edge.path) && edge.path.value.kind === 'model') {
+      if (edge.knowledge === 'unknown' || Option.isNone(edge.path)) {
+        unbounded = true
+      } else if (edge.path.value.kind === 'model') {
         rawReads.push(edge.path.value.segments)
       }
     }

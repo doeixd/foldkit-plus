@@ -116,7 +116,7 @@ describe('static regions (Phase 6, Bout 6.9)', () => {
       expect(checked.success).toEqual({
         region: 'hero',
         readerId: 'surface:StaticHero',
-        omittedPaths: [['heroTitle'], ['showBanner'], ['footerLinks', '*', 'id']],
+        omittedPaths: [['heroTitle'], ['showBanner'], ['footerLinks']],
       })
 
       const values = evaluateStaticBindings(heroBindings, initial, checked.success.omittedPaths)

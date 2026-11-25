@@ -232,7 +232,7 @@ export const evaluateStaticBindings = <Model, Keys extends string>(
     const entry = bindings.entries[key]
     const raw = Object.hasOwn(pruned.staticValues, key)
       ? pruned.staticValues[key]
-      : fallbackRaw(entry, pruned.liveBindings[key] as Expr.Expr<never, unknown>, staticModel)
+      : fallbackRaw(entry, pruned.liveBindings[key] as Expr.Expr<never, unknown>, slice as Model)
     out[key] = toBindingValue(entry, raw)
   }
   return out as Readonly<Record<Keys, BindingValue>>

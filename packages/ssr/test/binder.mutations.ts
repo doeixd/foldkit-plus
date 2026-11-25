@@ -17,9 +17,9 @@ export default [
     edits: [
       {
         file: '../src/binder.ts',
-        find: '    if (!boundReads.some(read => pathsOverlap(read, write.target))) {\n      return false\n    }',
+        find: '    if (!boundReads.some(read => covers(read, write.target))) {\n      return false\n    }',
         replace:
-          '    if (false && !boundReads.some(read => pathsOverlap(read, write.target))) {\n      return false\n    }',
+          '    if (false && !boundReads.some(read => covers(read, write.target))) {\n      return false\n    }',
       },
     ],
     tests,

@@ -315,4 +315,106 @@ describe('foldkit-ssr/binder (Phase 6, Bouts 6.5–6.7)', () => {
     })
     expect(root.querySelector(`[${ANCHOR_ATTRIBUTE}="bad"]`)!.getAttribute('onclick')).toBeNull()
   })
+
+  it('refuses javascript:/data: URL schemes, style attributes, and script/style element anchors (Audit #1, #4)', () => {
+    const root = document.createElement('div')
+    root.innerHTML = `
+      <a ${ANCHOR_ATTRIBUTE}="link"></a>
+      <div ${ANCHOR_ATTRIBUTE}="styled"></div>
+      <script ${ANCHOR_ATTRIBUTE}="scriptEl"></script>
+      <style ${ANCHOR_ATTRIBUTE}="styleEl"></style>
+    `
+    Binder.applyAnchors(root, {
+      link: { _tag: 'Attribute', name: 'href', value: ' \tjavascript:alert(1)' },
+      styled: { _tag: 'Attribute', name: 'style', value: 'background:url(javascript:alert(1))' },
+      scriptEl: { _tag: 'Text', text: 'alert(1)' },
+      styleEl: { _tag: 'Text', text: 'body { display: none }' },
+    })
+    expect(root.querySelector(`[${ANCHOR_ATTRIBUTE}="link"]`)!.getAttribute('href')).toBeNull()
+    expect(root.querySelector(`[${ANCHOR_ATTRIBUTE}="styled"]`)!.getAttribute('style')).toBeNull()
+    expect(root.querySelector(`[${ANCHOR_ATTRIBUTE}="scriptEl"]`)!.textContent).toBe('')
+    expect(root.querySelector(`[${ANCHOR_ATTRIBUTE}="styleEl"]`)!.textContent).toBe('')
+
+    // Safe https URLs are still allowed.
+    Binder.applyAnchors(root, {
+      link: { _tag: 'Attribute', name: 'href', value: 'https://example.com' },
+    })
+    expect(root.querySelector(`[${ANCHOR_ATTRIBUTE}="link"]`)!.getAttribute('href')).toBe(
+      'https://example.com',
+    )
+  })
+
+  it('blocks _tag spoofing and __proto__ keys in payloads (Audit #2)', () => {
+    const root = document.createElement('div')
+    root.innerHTML = `
+      <button id="spoof" ${BINDER_MESSAGE_ATTRIBUTE}="WriteUnbound" ${BINDER_PAYLOAD_ATTRIBUTE}='{"_tag":"AdminDelete","value":"ok"}'>Spoof</button>
+      <button id="proto" ${BINDER_MESSAGE_ATTRIBUTE}="WriteUnbound" ${BINDER_PAYLOAD_ATTRIBUTE}='{"__proto__":{"polluted":true},"value":"ok"}'>Proto</button>
+    `
+    document.body.replaceChildren(root)
+    const warnings: Array<string> = []
+    const wake = vi.fn(() => Promise.resolve())
+    const handle = Binder.start({
+      manifest: {
+        bindings,
+        transitions: {
+          WriteUnbound: {
+            tag: 'WriteUnbound',
+            schema: Schema.Unknown,
+            transition: WriteUnbound,
+          },
+        },
+      },
+      envelope: { model: initialModel, root },
+      wake,
+      onInvalidPayload: msg => warnings.push(msg),
+    })
+
+    // __proto__ payload is rejected and never wakes.
+    root.querySelector<HTMLButtonElement>('#proto')!.click()
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('forbidden prototype key')
+    expect(wake).not.toHaveBeenCalled()
+
+    // _tag in payload cannot overwrite the element's declared tag.
+    root.querySelector<HTMLButtonElement>('#spoof')!.click()
+    expect(wake).toHaveBeenCalledTimes(1)
+    expect(handle.queued()).toEqual([{ _tag: 'WriteUnbound', value: 'ok' }])
+    handle.stop()
+  })
+
+  it('canAnswerLocally uses directional covers: parent write is NOT covered by a child read (Audit #3)', () => {
+    const User = Schema.Struct({ name: Schema.String, email: Schema.String })
+    const UserModel = Schema.Struct({ user: User })
+    const ReplaceUser = Transition.make({
+      state: UserModel,
+      input: Schema.Struct({ user: User }),
+      when: () => true,
+      apply: ({ state, input }) => [Transition.set(state.user, input.user)],
+    })
+    const onlyNameBound = Binding.define<typeof UserModel.Type>({
+      name: Binding.text(Path.from(UserModel).user.name),
+    })
+    expect(Binder.canAnswerLocally(ReplaceUser, onlyNameBound)).toBe(false)
+  })
+
+  it('recovers when wake() rejects so local transitions keep working (Audit #5)', async () => {
+    const root = makeDom()
+    const wake = vi.fn(() => Promise.reject(new Error('network offline')))
+    const handle = Binder.start({
+      manifest: makeManifest(),
+      envelope: { model: initialModel, root },
+      wake,
+    })
+
+    root.querySelector<HTMLButtonElement>('#unbound')!.click()
+    expect(wake).toHaveBeenCalledTimes(1)
+    // Wait for rejected wake() catch handler to reset state.
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(handle.woke()).toBe(false)
+
+    // Local press still works after failed wake.
+    root.querySelector<HTMLButtonElement>('#inc')!.click()
+    expect(handle.model().count).toBe(2)
+    handle.stop()
+  })
 })
