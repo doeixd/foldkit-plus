@@ -40,6 +40,11 @@
       "types": "./dist/loader.d.ts",
       "import": "./dist/loader.js"
     },
+    "./binder": {
+      "foldkit-plus:source": "./src/binder.ts",
+      "types": "./dist/binder.d.ts",
+      "import": "./dist/binder.js"
+    },
     "./vite": {
       "foldkit-plus:source": "./src/vite.ts",
       "types": "./dist/vite.d.ts",
