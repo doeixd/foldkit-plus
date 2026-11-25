@@ -33,13 +33,27 @@ const seedModel = (): Model => {
   }
 }
 
-describe('domains-plus declared transitions (Phase 3, Bout 3.4)', () => {
-  it('declares 19 transitions with exact write footprints', () => {
+describe('domains-plus declared transitions (Phase 3, Bouts 3.4 & 3.5)', () => {
+  it('declares 30 of 39 own transitions with exact write footprints', () => {
     const tags = Object.keys(domainsMachine.transitions)
-    expect(tags).toHaveLength(19)
+    expect(tags).toHaveLength(30)
     expect(domainsMachine.footprints.UpdatedTldSearch.writes).toEqual([['tldSearchQuery']])
     expect(domainsMachine.footprints.ClickedRemoveDomain.writes).toEqual([['cart']])
     expect(domainsMachine.footprints.ClickedRemoveCartDomain.writes).toEqual([['cart']])
+    expect(domainsMachine.footprints.SubmittedSearch.writes).toEqual([['settledLabel']])
+    expect(domainsMachine.footprints.ClickedFilters.writes).toEqual([['filtersSheet']])
+    expect(domainsMachine.footprints.ClickedMobileAvailabilityOption.writes).toEqual([
+      ['availabilityFilter'],
+      ['filtersSheet'],
+    ])
+    expect(domainsMachine.footprints.ClickedTldFilter.writes).toEqual([
+      ['tldSearchQuery'],
+      ['tldSheet'],
+    ])
+    expect(domainsMachine.footprints.GotResultsListMessage.writes).toEqual([
+      ['resultsList'],
+      ['from'],
+    ])
     expect(domainsMachine.footprints.CompletedFocusCartButton.writes).toEqual([])
     expect(domainsMachine.footprints.FocusedResultsList.writes).toEqual([])
     expect(domainsMachine.footprints.ClickedLink.writes).toEqual([])

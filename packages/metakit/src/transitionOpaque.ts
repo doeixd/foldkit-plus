@@ -14,6 +14,8 @@ import {
   pathsOf,
   targetOf,
   Way,
+  type EmitSpec,
+  type Emitted,
   type NoSupplied,
   type SuppliedShape,
   type Transition,
@@ -61,6 +63,7 @@ export const opaque = <
   S extends Schema.Top,
   I extends Schema.Top,
   Sup extends SuppliedShape = NoSupplied,
+  E = never,
 >(config: {
   readonly name: string
   readonly state: S
@@ -76,7 +79,10 @@ export const opaque = <
     env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>,
   ) => ReadonlyArray<StatePath<TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>, unknown>>
   readonly run: (state: S['Type'], input: I['Type'], supplied: Path.EnvOf<Sup>) => S['Type']
-}): Transition<S['Type'], I['Type'], never, Path.EnvOf<Sup>> => {
+  readonly emits?: (
+    env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>,
+  ) => ReadonlyArray<Emitted<TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>, E>>
+}): Transition<S['Type'], I['Type'], E, Path.EnvOf<Sup>> => {
   type Env = TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>
   const env = pathsOf(config.state, config.input, config.supplied ?? ({} as Sup))
   const writePaths = config.writes(env).map(path => ({
@@ -146,6 +152,10 @@ export const opaque = <
       ),
       way: Way.set(),
     })),
-    emits: [],
+    emits: (config.emits?.(env) ?? []).map((entry): EmitSpec => ({
+      tag: entry.tag,
+      fields: entry.fields,
+      when: entry.when,
+    })),
   }
 }

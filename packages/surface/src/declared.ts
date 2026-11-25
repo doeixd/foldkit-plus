@@ -7,6 +7,7 @@
 import { Option, Predicate, type Schema } from 'effect'
 import type { MessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
+import type { Expr } from 'metakit'
 import type { EmitOf, Machine, MessageOf } from 'metakit/machine'
 import type { AppScope } from './index.js'
 import { messageTag, tagOf, type OnlyMessages } from './messageTags.js'
@@ -73,6 +74,8 @@ export type DeclaredConfig<
 > = WritesOptions & {
   /** Which Message tags each emitted Command may send back, for dependency graphs. */
   readonly sends?: SendsMap<EmitOf<Transitions>, AppTag> | undefined
+  /** Implementations for custom `Operation.define` operations called by transitions. */
+  readonly foreign?: Expr.ReaderOptions['foreign'] | undefined
   /** Called with each step's Message and the values `supply` made for it, so a replay can pass them back. */
   readonly record?: ((step: SuppliedStep<Transitions, Message>) => void) | undefined
 } & ([EmitOf<Transitions>] extends [never]
@@ -300,6 +303,8 @@ const of = <
     Option.match(tagOf(message), { onNone: () => true, onSome: tag => !declaredTags.has(tag) })
 
   /** The transition's step with `supplied` (none for one that declares none), and its Commands. */
+  const readerOptions: Expr.ReaderOptions | undefined =
+    config?.foreign === undefined ? undefined : { foreign: config.foreign }
   const run = (
     model: Root,
     tag: string,
@@ -311,7 +316,7 @@ const of = <
       onSome: values => ({ _tag: tag, input: message, supplied: values }),
     })
     if (!isMachineMessage(machineMessage)) return { model }
-    const [next, emitted] = machine.update(model, machineMessage)
+    const [next, emitted] = machine.update(model, machineMessage, readerOptions)
     if (emitted.length === 0) return { model: next }
     const commands: Array<CommandOf<Root, Message, Resources>> = []
     for (const emittedRecord of emitted) {

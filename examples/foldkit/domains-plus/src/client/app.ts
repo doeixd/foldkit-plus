@@ -19,7 +19,7 @@ import { Remote, RemoteData, RemotePolicy, entityKey, type RemoteClient } from '
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 import { Declared } from 'foldkit-surface/declared'
-import { makeDomainsMachine, type DomainsMachine } from './machine.js'
+import { domainsForeign, makeDomainsMachine, type DomainsMachine } from './machine.js'
 import {
   Domain as DomainCase,
   type Domain as DomainValue,
@@ -614,6 +614,7 @@ const Settled = Page.at(Search, {
 export const domainsMachine: DomainsMachine = makeDomainsMachine(Model)
 
 const declared = Declared.of(App, domainsMachine, {
+  foreign: domainsForeign,
   commands: {
     RevealResultsListStart: () => [RevealResultsListStart()],
     ScrollPage: ({ key }) => [ScrollPage({ key })],
@@ -624,6 +625,35 @@ const declared = Declared.of(App, domainsMachine, {
       }),
     ],
     FocusCartCloseButton: () => [FocusCartCloseButton()],
+    DismissSearchKeyboard: () => [DismissSearchKeyboard()],
+    OpenFiltersSheet: ({ sheet }) =>
+      Command.mapMessages(Sheet.open(sheet).commands ?? [], filtersSheet.wrap),
+    CloseFiltersSheet: ({ sheet }) =>
+      Command.mapMessages(Sheet.close(sheet).commands ?? [], filtersSheet.wrap),
+    OpenTldSheet: ({ sheet }) =>
+      Command.mapMessages(Sheet.open(sheet).commands ?? [], tldSheet.wrap),
+    CloseTldSheet: ({ sheet }) =>
+      Command.mapMessages(Sheet.close(sheet).commands ?? [], tldSheet.wrap),
+    OpenCartSheet: ({ sheet }) =>
+      Command.mapMessages(Sheet.open(sheet).commands ?? [], cartSheet.wrap),
+    FiltersSheetStep: ({ sheet, message }) => {
+      const cmds = Command.mapMessages(
+        Sheet.update(sheet, message).commands ?? [],
+        filtersSheet.wrap,
+      )
+      const closed = isSheetDialogMessage(message) && isCompletedCloseDialog(message.message)
+      return closed ? [...cmds, FocusFiltersButton()] : cmds
+    },
+    TldSheetStep: ({ sheet, message }) => {
+      const cmds = Command.mapMessages(Sheet.update(sheet, message).commands ?? [], tldSheet.wrap)
+      const closed = isSheetDialogMessage(message) && isCompletedCloseDialog(message.message)
+      return closed ? [...cmds, FocusTldFilterButton()] : cmds
+    },
+    CartSheetStep: ({ sheet, message }) => {
+      const cmds = Command.mapMessages(Sheet.update(sheet, message).commands ?? [], cartSheet.wrap)
+      const closed = isSheetDialogMessage(message) && isCompletedCloseDialog(message.message)
+      return closed ? [...cmds, FocusCartButton()] : cmds
+    },
   },
   fallback: (model, message) => own(model, message as Own),
 })
