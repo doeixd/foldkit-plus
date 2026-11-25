@@ -14,12 +14,13 @@
 import { Match, Option, Schema } from 'effect'
 import { Query as Relational, QueryEvaluateError, type ExprContext } from 'foldkit-entity'
 import { Capability, visibleOf } from '../capability.js'
-import { items, type Connection } from '../connection.js'
+import { items, type Connection, type Edge } from '../connection.js'
 import type { QueryInput, QueryProjection, RemoteDomain } from '../index.js'
 import { innerOf } from '../inner.js'
 import { matching } from '../matching.js'
 import type { RemoteModel } from '../model.js'
 import type { OptimisticState } from '../optimistic.js'
+import { singleInsertOf } from '../placement.js'
 import type { QueryDescriptor } from '../query.js'
 import { stableStringify } from '../query.js'
 import { assertRegistered } from '../registered.js'
@@ -49,6 +50,12 @@ export interface RowDelta<Row> {
   readonly source: DeltaSource
 }
 
+export interface InsertedRow<Row> {
+  readonly key: EntityKey
+  readonly at: number
+  readonly row: Row
+}
+
 /**
  * What a definition keeps: changed one delta at a time, read for its value.
  * `members` gives the counted rows in the list's order, for a value that must
@@ -56,7 +63,11 @@ export interface RowDelta<Row> {
  */
 export interface Keeper<Row, A> {
   readonly step: (delta: RowDelta<Row>) => void
-  readonly value: (members: () => ReadonlyArray<readonly [EntityKey, Row]>, moved: boolean) => A
+  readonly value: (
+    members: () => ReadonlyArray<readonly [EntityKey, Row]>,
+    moved: boolean,
+    inserted?: InsertedRow<Row>,
+  ) => A
 }
 
 /** Which rows of the list count: those a registered query's body matches, for its input. */
@@ -163,6 +174,8 @@ export interface Tracked<Row> {
   readonly members: Map<EntityKey, Member<Row>>
   /** Every edge of the connection, shown or not: made when nothing is pending and first needed. */
   edges: ReadonlySet<EntityKey> | undefined
+  /** Last shown edges array, for O(1) single-edge insert detection. */
+  lastEdges: ReadonlyArray<Edge> | undefined
   unjudged: number
   unassembled: number
   /** The input is one no interpreter answers (text holding NUL): nothing can be said. */
@@ -236,7 +249,7 @@ export interface Reading<Row> {
   readonly advance: (
     tracked: Tracked<Row>,
     emit: (delta: RowDelta<Row>) => void,
-  ) => Option.Option<{ readonly moved: boolean }>
+  ) => Option.Option<{ readonly moved: boolean; readonly inserted?: InsertedRow<Row> | undefined }>
 }
 
 /** Reads a list (and the query picking its rows) in one Model, deriving nothing per call that the list fixes. */
@@ -298,12 +311,25 @@ export const readingOf = <Row>(
       return 'out'
     }
   }
-  const shownKeys = (): ReadonlyArray<EntityKey> =>
-    inputs.connection === undefined
-      ? []
-      : inner
-          .shown(remote, identity, inputs.connection)
-          .map(edge => entityKey(edge.ref.entity, edge.ref.id))
+  let cachedShownEdges: ReadonlyArray<Edge> | undefined
+  const shownEdges = (): ReadonlyArray<Edge> => {
+    if (cachedShownEdges !== undefined) return cachedShownEdges
+    cachedShownEdges =
+      inputs.connection === undefined ? [] : inner.shown(remote, identity, inputs.connection)
+    return cachedShownEdges
+  }
+  let cachedShownKeys: ReadonlyArray<EntityKey> | undefined
+  const shownKeys = (): ReadonlyArray<EntityKey> => {
+    if (cachedShownKeys !== undefined) return cachedShownKeys
+    const edges = shownEdges()
+    const outKeys = new Array<EntityKey>(edges.length)
+    for (let i = 0; i < edges.length; i++) {
+      const edge = edges[i]!
+      outKeys[i] = entityKey(edge.ref.entity, edge.ref.id)
+    }
+    cachedShownKeys = outKeys
+    return outKeys
+  }
   const edgesOf = (): ReadonlySet<EntityKey> =>
     new Set(
       inputs.connection === undefined
@@ -312,10 +338,12 @@ export const readingOf = <Row>(
     )
 
   const rescan = (): Tracked<Row> => {
+    const edges = shownEdges()
     const tracked: Tracked<Row> = {
       inputs,
       members: new Map(),
       edges: undefined,
+      lastEdges: edges,
       unjudged: 0,
       unassembled: 0,
       refused: false,
@@ -381,6 +409,43 @@ export const readingOf = <Row>(
         }
       }
     } else {
+      const edges = shownEdges()
+      const singleInsert = singleInsertOf(edges)
+      const prevInsert =
+        tracked.lastEdges === undefined ? undefined : singleInsertOf(tracked.lastEdges)
+      if (
+        singleInsert !== undefined &&
+        changed.size === 0 &&
+        (singleInsert.base === tracked.lastEdges ||
+          (prevInsert !== undefined &&
+            prevInsert.base === singleInsert.base &&
+            prevInsert.added.key === singleInsert.added.key &&
+            prevInsert.at === singleInsert.at))
+      ) {
+        const addedKey = entityKey(singleInsert.added.ref.entity, singleInsert.added.ref.id)
+        const hadMember = tracked.members.has(addedKey)
+        const judge = judgedAmong([addedKey])
+        const nextMember = memberOf(addedKey, judge(addedKey))
+        swapFrom(addedKey, nextMember)
+        tracked.edges = undefined
+        tracked.lastEdges = edges
+        tracked.inputs = inputs
+        const samePosition =
+          prevInsert !== undefined &&
+          prevInsert.base === singleInsert.base &&
+          prevInsert.added.key === singleInsert.added.key &&
+          prevInsert.at === singleInsert.at
+        const inserted: InsertedRow<Row> | undefined =
+          !samePosition &&
+          !hadMember &&
+          by === undefined &&
+          tracked.unjudged === 0 &&
+          tracked.unassembled === 0 &&
+          Option.isSome(nextMember.counted)
+            ? { key: addedKey, at: singleInsert.at, row: nextMember.counted.value }
+            : undefined
+        return Option.some({ moved: !samePosition, inserted })
+      }
       // A list shows a row once, so when every member is still shown none left,
       // and the common case (a pending write over a row) builds no set.
       const shown = shownKeys()
@@ -396,6 +461,7 @@ export const readingOf = <Row>(
       }
       // Made again when the steady path next needs it, from the pages it will read.
       tracked.edges = undefined
+      tracked.lastEdges = edges
     }
     if (rejudge.length > 0) {
       const judge = judgedAmong(rejudge)
@@ -405,11 +471,18 @@ export const readingOf = <Row>(
     return Option.some({ moved: !steady })
   }
 
-  const members = (tracked: Tracked<Row>): ReadonlyArray<readonly [EntityKey, Row]> =>
-    shownKeys().flatMap(key => {
-      const counted = tracked.members.get(key)?.counted ?? Option.none()
-      return Option.isSome(counted) ? [[key, counted.value] as const] : []
-    })
+  const members = (tracked: Tracked<Row>): ReadonlyArray<readonly [EntityKey, Row]> => {
+    const keys = shownKeys()
+    const outMembers: Array<readonly [EntityKey, Row]> = []
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i]!
+      const entry = tracked.members.get(k)
+      if (entry !== undefined && Option.isSome(entry.counted)) {
+        outMembers.push([k, entry.counted.value] as const)
+      }
+    }
+    return outMembers
+  }
 
   return { inputs, key, members, rescan, advance }
 }
@@ -447,11 +520,16 @@ export const follow = <Row>(
   reading: Reading<Row>,
   tracked: Tracked<Row> | undefined,
   emit: (delta: RowDelta<Row>) => void,
-): { readonly tracked: Tracked<Row>; readonly moved: boolean } => {
+): {
+  readonly tracked: Tracked<Row>
+  readonly moved: boolean
+  readonly inserted?: InsertedRow<Row> | undefined
+} => {
   if (tracked !== undefined) {
     if (samePlace(tracked.inputs, reading.inputs)) return { tracked, moved: false }
     const traced = reading.advance(tracked, emit)
-    if (Option.isSome(traced)) return { tracked, moved: traced.value.moved }
+    if (Option.isSome(traced))
+      return { tracked, moved: traced.value.moved, inserted: traced.value.inserted }
   }
   const fresh = reading.rescan()
   const old = tracked?.members ?? new Map<EntityKey, Member<Row>>()

@@ -23,15 +23,21 @@ export default [
     edits: [
       {
         file: placement,
-        find: '        if (held < 0) held = position\n        continue',
-        replace: '        if (held < 0) held = position',
+        find: '      if (edge.key === key) {',
+        replace: '      if (false && edge.key === key) {',
       },
     ],
     tests,
   },
   {
     name: 'a row is placed after the edge it sorts before',
-    edits: [{ file: placement, find: 'if (sign.value < 0) {', replace: 'if (sign.value > 0) {' }],
+    edits: [
+      {
+        file: placement,
+        find: '      if (sign.value < 0) {\n        hi = mid',
+        replace: '      if (sign.value > 0) {\n        hi = mid',
+      },
+    ],
     tests,
   },
   {
@@ -59,7 +65,7 @@ export default [
   },
   {
     name: 'a row between two edges is placed before the first one',
-    edits: [{ file: placement, find: 'if (compared) return before', replace: '' }],
+    edits: [{ file: placement, find: 'if (hasBefore) return before', replace: '' }],
     tests,
   },
   {
@@ -151,7 +157,7 @@ export default [
     edits: [
       {
         file: placement,
-        find: 'Match.orElse(() => (held === 0 ? boundary : RowPlace.Outside())),',
+        find: 'Match.orElse(() => (n > 0 && edges[0]!.key === key ? boundary : RowPlace.Outside())),',
         replace: 'Match.orElse(() => RowPlace.Outside()),',
       },
     ],
@@ -162,7 +168,7 @@ export default [
     edits: [
       {
         file: placement,
-        find: 'if (held >= 0 && held === segment.edges.length - 1) return boundary',
+        find: 'if (n > 0 && edges[n - 1]!.key === key) return boundary',
         replace: '',
       },
     ],

@@ -59,7 +59,8 @@ export interface MaintainedValue<A> {
 
 const listKeeper = <Row>(): Keeper<Row, ReadonlyArray<Row>> => {
   let rows: ReadonlyArray<Row> = []
-  let at = new Map<EntityKey, number>()
+  let keys: ReadonlyArray<EntityKey> = []
+  let at: Map<EntityKey, number> | undefined
   // Rows changed in place since the last read; any other change reads the list's order again.
   let replaced: Array<RowDelta<Row>> = []
   let reorder = true
@@ -69,13 +70,44 @@ const listKeeper = <Row>(): Keeper<Row, ReadonlyArray<Row>> => {
       if (Option.isSome(delta.before) && Option.isSome(delta.after)) replaced.push(delta)
       else reorder = true
     },
-    value: (members, moved) => {
-      if (moved || reorder) {
+    value: (members, moved, inserted) => {
+      if (inserted !== undefined && inserted.at >= 0 && inserted.at <= rows.length) {
+        const nextRows = rows.slice()
+        nextRows.splice(inserted.at, 0, inserted.row)
+        const nextKeys = keys.slice()
+        nextKeys.splice(inserted.at, 0, inserted.key)
+        rows = nextRows
+        keys = nextKeys
+        at = undefined
+      } else if (moved || reorder) {
         const now = members()
-        at = new Map(now.map(([key], index) => [key, index]))
-        if (now.length !== rows.length || now.some(([, row], index) => row !== rows[index]))
-          rows = now.map(([, row]) => row)
+        at = undefined
+        let same = now.length === rows.length
+        if (same) {
+          for (let i = 0; i < now.length; i++) {
+            if (now[i]![1] !== rows[i]) {
+              same = false
+              break
+            }
+          }
+        }
+        if (!same) {
+          const nextRows = new Array<Row>(now.length)
+          const nextKeys = new Array<EntityKey>(now.length)
+          for (let i = 0; i < now.length; i++) {
+            const pair = now[i]!
+            nextKeys[i] = pair[0]
+            nextRows[i] = pair[1]
+          }
+          rows = nextRows
+          keys = nextKeys
+        }
       } else if (replaced.length > 0) {
+        if (at === undefined) {
+          const map = new Map<EntityKey, number>()
+          for (let i = 0; i < keys.length; i++) map.set(keys[i]!, i)
+          at = map
+        }
         const next = [...rows]
         for (const { key, after } of replaced) next[at.get(key)!] = Option.getOrThrow(after)
         rows = next
@@ -180,7 +212,7 @@ export function value<Row>(
   const known = kept.get(reading.key)
   kept.delete(reading.key)
   const keeper = known?.keeper ?? keeperOf(definition)
-  const { tracked, moved } = follow(reading, known?.tracked, keeper.step)
+  const { tracked, moved, inserted } = follow(reading, known?.tracked, keeper.step)
   const state: State<Row> = known ?? { tracked, keeper, result: undefined }
   state.tracked = tracked
   const complete =
@@ -191,7 +223,7 @@ export function value<Row>(
     !isGapped(tracked.inputs.connection) &&
     !hasNext(tracked.inputs.connection) &&
     !hasPrevious(tracked.inputs.connection)
-  const next = state.keeper.value(() => reading.members(tracked), moved)
+  const next = state.keeper.value(() => reading.members(tracked), moved, inserted)
   if (
     state.result === undefined ||
     state.result.complete !== complete ||

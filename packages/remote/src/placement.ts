@@ -115,12 +115,25 @@ export const placeIn = (
   const { segments } = connection
   for (let index = 0; index < segments.length; index++) {
     const segment = segments[index]!
-    let held = -1
-    let compared = false
-    for (let position = 0; position < segment.edges.length; position++) {
-      const edge = segment.edges[position]!
+    const { edges } = segment
+    const n = edges.length
+    let lo = 0
+    let hi = n
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      const edge = edges[mid]!
       if (edge.key === key) {
-        if (held < 0) held = position
+        if (mid > lo) {
+          const prev = edges[mid - 1]!
+          const sign = against(prev)
+          if (Option.isNone(sign)) {
+            return RowPlace.Unknown({ reason: `${prev.key} lacks a field the order reads` })
+          }
+          if (sign.value < 0) hi = mid - 1
+          else lo = mid + 1
+        } else {
+          lo = mid + 1
+        }
         continue
       }
       const sign = against(edge)
@@ -128,15 +141,21 @@ export const placeIn = (
         return RowPlace.Unknown({ reason: `${edge.key} lacks a field the order reads` })
       }
       if (sign.value < 0) {
-        const before = RowPlace.Before({ segment: index, edge: edge.key })
-        if (compared) return before
-        // Before this segment's first edge is loaded only when nothing precedes it.
-        return Match.value(segment.start).pipe(
-          Match.tag('Terminal', () => before),
-          Match.orElse(() => (held === 0 ? boundary : RowPlace.Outside())),
-        )
+        hi = mid
+      } else {
+        lo = mid + 1
       }
-      compared = true
+    }
+    if (lo < n && edges[lo]!.key === key) lo += 1
+    if (lo < n) {
+      const before = RowPlace.Before({ segment: index, edge: edges[lo]!.key })
+      const hasBefore = lo > 0 && !(lo === 1 && edges[0]!.key === key)
+      if (hasBefore) return before
+      // Before this segment's first edge is loaded only when nothing precedes it.
+      return Match.value(segment.start).pipe(
+        Match.tag('Terminal', () => before),
+        Match.orElse(() => (n > 0 && edges[0]!.key === key ? boundary : RowPlace.Outside())),
+      )
     }
     // After every edge of this segment: its end, if nothing follows; else the
     // next segment, or rows not loaded.
@@ -145,7 +164,7 @@ export const placeIn = (
       Match.orElse(() => false),
     )
     if (ends) return RowPlace.End({ segment: index })
-    if (held >= 0 && held === segment.edges.length - 1) return boundary
+    if (n > 0 && edges[n - 1]!.key === key) return boundary
   }
   return RowPlace.Outside()
 }
@@ -162,6 +181,18 @@ export const withoutEdge = (connection: Connection, key: string): Connection =>
       }
     : connection
 
+export interface SingleEdgeInsert {
+  readonly base: ReadonlyArray<Edge>
+  readonly at: number
+  readonly added: Edge
+}
+
+const singleInserts = new WeakMap<ReadonlyArray<Edge>, SingleEdgeInsert>()
+
+/** If `edges` was built by inserting one edge into `base` at `at`, return that metadata. */
+export const singleInsertOf = (edges: ReadonlyArray<Edge>): SingleEdgeInsert | undefined =>
+  singleInserts.get(edges)
+
 /** The connection with `edge` where `place` says: before an edge, or at a segment's end. */
 export const withEdge = (
   connection: Connection,
@@ -177,6 +208,10 @@ export const withEdge = (
         End: () => segment.edges.length,
       }),
     )
-    return { ...segment, edges: [...segment.edges.slice(0, at), added, ...segment.edges.slice(at)] }
+    const nextEdges = [...segment.edges.slice(0, at), added, ...segment.edges.slice(at)]
+    if (connection.segments.length === 1 && at >= 0) {
+      singleInserts.set(nextEdges, { base: segment.edges, at, added })
+    }
+    return { ...segment, edges: nextEdges }
   }),
 })

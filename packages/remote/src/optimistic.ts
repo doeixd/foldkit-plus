@@ -306,12 +306,48 @@ export const heldOnlyByRequests = (
  * deletes it. Read from the server's store, not the visible one, where a
  * pending patch over a deleted row clears its tombstone.
  */
+const tombstonesCache = new WeakMap<EntityStore, boolean>()
+
+const hasTombstones = (store: EntityStore): boolean => {
+  let found = tombstonesCache.get(store)
+  if (found === undefined) {
+    found = false
+    for (const key in store) {
+      if (Object.hasOwn(store, key) && store[key]!.tombstone) {
+        found = true
+        break
+      }
+    }
+    tombstonesCache.set(store, found)
+  }
+  return found
+}
+
+const connectionKeysCache = new WeakMap<Connection, ReadonlySet<string>>()
+
+const connectionKeysOf = (connection: Connection): ReadonlySet<string> => {
+  let keys = connectionKeysCache.get(connection)
+  if (keys === undefined) {
+    const set = new Set<string>()
+    for (const segment of connection.segments) {
+      for (const edge of segment.edges) set.add(edge.key)
+    }
+    keys = set
+    connectionKeysCache.set(connection, keys)
+  }
+  return keys
+}
+
 export const goneIn = (
   store: EntityStore,
   optimistic: OptimisticState,
 ): ((key: EntityKey) => boolean) => {
   const deleted = pendingDeletes(optimistic)
-  return key => deleted.has(key) || isTombstone(store, key)
+  const none = deleted.size === 0 && !hasTombstones(store)
+  const check = (key: EntityKey): boolean =>
+    none ? false : deleted.has(key) || isTombstone(store, key)
+  if (none) (check as { none?: boolean }).none = true
+  return check
 }
 
 /**
@@ -563,23 +599,35 @@ export const visibleItems = (
       else hidden.delete(edge.key)
     }
   }
+  const noGone = (gone as { readonly none?: boolean }).none === true
   const hides = (edge: Edge): boolean =>
-    hidden.has(edge.key) || gone(entityKey(edge.ref.entity, edge.ref.id))
-  const known = items(connection).filter(edge => !hides(edge))
-  const seen = new Set(known.map(edge => edge.key))
+    (hidden.size > 0 && hidden.has(edge.key)) ||
+    (!noGone && gone(entityKey(edge.ref.entity, edge.ref.id)))
+  const raw = items(connection)
+  const unchanged = hidden.size === 0 && noGone
+  const known = unchanged ? raw : raw.filter(edge => !hides(edge))
+  const hasInserts = applicable.some(overlay => overlay.position !== 'remove')
+  if (!hasInserts) return known
+
+  const baseSeen = unchanged ? connectionKeysOf(connection) : new Set(known.map(edge => edge.key))
+  const addedSeen = new Set<string>()
+  const isSeen = (key: string): boolean => baseSeen.has(key) || addedSeen.has(key)
 
   const take = (position: 'prepend' | 'append'): ReadonlyArray<Edge> => {
     const edges: Edge[] = []
     const ordered = applicable.filter(value => value.position === position)
     for (const overlay of position === 'prepend' ? [...ordered].reverse() : ordered) {
       for (const edge of overlay.edges) {
-        if (seen.has(edge.key) || hides(edge)) continue
-        seen.add(edge.key)
+        if (isSeen(edge.key) || hides(edge)) continue
+        addedSeen.add(edge.key)
         edges.push(edge)
       }
     }
     return edges
   }
 
-  return [...take('prepend'), ...known, ...take('append')]
+  const before = take('prepend')
+  const after = take('append')
+  if (before.length === 0 && after.length === 0) return known
+  return [...before, ...known, ...after]
 }

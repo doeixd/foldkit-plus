@@ -86,7 +86,9 @@ export type EntityStore = Readonly<Record<EntityKey, EntityEntry>>
  * leaves the key as it was.
  */
 export const entityKey = (entity: string, id: string): EntityKey =>
-  `${entity.replaceAll('%', '%25').replaceAll(':', '%3A')}:${id}`
+  entity.includes('%') || entity.includes(':')
+    ? `${entity.replaceAll('%', '%25').replaceAll(':', '%3A')}:${id}`
+    : `${entity}:${id}`
 
 const emptyEntry: EntityEntry = {
   values: {},

@@ -153,6 +153,21 @@ const pendingPlaced = (
   )
 }
 
+const pageKeysCache = new WeakMap<Connection, ReadonlySet<string>>()
+
+const heldKeysOf = (pages: Connection): ReadonlySet<string> => {
+  let held = pageKeysCache.get(pages)
+  if (held === undefined) {
+    const set = new Set<string>()
+    for (const segment of pages.segments) {
+      for (const edge of segment.edges) set.add(edge.key)
+    }
+    held = set
+    pageKeysCache.set(pages, held)
+  }
+  return held
+}
+
 const insertsPlaced = (
   lists: Lists,
   entities: EntityStore,
@@ -175,26 +190,41 @@ const insertsPlaced = (
       if (overlay.connection !== identity || overlay.position === 'remove') continue
       for (const edge of overlay.edges) inserted.set(edge.key, edge)
     }
-    const held = new Set(items(pages).map(edge => edge.key))
+    const held = heldKeysOf(pages)
     let placed = pages
     const outside: Array<Edge> = []
+    const placedKeys = new Set<string>()
     for (const edge of inserted.values()) {
       if (held.has(edge.key)) continue
       const key = entityKey(edge.ref.entity, edge.ref.id)
       RowPlace.$match(placeIn(store, placed, body, query.value.encoded, key, operators), {
-        Before: place => void (placed = withEdge(placed, edge, place)),
-        End: place => void (placed = withEdge(placed, edge, place)),
+        Before: place => {
+          placed = withEdge(placed, edge, place)
+          placedKeys.add(edge.key)
+        },
+        End: place => {
+          placed = withEdge(placed, edge, place)
+          placedKeys.add(edge.key)
+        },
         Outside: () => void outside.push(edge),
         Unknown: () => undefined,
       })
     }
+    const remaining =
+      placedKeys.size === 0
+        ? overlays
+        : overlays.flatMap(overlay => {
+            if (overlay.connection !== identity || overlay.position === 'remove') return [overlay]
+            const left = overlay.edges.filter(edge => !placedKeys.has(edge.key))
+            return left.length === 0 ? [] : [{ ...overlay, edges: left }]
+          })
     return {
       pages: placed,
       overlays:
         outside.length === 0
-          ? overlays
+          ? remaining
           : [
-              ...overlays,
+              ...remaining,
               { id: 'placed:outside', connection: identity, edges: outside, position: 'remove' },
             ],
     }
