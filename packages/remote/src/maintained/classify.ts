@@ -65,6 +65,8 @@ export const classify = <Row>(
       }
       return Classification.Update({ by: 'sorted-placement' })
     },
+    Reduce: ({ op }) => classifyOperation(op, { on }),
+    Join: () => Classification.Update({ by: 'reverse-index' }),
   })
 }
 
@@ -127,12 +129,17 @@ export const rescanReport = (
     Classification.$match(cls, {
       Update: () => {},
       Rescan: ({ reason }) => {
-        const detail =
-          entry.definition._tag === 'Min'
-            ? 'min has no inverse'
-            : entry.definition._tag === 'Max'
-              ? 'max has no inverse'
-              : reasonText[reason]
+        const detail = Match.valueTags(entry.definition, {
+          Min: () => 'min has no inverse',
+          Max: () => 'max has no inverse',
+          Sum: () => reasonText[reason],
+          Count: () => reasonText[reason],
+          Every: () => reasonText[reason],
+          Any: () => reasonText[reason],
+          List: () => reasonText[reason],
+          Reduce: () => reasonText[reason],
+          Join: () => reasonText[reason],
+        })
         out.push({
           name: entry.name,
           reason,

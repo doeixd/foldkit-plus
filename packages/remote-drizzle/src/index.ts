@@ -114,7 +114,13 @@ import { declarations, ObservedStatements } from './observed.js'
 import { quoted } from './quoted.js'
 import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
-import { lockParents, sortParentIds, withParentLock, type ParentLock } from './parentLock.js'
+import {
+  lockParents,
+  sortParentIds,
+  withParentLock,
+  type ParentLock,
+  type ParentLockTransaction,
+} from './parentLock.js'
 
 export * from './bind.js'
 export { checkConstraints, entityChecks, type EntityCheckOptions } from './checks.js'
@@ -2642,18 +2648,31 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
         }
         let rows: ReadonlyArray<Record<string, unknown>>
         if (Option.isSome(book)) {
+          const parentIds = parentLock === undefined ? [] : parentIdsFrom(values, links)
           const done = yield* inLedger(
             book.value.ledger,
             book.value.ledger.scope(principal),
             book.value.op,
             request,
             id,
-            tx =>
-              (tx as DrizzleWrites)
+            async tx => {
+              const lockedIds =
+                parentLock === undefined
+                  ? []
+                  : await lockParents(tx, parentLock.table, parentLock.id, parentIds)
+              const updated = (await (tx as DrizzleWrites)
                 .update(binding.table)
                 .set(set)
                 .where(where)
-                .returning(answered.columns),
+                .returning(answered.columns)) as ReadonlyArray<Record<string, unknown>>
+              if (updated.length > 0 && parentLock?.onWrite !== undefined) {
+                await parentLock.onWrite({
+                  parentIds: lockedIds,
+                  tx: tx as ParentLockTransaction,
+                })
+              }
+              return updated
+            },
             answered,
           )
           // Landed already: not written again.
@@ -2824,13 +2843,29 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
         // may not read, and a different answer per value would tell them.
         let inserted: ReadonlyArray<Record<string, unknown>>
         if (ledger !== undefined && Option.isSome(operation)) {
+          const parentIds = parentLock === undefined ? [] : parentIdsFrom(values, links)
           const done = yield* inLedger(
             ledger,
             ledger.scope(principal),
             operation.value,
             request,
             id,
-            statement,
+            async tx => {
+              const lockedIds =
+                parentLock === undefined
+                  ? []
+                  : await lockParents(tx, parentLock.table, parentLock.id, parentIds)
+              const rows = (await (statement(tx) as PromiseLike<
+                ReadonlyArray<Record<string, unknown>>
+              >)) as ReadonlyArray<Record<string, unknown>>
+              if (rows.length > 0 && parentLock?.onWrite !== undefined) {
+                await parentLock.onWrite({
+                  parentIds: lockedIds,
+                  tx: tx as ParentLockTransaction,
+                })
+              }
+              return rows
+            },
             answered,
           )
           if (done._tag === 'Recorded') return yield* answerOfRecord(id, answered, done.answer)

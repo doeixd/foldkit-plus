@@ -32,5 +32,13 @@ export {
   type ReverseIndex,
 } from './indexes.js'
 export type { AggregateValue, ListAggregate } from './aggregate.js'
-export type { Definition, ListDefinition, MaintainedValue, ValueOf } from './definition.js'
+export type {
+  Definition,
+  JoinDefinition,
+  JoinedRows,
+  ListDefinition,
+  MaintainedValue,
+  ReduceDefinition,
+  ValueOf,
+} from './definition.js'
 export type { MaintainedWhere } from './deltas.js'

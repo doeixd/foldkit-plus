@@ -5,6 +5,7 @@ import {
   Deferred,
   Effect,
   Exit,
+  Match,
   Metric,
   Option,
   PubSub,
@@ -1994,28 +1995,33 @@ const makeShape = <
       read(key, options.after, limit === undefined ? undefined : { limit: limit + 1 }),
     )
     if (Result.isFailure(readResult)) {
-      const err = readResult.failure
-      if (err._tag === 'CompactedCursorError') {
-        const loaded = yield* load(key)
-        return {
-          _tag: 'Snapshot',
-          epoch: currentEpoch,
-          cursor: loaded.cursor,
-          snapshot: loaded.snapshot,
-          reason: 'compacted',
-        } satisfies ReplayResult<Operation, Snapshot>
-      }
-      if (err._tag === 'InvalidCursorError') {
-        const loaded = yield* load(key)
-        return {
-          _tag: 'Snapshot',
-          epoch: currentEpoch,
-          cursor: loaded.cursor,
-          snapshot: loaded.snapshot,
-          reason: 'cursor-ahead',
-        } satisfies ReplayResult<Operation, Snapshot>
-      }
-      return yield* Effect.fail(err)
+      return yield* Match.valueTags(readResult.failure, {
+        CompactedCursorError: () =>
+          Effect.gen(function* () {
+            const loaded = yield* load(key)
+            const freshEpoch = yield* epoch(key)
+            return {
+              _tag: 'Snapshot',
+              epoch: freshEpoch,
+              cursor: loaded.cursor,
+              snapshot: loaded.snapshot,
+              reason: 'compacted',
+            } satisfies ReplayResult<Operation, Snapshot>
+          }),
+        InvalidCursorError: () =>
+          Effect.gen(function* () {
+            const loaded = yield* load(key)
+            const freshEpoch = yield* epoch(key)
+            return {
+              _tag: 'Snapshot',
+              epoch: freshEpoch,
+              cursor: loaded.cursor,
+              snapshot: loaded.snapshot,
+              reason: 'cursor-ahead',
+            } satisfies ReplayResult<Operation, Snapshot>
+          }),
+        JournalError: err => Effect.fail(err),
+      })
     }
     const fetched = readResult.success
     const hasMore = limit !== undefined && fetched.length > limit

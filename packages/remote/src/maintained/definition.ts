@@ -10,6 +10,8 @@ import type { QueryDescriptor } from '../query.js'
 import type { QueryNames } from '../registered.js'
 import type { EntityKey } from '../store.js'
 import { aggregateKeeper, type AggregateValue, type ListAggregate } from './aggregate.js'
+import { join, joinKeeper, type JoinDefinition, type JoinedRows } from './join.js'
+import { reduce, reduceKeeper, type ReduceDefinition } from './reduce.js'
 import {
   follow,
   readingOf,
@@ -18,6 +20,9 @@ import {
   type RowDelta,
   type Tracked,
 } from './deltas.js'
+
+export { join, reduce }
+export type { JoinDefinition, JoinedRows, ReduceDefinition }
 
 type AnyDomain = RemoteDomain<any, any, any, any, any>
 
@@ -34,11 +39,21 @@ export interface ListDefinition {
  */
 export const list: ListDefinition = { _tag: 'List' }
 
-/** What a maintained value keeps: a `metakit/aggregates` value over the rows, or `list`. */
-export type Definition<Row> = ListAggregate<Row> | ListDefinition
+/** What a maintained value keeps: a `metakit/aggregates` value, `reduce`, `join`, or `list`. */
+export type Definition<Row> =
+  | ListAggregate<Row>
+  | ListDefinition
+  | ReduceDefinition<Row, unknown>
+  | JoinDefinition<Row>
 
 /** What a definition gives over rows of type `Row`. */
-export type ValueOf<D, Row> = D extends ListDefinition ? ReadonlyArray<Row> : AggregateValue<D>
+export type ValueOf<D, Row> = D extends ListDefinition
+  ? ReadonlyArray<Row>
+  : D extends ReduceDefinition<Row, infer V>
+    ? V
+    : D extends JoinDefinition<Row>
+      ? JoinedRows<Row>
+      : AggregateValue<D>
 
 /**
  * A maintained value over every row the client has loaded for the list's
@@ -122,6 +137,8 @@ const listKeeper = <Row>(): Keeper<Row, ReadonlyArray<Row>> => {
 const keeperOf = <Row>(definition: Definition<Row>): Keeper<Row, unknown> =>
   Match.valueTags(definition, {
     List: () => listKeeper<Row>(),
+    Reduce: reduceKeeper<Row, unknown>,
+    Join: joinKeeper<Row>,
     Sum: aggregateKeeper<Row>,
     Count: aggregateKeeper<Row>,
     Min: aggregateKeeper<Row>,
