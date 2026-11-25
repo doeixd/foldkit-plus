@@ -131,6 +131,13 @@ export default [
     maintained,
   ),
   edit(
+    'a changed row replaces every row identity',
+    '        const next = [...rows]',
+    '        const next = rows.map(row => ({ ...row }))',
+    '../src/maintained/definition.ts',
+    ['examples/remote/test/maintainedRows.test.ts'],
+  ),
+  edit(
     'a row judged once stays unjudged',
     '  tracked.unjudged += Number(after?.unjudged ?? false) - Number(before?.unjudged ?? false)',
     '  tracked.unjudged += Number(after?.unjudged ?? false)',
