@@ -23,8 +23,8 @@ export default [
     edits: [
       {
         file: placement,
-        find: 'const edges = segment.edges.filter(edge => edge.key !== key)',
-        replace: 'const edges = segment.edges',
+        find: '        if (held < 0) held = position\n        continue',
+        replace: '        if (held < 0) held = position',
       },
     ],
     tests,
@@ -59,7 +59,7 @@ export default [
   },
   {
     name: 'a row between two edges is placed before the first one',
-    edits: [{ file: placement, find: 'if (position > 0) return before', replace: '' }],
+    edits: [{ file: placement, find: 'if (compared) return before', replace: '' }],
     tests,
   },
   {

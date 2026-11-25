@@ -435,3 +435,11 @@ The searches for a refusal were widened (values near each Schema's ends, near th
 The same cause costs 10 `Unmeetable` findings (a write no row can meet): `x < 0` against a state invariant of `x >= 0` is not seen to be empty. The bank fixture's `Overdraw` test now guards with `balance <= -1`, which the closed intervals do decide. No (c) was found, so `bounds.ts` is deleted.
 
 What the checker does not do, for the person who owns it: (1) a strict comparison over a non-integer number should narrow by the next double (`hi = nextDown(m)` for `x < m`), which is exact for doubles and would restore the 9 pairs and the 10 findings; (2) `Write.update`'s `decrement` is `add` of a negated amount, and the zone does not relate `x + (-y)` to `x - y`, so a `when: balance >= amount` over `decrement: { balance: 'amount' }` is Unknown where `compute: Expr.sub(row.balance, input.amount)` is kept by `zone`; `transitionOf` could write a decrement as `num.sub`.
+
+## Remote maintained values and placement
+
+On `f414a1d42`, `aggregateCost.test.ts` handed the aggregate one row per change at both 1,000 and 100,000 loaded rows. The cases cover a server write, a row leaving and entering a filter, a pending write, and rollback. `examples/remote/test/maintainedRows.test.ts` changes two invoices in consecutive frames and counts one draw of the edited row in each frame.
+
+On `a68afc7fd`, `impactGraph.test.ts` recorded zero calls to `impactOn` and `rejudged` when the mutation answer changed two fields read by neither held query. The test also covers a direct membership change, a related-row change that rejudges one query, and a query whose body is known only to the server.
+
+For bout 4.13, run `pnpm bench packages/remote/bench/pendingPlacement.bench.ts --maxWorkers=1 --silent=false`. The fixture inserts one row before the last of 100,000 loaded rows and checks its resulting position. It counted 100,000 order comparisons per read on `a68afc7fd` and after removing the temporary edge array and deriving the read fields once per placement. The latter run measured a median of 2,534 ms over five samples after two warm-ups on Windows 11, Ryzen 7 6800U, Node 22.23.4. That timing includes reading the full maintained list, Vite's module runner, and the comparison counter. The comparison count is the gate for the order index.

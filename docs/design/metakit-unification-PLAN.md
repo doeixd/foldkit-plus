@@ -800,7 +800,9 @@ One bout (most capable, with a Sonnet helper for measurements) after Phase 2's b
 
 ## Order, and what can run side by side
 
-Now: bouts 4.2 and 4.3 together (`packages/remote`, ledger); 4.1 is done. Then three lines:
+Remote progress on 2026-11-25. Bout 4.2 adds `foldkit-remote/maintained` for aggregates and ordered lists. The tests cover row deltas through an optimistic echo, rollback, reconnect and restore, plus row-level redraws in a Surface. Bout 2.4 skips held queries whose read paths the mutation answer did not touch. Bout 4.13 has a comparison-count benchmark and a cheaper linear scan. It still needs binary search over validated order keys and the 17-comparison gate at 100,000 rows. See the [Remote readings](./metakit-unification-LEDGER.md#remote-maintained-values-and-placement).
+
+Bout 4.1 is done, and the ledger holds readings for 4.3. The remaining work follows three lines:
 
 - **Phase 4 part A** (4.4–4.12) in `packages/metakit`, entity's operator files, `examples/metakit`.
 - **Phase 4 part B** (4.13–4.23) in `packages/remote`, `remote-drizzle`, `durable`.
