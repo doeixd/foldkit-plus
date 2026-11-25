@@ -541,13 +541,13 @@ export interface EntityWriter<P, R = never> {
    */
   readonly clears?: true
   /**
-   * Whether `insert` and `update` refuse, in the statement that writes, a link
-   * through a relation declared `onDelete` (`restrict`, `cascade` or
-   * `setNull`) to a row that is not there, answering `Invalid` with the
-   * relation's key as its path: such a relation
-   * promises that no row points at a row that is gone. `RemoteServer.write`
-   * refuses a write setting one through a writer without it, unless the
-   * database's own foreign key holds that link (`foreignKey`).
+   * Whether `insert` and `update` refuse, in the same atomic step or
+   * transaction that writes, a link through a relation declared `onDelete`
+   * (`restrict`, `cascade` or `setNull`) to a row that is not there, answering
+   * `Invalid` with the relation's key as its path: such a relation promises
+   * that no row points at a row that is gone. `RemoteServer.write` refuses a
+   * write setting one through a writer without it, unless the database's own
+   * foreign key holds that link (`foreignKey`).
    */
   readonly checksTargets?: true
   /**

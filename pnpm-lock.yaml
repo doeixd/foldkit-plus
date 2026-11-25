@@ -3105,6 +3105,9 @@ importers:
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
+      metakit:
+        specifier: workspace:*
+        version: link:../metakit
       miniflare:
         specifier: 4.20260730.0
         version: 4.20260730.0
