@@ -20,32 +20,20 @@
 | --- | --- | --- |
 | **Phase 0 & 1** | CI, kernel, soundness leftovers | Prior commits + `89fd7eb7a`, `be8cf74ef`, `bfd905329` |
 | **Phase 2** | One dependency graph (Bouts 2.1–2.6) | `8ac9a987e`, `09a4a00c4`, `a68afc7fd`, `85a169b01`, `4ae1faebc`, `92767cd4a`, `447b68cfd` |
-| **Phase 3 (3.1–3.5, 3.7–3.8)** | `Machine.each`, `Transition.move`, `Sheet`/`WindowList` machines, `domains-plus` 30/39 declared, Form `Declared.disabled`, Agent `machineTools` + Phase 3 audit fixes | `0a6d4aa98`, `bf4ea7d2f`, `d448df858`, `d78e57a09`, `9c16a1384`, `e71cdac1c`, `44c136b35` |
+| **Phase 3 (3.1–3.5, 3.6 Bundle, 3.7–3.8)** | `Machine.each`, `Transition.move`, `Sheet`/`WindowList` machines, `domains-plus` 30/39 declared, `Bundle.make({ machine })` + placement `Machine.lift`, Form `Declared.disabled`, Agent `machineTools` + Phase 3 audit fixes | `0a6d4aa98`, `bf4ea7d2f`, `d448df858`, `d78e57a09`, `9c16a1384`, `e71cdac1c`, `44c136b35`, `50dd7295f` |
 | **Phase 4 Part A** | Typed custom operations, `reduce`, `combine`, Entity migration, permissions example | Prior commits (`89fd7eb7a`, `be8cf74ef`, etc.) |
 | **Phase 5 (core)** | Store capabilities & orderings (audited 3×) | `ab41873a8` and prior |
-| **Phase 6 (6.2–6.9, 6.13–6.15)** | Trusted-region browser probe, `liveSet`, `Binding`, `foldkit-ssr/binder`, hand-over in `SSR.hydrate`, `KeepTyped` extensions, `static.ts` (`BindingInStaticRegion`), security & hand-over audit + fixes | `9e3380092`, `b60aa8d4d`, `8771d6cc9`, `3b86818a8` |
+| **Phase 6 (6.2–6.9, 6.13–6.15)** | Trusted-region browser probe, `liveSet`, `Binding`, `foldkit-ssr/binder`, hand-over in `SSR.hydrate`, `KeepTyped` extensions, `static.ts` (`BindingInStaticRegion`), security & deep-review audits + fixes | `9e3380092`, `b60aa8d4d`, `8771d6cc9`, `3b86818a8`, `ad6a70b90` |
 | **Phase 9 (9.1–9.3, 9.5)** | `metakit/language`, `foldkit-agent` `x-metakit-operations`, `metakit/store/check`, `Temporal.protocol` | `8e7337927`, `19be7425f`, `2628828a5` |
 
 ---
 
 ## 2. Immediate First Actions for the Next Agent
 
-### A. Inspect & Finalize Uncommitted Working-Tree Changes (`packages/bundle`, Bout 3.6 Bundle Part)
-Uncommitted edits exist in `packages/bundle/` (`package.json`, `src/{bundle,combinators,declare,parent,placed}.ts`, `tsconfig*.json`, `tsdown.config.ts`, `test/bundleMachine.{test,test-d,mutations}.ts`) plus `pnpm paths`-generated `tsconfig.json` path updates across `packages/*` and `examples/*`.
-- **Check before committing:**
-  1. Ensure **zero `any`** in `packages/bundle/src/bundle.ts` (`AnyMachine`) and `packages/bundle/src/placed.ts` (`LiftedOf`), and confirm `pnpm --filter foldkit-bundle build` passes `declared-any.mjs`.
-  2. Run `pnpm exec tsc -b packages/bundle`, `npx vitest run packages/bundle/test/bundleMachine.test.ts --project unit`, `pnpm mutate packages/bundle/test/bundleMachine.mutations.ts`, and `pnpm tags:check`.
-  3. Commit `packages/bundle/*` + `pnpm-lock.yaml` (and `tsconfig.json` path syncs in a clean commit).
-
-### B. Double-Check the Three Flash-Written Phase 6 Modules
-These were written by a faster/cheaper model and committed in `8771d6cc9` (with security fixes in `3b86818a8`):
-- `packages/ssr/src/keep.ts` + `packages/ssr/test/keepState.{test,mutations}.ts` (Bout 6.8)
-- `packages/ssr/src/static.ts` + `packages/ssr/test/staticRegion.{test,mutations}.ts` (Bout 6.9)
-- `packages/ssr/test/trustedRegion.browser.test.ts` (Bout 6.2)
-
-Verify any remaining edge cases:
-- `keep.ts`: `restorePageState` currently resets hardcoded `['aria-pressed', 'aria-expanded', 'open']` on `data-fk-binder-touched` elements; consider recording the exact changed attribute names in `data-fk-binder-touched` so untouched attributes are never clobbered (Phase 6 audit #12).
-- `client.ts`: async `options.prepare` gap between `claimBinder().take()` and `adoptFrom()`, and `plan.restore` interaction when `binderSnapshot.mutated === true` (Phase 6 audit #6 & #7).
+- **Workspace `tsconfig.json` path syncs:** Run `node scripts/workspace-paths.mjs` (or check the remaining modified `tsconfig.json` files in the working tree from adding `foldkit-ssr/binder`, `metakit/language`, and `metakit/store/check`) and commit them cleanly.
+- **Minor open review follow-ups (non-blocking):**
+  - `packages/ssr/src/client.ts`: async `options.prepare` gap between `claimBinder().take()` and `adoptFrom()`, and `plan.restore` interaction when `binderSnapshot.mutated === true` (Phase 6 audit #6 & #7).
+  - `packages/bundle/src/bundle.ts`: if a caller passes a `Machine | undefined` union to `Bundle.make`, preserve `| undefined` in the inferred `bundle.machine` type (Bundle deep review #2).
 
 ---
 
