@@ -107,6 +107,11 @@
       "types": "./dist/store.d.ts",
       "import": "./dist/store.js"
     },
+    "./store/check": {
+      "foldkit-plus:source": "./src/storeCheck.ts",
+      "types": "./dist/storeCheck.d.ts",
+      "import": "./dist/storeCheck.js"
+    },
     "./pairs": {
       "foldkit-plus:source": "./src/pairs.ts",
       "types": "./dist/pairs.d.ts",
