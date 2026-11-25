@@ -9,6 +9,42 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 
 export default [
   edit(
+    'checkOperation treats pairwise refusals as law evidence',
+    checks,
+    '!Node.isRefusal(left) &&\n    !Node.isRefusal(right)',
+    'true',
+  ),
+  edit(
+    'checkOperation treats strict null propagation as law evidence',
+    checks,
+    "(desc.nulls === 'own' || !args.includes(null)) &&",
+    '',
+  ),
+  edit(
+    'checkOperation skips identity',
+    checks,
+    'if (claims.identity !== undefined) {',
+    'if (false) {',
+  ),
+  edit(
+    'checkOperation skips absorbing values',
+    checks,
+    'if (claims.absorbing !== undefined) {',
+    'if (false) {',
+  ),
+  edit(
+    'checkOperation compares one grouping with itself for associativity',
+    checks,
+    'const rhs = run(desc, [a, bc])',
+    'const rhs = lhs',
+  ),
+  edit(
+    'checkOperation ignores the monotone direction',
+    checks,
+    "const ok = dir === 'up' ? rLo <= rHi : rLo >= rHi",
+    'const ok = true',
+  ),
+  edit(
     'checkOperation skips idempotent check',
     checks,
     'if (claims.idempotent === true) {',

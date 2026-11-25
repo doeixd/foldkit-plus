@@ -7,6 +7,7 @@ import * as Operation from '../src/operation.js'
 import * as Temporal from '../src/temporal.js'
 
 const Flags = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 2147483647 }))
+const NullableFlags = Schema.NullOr(Flags)
 
 const flagsOr = Operation.define({
   id: 'flags.or',
@@ -107,6 +108,114 @@ describe('checkOperation and lawObligations (Phase 4 bout 4.6)', () => {
       claims: { commutative: true },
     })
     expect(Conformance.checkOperation(badAndNot, impls).ok).toBe(false)
+  })
+
+  it.each([
+    ['identity', { identity: { value: 1, side: 'both' } }],
+    ['absorbing', { absorbing: { value: 1, result: 1, side: 'both' } }],
+  ] as const)('checks the %s result on both sides of a binary call', (claim, claims) => {
+    const op = Operation.define({
+      id: 'flags.badUnit',
+      version: 1,
+      args: [Flags, Flags],
+      returns: Flags,
+      nulls: 'strict',
+      claims,
+    })
+    const table = Operation.implementations(
+      'page',
+      Operation.implement(op, (a, b) => a ^ b),
+    )
+    expect(Conformance.checkOperation(op, table).failures[0]).toContain(`claims ${claim}`)
+  })
+
+  it('checks the declared direction of a monotone operation', () => {
+    const op = Operation.define({
+      id: 'flags.reversed',
+      version: 1,
+      args: [Flags],
+      returns: Flags,
+      nulls: 'strict',
+      claims: { monotone: ['down'] },
+    })
+    const table = Operation.implementations(
+      'page',
+      Operation.implement(op, x => x),
+    )
+    expect(Conformance.checkOperation(op, table).failures[0]).toContain('claims monotone')
+  })
+
+  it.each([
+    ['commutativity', 'commutative', NullableFlags, { commutative: true }],
+    ['associativity', 'associative', Flags, { associative: true }],
+    [
+      'conditional associativity',
+      'associative',
+      NullableFlags,
+      { associative: { unlessRefused: true } },
+    ],
+  ] as const)('requires a value sample for %s', (_, claim, schema, claims) => {
+    const op = Operation.define({
+      id: 'flags.noAnswer',
+      version: 1,
+      args: [schema, schema],
+      returns: schema,
+      nulls: 'strict',
+      claims,
+    })
+    const table = Operation.implementations(
+      'page',
+      Operation.implement(op, () => {
+        throw new Error('Refused')
+      }),
+    )
+    const report = Conformance.checkOperation(op, table)
+    expect(report.ok).toBe(false)
+    expect(report.failures[0]).toContain(`claims ${claim}, but no sampled equation returned values`)
+    expect(report.discharges).toMatchObject([
+      { obligation: `law:flags.noAnswer@1/${claim}/page`, result: { _tag: 'Broken' } },
+    ])
+  })
+
+  it('leaves unary idempotence unproved when both applications refuse', () => {
+    const op = Operation.define({
+      id: 'flags.noIdempotentAnswer',
+      version: 1,
+      args: [Flags],
+      returns: Flags,
+      nulls: 'strict',
+      claims: { idempotent: true },
+    })
+    const table = Operation.implementations(
+      'page',
+      Operation.implement(op, () => {
+        throw new Error('Refused')
+      }),
+    )
+    const report = Conformance.checkOperation(op, table)
+    expect(report.ok).toBe(false)
+    expect(report.failures[0]).toContain(
+      'claims idempotent, but no sampled equation returned values',
+    )
+  })
+
+  it('accepts agreeing refusals alongside value samples', () => {
+    const op = Operation.define({
+      id: 'flags.partialMax',
+      version: 1,
+      args: [Flags, Flags],
+      returns: Flags,
+      nulls: 'strict',
+      claims: { commutative: true, associative: { unlessRefused: true } },
+    })
+    const table = Operation.implementations(
+      'page',
+      Operation.implement(op, (a, b) => {
+        if (a === 0 || b === 0) throw new Error('Needs two nonzero flags')
+        return Math.max(a, b)
+      }),
+    )
+    expect(Conformance.checkOperation(op, table).ok).toBe(true)
   })
 
   it('collects reachable obligations from a Machine and discharges them in the registry', () => {

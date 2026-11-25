@@ -189,6 +189,8 @@ const failMsg = (
 /**
  * Run generated checks for every claim declared on `op` against `table`,
  * returning a report and `Temporal.Discharge`s for the obligations registry.
+ * Idempotence, commutativity and associativity each need a sampled equation
+ * whose two sides return values.
  */
 export const checkOperation = (
   op: AnyOperation,
@@ -234,17 +236,31 @@ export const checkOperation = (
 
   const failures: Array<string> = []
   const discharges: Array<Temporal.Discharge> = []
-  const recordClaim = (claimName: string, runs: number, failure: string | undefined): void => {
+  const returnedValues = (args: ReadonlyArray<unknown>, left: unknown, right: unknown): boolean =>
+    (desc.nulls === 'own' || !args.includes(null)) &&
+    !Node.isRefusal(left) &&
+    !Node.isRefusal(right)
+  const recordClaim = (
+    claimName: string,
+    runs: number,
+    failure: string | undefined,
+    witnessed = true,
+  ): void => {
     const obligation = `law:${name}/${claimName}/${tableName}`
-    if (failure !== undefined) {
-      failures.push(failure)
+    const reason =
+      failure ??
+      (witnessed
+        ? undefined
+        : `[metakit] ${name} claims ${claimName}, but no sampled equation returned values. Check that the table registers the operation and that it returns values for the declared inputs.`)
+    if (reason !== undefined) {
+      failures.push(reason)
       discharges.push({
         obligation,
         result: Temporal.WalkResult.Broken({
           seed,
           interleaving: [],
           minimal: [],
-          reason: failure,
+          reason,
         }),
       })
     } else {
@@ -351,6 +367,7 @@ export const checkOperation = (
   if (claims.idempotent === true) {
     const pool = allOf(0)
     let bad: string | undefined = pool.length === 0 ? emptyPoolMsg('idempotent') : undefined
+    let witnessed = false
     if (bad === undefined) {
       if (desc.args.length === 1) {
         for (const x of pool) {
@@ -360,6 +377,7 @@ export const checkOperation = (
             bad = failMsg(desc, 'idempotent', [once], twice, once)
             break
           }
+          witnessed ||= returnedValues([x], twice, once)
         }
       } else {
         for (const x of pool) {
@@ -368,10 +386,11 @@ export const checkOperation = (
             bad = failMsg(desc, 'idempotent', [x, x], res, x)
             break
           }
+          witnessed ||= returnedValues([x, x], res, x)
         }
       }
     }
-    recordClaim('idempotent', pool.length, bad)
+    recordClaim('idempotent', pool.length, bad, witnessed)
   }
 
   if (claims.commutative === true) {
@@ -379,6 +398,7 @@ export const checkOperation = (
     const pool = allOf(0)
     let bad: string | undefined = pool.length === 0 ? emptyPoolMsg('commutative') : undefined
     let runs = 0
+    let witnessed = false
     const checkPair = (a: unknown, b: unknown): boolean => {
       runs += 1
       const ab = run(desc, [a, b])
@@ -387,6 +407,7 @@ export const checkOperation = (
         bad = failMsg(desc, 'commutative', [a, b], ab, ba)
         return false
       }
+      witnessed ||= returnedValues([a, b], ab, ba)
       return true
     }
     if (bad === undefined) {
@@ -401,7 +422,7 @@ export const checkOperation = (
         if (!checkPair(pick(pool), pick(pool))) break
       }
     }
-    recordClaim('commutative', runs, bad)
+    recordClaim('commutative', runs, bad, witnessed)
   }
 
   if (claims.associative !== undefined) {
@@ -411,6 +432,7 @@ export const checkOperation = (
     const pool = allOf(0)
     let bad: string | undefined = pool.length === 0 ? emptyPoolMsg('associative') : undefined
     let runs = 0
+    let witnessed = false
     const checkTriple = (a: unknown, b: unknown, c: unknown): boolean => {
       runs += 1
       const ab = run(desc, [a, b])
@@ -422,6 +444,7 @@ export const checkOperation = (
         bad = failMsg(desc, 'associative', [a, b, c], lhs, rhs)
         return false
       }
+      witnessed ||= returnedValues([a, b, c], lhs, rhs)
       return true
     }
     if (bad === undefined) {
@@ -438,7 +461,7 @@ export const checkOperation = (
         if (!checkTriple(pick(pool), pick(pool), pick(pool))) break
       }
     }
-    recordClaim('associative', runs, bad)
+    recordClaim('associative', runs, bad, witnessed)
   }
 
   if (claims.invertible !== undefined) {

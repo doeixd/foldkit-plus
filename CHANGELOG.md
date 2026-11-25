@@ -104,6 +104,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `metakit/conformance` requires at least one sampled comparison that returns values on both sides before `checkOperation` accepts an idempotence, commutativity, or associativity claim.
 - `metakit` and `foldkit-entity` run custom operators whose argument schemas accept a mix of numbers, booleans, or text. Pages that use only built-in operators can drop the custom-operation constructor.
 - `metakit/prove`: Float64 arithmetic checks the same safe integer bounds as transition evaluation. An oversized operand can no longer disappear in a proof of multiplication by zero.
 - `metakit/temporal`: a generated pair obligation stays open until a walk passes in both relative orders. Coverage names the matched steps and identifies directions a causal dependency forbids (#633).
