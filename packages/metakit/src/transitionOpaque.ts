@@ -79,7 +79,11 @@ export const opaque = <
 }): Transition<S['Type'], I['Type'], never, Path.EnvOf<Sup>> => {
   type Env = TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>
   const env = pathsOf(config.state, config.input, config.supplied ?? ({} as Sup))
-  const targets = config.writes(env).map(path => targetOf(path, 'opaque'))
+  const writePaths = config.writes(env).map(path => ({
+    target: targetOf(path, 'opaque'),
+    ast: path.ast,
+  }))
+  const targets = writePaths.map(entry => entry.target)
   if (targets.length === 0) {
     throw new Error(
       `[metakit] Transition.opaque "${config.name}" must declare at least one written path`,
@@ -127,7 +131,7 @@ export const opaque = <
     when: wrap<Env, boolean>(
       config.when === undefined ? Node.Lit({ value: true }) : toNode(config.when(env)),
     ),
-    writes: targets.map(target => ({
+    writes: writePaths.map(({ target, ast }) => ({
       _tag: 'WriteEquation' as const,
       target,
       value: wrap<Env, unknown>(
@@ -135,7 +139,9 @@ export const opaque = <
           name: `${config.name}:${Path.format(target)}`,
           reads: Option.some(reads),
           run: step =>
-            Option.getOrNull(Path.get(Path.make<S['Type'], unknown>(target), next(step as Env))),
+            Option.getOrNull(
+              Path.get(Path.make<S['Type'], unknown>(target, ast), next(step as Env)),
+            ),
         }),
       ),
       way: Way.set(),

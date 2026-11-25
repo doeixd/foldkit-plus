@@ -3632,6 +3632,9 @@ importers:
 
   packages/mixins-ui:
     dependencies:
+      metakit:
+        specifier: workspace:*
+        version: link:../metakit
       uqr:
         specifier: ^0.1.3
         version: 0.1.3

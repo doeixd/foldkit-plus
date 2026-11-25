@@ -46,6 +46,8 @@ import {
   type VirtualLayout,
   type VirtualWindow,
 } from 'foldkit-primitives/state'
+import { Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
 import type { MixinList } from './resolve.js'
 
 export const WindowListSlots = Slots.define({
@@ -168,46 +170,107 @@ const withHeights = (model: Model, heights: Model['heights']): Model => {
   return modifyFields(model, { heights: () => heights, estimatedHeight: () => estimatedHeight })
 }
 
-/** The list after `message`; the same Model when nothing changes. */
-export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
-  Message.match<Update.Return<Model, Message>>(message, {
-    Placed: ({ top, height }) =>
-      top === model.viewport.top && height === model.viewport.height && model.placed
-        ? { model }
-        : {
-            model: modifyFields(model, {
+/**
+ * The WindowList's declarative state machine: `Placed`, `Measured`, `Focused`,
+ * `Found`, and `CompletedReveal` with exact read/write footprints, ready for
+ * `Machine.lift` in an application's composed machine.
+ */
+export const machine = /* @__PURE__ */ Machine.make({
+  state: Model,
+  transitions: {
+    Placed: /* @__PURE__ */ Transition.opaque({
+      name: 'WindowList.Placed',
+      state: Model,
+      input: Schema.Struct({ top: Schema.Number, height: Schema.Number }),
+      reads: ({ state, input }) => [state.viewport, state.placed, input.top, input.height],
+      writes: ({ state }) => [state.viewport, state.from, state.placed],
+      run: (model, { top, height }) =>
+        top === model.viewport.top && height === model.viewport.height && model.placed
+          ? model
+          : modifyFields(model, {
               viewport: () => ({ top, height }),
               from: () => 0,
               placed: () => true,
             }),
-          },
-    Found: ({ index }) => ({ model, commands: [Reveal({ id: model.id, index, align: 'center' })] }),
-    CompletedReveal: () => ({ model }),
-    Focused: ({ key }) =>
-      Equal.equals(key, model.held)
-        ? { model }
-        : { model: modifyFields(model, { held: () => key }) },
-    Measured: ({ rows }) => {
-      // A poisoned reading is ignored; a row drawn again reports the height held.
-      const changed = rows.filter(
-        ({ key, height }) =>
-          Number.isFinite(height) &&
-          height >= 0 &&
-          !(Object.hasOwn(model.heights, key) && model.heights[key] === height),
-      )
-      return changed.length === 0
-        ? { model }
-        : {
-            model: withHeights(
+    }),
+    Measured: /* @__PURE__ */ Transition.opaque({
+      name: 'WindowList.Measured',
+      state: Model,
+      input: Schema.Struct({
+        rows: Schema.Array(Schema.Struct({ key: Schema.String, height: Schema.Number })),
+      }),
+      reads: ({ state, input }) => [
+        state.heights,
+        state.unmeasured,
+        state.estimatedHeight,
+        input.rows,
+      ],
+      writes: ({ state }) => [state.heights, state.estimatedHeight],
+      run: (model, { rows }) => {
+        // A poisoned reading is ignored; a row drawn again reports the height held.
+        const changed = rows.filter(
+          ({ key, height }) =>
+            Number.isFinite(height) &&
+            height >= 0 &&
+            !(Object.hasOwn(model.heights, key) && model.heights[key] === height),
+        )
+        return changed.length === 0
+          ? model
+          : withHeights(
               model,
               Object.fromEntries([
                 ...Object.entries(model.heights),
                 ...changed.map(({ key, height }) => [key, height] as const),
               ]),
-            ),
-          }
-    },
-  })
+            )
+      },
+    }),
+    Focused: /* @__PURE__ */ Transition.opaque({
+      name: 'WindowList.Focused',
+      state: Model,
+      input: Schema.Struct({ key: Schema.Option(Schema.String) }),
+      reads: ({ state, input }) => [state.held, input.key],
+      writes: ({ state }) => [state.held],
+      run: (model, { key }) =>
+        Equal.equals(key, model.held) ? model : modifyFields(model, { held: () => key }),
+    }),
+    Found: /* @__PURE__ */ Transition.make({
+      state: Model,
+      input: Schema.Struct({ index: Schema.Number }),
+      apply: () => [],
+      emits: ({ state, input }) => [
+        Transition.emit('Reveal', { id: state.id, index: input.index, align: 'center' as const }),
+      ],
+    }),
+    CompletedReveal: /* @__PURE__ */ Transition.make({
+      state: Model,
+      input: Schema.Struct({}),
+      apply: () => [],
+    }),
+  },
+})
+
+/** The list after `message`; the same Model when nothing changes. */
+export const update = (model: Model, message: Message): Update.Return<Model, Message> => {
+  const [next, emitted] = machine.update(
+    model,
+    Message.match<Machine.MessageOf<typeof machine.transitions>>(message, {
+      Placed: ({ top, height }) => ({ _tag: 'Placed', input: { top, height } }),
+      Measured: ({ rows }) => ({ _tag: 'Measured', input: { rows } }),
+      Focused: ({ key }) => ({ _tag: 'Focused', input: { key } }),
+      Found: ({ index }) => ({ _tag: 'Found', input: { index } }),
+      CompletedReveal: () => ({ _tag: 'CompletedReveal', input: {} }),
+    }),
+  )
+  return emitted.length === 0
+    ? { model: next }
+    : {
+        model: next,
+        commands: emitted.map(record =>
+          Reveal({ id: record.id, index: record.index, align: record.align }),
+        ),
+      }
+}
 
 /**
  * The Model without the heights of rows no longer in `keys` (and not the row
