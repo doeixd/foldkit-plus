@@ -164,12 +164,21 @@ export const machineTools = <
   Transitions extends Readonly<Record<string, unknown>>,
   Model,
   Principal,
->(options: {
-  readonly agent: BoundAgentTypes<Model, Principal>
-  readonly machine: Machine<State, Transitions>
-  readonly state: (model: Model) => State
-}): MachineTools<Transitions, Model, Principal> => {
-  const { machine, state } = options
+>(
+  options: {
+    readonly agent: BoundAgentTypes<Model, Principal>
+    readonly machine: Machine<State, Transitions>
+    /** Implementations for custom `Operation.define` operations called by transitions. */
+    readonly foreign?: Expr.ReaderOptions['foreign'] | undefined
+  } & ([Model] extends [State]
+    ? { readonly state?: ((model: Model) => State) | undefined }
+    : { readonly state: (model: Model) => State }),
+): MachineTools<Transitions, Model, Principal> => {
+  const { machine } = options
+  const state: (model: Model) => State =
+    options.state ?? ((model: Model) => model as unknown as State)
+  const readerOptions: Expr.ReaderOptions | undefined =
+    options.foreign === undefined ? undefined : { foreign: options.foreign }
   // A transition may be named `__proto__`, which a plain object would take as its prototype.
   const tools: Record<string, unknown> = Object.create(null)
 
@@ -192,7 +201,11 @@ export const machineTools = <
     // unknown, and this is the evaluation `machine.update` will run.
     const allows = (model: Model, decoded: unknown): boolean =>
       Result.isSuccess(
-        machine.dispatch(state(model), { _tag: tag, input: decoded } as MessageOf<Transitions>),
+        machine.dispatch(
+          state(model),
+          { _tag: tag, input: decoded } as MessageOf<Transitions>,
+          readerOptions,
+        ),
       )
 
     tools[key] = (

@@ -84,6 +84,16 @@ export interface Declarations<Fields extends Schema.Struct.Fields, Model, FieldK
     state?: Expr.PartialEnv<State>,
   ) => Verdict.Verdict<never>
   /**
+   * Whether a submit control bound to `transition` should be disabled: `true`
+   * when `can(model, transition, state)` is `False` (the guard provably
+   * refuses the values entered so far), `false` when `True` or `Unknown`.
+   */
+  readonly disabled: <State, Emit>(
+    model: Model,
+    transition: Transition.Transition<State, Schema.Struct.Type<Fields>, Emit>,
+    state?: Expr.PartialEnv<State>,
+  ) => boolean
+  /**
    * The input Schema's own rules over several keys (`Expr.refine` on the
    * struct) that the values entered so far break. A rule is broken only when
    * it is `False`, or cannot be evaluated over the values entered (the Schema
@@ -323,15 +333,18 @@ const of = <Fields extends Schema.Struct.Fields, Model, FieldKey extends string>
     return found
   }
 
+  const can: Declarations<Fields, Model, FieldKey>['can'] = (model, transition, state) =>
+    refusedIsFalse(
+      Transition.can(transition, {
+        input: known(model),
+        ...(state === undefined ? {} : { state }),
+      }),
+    )
+
   return {
     constraints,
-    can: (model, transition, state) =>
-      refusedIsFalse(
-        Transition.can(transition, {
-          input: known(model),
-          ...(state === undefined ? {} : { state }),
-        }),
-      ),
+    can,
+    disabled: (model, transition, state) => Verdict.isFalse(can(model, transition, state)),
     failures: model => broken(model).map(({ failure }) => failure),
     field: (model, key) => {
       const field = form.field(model, key)
