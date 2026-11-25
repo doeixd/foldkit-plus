@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { RemoteMessage } from '../src/index.js'
-import { aggregated } from '../src/aggregate.js'
+import { Maintained } from '../src/maintained/index.js'
 import { Data, Total, Unpaid, answered, counting, list, loadedWith } from './aggregateFixture.js'
 
 const CHANGES = 20
@@ -41,7 +41,7 @@ const perChange = (count: number) => {
   const { aggregate, calls } = counting(Total)
   const where = { where: Unpaid, input: {} }
   let model = loadedWith(count)
-  aggregated(Data, model, list, aggregate, where)
+  Maintained.value(Data, model, list, aggregate, where)
   const handed = () => calls.evaluated + calls.inserted + calls.deleted + calls.updated
   const loaded = handed()
   const milliseconds = new Map<string, number>()
@@ -50,7 +50,7 @@ const perChange = (count: number) => {
     for (const [kind, message] of round(`i${change * 3 + 1}`, change)) {
       model = Data.reduce(model, message)
       const started = performance.now()
-      aggregated(Data, model, list, aggregate, where)
+      Maintained.value(Data, model, list, aggregate, where)
       milliseconds.set(
         kind,
         (milliseconds.get(kind) ?? 0) + (performance.now() - started) / CHANGES,
@@ -72,14 +72,14 @@ describe('What the list and the query say', () => {
     })
     const where = { where: Counted, input: {} }
     const model = loadedWith(10)
-    const first = aggregated(Data, model, list, Total, where)
+    const first = Maintained.value(Data, model, list, Total, where)
     const once = encoded
     expect(once).toBeGreaterThan(0)
-    expect(aggregated(Data, model, list, Total, where)).toBe(first)
-    expect(aggregated(Data, { ...model, viewer: 'u1' }, list, Total, where)).toBe(first)
+    expect(Maintained.value(Data, model, list, Total, where)).toBe(first)
+    expect(Maintained.value(Data, { ...model, viewer: 'u1' }, list, Total, where)).toBe(first)
     expect(encoded).toBe(once)
     // Another object saying the same is worked out, and names the same kept value.
-    expect(aggregated(Data, model, list, Total, { where: Counted, input: {} })).toBe(first)
+    expect(Maintained.value(Data, model, list, Total, { where: Counted, input: {} })).toBe(first)
     expect(encoded).toBeGreaterThan(once)
   })
 })

@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsdown'
 
-// `metakit` and its subpaths: `foldkit-remote/aggregate` reads its types.
+// `foldkit-remote/maintained` accepts definitions from `metakit/aggregates`.
 const metakit = /^metakit(\/.*)?$/
 
 // One file per source module, relative imports left as written: a page then

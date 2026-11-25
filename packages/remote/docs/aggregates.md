@@ -3,10 +3,9 @@
 An invoices page shows the list and, above it, "Unpaid: $1,240.00". Working
 that out in the view means adding up every row on every render, so a page of
 ten thousand invoices adds ten thousand numbers each time anyone types,
-whether or not an invoice changed. `aggregated`, from
-`foldkit-remote/aggregate`, gives you the same number and keeps it between
-renders: when one invoice changes, it moves the total by that invoice's
-difference instead of adding everything up again.
+whether or not an invoice changed. `Maintained.value` from
+`foldkit-remote/maintained` keeps the total between renders and updates it
+from the invoices that changed.
 
 It works on a list the page has already loaded into its Model with
 `Data.query`, so it asks the server nothing. In the example below, `Data` is
@@ -16,6 +15,9 @@ the [Remote page](../README.md) shows. The aggregate itself (the
 rule "add up the cents") is written with `metakit`, a package that keeps rules
 as data (`pnpm add metakit`), whose `metakit/aggregates` entry has the six
 kinds this guide uses.
+
+`Unpaid` is the registered query that selects unpaid invoices. The example
+assumes you have loaded all pages of `invoices` and the fields `Unpaid` reads.
 
 <!-- docs-check define invoices
 import { Schema as S } from 'effect'
@@ -53,41 +55,40 @@ declare const model: Model
 ```ts
 import { Schema } from 'effect'
 import * as Rows from 'metakit/aggregates'
-import { aggregated } from 'foldkit-remote/aggregate'
+import { Maintained } from 'foldkit-remote/maintained'
 
 // What the list decodes each invoice to, and the sum of its cents.
 const Row = Schema.Struct({ cents: Schema.Int, status: Schema.String })
 const UnpaidCents = Rows.sum(Row, $ => $.cents)
 
-const unpaid = aggregated(Data, model, invoices, UnpaidCents, { where: Unpaid, input: {} })
+const unpaid = Maintained.value(Data, model, invoices, UnpaidCents, { where: Unpaid, input: {} })
 unpaid.value // 124000, the unpaid invoices' cents: $1,240.00
 unpaid.complete // true
 ```
 
-What happened: `aggregated` added `cents` over the invoices `Unpaid` picks and
-returned the total as `value`. Call it again with a changed Model and it
-follows only the rows that changed.
+`Maintained.value` adds `cents` over the invoices `Unpaid` picks and returns
+the total as `value`. It reads all loaded pages for the connection.
+`Row` describes the fields the sum can read, and `$` gives access to those
+fields. Call `Maintained.value` again with a changed Model to update the total.
 
-`invoices` is the list the page shows (`Data.query(AllInvoices, …)`), and
-`Unpaid` is a query you listed under `queries` in `Remote.make`, whose body
-picks the unpaid rows. `input` holds that query's inputs, none here. The same
-pair `filtered` takes, and `aggregated` counts exactly the rows `filtered` would
-return. Leave out the final `{ where, input }` object to count every row of the
-list.
+`invoices` is the list the page shows (`Data.query(AllInvoices, …)`).
+`input` holds the arguments to `Unpaid`, which takes none here. Leave out
+`{ where, input }` to count every loaded row whose selected fields are available.
 
 "The list" here is every row the page has loaded for that query and input,
 which can be more than one read of it shows. `invoices` asks for `first: 50`;
 if another part of the page loaded 120 rows of the same query, the aggregate
 is over the 120, though `invoices` itself shows 50 and says it has a next
-page. `filtered` counts the same way.
+page. The [`filtered` read](../README.md#filtering-a-loaded-list-without-asking-the-server)
+uses the same population to find matching rows.
 
 `complete` is `true` when the answer is about everything the server has for
 the query: every loaded row could be judged by `Unpaid`, every counted row
 holds the fields the list selects, the server has said there is no page before
 the first loaded row or after the last, and no gap lies between the loaded
 pages. It is `false` when any of those fails. `value` is then the total of the
-rows that could be counted, so a view can say "at least $1,240.00" or ask for
-the rest. A read's own window does not enter into it: with 120 rows loaded to
+rows that could be counted, so a view can label the total as partial or ask for
+the rest. With 120 rows loaded to
 both ends, `complete` is `true` beside a list that shows 50.
 
 ## The six kinds, and what each gives
@@ -127,12 +128,12 @@ and follows only the rows that changed:
 - a merged page or a refetch compares the list's keys and judges only rows it
   had not judged.
 
-It adds everything up again when it cannot tell which rows changed: a snapshot
-restored into the store, a change of who is signed in, a Model older than the
-last one it was given, or more than about a thousand store writes since it was
-last called. It also does when `Unpaid` reads another row (an
-`Expr.path` through a relation) or the list's `select` option joins one, on any
-change to the store, since a write to any row can then move which rows count.
+When it cannot trace the changes to rows, it reads the loaded list again and
+updates the aggregate from the differences. This can happen after restoring a
+snapshot, changing the viewer, passing an older Model, or leaving more than a
+thousand store writes between reads. The same applies when a filter or selection
+reads related rows and the store changes. If a sum temporarily overflows while
+applying changes, it evaluates the final rows to check whether the total fits.
 
 While any write in the domain is pending, each change to the store also walks
 the list's keys to see which rows are shown, as the list's own read does to
@@ -147,12 +148,17 @@ time. Define the last argument once too
 query say is worked out once for each such object, and again for a new one,
 though the kept total is the same.
 
-## What it is not
+## Keep the rows for display
 
-It counts the rows the page has loaded, never the rows the server has: with
-50 invoices loaded and more on the server, the total is over those 50, with
-`complete: false` until the last page is loaded; `complete` is how you tell a
-total over everything from a total over what is loaded so far. It includes what a pending
-write shows, as the list does, and moves back when the write fails. For
-"which rows" rather than "how much",
-use [`filtered`](../README.md#filtering-a-loaded-list-without-asking-the-server).
+Pass `Maintained.list` to keep the selected rows in the loaded connection's
+order. The array keeps its identity while the result rows and their order
+stay the same. `where` picks which rows to keep.
+
+<!-- docs-check standalone use invoices -->
+
+```ts
+import { Maintained } from 'foldkit-remote/maintained'
+
+const unpaidRows = Maintained.value(Data, model, invoices, Maintained.list, { where: Unpaid, input: {} })
+unpaidRows.value // the loaded unpaid invoice rows
+```

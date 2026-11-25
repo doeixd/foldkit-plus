@@ -13,7 +13,7 @@ import { Collation, Entity, Expr, Order, ReadFilter, Relation } from 'foldkit-en
 import { Surface } from 'foldkit-surface'
 import * as Rows from 'metakit/aggregates'
 import { describe, expect, it } from 'vitest'
-import { aggregated } from '../src/aggregate.js'
+import { Maintained } from '../src/maintained/index.js'
 import {
   Mutation,
   Query,
@@ -386,11 +386,11 @@ describe('A pending unfollow, with every follow of mine held (#409)', () => {
     // Only another list changes: the store, the pending layer and Home's own pages stay.
     const Posts = Rows.count(Schema.Struct({ id: Schema.String, body: Schema.String }))
     const pending = unfollowing(loaded())
-    expect(aggregated(Data, pending, home, Posts).value).toBe(2)
+    expect(Maintained.value(Data, pending, home, Posts).value).toBe(2)
     const held = follows(pending, ['f1'])
     expect(held.remote.entities).toBe(pending.remote.entities)
     expect(shown(held)).toEqual(['p1'])
-    expect(aggregated(Data, held, home, Posts).value).toBe(1)
+    expect(Maintained.value(Data, held, home, Posts).value).toBe(1)
   })
 
   it('keeps them while another follow of theirs is held', () => {

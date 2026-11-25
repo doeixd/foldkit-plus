@@ -1,5 +1,5 @@
 /**
- * A domain of invoices for `foldkit-remote/aggregate`: one list of every
+ * A domain of invoices for `foldkit-remote/maintained`: one list of every
  * invoice, a filter of the unpaid ones, and the six kinds of metakit
  * aggregate over the rows the list selects. `counting` wraps an aggregate so
  * a test can tell how many rows it was handed.
@@ -93,9 +93,9 @@ export const counting = <R>(
         calls.deleted += 1
         return aggregate.deleteDelta(row)
       },
-      updateDelta: (before, after) => {
+      replaceTotal: (total, before, after) => {
         calls.updated += 1
-        return aggregate.updateDelta(before, after)
+        return aggregate.replaceTotal(total, before, after)
       },
     },
   }
@@ -154,7 +154,10 @@ export const answered = (
 })
 
 /** The list's page as the server sends it: these rows, terminal at both ends unless `more`. */
-export const page = (ids: ReadonlyArray<string>, more = false): RemoteMessage => ({
+export const page = (
+  ids: ReadonlyArray<string>,
+  more = false,
+): Extract<RemoteMessage, { readonly _tag: 'ConnectionMerged' }> => ({
   _tag: 'ConnectionMerged',
   connection: list.ref.identity,
   page: {

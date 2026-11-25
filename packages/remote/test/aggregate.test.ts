@@ -1,14 +1,14 @@
 /**
  * An aggregate over a loaded list, kept from the rows that changed (#580).
  *
- * The law: after every Message, what `aggregated` keeps equals the aggregate
- * worked out from nothing over the rows `filtered` gives for the same list
- * and query, and `complete` is `filtered`'s. The walk checks it after each
- * step of seeded walks through server answers, live patches, pending writes
- * and their rollbacks, refetches and snapshots. The unit tests after it check
- * that the cheap path is the one taken: a row written moves the value by one
- * delta, and each case that cannot be followed row by row reads every row
- * again.
+ * The law: after every Message, what `Maintained.value` keeps equals the
+ * aggregate worked out from nothing over the rows `filtered` gives for the
+ * same list and query, and `complete` is `filtered`'s. The walk checks it
+ * after each step of seeded walks through server answers, live patches,
+ * pending writes and their rollbacks, refetches and snapshots. The unit tests
+ * after it check that the cheap path is the one taken: a row written moves
+ * the value by one delta, and each case that cannot be traced to writes
+ * compares every row and folds only those that differ.
  */
 import { Optic, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -16,7 +16,7 @@ import { Entity as DomainEntity, Expr, Order, Relation } from 'foldkit-entity'
 import { ModelRef, Projection, Surface } from 'foldkit-surface'
 import * as Rows from 'metakit/aggregates'
 import { describe, expect, it } from 'vitest'
-import { aggregated, type ListAggregate } from '../src/aggregate.js'
+import { Maintained, type ListAggregate } from '../src/maintained/index.js'
 import { filtered } from '../src/filter.js'
 import {
   ConnectionChange,
@@ -84,8 +84,8 @@ const recomputed = (model: Model, aggregate: ListAggregate<Row>, unpaid: boolean
 
 const kept = (model: Model, aggregate: ListAggregate<Row>, unpaid: boolean) =>
   unpaid
-    ? aggregated(Data, model, list, aggregate, { where: Unpaid, input: {} })
-    : aggregated(Data, model, list, aggregate)
+    ? Maintained.value(Data, model, list, aggregate, { where: Unpaid, input: {} })
+    : Maintained.value(Data, model, list, aggregate)
 
 /** Each aggregate, over every row and over the unpaid ones, that disagrees with its recomputation. */
 const disagreements = (model: Model): ReadonlyArray<string> =>
@@ -328,10 +328,12 @@ describe('The cheap path', () => {
   it('moves a sum by one delta when the server writes one row', () => {
     const { aggregate, calls } = counting(Total)
     const model = loadedWith(50)
-    const before = aggregated(Data, model, list, aggregate).value
+    const before = Maintained.value(Data, model, list, aggregate).value
     expect(calls).toEqual({ evaluated: 0, inserted: 50, deleted: 0, updated: 0 })
     const next = Data.reduce(model, answered({ i7: { cents: 999 } }))
-    expect(aggregated(Data, next, list, aggregate).value).toBe(before - centsOf(model, 'i7') + 999)
+    expect(Maintained.value(Data, next, list, aggregate).value).toBe(
+      before - centsOf(model, 'i7') + 999,
+    )
     expect(calls).toEqual({ evaluated: 0, inserted: 50, deleted: 0, updated: 1 })
   })
 
@@ -339,57 +341,63 @@ describe('The cheap path', () => {
     const { aggregate, calls } = counting(Total)
     const model = loadedWith(30)
     const where = { where: Unpaid, input: {} }
-    const before = aggregated(Data, model, list, aggregate, where).value
+    const before = Maintained.value(Data, model, list, aggregate, where).value
     const unpaid = Data.reduce(model, answered({ i0: { status: 'unpaid' } }))
-    expect(aggregated(Data, unpaid, list, aggregate, where).value).toBe(
+    expect(Maintained.value(Data, unpaid, list, aggregate, where).value).toBe(
       before + centsOf(model, 'i0'),
     )
     const paid = Data.reduce(unpaid, answered({ i1: { status: 'paid' } }))
-    expect(aggregated(Data, paid, list, aggregate, where)).toEqual(recomputed(paid, Total, true))
+    expect(Maintained.value(Data, paid, list, aggregate, where)).toEqual(
+      recomputed(paid, Total, true),
+    )
     expect(calls).toEqual({ evaluated: 0, inserted: 21, deleted: 1, updated: 0 })
   })
 
   it('moves by a pending write and back by its rollback, judging no other row', () => {
     const { aggregate, calls } = counting(Total)
     const model = loadedWith(40)
-    const before = aggregated(Data, model, list, aggregate).value
+    const before = Maintained.value(Data, model, list, aggregate).value
     const shown = Data.reduce(model, pending('bump', { cents: 999 }, 'i3'))
-    expect(aggregated(Data, shown, list, aggregate).value).toBe(before - centsOf(model, 'i3') + 999)
+    expect(Maintained.value(Data, shown, list, aggregate).value).toBe(
+      before - centsOf(model, 'i3') + 999,
+    )
     const rolledBack = Data.reduce(shown, failed('bump'))
-    expect(aggregated(Data, rolledBack, list, aggregate).value).toBe(before)
+    expect(Maintained.value(Data, rolledBack, list, aggregate).value).toBe(before)
     expect(calls).toEqual({ evaluated: 0, inserted: 40, deleted: 0, updated: 2 })
   })
 
   it('judges only the rows a merged page adds', () => {
     const { aggregate, calls } = counting(Total)
     const model = loadedWith(20)
-    aggregated(Data, model, list, aggregate)
+    Maintained.value(Data, model, list, aggregate)
     const ids = Array.from({ length: 20 }, (_, index) => `i${index}`)
     const grown = reduceAll(model, [
       page([...ids, 'x1']),
       answered({ x1: { cents: 5, status: 'paid', due: 1 } }),
     ])
-    expect(aggregated(Data, grown, list, aggregate)).toEqual(recomputed(grown, Total, false))
+    expect(Maintained.value(Data, grown, list, aggregate)).toEqual(recomputed(grown, Total, false))
     expect(calls).toEqual({ evaluated: 0, inserted: 21, deleted: 0, updated: 0 })
   })
 
   it('gives the same object back while nothing it counts changed', () => {
     const model = loadedWith(10)
-    const first = aggregated(Data, model, list, Total)
+    const first = Maintained.value(Data, model, list, Total)
     const unrelated = Data.reduce(model, answered({ elsewhere: { cents: 1 } }))
-    expect(aggregated(Data, unrelated, list, Total)).toBe(first)
+    expect(Maintained.value(Data, unrelated, list, Total)).toBe(first)
     const changed = Data.reduce(unrelated, answered({ i1: { cents: 1 } }))
-    expect(aggregated(Data, changed, list, Total)).not.toBe(first)
+    expect(Maintained.value(Data, changed, list, Total)).not.toBe(first)
   })
 
   it('keeps a minimum that a changed row still holds without reading the rows again', () => {
     const { aggregate, calls } = countingMin(Earliest)
     const model = Data.reduce(loadedWith(12), answered({ i5: { due: 0 } }))
-    expect(aggregated(Data, model, list, aggregate).value).toEqual(Option.some(0))
+    expect(Maintained.value(Data, model, list, aggregate).value).toEqual(Option.some(0))
     const lower = Data.reduce(model, answered({ i5: { due: -4 } }))
-    expect(aggregated(Data, lower, list, aggregate).value).toEqual(Option.some(-4))
+    expect(Maintained.value(Data, lower, list, aggregate).value).toEqual(Option.some(-4))
     const other = Data.reduce(lower, answered({ i6: { due: 40 } }))
-    expect(aggregated(Data, other, list, aggregate)).toEqual(recomputed(other, Earliest, false))
+    expect(Maintained.value(Data, other, list, aggregate)).toEqual(
+      recomputed(other, Earliest, false),
+    )
     expect(calls.evaluated).toBe(0)
   })
 
@@ -427,67 +435,74 @@ describe('What it is over', () => {
       NotFound: none,
     })
     expect(shown).toEqual(Option.some({ items: 25, hasNext: true }))
-    expect(aggregated(Data, model, list, Counted)).toEqual({ value: 50, complete: true })
-    expect(aggregated(Data, model, list, Counted)).toEqual(recomputed(model, Counted, false))
+    expect(Maintained.value(Data, model, list, Counted)).toEqual({ value: 50, complete: true })
+    expect(Maintained.value(Data, model, list, Counted)).toEqual(recomputed(model, Counted, false))
   })
 })
 
-describe('Read again whole when a change cannot be followed row by row', () => {
-  it('after a snapshot replaced the store', () => {
+/**
+ * Where a change cannot be traced to writes, every row is read again and
+ * compared with the one kept, and the aggregate is handed only the rows that
+ * differ: no row of an unchanged list is folded twice.
+ */
+describe('Compared row by row when a change cannot be traced to writes', () => {
+  it('after a snapshot replaced a connection and one of its rows', () => {
     const { aggregate, calls } = counting(Total)
     const model = loadedWith(25)
-    aggregated(Data, model, list, aggregate)
-    const ids = Array.from({ length: 25 }, (_, index) => `i${index}`)
+    Maintained.value(Data, model, list, aggregate)
     const restored = Data.reduce(model, {
       _tag: 'Hydrated',
       entities: writeEntities(emptyStore, [
         { key: 'Invoice:i2', values: { cents: 4, status: 'paid', due: 1 } },
       ]),
-      connections: { [list.ref.identity]: [ids.map(edgeOf)] },
+      connections: { [list.ref.identity]: [[edgeOf('i2')]] },
       merge: 'replace',
     })
-    expect(aggregated(Data, restored, list, aggregate)).toEqual(recomputed(restored, Total, false))
-    expect(calls.inserted).toBe(50)
+    expect(Maintained.value(Data, restored, list, aggregate)).toEqual(
+      recomputed(restored, Total, false),
+    )
+    // i2 changed; the other rows left the connection.
+    expect(calls).toEqual({ evaluated: 0, inserted: 25, deleted: 24, updated: 1 })
   })
 
   it('after a change of who is viewing', () => {
     const { aggregate, calls } = counting(Total)
     const model = loadedWith(25)
-    const first = aggregated(Data, model, list, aggregate)
-    expect(aggregated(Data, { ...model, viewer: 'u2' }, list, aggregate)).toEqual(first)
-    expect(calls.inserted).toBe(50)
+    const first = Maintained.value(Data, model, list, aggregate)
+    expect(Maintained.value(Data, { ...model, viewer: 'u2' }, list, aggregate)).toEqual(first)
+    expect(calls).toEqual({ evaluated: 0, inserted: 25, deleted: 0, updated: 0 })
   })
 
   it('after more writes than are remembered', () => {
     const { aggregate, calls } = counting(Total)
     const model = loadedWith(10)
-    aggregated(Data, model, list, aggregate)
+    Maintained.value(Data, model, list, aggregate)
     let later = model
     for (let write = 0; write < 1100; write++)
       later = Data.reduce(later, answered({ i4: { cents: write % 1000 } }))
-    expect(aggregated(Data, later, list, aggregate)).toEqual(recomputed(later, Total, false))
-    expect(calls).toEqual({ evaluated: 0, inserted: 20, deleted: 0, updated: 0 })
+    expect(Maintained.value(Data, later, list, aggregate)).toEqual(recomputed(later, Total, false))
+    expect(calls).toEqual({ evaluated: 0, inserted: 10, deleted: 0, updated: 1 })
   })
 
   it('when a Model earlier than the last one read is read', () => {
     const { aggregate, calls } = counting(Total)
     const model = loadedWith(10)
     const later = Data.reduce(model, answered({ i4: { cents: 1 } }))
-    aggregated(Data, model, list, aggregate)
-    aggregated(Data, later, list, aggregate)
-    expect(aggregated(Data, model, list, aggregate)).toEqual(recomputed(model, Total, false))
-    expect(calls).toEqual({ evaluated: 0, inserted: 20, deleted: 0, updated: 1 })
+    Maintained.value(Data, model, list, aggregate)
+    Maintained.value(Data, later, list, aggregate)
+    expect(Maintained.value(Data, model, list, aggregate)).toEqual(recomputed(model, Total, false))
+    expect(calls).toEqual({ evaluated: 0, inserted: 10, deleted: 0, updated: 2 })
   })
 
   it('reads the counted rows when the row holding the minimum leaves, and only then', () => {
     const { aggregate, calls } = countingMin(Earliest)
     const model = Data.reduce(loadedWith(12), answered({ i5: { due: -1 } }))
-    aggregated(Data, model, list, aggregate)
+    Maintained.value(Data, model, list, aggregate)
     const notTheLeast = Data.reduce(model, answered({ i6: { due: null } }))
-    aggregated(Data, notTheLeast, list, aggregate)
+    Maintained.value(Data, notTheLeast, list, aggregate)
     expect(calls.evaluated).toBe(0)
     const leastGone = Data.reduce(notTheLeast, answered({ i5: { due: 33 } }))
-    expect(aggregated(Data, leastGone, list, aggregate)).toEqual(
+    expect(Maintained.value(Data, leastGone, list, aggregate)).toEqual(
       recomputed(leastGone, Earliest, false),
     )
     expect(calls.evaluated).toBe(12)
@@ -565,14 +580,15 @@ describe('Read again whole when a change cannot be followed row by row', () => {
       customer('c1', true),
       customer('c2', true),
     ].reduce(Bill.reduce, { remote: Remote.initial })
-    expect(aggregated(Bill, model, bills, BillTotal.aggregate, where).value).toBe(30)
+    expect(Maintained.value(Bill, model, bills, BillTotal.aggregate, where).value).toBe(30)
     // c2 is no bill of the list, and changes which bills count.
     const inactive = Bill.reduce(model, customer('c2', false))
-    expect(aggregated(Bill, inactive, bills, BillTotal.aggregate, where)).toEqual({
+    expect(Maintained.value(Bill, inactive, bills, BillTotal.aggregate, where)).toEqual({
       value: 10,
       complete: true,
     })
-    expect(BillTotal.calls.inserted).toBe(3)
+    // Compared whole: b2 left, and nothing was folded in again.
+    expect(BillTotal.calls).toEqual({ evaluated: 0, inserted: 2, deleted: 1, updated: 0 })
   })
 })
 
@@ -594,14 +610,16 @@ describe('What it refuses', () => {
       { select: DomainEntity.select(Invoice, { cents: true }), first: 5 },
     )
     expect(() =>
-      aggregated(
+      Maintained.value(
         Wide,
         { remote: Remote.initial },
         invoices,
         Rows.count(Schema.Struct({ cents: Schema.Int })),
         { where: OverOther, input: {} },
       ),
-    ).toThrow('query "OverOther" is over "Other", but the list is of "Invoice"')
+    ).toThrow(
+      '[foldkit-remote] maintained: query "OverOther" is over "Other", but the list is of "Invoice", so it cannot pick the list\'s rows. Pass a query over "Invoice" as `where`.',
+    )
   })
 })
 

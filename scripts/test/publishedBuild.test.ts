@@ -440,16 +440,17 @@ test('a page keeps no metakit for a Surface without declared writes, and no writ
 }, 240_000)
 
 /**
- * Remote's kept aggregates read metakit's types only, from an entry of their
- * own: a page reading Remote keeps neither that entry nor metakit, and one
- * reading `foldkit-remote/aggregate` keeps no metakit. Broken by hand: a
- * value import of `metakit/aggregates` read at the top of `src/aggregate.ts`
- * turned the second row red, and an import of `aggregated` read at the top of
- * `src/remote.ts` the first.
+ * Remote keeps its maintained values behind a separate entry. Both entries
+ * keep the page's metakit module budget, including when a page keeps a list
+ * without supplying an aggregate from `metakit/aggregates`.
  */
 test.each([
   ['index', `import { Remote } from 'pkg'\nexport const used = Remote.make`, 'remote'],
-  ['aggregate', `import { aggregated } from 'pkg'\nexport const used = aggregated`, 'aggregate'],
+  [
+    'maintained/index',
+    `import { Maintained } from 'pkg'\nexport const used = Maintained.value`,
+    'maintained/definition',
+  ],
 ] as const)(
   'a page reading foldkit-remote/%s keeps no metakit module the plan keeps off a page, built or source',
   async (file, page, kept) => {
@@ -462,9 +463,9 @@ test.each([
     const source = await modules(join(packages, 'remote', 'src', `${file}.ts`))
     expect(built.some(id => id.endsWith(`/dist/${kept}.js`))).toBe(true)
     expect(source.some(id => id.endsWith(`/remote/src/${kept}.ts`))).toBe(true)
-    const aggregate = /\/(dist|remote\/src)\/aggregate\.(js|ts)$/
+    const maintained = /\/(dist|remote\/src)\/maintained\//
     const forbidden = (id: string) =>
-      metakitKeptOffAPage(id) || (file === 'index' && aggregate.test(id))
+      metakitKeptOffAPage(id) || (file === 'index' && maintained.test(id))
     expect([...built, ...source].filter(forbidden)).toEqual([])
   },
   120_000,

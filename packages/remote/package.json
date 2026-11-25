@@ -32,11 +32,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./aggregate": {
-      "foldkit-plus:source": "./src/aggregate.ts",
-      "types": "./dist/aggregate.d.ts",
-      "import": "./dist/aggregate.js"
-    },
     "./filter": {
       "foldkit-plus:source": "./src/filter.ts",
       "types": "./dist/filter.d.ts",
@@ -46,6 +41,11 @@
       "foldkit-plus:source": "./src/live.ts",
       "types": "./dist/live.d.ts",
       "import": "./dist/live.js"
+    },
+    "./maintained": {
+      "foldkit-plus:source": "./src/maintained/index.ts",
+      "types": "./dist/maintained/index.d.ts",
+      "import": "./dist/maintained/index.js"
     },
     "./outbox": {
       "foldkit-plus:source": "./src/outbox.ts",

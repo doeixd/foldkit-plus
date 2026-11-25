@@ -1,8 +1,8 @@
 /**
- * Which rows a write changed, for `foldkit-remote/aggregate` (#580): each write in
+ * Which rows a write changed, for `foldkit-remote/maintained` (#580): each write in
  * `store.ts` reports the copy, its source and the keys it replaced. A store made any
  * other way reports nothing, and a reader then reads the whole store again. Nothing
- * listens until an aggregate asks to.
+ * listens until a maintained value asks to.
  */
 import type { EntityEntry, EntityKey, EntityStore } from './store.js'
 

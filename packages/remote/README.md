@@ -1797,7 +1797,7 @@ The server stays authoritative for which rows exist.
 For a total, a count, or the smallest value of those same rows, kept up to
 date from the rows that change rather than added up again on every render, see
 [Show a total over a list you already loaded](./docs/aggregates.md)
-(`aggregated` from `foldkit-remote/aggregate`).
+(`Maintained.value` from `foldkit-remote/maintained`).
 
 ### Judging the rows you already hold
 

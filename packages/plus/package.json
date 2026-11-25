@@ -613,11 +613,6 @@
       "types": "./dist/remote.d.mts",
       "import": "./dist/remote.mjs"
     },
-    "./remote/aggregate": {
-      "foldkit-plus:source": "./src/remote/aggregate.ts",
-      "types": "./dist/remote/aggregate.d.mts",
-      "import": "./dist/remote/aggregate.mjs"
-    },
     "./remote/filter": {
       "foldkit-plus:source": "./src/remote/filter.ts",
       "types": "./dist/remote/filter.d.mts",
@@ -627,6 +622,11 @@
       "foldkit-plus:source": "./src/remote/live.ts",
       "types": "./dist/remote/live.d.mts",
       "import": "./dist/remote/live.mjs"
+    },
+    "./remote/maintained": {
+      "foldkit-plus:source": "./src/remote/maintained.ts",
+      "types": "./dist/remote/maintained.d.mts",
+      "import": "./dist/remote/maintained.mjs"
     },
     "./remote/outbox": {
       "foldkit-plus:source": "./src/remote/outbox.ts",

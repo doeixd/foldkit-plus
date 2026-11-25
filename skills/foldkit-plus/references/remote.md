@@ -1684,19 +1684,15 @@ Met in applications on this stack: what failed, and what to do instead.
 
 ## A kept aggregate over a loaded list
 
-`aggregated(Data, model, over, aggregate, { where, input })` from
-`foldkit-remote/aggregate` folds a `metakit/aggregates` value (`Rows.sum`,
-`count`, `min`, `max`, `every`, `any`) over exactly the rows `filtered` gives
-(`where` optional: every row of the list), returning `{ value, complete }` with
-`filtered`'s `complete`. It keeps the value between calls and moves it by the
-rows that changed (a write, a live patch, a pending write and its rollback, a
-row entering or leaving `where`); it adds everything up again after a restored
-snapshot, a viewer change, a Model older than the last, about a thousand
-unread store writes, or any store change when `where` or the Selection reads
-another row. Like `filtered`, it is over every row loaded for the query, not
-the window of the read passed as `over`: with 120 rows loaded, an `over` that
-asks `first: 50` shows 50 and the aggregate is over 120, `complete` once the
-loaded rows reach both ends with no gap.
+`Maintained.value(Data, model, over, definition, { where, input })` from
+`foldkit-remote/maintained` updates a value from the rows that changed. Pass
+a `metakit/aggregates` definition for a sum, count, minimum, maximum, `every`
+or `any`. Pass `Maintained.list` to keep the rows in the connection's order.
+The optional `where` query picks which rows count. The result is
+`{ value, complete }`, with `filtered`'s completeness rules. With 120 rows
+loaded for a query, the value covers all 120 even if `over` asks for 50.
+When a change cannot be traced to rows, such as after restoring a snapshot,
+Remote compares the loaded rows and updates the value from their differences.
 
 <!-- docs-check standalone
 import { Schema as S } from 'effect'
@@ -1719,14 +1715,15 @@ declare const model: typeof Model.Type
 ```ts
 import { Schema } from 'effect'
 import * as Rows from 'metakit/aggregates'
-import { aggregated } from 'foldkit-remote/aggregate'
+import { Maintained } from 'foldkit-remote/maintained'
 
 // Once, at module level: the kept value belongs to this aggregate value.
 const UnpaidCents = Rows.sum(Schema.Struct({ cents: Schema.Int }), $ => $.cents)
-const { value, complete } = aggregated(Data, model, invoices, UnpaidCents, {
+const { value, complete } = Maintained.value(Data, model, invoices, UnpaidCents, {
   where: Unpaid,
   input: {},
 })
+// value is the total in cents for the loaded unpaid invoices.
 ```
 
 Mistakes: an aggregate made in the view is new each render and adds up from
