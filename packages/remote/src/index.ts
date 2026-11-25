@@ -7,6 +7,7 @@
  */
 export * from './can.js'
 export { storeRowPath } from './storePath.js'
+export { dependentQuery, type DependentQuery, type DependentQueryOptions } from './dependent.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
 export {

@@ -21,6 +21,16 @@ export {
   type ClassifyOptions,
   type RescanReportEntry,
 } from './classify.js'
+export {
+  INDEX_THRESHOLD,
+  makeOrderIndex,
+  makeReverseIndex,
+  maybeOrderIndex,
+  maybeReverseIndex,
+  type OrderEntry,
+  type OrderIndex,
+  type ReverseIndex,
+} from './indexes.js'
 export type { AggregateValue, ListAggregate } from './aggregate.js'
 export type { Definition, ListDefinition, MaintainedValue, ValueOf } from './definition.js'
 export type { MaintainedWhere } from './deltas.js'
