@@ -44,16 +44,14 @@
    - **Bout 6.12:** Run `scripts/phase6-baseline.mjs` & `scripts/bundle-budget.mjs` (two runs) and record measurements in `docs/design/metakit-unification-LEDGER.md` (targets: < 20 kB compressed script before first press, < 200 ms blocking, 0 rebuilt elements, envelope <= 10,741 B).
 
 ### Large Remaining Phases
-5. **Phase 4 Part B (Maintained Values & 100k-Row Placement — Bouts 4.13–4.24):**
-   - Already done: Bout 4.2 (`foldkit-remote/maintained` row deltas, aggregates, ordered lists; commits `f414a1d42`, `c2b4d08c0`) and Bout 4.13 partial (comparison-count bench & linear scan; `aa6b81d99`, `36a7643f9`).
-   - **Bout 4.13 (finish) & 4.16:** Binary-search placement over validated order keys (`packages/remote/src/layers.ts`, `placement.ts`) + indexes above 400 rows (`packages/remote/src/maintained/index*.ts`). Gate: <= 17 comparisons and < 16 ms pending placement at 100,000 rows.
-   - **Bout 4.14:** Coverage (`packages/remote/src/maintained/coverage.ts`).
-   - **Bout 4.15:** Offline `asOf` (`packages/remote/src/maintained/asOf.ts`, `persist.ts`).
+5. **Phase 4 Part B (Maintained Values & 100k-Row Placement — Bouts 4.16–4.24):**
+   - Already done: Bout 4.2 (`foldkit-remote/maintained` row deltas, aggregates, ordered lists; `f414a1d42`, `c2b4d08c0`), Bout 4.13 (binary-search placement: **17 comparisons, 2.8 ms median at 100k rows**; `d2bded751`), and Bouts 4.14, 4.15, 4.22 (`coverage.ts`, `asOf.ts`, `classify.ts` + `rescanReport`).
+   - **Bout 4.16:** Order/reverse indexes above 400 rows (`packages/remote/src/maintained/index*.ts`) + threshold bench at 25/100/400/5k/100k rows.
    - **Bout 4.17:** Server totals & Postgres parent-row lock (`packages/remote-drizzle/src/index.ts`, `packages/durable/src/journal.ts`). Gate: one of two overdrawing transfers refused on Postgres.
    - **Bout 4.18:** Durable Object change replay (`packages/durable/src`).
    - **Bout 4.19:** Dependent queries (`packages/remote/src/domain.ts`).
-   - **Bout 4.20–4.22:** Fold kinds (`maintained/fold.ts`), lists & joins (`maintained/list.ts`, `join.ts`), `classify` (`maintained/classify.ts`).
-   - **Bout 4.23:** Rescan report & differentials (`packages/remote/test/maintained*.ts`).
+   - **Bout 4.20–4.21:** Additional fold kinds (`maintained/fold.ts`), lists & joins (`maintained/list.ts`, `join.ts`).
+   - **Bout 4.23:** Rescan report over proof examples & differentials (`packages/remote/test/maintained*.ts`).
    - **Bout 4.24:** Phase 4 Part B adversarial review + fixes.
 
 6. **Phase 7 (Script Cut Along Messages — Bouts 7.1–7.10):**
