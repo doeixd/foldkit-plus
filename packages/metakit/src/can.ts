@@ -20,10 +20,11 @@ import * as Verdict from './verdict.js'
 export const can = <State, Input, Emit, Supplied>(
   transition: Transition<State, Input, Emit, Supplied>,
   partial: Expr.PartialEnv<TransitionEnv<State, Input, Supplied>>,
+  options?: Expr.ReaderOptions,
 ): Verdict.Verdict<never> => {
   // A list fold loads only its evaluation; a guard judged in part needs its judgement too.
   loadRows()
-  return judgeNode(transition.when.node, partial)
+  return judgeNode(transition.when.node, partial, options?.foreign)
 }
 
 // A tag may come from outside the types (an agent's tool call): `constructor`
@@ -53,10 +54,11 @@ export const canDispatch = <
   machine: Machine<State, Transitions>,
   tag: K,
   partial: PartialDispatch<State, Transitions[NoInfer<K>]>,
+  options?: Expr.ReaderOptions,
 ): Verdict.Verdict<never> =>
   Option.match(transitionOf(machine, tag), {
     onNone: () => Verdict.False(),
-    onSome: transition => can(transition, partial),
+    onSome: transition => can(transition, partial, options),
   })
 
 /** Admission and client message construction for a machine's registered arm. */

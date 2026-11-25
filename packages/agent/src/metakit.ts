@@ -195,7 +195,9 @@ export const machineTools = <
 
     const available = (model: Model): boolean =>
       // A whole state is a partial one; the conditional type cannot see that of a generic `State`.
-      !Verdict.isFalse(canDispatch(machine, tag, { state: state(model) as Expr.PartialEnv<State> }))
+      !Verdict.isFalse(
+        canDispatch(machine, tag, { state: state(model) as Expr.PartialEnv<State> }, readerOptions),
+      )
 
     // Evaluated, not judged: with the whole input there is nothing left
     // unknown, and this is the evaluation `machine.update` will run.

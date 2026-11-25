@@ -64,6 +64,8 @@ export interface DeclaredOptions<Fields extends Schema.Struct.Fields> {
    * input has such a rule: `Declared.of` refuses one it would show as nothing.
    */
   readonly unworded?: (failure: RuleFailure<Fields>) => string
+  /** Implementations for custom `Operation.define` operations called by transition guards. */
+  readonly foreign?: Expr.ReaderOptions['foreign'] | undefined
 }
 
 /** A form's declarations, read once from its input Schema. */
@@ -333,12 +335,18 @@ const of = <Fields extends Schema.Struct.Fields, Model, FieldKey extends string>
     return found
   }
 
+  const readerOptions: Expr.ReaderOptions | undefined =
+    options.foreign === undefined ? undefined : { foreign: options.foreign }
   const can: Declarations<Fields, Model, FieldKey>['can'] = (model, transition, state) =>
     refusedIsFalse(
-      Transition.can(transition, {
-        input: known(model),
-        ...(state === undefined ? {} : { state }),
-      }),
+      Transition.can(
+        transition,
+        {
+          input: known(model),
+          ...(state === undefined ? {} : { state }),
+        },
+        readerOptions,
+      ),
     )
 
   return {

@@ -2,6 +2,7 @@ import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Ord, Path, Transition } from 'metakit'
 import * as Machine from 'metakit/machine'
+import * as Operation from 'metakit/operation'
 import { describe, expect, it } from 'vitest'
 import { Agent } from '../src/index.js'
 import { machineTools } from '../src/metakit.js'
@@ -60,5 +61,50 @@ describe('foldkit-agent/metakit machineTools over composed Machine (Bout 3.7)', 
     // When left.count === 0 and right.count === 2, only right_dec is available.
     const listed = Effect.runSync(runtime.messages.available)
     expect(listed.map(c => c.name)).toEqual(['right_dec'])
+  })
+
+  it('forwards foreign implementations to canDispatch so available respects foreign guards (M6)', () => {
+    const isPositive = Operation.define({
+      id: 'agent.isPositive',
+      version: 1,
+      args: [Schema.Int] as const,
+      returns: Schema.Boolean,
+      nulls: 'strict',
+    })
+    const ForeignMachine = Machine.make({
+      state: Counter,
+      transitions: {
+        Dec: Transition.make({
+          state: Counter,
+          input: Schema.Struct({}),
+          when: ({ state }) => isPositive(state.count),
+          apply: ({ state }) => [Transition.add(state.count, -1)],
+        }),
+      },
+    })
+    const CounterMsg = defineMessageUnion({ Dec: {} })
+    const CounterAgent = Agent.forModel<{ readonly count: number }>()
+    const Tools = machineTools({
+      agent: CounterAgent,
+      machine: ForeignMachine,
+      foreign: { 'agent.isPositive@1': { run: ([n]) => (n as number) > 0 } },
+    })
+    const definition = CounterAgent.make({
+      messages: CounterAgent.expose(CounterMsg, {
+        Dec: Tools.Dec('Decrement counter'),
+      }),
+    })
+    let model = { count: 0 }
+    const runtime = CounterAgent.bind({
+      definition,
+      host: {
+        model: () => model,
+        principal: () => undefined,
+        dispatch: () => {},
+      },
+    })
+    expect(Effect.runSync(runtime.messages.available)).toEqual([])
+    model = { count: 3 }
+    expect(Effect.runSync(runtime.messages.available).map(c => c.name)).toEqual(['dec'])
   })
 })

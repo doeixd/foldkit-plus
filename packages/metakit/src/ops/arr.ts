@@ -249,13 +249,27 @@ export const moveOp: Node.Op<'arr.move'> = {
         : typeof keyValue === 'number' && Object.is(keyValue, -0)
           ? 0
           : keyValue
-    let from = -1
+    const matched: Array<unknown> = []
+    const rest: Array<unknown> = []
     for (let i = 0; i < list.length; i++) {
       const item = list[i]
-      if (item === null || typeof item !== 'object') continue
+      if (item === null || typeof item !== 'object') {
+        rest.push(item)
+        continue
+      }
       const candidate = Object.hasOwn(item, keyField)
         ? (item as Record<string, unknown>)[keyField]
         : undefined
+      if (typeof candidate === 'string' && Node.holdsNul([candidate])) {
+        return Node.unportable('arr.move')
+      }
+      if (typeof candidate === 'number' && !Number.isFinite(candidate)) {
+        return new Node.Refusal({
+          reason: 'non-finite',
+          at: 'arr.move',
+          detail: `list element key is ${candidate}`,
+        })
+      }
       const normCand =
         typeof candidate === 'string'
           ? wellFormed(candidate)
@@ -263,16 +277,17 @@ export const moveOp: Node.Op<'arr.move'> = {
             ? 0
             : candidate
       if (normCand === normKey) {
-        from = i
-        break
+        matched.push(item)
+      } else {
+        rest.push(item)
       }
     }
-    if (from === -1) return list
-    const target = Math.max(0, Math.min(list.length - 1, toIndex))
-    if (from === target) return list
-    const next = list.slice()
-    const [moved] = next.splice(from, 1)
-    next.splice(target, 0, moved)
+    if (matched.length === 0) return list
+    const target = Math.max(0, Math.min(rest.length, toIndex))
+    const next = [...rest.slice(0, target), ...matched, ...rest.slice(target)]
+    if (next.length === list.length && next.every((item, i) => item === list[i])) {
+      return list
+    }
     return next
   },
 }

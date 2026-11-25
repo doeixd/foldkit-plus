@@ -1,6 +1,8 @@
-import { Result, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
+import * as Arr from '../src/ops/arr.js'
 import * as Bool from '../src/ops/bool.js'
+import * as Eq from '../src/ops/eq.js'
 import * as Machine from '../src/machine.js'
 import * as Path from '../src/path.js'
 import * as Transition from '../src/transition.js'
@@ -173,5 +175,60 @@ describe('Machine.each & Transition.move (Bout 3.2)', () => {
         Transition.commutes(EachApp.transitions.MovedTodo, EachApp.transitions.Renamed),
       ),
     ).toBe(true)
+
+    // Duplicate keys stay strictly idempotent (Bout 3.8 H2).
+    const dupes: AppModel = {
+      todos: [
+        { id: 'a', title: 'first', completed: false },
+        { id: 'b', title: 'mid', completed: false },
+        { id: 'a', title: 'second', completed: false },
+      ],
+    }
+    const [d1] = EachApp.update(dupes, { _tag: 'MovedTodo', input: { id: 'a', toIndex: 2 } })
+    expect(d1.todos.map(t => `${t.id}:${t.title}`)).toEqual(['b:mid', 'a:first', 'a:second'])
+    const [d2] = EachApp.update(d1, { _tag: 'MovedTodo', input: { id: 'a', toIndex: 2 } })
+    expect(d2).toBe(d1)
+  })
+
+  it('rewrites child emits, augments inputSchema with key, and avoids nested Rows capture (Bout 3.8 C1, H3, H4)', () => {
+    const Tagged = Schema.Struct({
+      id: Schema.String,
+      title: Schema.String,
+      primaryTag: Schema.String,
+      tags: Schema.Array(Schema.String),
+    })
+    const Box = Schema.Struct({ items: Schema.Array(Tagged) })
+    const ChildMachine = Machine.make({
+      state: Tagged,
+      transitions: {
+        Notify: Transition.make({
+          state: Tagged,
+          input: Schema.Struct({}),
+          when: ({ state }) => Arr.any(state.tags, tag => Eq.is(tag, state.primaryTag)),
+          apply: () => [],
+          emits: ({ state }) => [Transition.emit('Notified', { title: state.title })],
+        }),
+      },
+    })
+    const Parent = Machine.compose({
+      state: Box,
+      transitions: {},
+      children: { '': Machine.each(Path.from(Box).items, 'id', ChildMachine) },
+    })
+
+    // H3: inputSchema includes `id` and refuses wrong key types at runtime.
+    const schema = Option.getOrThrow(Parent.transitions.Notify.inputSchema)
+    expect(Schema.is(schema)({ id: '1' })).toBe(true)
+    expect(Schema.is(schema)({ id: 123 })).toBe(false)
+
+    // C1 + H4: nested Rows guard evaluates against the matched element AND emit reads element.title.
+    const res = Parent.dispatch(
+      { items: [{ id: '1', title: 'Buy milk', primaryTag: 'urgent', tags: ['urgent', 'home'] }] },
+      { _tag: 'Notify', input: { id: '1' } },
+    )
+    expect(Result.isSuccess(res)).toBe(true)
+    if (Result.isSuccess(res)) {
+      expect(res.success.emitted).toEqual([{ _tag: 'Notified', title: 'Buy milk' }])
+    }
   })
 })

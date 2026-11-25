@@ -6,7 +6,7 @@ export default [
     edits: [
       {
         file: '../src/machine.ts',
-        find: 'if (!hasKeyField(child.stateSchema.ast, key)) {',
+        find: 'if (Option.isNone(keyProp)) {',
         replace: 'if (false) {',
       },
     ],
@@ -17,8 +17,8 @@ export default [
     edits: [
       {
         file: '../src/ops/arr.ts',
-        find: 'if (from === target) return list',
-        replace: 'if (from === target) return list.slice()',
+        find: 'if (next.length === list.length && next.every((item, i) => item === list[i])) {',
+        replace: 'if (false) {',
       },
     ],
     tests,

@@ -7,14 +7,15 @@
  * Opaque transitions (for arbitrary JS) can coexist beside declarative
  * `Transition`s without breaking types.
  */
-import { Option, Result, SchemaAST } from 'effect'
-import type { Schema } from 'effect'
+import { Option, Result, Schema, SchemaAST } from 'effect'
 import type * as Expr from './expr.js'
 import * as Node from './node.js'
 import { rowsOver } from './ops/arr.js'
 import { andOp } from './ops/bool.js'
 import { wrap } from './ops/core.js'
 import { isOp } from './ops/eq.js'
+import { evalNode } from './ops/eval.js'
+import { readsOfNode } from './ops/reads.js'
 import * as Path from './path.js'
 import * as Transition from './transition.js'
 
@@ -206,25 +207,29 @@ export interface EachLifted<
   }
 }
 
-const rewriteStateToEach = (node: Node.Node): Node.Node =>
+const rewriteStateToEach = (
+  node: Node.Node,
+  projected: WeakMap<object, WeakMap<object, unknown>>,
+): Node.Node =>
   Node.$match(node, {
     Lit: lit => lit,
     Path: ({ segments, ast }) =>
       segments[0] === 'state'
         ? Node.Path({ segments: [Node.EACH, ...segments.slice(1)], ast })
         : Node.Path({ segments, ast }),
-    Call: ({ op, args }) => Node.Call({ op, args: args.map(rewriteStateToEach) }),
+    Call: ({ op, args }) =>
+      Node.Call({ op, args: args.map(arg => rewriteStateToEach(arg, projected)) }),
     If: ({ cond, then, otherwise }) =>
       Node.If({
-        cond: rewriteStateToEach(cond),
-        then: rewriteStateToEach(then),
-        otherwise: rewriteStateToEach(otherwise),
+        cond: rewriteStateToEach(cond, projected),
+        then: rewriteStateToEach(then, projected),
+        otherwise: rewriteStateToEach(otherwise, projected),
       }),
     Match: ({ on, cases, otherwise }) =>
       Node.Match({
-        on: rewriteStateToEach(on),
-        cases: cases.map(([v, b]) => [v, rewriteStateToEach(b)] as const),
-        otherwise: Option.map(otherwise, rewriteStateToEach),
+        on: rewriteStateToEach(on, projected),
+        cases: cases.map(([v, b]) => [v, rewriteStateToEach(b, projected)] as const),
+        otherwise: Option.map(otherwise, b => rewriteStateToEach(b, projected)),
       }),
     Opaque: ({ name, reads, run }) =>
       Node.Opaque({
@@ -238,42 +243,182 @@ const rewriteStateToEach = (node: Node.Node): Node.Node =>
             readonly input: unknown
             readonly supplied: unknown
           }
-          return run({ state: e[Node.EACH], input: e.input, supplied: e.supplied })
+          const elem = e[Node.EACH]
+          if (
+            env !== null &&
+            typeof env === 'object' &&
+            elem !== null &&
+            typeof elem === 'object'
+          ) {
+            let perElem = projected.get(env)
+            if (perElem === undefined) {
+              perElem = new WeakMap()
+              projected.set(env, perElem)
+            }
+            const known = perElem.get(elem)
+            if (known !== undefined) return run(known)
+            const childEnv = { state: elem, input: e.input, supplied: e.supplied }
+            perElem.set(elem, childEnv)
+            return run(childEnv)
+          }
+          return run({ state: elem, input: e.input, supplied: e.supplied })
         },
       }),
-    Rows: rows => Node.mapRows(rows, rewriteStateToEach, rewriteStateToEach),
+    Rows: rows =>
+      Node.mapRows(
+        rows,
+        source => rewriteStateToEach(source, projected),
+        body => rewriteStateToEach(body, projected),
+      ),
   })
 
-const hasKeyField = (ast: SchemaAST.AST, key: string): boolean => {
+const hasRows = (node: Node.Node): boolean =>
+  Node.$match(node, {
+    Lit: () => false,
+    Path: () => false,
+    Opaque: () => false,
+    Rows: () => true,
+    Call: ({ args }) => args.some(hasRows),
+    If: ({ cond, then, otherwise }) => hasRows(cond) || hasRows(then) || hasRows(otherwise),
+    Match: ({ on, cases, otherwise }) =>
+      hasRows(on) || cases.some(([, b]) => hasRows(b)) || Option.exists(otherwise, hasRows),
+  })
+
+const keyPropertyOf = (
+  ast: SchemaAST.AST,
+  key: string,
+): Option.Option<SchemaAST.PropertySignature> => {
   const unwrapped = SchemaAST.isSuspend(ast) ? ast.thunk() : ast
-  return (
-    SchemaAST.isObjects(unwrapped) &&
-    unwrapped.propertySignatures.some(property => property.name === key)
-  )
+  if (!SchemaAST.isObjects(unwrapped)) return Option.none()
+  const found = unwrapped.propertySignatures.find(property => property.name === key)
+  return found === undefined ? Option.none() : Option.some(found)
 }
+
+const extendInputSchema = (
+  inputSchema: Option.Option<Schema.Codec<unknown, unknown, never, never>>,
+  key: string,
+  keyAst: SchemaAST.AST,
+): Option.Option<Schema.Codec<unknown, unknown, never, never>> =>
+  Option.map(inputSchema, schema => {
+    const existing = (schema as { readonly fields?: Schema.Struct.Fields }).fields
+    const keyField = Schema.make(keyAst)
+    if (existing !== undefined) {
+      return Schema.Struct({
+        ...existing,
+        [key]: keyField,
+      }) as unknown as Schema.Codec<unknown, unknown, never, never>
+    }
+    return schema
+  })
+
+const rewriteFootprintReads = (
+  reads: Option.Option<ReadonlyArray<ReadonlyArray<string>>>,
+  listSegments: ReadonlyArray<string>,
+  key: string,
+): Option.Option<ReadonlyArray<ReadonlyArray<string>>> =>
+  Option.map(reads, paths => [
+    ['state', ...listSegments],
+    ['input', key],
+    ...paths.map(segs =>
+      segs[0] === 'state' ? ['state', ...listSegments, Path.EVERY, ...segs.slice(1)] : segs,
+    ),
+  ])
 
 const liftEachTransition = <Outer, Child, K extends string>(
   list: Path.Path<Outer, ReadonlyArray<Child>>,
   key: K,
+  keyAst: SchemaAST.AST,
   transition: Transition.Transition<Child, unknown, unknown, unknown>,
 ): Transition.Transition<Outer, unknown, unknown, unknown> => {
   const listNode = Node.Path({ segments: ['state', ...list.segments], ast: list.ast })
   const keyFieldNode = Node.Path({ segments: [Node.EACH, key], ast: Option.none() })
   const inputKeyNode = Node.Path({ segments: ['input', key], ast: Option.none() })
   const matchesKey = Node.Call({ op: isOp, args: [keyFieldNode, inputKeyNode] })
-  const childWhen = rewriteStateToEach(transition.when.node)
-  const elementCond = Node.Call({ op: andOp, args: [matchesKey, childWhen] })
-  const when = wrap<Transition.TransitionEnv<Outer, unknown, unknown>, boolean | null>(
-    rowsOver('any', listNode, { where: elementCond }),
-  )
+  const projected = new WeakMap<object, WeakMap<object, unknown>>()
+
+  const childFootprint = Transition.footprint(transition)
+  const liftedReads = rewriteFootprintReads(childFootprint.reads, list.segments, key)
+
+  const matchElement = (item: unknown, targetKey: unknown): item is Child =>
+    item !== null &&
+    typeof item === 'object' &&
+    Object.hasOwn(item, key) &&
+    (item as Record<string, unknown>)[key] === targetKey
+
+  const findMatchedElement = (
+    outer: Transition.TransitionEnv<Outer, Record<string, unknown>>,
+  ): Option.Option<Child> => {
+    const current = Path.get(list, outer.state)
+    if (Option.isNone(current) || !Array.isArray(current.value)) return Option.none()
+    const targetKey = outer.input[key]
+    for (const item of current.value) {
+      if (!matchElement(item, targetKey)) continue
+      const guard = evalNode(transition.when.node, {
+        state: item,
+        input: outer.input,
+        supplied: outer.supplied,
+      })
+      if (guard === true) return Option.some(item)
+    }
+    return Option.none()
+  }
+
+  const rewriteEmitNode = (node: Node.Node): Node.Node => {
+    const nodeReads = readsOfNode(node)
+    const readsState = Option.isNone(nodeReads) || nodeReads.value.some(segs => segs[0] === 'state')
+    if (!readsState) return node
+    return Node.Opaque({
+      name: `Machine.each.emit(${Path.format(list.segments)})`,
+      reads: rewriteFootprintReads(nodeReads, list.segments, key),
+      run: env => {
+        const outer = env as Transition.TransitionEnv<Outer, Record<string, unknown>>
+        return Option.match(findMatchedElement(outer), {
+          onNone: () => null,
+          onSome: item =>
+            evalNode(node, { state: item, input: outer.input, supplied: outer.supplied }),
+        })
+      },
+    })
+  }
+
+  const emits: ReadonlyArray<Transition.EmitSpec> = transition.emits.map(entry => ({
+    tag: entry.tag,
+    fields: entry.fields.map(([name, node]) => [name, rewriteEmitNode(node)] as const),
+    when: Option.map(entry.when, rewriteEmitNode),
+  }))
+
+  const nestedRowsOrPaths =
+    hasRows(transition.when.node) ||
+    transition.writes.some(w => w.target.length > 1 || hasRows(w.value.node))
+
+  const elementCond = Node.Call({
+    op: andOp,
+    args: [matchesKey, rewriteStateToEach(transition.when.node, projected)],
+  })
+
+  const when: Expr.Expr<
+    Transition.TransitionEnv<Outer, unknown, unknown>,
+    boolean | null
+  > = nestedRowsOrPaths
+    ? wrap(
+        Node.Opaque({
+          name: `Machine.each.when(${Path.format(list.segments)})`,
+          reads: liftedReads,
+          run: env =>
+            Option.isSome(
+              findMatchedElement(env as Transition.TransitionEnv<Outer, Record<string, unknown>>),
+            ),
+        }),
+      )
+    : wrap(rowsOver('any', listNode, { where: elementCond }))
 
   const writes: ReadonlyArray<Transition.WriteEquation<Outer, unknown, unknown, unknown>> =
     transition.writes.length === 0
       ? []
-      : transition.writes.every(w => w.target.length === 1)
+      : !nestedRowsOrPaths
         ? (() => {
             const fields = transition.writes.map(
-              w => [w.target[0]!, rewriteStateToEach(w.value.node)] as const,
+              w => [w.target[0]!, rewriteStateToEach(w.value.node, projected)] as const,
             )
             return [
               {
@@ -291,37 +436,39 @@ const liftEachTransition = <Outer, Child, K extends string>(
               value: wrap(
                 Node.Opaque({
                   name: `Machine.each(${Path.format(list.segments)})`,
-                  reads: Option.some([
-                    ['state', ...list.segments],
-                    ['input', key],
-                  ]),
+                  reads: liftedReads,
                   run: env => {
                     const outer = env as Transition.TransitionEnv<Outer, Record<string, unknown>>
                     const current = Path.get(list, outer.state)
                     if (Option.isNone(current) || !Array.isArray(current.value)) return null
                     const targetKey = outer.input[key]
                     let changed = false
-                    const next = current.value.map(item => {
-                      if (
-                        item === null ||
-                        typeof item !== 'object' ||
-                        !Object.hasOwn(item, key) ||
-                        (item as Record<string, unknown>)[key] !== targetKey
-                      ) {
-                        return item
+                    const next: Array<unknown> = []
+                    for (const item of current.value) {
+                      if (!matchElement(item, targetKey)) {
+                        next.push(item)
+                        continue
                       }
-                      const stepped = Transition.step(
-                        transition,
-                        item as Child,
-                        outer.input,
-                        outer.supplied,
-                      )
-                      if (Result.isSuccess(stepped) && stepped.success.state !== item) {
-                        changed = true
-                        return stepped.success.state
+                      const guard = evalNode(transition.when.node, {
+                        state: item,
+                        input: outer.input,
+                        supplied: outer.supplied,
+                      })
+                      if (guard !== true) {
+                        next.push(item)
+                        continue
                       }
-                      return item
-                    })
+                      const stepped = Transition.step(transition, item, outer.input, outer.supplied)
+                      if (Result.isFailure(stepped)) {
+                        return new Node.Refusal({
+                          reason: 'failed',
+                          at: 'Machine.each',
+                          detail: stepped.failure.reason,
+                        })
+                      }
+                      if (stepped.success.state !== item) changed = true
+                      next.push(stepped.success.state)
+                    }
                     return changed ? next : current.value
                   },
                 }),
@@ -333,11 +480,11 @@ const liftEachTransition = <Outer, Child, K extends string>(
   return {
     _tag: 'Transition',
     stateSchema: Option.none(),
-    inputSchema: transition.inputSchema,
+    inputSchema: extendInputSchema(transition.inputSchema, key, keyAst),
     suppliedSchema: transition.suppliedSchema,
     when,
     writes,
-    emits: transition.emits,
+    emits,
   }
 }
 
@@ -357,7 +504,8 @@ export const each = <
   key: K,
   child: Machine<Child, Transitions>,
 ): EachLifted<Outer, K, Child[K], Transitions> => {
-  if (!hasKeyField(child.stateSchema.ast, key)) {
+  const keyProp = keyPropertyOf(child.stateSchema.ast, key)
+  if (Option.isNone(keyProp)) {
     throw new Error(
       `[metakit] Machine.each: the element of "${Path.format(list.segments)}" has no key field "${key}"; give the field each element is identified by.`,
     )
@@ -369,6 +517,7 @@ export const each = <
         liftEachTransition(
           list,
           key,
+          keyProp.value.type,
           transition as Transition.Transition<Child, unknown, unknown, unknown>,
         ),
       ]),
