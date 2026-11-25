@@ -245,7 +245,7 @@ const rewriteStateToEach = (node: Node.Node): Node.Node =>
   })
 
 const hasKeyField = (ast: SchemaAST.AST, key: string): boolean => {
-  const unwrapped = ast._tag === 'Suspend' ? ast.thunk() : ast
+  const unwrapped = SchemaAST.isSuspend(ast) ? ast.thunk() : ast
   return (
     SchemaAST.isObjects(unwrapped) &&
     unwrapped.propertySignatures.some(property => property.name === key)
