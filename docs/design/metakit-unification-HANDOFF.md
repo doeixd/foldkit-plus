@@ -21,7 +21,7 @@
 | **Phase 0 & 1** | CI, kernel, soundness leftovers | Prior commits + `89fd7eb7a`, `be8cf74ef`, `bfd905329` |
 | **Phase 2** | One dependency graph (Bouts 2.1–2.6) | `8ac9a987e`, `09a4a00c4`, `a68afc7fd`, `85a169b01`, `4ae1faebc`, `92767cd4a`, `447b68cfd` |
 | **Phase 3 (3.1–3.8 — DONE)** | `Machine.each`, `Transition.move`, `Sheet`/`WindowList` machines, `domains-plus` 31/39 declared, `Bundle.make({ machine })`, Remote `storeRowPath` + `Can.withMachine`, Form `Declared.disabled`, Agent `machineTools` + Phase 3 audit fixes | `0a6d4aa98`, `bf4ea7d2f`, `d448df858`, `d78e57a09`, `9c16a1384`, `e71cdac1c`, `44c136b35`, `50dd7295f`, `d25530175` |
-| **Phase 4 Part A (DONE)** | Typed custom operations, `reduce`, `combine`, Entity migration, permissions example | Prior commits (`89fd7eb7a`, `be8cf74ef`, etc.) |
+| **Phase 4 Part A & B (DONE)** | Typed custom operations, `reduce`, `combine`, Entity migration, permissions example; maintained values (`foldkit-remote/maintained`: deltas, binary-search placement 17 comps / 2.8 ms at 100k rows, `coverage`, `asOf`, `classify`, `indexes`, `dependentQuery`, `Maintained.reduce`, `Maintained.join`, seeded differentials), Postgres `SELECT ... FOR UPDATE` parent lock + stored totals + D1 aggregate refusal, Durable Object `Journal.replay` + Phase 4 Part B audit fixes | Prior commits + `d2bded751`, `8986268f6`, `224000091`, `d4beb0f6f`, `c9b1c0172` |
 | **Phase 5 (DONE)** | Store capabilities & orderings + Bout 5.1 cleanup (`checksTargets` doc, `JournalStore === StoreCapabilities` type test) | `ab41873a8`, `12c2faa99` |
 | **Phase 6 (6.2–6.9, 6.13–6.15)** | Trusted-region browser probe, `liveSet`, `Binding`, `foldkit-ssr/binder`, hand-over in `SSR.hydrate`, `KeepTyped` extensions, `static.ts` (`BindingInStaticRegion`), security & deep-review audits + fixes | `9e3380092`, `b60aa8d4d`, `8771d6cc9`, `3b86818a8`, `ad6a70b90` |
 | **Phase 9 (9.1–9.6 — DONE)** | `metakit/language`, `foldkit-agent` `x-metakit-operations`, `metakit/store/check` + store adapter tests (`remote-server`, `remote-drizzle`, `durable`, `sync`), `Temporal.protocol`, `examples/metakit` permissions language + differential tests | `8e7337927`, `19be7425f`, `2628828a5`, `12c2faa99`, `acccb125b` |
@@ -44,17 +44,7 @@
    - **Bout 6.12:** Run `scripts/phase6-baseline.mjs` & `scripts/bundle-budget.mjs` (two runs) and record measurements in `docs/design/metakit-unification-LEDGER.md` (targets: < 20 kB compressed script before first press, < 200 ms blocking, 0 rebuilt elements, envelope <= 10,741 B).
 
 ### Large Remaining Phases
-5. **Phase 4 Part B (Maintained Values & 100k-Row Placement — Bouts 4.16–4.24):**
-   - Already done: Bout 4.2 (`foldkit-remote/maintained` row deltas, aggregates, ordered lists; `f414a1d42`, `c2b4d08c0`), Bout 4.13 (binary-search placement: **17 comparisons, 2.8 ms median at 100k rows**; `d2bded751`), and Bouts 4.14, 4.15, 4.22 (`coverage.ts`, `asOf.ts`, `classify.ts` + `rescanReport`).
-   - **Bout 4.16:** Order/reverse indexes above 400 rows (`packages/remote/src/maintained/index*.ts`) + threshold bench at 25/100/400/5k/100k rows.
-   - **Bout 4.17:** Server totals & Postgres parent-row lock (`packages/remote-drizzle/src/index.ts`, `packages/durable/src/journal.ts`). Gate: one of two overdrawing transfers refused on Postgres.
-   - **Bout 4.18:** Durable Object change replay (`packages/durable/src`).
-   - **Bout 4.19:** Dependent queries (`packages/remote/src/domain.ts`).
-   - **Bout 4.20–4.21:** Additional fold kinds (`maintained/fold.ts`), lists & joins (`maintained/list.ts`, `join.ts`).
-   - **Bout 4.23:** Rescan report over proof examples & differentials (`packages/remote/test/maintained*.ts`).
-   - **Bout 4.24:** Phase 4 Part B adversarial review + fixes.
-
-6. **Phase 7 (Script Cut Along Messages — Bouts 7.1–7.10):**
+5. **Phase 7 (Script Cut Along Messages — Bouts 7.1–7.10):**
    - **Bout 7.1 (Gate):** Measure transitions + Command code share via `scripts/bundle-report.mjs` after Phase 6.12 (threshold: >= 25% of script before first press; if below, cut by Surface & child machine only, keep failure handling).
    - **Bout 7.2:** Lazy child machines (`Machine.compose({ cart: () => import(...) })`) and `Transition.lazy` (`packages/metakit/src/{machine,transition}.ts`).
    - **Bout 7.3:** Manifest contract & Vite plugin (`packages/ssr/src/vite/manifest.ts`, absorbs `runtimeChunk.ts`).
