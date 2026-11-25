@@ -69,10 +69,10 @@ export default [
     'output: {},',
   ),
   edit(
-    'a description drops its laws',
+    'a description drops its claims',
     operators,
-    'laws: operator.laws.map(Law.describe),',
-    'laws: [],',
+    'claims: describeClaims(operator.claims),',
+    'claims: {},',
   ),
   edit(
     'a defined operator is described as primitive',

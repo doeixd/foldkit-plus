@@ -78,8 +78,8 @@ export default [
   ),
   edit(
     'a strict primitive operator is given nulls',
-    primitive,
-    "nulls: operator.nulls === 'strict' ? 'strict' : 'own',",
+    '../src/expr/operator.ts',
+    'nulls: descriptor.nulls,',
     "nulls: 'own',",
   ),
   // ---- logic and arithmetic --------------------------------------------------------

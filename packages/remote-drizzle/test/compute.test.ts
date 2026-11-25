@@ -308,19 +308,17 @@ describe('A computed assignment without a revision, under a ledger', () => {
         ledger: { table: ledgerTable, scope: principal => principal },
       }),
     )
-  const tested = async () => ({ memory, sql: sqlTable })
+  const commuting = { memory, sql: sqlTable }
 
-  it('is refused where it is served when an operator lacks commutative/associative claims or implementations', async () => {
+  it('requires an implementation in both the memory and SQL tables', () => {
     const message = 'write "Score" computes "score" and expects no revision'
     expect(() => served({ memory: Operators.kernel, sql: sqlTable })).toThrow(message)
     expect(() => served({ memory, sql: DrizzleOperators.kernel })).toThrow(message)
-    const ops = await tested()
-    expect(() => served(ops)).not.toThrow()
+    expect(() => served(commuting)).not.toThrow()
   })
 
-  it('is refused for an assignment not of its own field by an amount, whatever the evidence', async () => {
-    const evidence = await tested()
-    const Db = bind({ Part }, { Part: { table: sqliteParts } }, { operators: evidence })
+  it('requires the assigned field first and an amount independent of the row', () => {
+    const Db = bind({ Part }, { Part: { table: sqliteParts } }, { operators: commuting })
     const ledgered = writer<string>(Db.Part, {
       ledger: { table: ledgerTable, scope: principal => principal },
     })
@@ -347,9 +345,9 @@ describe('A computed assignment without a revision, under a ledger', () => {
     )
   })
 
-  it('is refused through a writer with no ledger, which cannot tell a retry from a second write', async () => {
+  it('is refused through a writer with no ledger, which cannot tell a retry from a second write', () => {
     const plain = writer(
-      bind({ Part }, { Part: { table: sqliteParts } }, { operators: await tested() }).Part,
+      bind({ Part }, { Part: { table: sqliteParts } }, { operators: commuting }).Part,
     )
     expect(() => RemoteServer.write(Score, plain)).toThrow(
       'write "Score" computes a field and expects no revision, so a retry could compute twice',
@@ -360,7 +358,7 @@ describe('A computed assignment without a revision, under a ledger', () => {
     sqlite.exec(`drop table if exists parts; drop table if exists write_ledger; ${schema}`)
     const server = RemoteServer.make<string, DrizzleDatabase>({
       entities: [],
-      mutations: [served(await tested())],
+      mutations: [served(commuting)],
     })
     expect(
       await Effect.runPromise(
@@ -379,7 +377,7 @@ describe('A computed assignment without a revision, under a ledger', () => {
     sqlite.exec(`drop table if exists parts; drop table if exists write_ledger; ${schema}`)
     const server = RemoteServer.make<string, DrizzleDatabase>({
       entities: [],
-      mutations: [served(await tested())],
+      mutations: [served(commuting)],
     })
     const send = (by: number, operation: string) =>
       Effect.runPromise(
@@ -399,15 +397,16 @@ describe('A computed assignment without a revision, under a ledger', () => {
   })
 })
 
-describe('Associativity unlessRefused does not admit a write with no revision', () => {
-  it('refuses a write with no revision when associativity is only unlessRefused', () => {
+describe('Claims for a computed assignment without a revision', () => {
+  it.each([
+    ['associativity alone', { associative: true }],
+    ['commutativity alone', { commutative: true }],
+    ['conditional associativity', { commutative: true, associative: { unlessRefused: true } }],
+  ] as const)('refuses %s', (_, claims) => {
     const addSome = Expr.operator('acme.addSome', {
       input: [Schema.Int, Schema.Int],
       output: Schema.Int,
-      claims: {
-        commutative: true,
-        associative: { unlessRefused: true },
-      },
+      claims,
     })
     const tables = {
       memory: Operators.memory(Operators.implement(addSome, (left, right) => left + right)),

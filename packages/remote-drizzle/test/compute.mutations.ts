@@ -11,7 +11,6 @@ const remoteTests = [
   'packages/remote/test/operators.test.ts',
 ]
 const writerFile = '../src/index.ts'
-const operatorsFile = '../src/operators.ts'
 const server = '../../remote-server/src/index.ts'
 const guard = '../../guard/src/server.ts'
 const edit = (name: string, file: string, find: string, replace: string, tests: Array<string>) => ({
@@ -72,17 +71,31 @@ export default [
     drizzleTests,
   ),
   edit(
-    "the SQL table's evidence is not asked for",
+    'commuting writes skip SQL implementation lookup',
     writerFile,
-    'tested(binding.operators.sql.evidence, kind),',
-    'true,',
+    'binding.operators.sql.has(operator) &&',
+    '',
     drizzleTests,
   ),
   edit(
-    "the memory table's evidence is not asked for",
+    'commuting writes skip memory implementation lookup',
     writerFile,
-    'tested(binding.operators.memory.evidence, kind) &&',
-    'true &&',
+    'binding.operators.memory.has(operator) &&',
+    '',
+    drizzleTests,
+  ),
+  edit(
+    'commuting writes skip the commutativity claim',
+    writerFile,
+    'operator.claims.commutative === true &&',
+    '',
+    drizzleTests,
+  ),
+  edit(
+    'commuting writes accept conditional associativity',
+    writerFile,
+    'operator.claims.associative === true',
+    'operator.claims.associative !== undefined',
     drizzleTests,
   ),
   {
@@ -97,36 +110,6 @@ export default [
     ],
     tests: drizzleTests,
   },
-
-  // ---- SQL evidence
-  edit(
-    'evidence of an operator the SQL table lacks is kept',
-    operatorsFile,
-    'fail(`evidence names ${record.operator}, which this table does not implement`)',
-    'operators[0]!',
-    drizzleTests,
-  ),
-  edit(
-    'evidence of an undeclared law is kept in SQL',
-    operatorsFile,
-    'if (!declared.includes(JSON.stringify(record.law))) {',
-    'if (false) {',
-    drizzleTests,
-  ),
-  edit(
-    'a replaced SQL implementation keeps its evidence',
-    operatorsFile,
-    '!names.has(operator) && !Law.witnessesNamed(law).some(name => names.has(name)),',
-    'true,',
-    drizzleTests,
-  ),
-  edit(
-    'a SQL merge drops evidence',
-    operatorsFile,
-    '[...left.evidence, ...right.evidence],',
-    '[],',
-    drizzleTests,
-  ),
 
   // ---- RemoteServer's registration
   edit(
@@ -237,27 +220,5 @@ export default [
     'return visibleOf(bound[Capability], bound.store.get(model), bound.operators)',
     'return visibleOf(bound[Capability], bound.store.get(model), Operators.kernel)',
     remoteTests,
-  ),
-  edit(
-    'a SQL table takes evidence Conformance.lawsBy did not make',
-    operatorsFile,
-    "if (record._tag === 'Tested' && !Operators.testedByRunner(record)) {",
-    'if (false) {',
-    drizzleTests,
-  ),
-  edit(
-    'a law narrowed to a domain admits a commuting write',
-    writerFile,
-    `record.law.kind === kind &&
-          record.law.domain === null,`,
-    'record.law.kind === kind,',
-    drizzleTests,
-  ),
-  edit(
-    'lawsBy marks nothing it made',
-    '../../entity/src/conformance/operator.ts',
-    "if (verdict._tag === 'Holds') verdict.evidence.forEach(stampRun)",
-    '',
-    drizzleTests,
   ),
 ]
