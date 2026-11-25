@@ -23,7 +23,7 @@ import {
   type Wrapped,
   type Wrapper,
 } from './link.js'
-import type { Invalid, Placed, TagOf } from './placed.js'
+import type { Invalid, LiftedOf, Placed, TagOf } from './placed.js'
 import type { Wiring } from './wiring.js'
 
 type P<B> = BundleParts<B>
@@ -57,7 +57,8 @@ export type PlacedBy<
   P<B>['Resources'],
   P<B>['Helpers'],
   Field,
-  TagOf<LinkMessage>
+  TagOf<LinkMessage>,
+  LiftedOf<Model, P<B>['Machine']>
 >
 
 export type CollectionBy<

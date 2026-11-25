@@ -41,7 +41,8 @@ type Rebuilt<
   Extract<
     Changes extends { Helpers: infer H } ? H : P<B>['Helpers'],
     HelperRecord<P<B>['Model'], P<B>['Message'], P<B>['OutMessage']>
-  >
+  >,
+  P<B>['Machine']
 >
 
 type UpdateOf<B> = (
@@ -59,7 +60,8 @@ const specOf = (
   return spec
 }
 
-const rebuild = (bundle: AnyBundle, changes: object): any => make({ ...specOf(bundle), ...changes })
+const rebuild = (bundle: AnyBundle, changes: object): any =>
+  make({ ...specOf(bundle), ...changes } as never)
 
 /** A new name, for the placement keys and the Module contract. */
 export const rename: {

@@ -11,5 +11,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   target: 'es2022',
-  deps: { neverBundle: [/^\.\.?\//, 'effect', /^foldkit(\/.*)?$/] },
+  deps: { neverBundle: [/^\.\.?\//, 'effect', /^foldkit(\/.*)?$/, /^metakit(\/.*)?$/] },
 })

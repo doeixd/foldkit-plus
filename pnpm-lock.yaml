@@ -2802,6 +2802,10 @@ importers:
         version: 7.0.2
 
   packages/bundle:
+    dependencies:
+      metakit:
+        specifier: workspace:*
+        version: link:../metakit
     devDependencies:
       '@effect/platform-browser':
         specifier: ^4.1.4
