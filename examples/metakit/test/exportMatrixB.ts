@@ -4,23 +4,33 @@
  */
 import {
   Item,
+  ItemId,
   Tier,
   Usd,
   aggregateDef,
   exprDef,
+  fnDef,
+  fnInfoDef,
+  fnSpecDef,
   langDef,
   machineDef,
   opDef,
   policyDef,
   relationDef,
+  setExprDef,
   transitionDef,
 } from './exportMatrixA.js'
 
 export const everything = {
   Usd,
+  ItemId,
   Tier,
   Item,
   exprDef,
+  setExprDef,
+  fnDef,
+  fnSpecDef,
+  fnInfoDef,
   transitionDef,
   machineDef,
   policyDef,

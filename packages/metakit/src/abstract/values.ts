@@ -92,8 +92,11 @@ export function notNaN(this: AbstractState, node: Node.Node): boolean {
     Path: path => Option.exists(this.fieldOf(path), info => info.kind !== 'number' || info.finite),
     // A number an operation gives is finite or refused (asked of separately); `coalesce` gives an operand.
     Call: ({ op, args }) => op.returns !== 'operand' || args.every(arg => notNaN.call(this, arg)),
-    If: () => false,
-    Match: () => false,
+    If: ({ then: thenNode, otherwise }) =>
+      notNaN.call(this, thenNode) && notNaN.call(this, otherwise),
+    Match: ({ cases, otherwise }) =>
+      cases.every(([, arm]) => notNaN.call(this, arm)) &&
+      Option.match(otherwise, { onNone: () => true, onSome: arm => notNaN.call(this, arm) }),
     Opaque: () => false,
     Rows: () => false,
   })

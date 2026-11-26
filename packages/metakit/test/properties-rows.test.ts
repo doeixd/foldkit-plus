@@ -74,6 +74,7 @@ describe('writeProperties', () => {
       'patchWhere',
       'include',
       'exclude',
+      'move',
     ])
   })
 
@@ -87,6 +88,7 @@ describe('writeProperties', () => {
     'patchWhere',
     'include',
     'exclude',
+    'move',
   ] as const)('checks a write of %s run twice against once', way => {
     expect(writeProperties[way].idempotent).toBeDefined()
     const report = Conformance.checkWriteProperties(way, writeProperties[way])

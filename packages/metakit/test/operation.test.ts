@@ -128,7 +128,7 @@ describe('Operation.define (Phase 4 bout 4.4)', () => {
         nulls: 'strict',
       }),
     ).toThrow(
-      '[metakit] Operation.define: "num.half" is under the core prefix "num."; choose an id outside bool., eq., null., ord., num., time., str., arr., rows.',
+      '[metakit] Operation.define: "num.half" is under the core prefix "num."; choose an id outside bool., eq., null., ord., num., time., str., arr., set., rows.',
     )
 
     expect(() =>

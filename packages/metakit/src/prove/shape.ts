@@ -140,6 +140,16 @@ const readShape = (
       present = [current]
       continue
     }
+    if (SchemaAST.isNull(current)) {
+      admitsNull = true
+      present = []
+      break
+    }
+    if (SchemaAST.isUndefined(current)) {
+      admitsUndefined = true
+      present = []
+      break
+    }
     if (SchemaAST.isUnion(current)) {
       if (current.types.some(SchemaAST.isNull)) admitsNull = true
       if (current.types.some(SchemaAST.isUndefined)) admitsUndefined = true

@@ -44,34 +44,90 @@ export const project = (written: Node.Node, rest: ReadonlyArray<string>): Node.N
     },
   })
 
+/** Resolve a read of `segments` after `writes`. When `nullCheckOnly` is true, a write strictly beneath `segments` cannot change whether `segments` is null. */
+const resolvePathAfterWrites = (
+  segments: ReadonlyArray<string>,
+  writes: ReadonlyArray<Transition.WriteEquation<never, never, unknown, never>>,
+  nullCheckOnly: boolean,
+): Option.Option<Node.Node> => {
+  if (segments[0] !== 'state') return Option.none()
+  const read = segments.slice(1)
+  for (const { target, value } of writes) {
+    if (Path.isPrefix(target, read)) {
+      return Option.some(
+        target.length === read.length ? value.node : project(value.node, read.slice(target.length)),
+      )
+    }
+    if (Path.isPrefix(read, target) && !nullCheckOnly) {
+      throw new Unsupported(
+        `a rule reads "${Path.format(read)}" whole and the transition writes "${Path.format(target)}" within it`,
+      )
+    }
+  }
+  return Option.none()
+}
+
 /**
  * `rule` over the state the writes leave. A write to a parent replaces what a
  * rule reads beneath it; a write beneath what a rule reads whole cannot be
- * followed, and is refused.
+ * followed (except under `null.isNull`/`null.isNotNull`, since writing a child
+ * field never changes whether its parent is null), and is refused.
  */
 const afterWrites = (
   rule: Node.Node,
   writes: ReadonlyArray<Transition.WriteEquation<never, never, unknown, never>>,
-): Node.Node =>
-  Node.substitutePaths(rule, segments => {
-    if (segments[0] !== 'state') return Option.none()
-    const read = segments.slice(1)
-    for (const { target, value } of writes) {
-      if (Path.isPrefix(target, read)) {
-        return Option.some(
-          target.length === read.length
-            ? value.node
-            : project(value.node, read.slice(target.length)),
+): Node.Node => {
+  const visit = (current: Node.Node, bound: ReadonlySet<string>): Node.Node =>
+    Node.$match(current, {
+      Lit: node => node,
+      Opaque: node => node,
+      Path: node =>
+        node.segments.length > 0 && bound.has(node.segments[0]!)
+          ? node
+          : Option.getOrElse(resolvePathAfterWrites(node.segments, writes, false), () => node),
+      Call: ({ op, args }) => {
+        if (
+          !Node.isForeign(op) &&
+          op.id === 'null.isNull' &&
+          args.length === 1 &&
+          Node.$is('Path')(args[0]!)
+        ) {
+          const arg = args[0]!
+          if (arg.segments.length > 0 && bound.has(arg.segments[0]!)) {
+            return Node.Call({ op, args: [arg] })
+          }
+          const replaced = Option.getOrElse(
+            resolvePathAfterWrites(arg.segments, writes, true),
+            () => arg,
+          )
+          return Node.Call({ op, args: [replaced] })
+        }
+        return Node.Call({ op, args: args.map(arg => visit(arg, bound)) })
+      },
+      If: ({ cond, then: thenNode, otherwise }) =>
+        Node.If({
+          cond: visit(cond, bound),
+          then: visit(thenNode, bound),
+          otherwise: visit(otherwise, bound),
+        }),
+      Match: ({ on, cases, otherwise }) =>
+        Node.Match({
+          on: visit(on, bound),
+          cases: cases.map(([v, arm]) => [v, visit(arm, bound)] as const),
+          otherwise: Option.map(otherwise, arm => visit(arm, bound)),
+        }),
+      Rows: rows => {
+        const innerBound = new Set(bound)
+        innerBound.add(Node.rowsEach(rows))
+        return Node.mapRows(
+          rows,
+          source => visit(source, bound),
+          body => visit(body, innerBound),
         )
-      }
-      if (Path.isPrefix(read, target)) {
-        throw new Unsupported(
-          `a rule reads "${Path.format(read)}" whole and the transition writes "${Path.format(target)}" within it`,
-        )
-      }
-    }
-    return Option.none()
-  })
+      },
+    })
+  return visit(rule, new Set())
+}
 
 const call = (op: Node.Op, ...args: ReadonlyArray<Node.Node>): Node.Node => Node.Call({ op, args })
 const lit = (value: unknown): Node.Node => Node.Lit({ value })
