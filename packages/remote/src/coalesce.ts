@@ -284,7 +284,7 @@ const inFlight = <A, E>() => {
         for (const key of keys) waiting.set(key, (waiting.get(key) ?? 0) + 1)
       }),
     release: (keys: ReadonlyArray<string>) =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
         const calls = new Set<Call<A, E>>()
         for (const key of keys) {
           const count = (waiting.get(key) ?? 1) - 1
@@ -293,7 +293,13 @@ const inFlight = <A, E>() => {
           const call = running.get(key)
           if (call !== undefined) calls.add(call)
         }
-        if (calls.size > 0) setTimeout(() => calls.forEach(cancelIfUnwanted), CANCEL_AFTER_MS)
+        if (calls.size > 0) {
+          yield* Effect.forkDetach(
+            Effect.sleep(CANCEL_AFTER_MS).pipe(
+              Effect.andThen(Effect.sync(() => calls.forEach(cancelIfUnwanted))),
+            ),
+          )
+        }
       }),
     /** Runs `effect` detached as the call settling `keys`; a settled call leaves the table. */
     start: (keys: ReadonlyArray<string>, effect: Effect.Effect<A, E>) =>

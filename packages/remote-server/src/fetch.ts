@@ -13,6 +13,7 @@
  */
 import {
   Cause,
+  Config,
   Deferred,
   Duration,
   Effect,
@@ -63,6 +64,25 @@ import {
 } from './edgeCache.js'
 import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
 import { unauthenticatedAnswer } from './refusal.js'
+
+/**
+ * Effect `Config` for `serveFetch` path and body/query limits. Load via any
+ * `ConfigProvider` (`REMOTE_PATH`, `REMOTE_MAX_BODY_BYTES`,
+ * `REMOTE_MAX_IDS_PER_ENTITY`, `REMOTE_MAX_DEPTH`) and spread into `serveFetch`.
+ */
+export const fetchLimitsConfig: Config.Config<{
+  readonly path: string
+  readonly maxBodyBytes: number
+  readonly maxIdsPerEntity: number
+  readonly maxDepth: number
+}> = Config.all({
+  path: Config.String('REMOTE_PATH').pipe(Config.withDefault('/remote')),
+  maxBodyBytes: Config.Int('REMOTE_MAX_BODY_BYTES').pipe(
+    Config.withDefault(DEFAULT_MAX_BODY_BYTES),
+  ),
+  maxIdsPerEntity: Config.Int('REMOTE_MAX_IDS_PER_ENTITY').pipe(Config.withDefault(1000)),
+  maxDepth: Config.Int('REMOTE_MAX_DEPTH').pipe(Config.withDefault(8)),
+})
 
 /** What `serveFetch` needs of the host runtime, per request. */
 export interface FetchConfig<P, R, Env, RP = never> {

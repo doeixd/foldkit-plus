@@ -1,7 +1,7 @@
-import { Context, Effect, Layer, ManagedRuntime, Schema } from 'effect'
+import { ConfigProvider, Context, Effect, Layer, ManagedRuntime, Schema } from 'effect'
 import { Entity, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
-import { serveFetch } from '../src/fetch.js'
+import { fetchLimitsConfig, serveFetch } from '../src/fetch.js'
 import { RemoteServer } from '../src/index.js'
 
 const Item = Entity.make('Item', Schema.Struct({ id: Schema.String, title: Schema.String }))
@@ -64,5 +64,27 @@ describe('serveFetch with shared ManagedRuntime & Effect.withSpan', () => {
     } finally {
       await runtime.dispose()
     }
+  })
+
+  it('loads serveFetch path and limits from Effect ConfigProvider via fetchLimitsConfig', async () => {
+    const provider = ConfigProvider.fromEnv({
+      env: {
+        REMOTE_PATH: '/api/rpc',
+        REMOTE_MAX_BODY_BYTES: '65536',
+        REMOTE_MAX_IDS_PER_ENTITY: '250',
+        REMOTE_MAX_DEPTH: '4',
+      },
+    })
+    const loaded = await Effect.runPromise(
+      Effect.gen(function* () {
+        return yield* fetchLimitsConfig
+      }).pipe(Effect.provide(ConfigProvider.layer(provider))),
+    )
+    expect(loaded).toEqual({
+      path: '/api/rpc',
+      maxBodyBytes: 65536,
+      maxIdsPerEntity: 250,
+      maxDepth: 4,
+    })
   })
 })
