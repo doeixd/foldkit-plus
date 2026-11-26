@@ -13,7 +13,7 @@
  * handover. This module is the server's side and the browser's
  * (`foldkit-ssr/client`) together.
  */
-import { Cause, Clock, Context, Effect, Exit, Layer, Option, Result, Schema } from 'effect'
+import { Cause, Clock, Config, Context, Effect, Exit, Layer, Option, Result, Schema } from 'effect'
 import {
   FOLDKIT_FLAGS_ATTRIBUTE,
   Rendered,
@@ -2362,6 +2362,18 @@ export const SSR = {
   robots,
   requestContext,
 }
+
+/**
+ * Effect `Config` for SSR page caching (`SSR_BUILD_ID`, `SSR_CACHE_CHECK`).
+ * Load via any `ConfigProvider` and pass to `cachedPages` / `renderPage`.
+ */
+export const ssrCacheConfig: Config.Config<{
+  readonly buildId: string
+  readonly check: boolean
+}> = Config.all({
+  buildId: Config.String('SSR_BUILD_ID').pipe(Config.withDefault('dev')),
+  check: Config.Boolean('SSR_CACHE_CHECK').pipe(Config.withDefault(false)),
+})
 
 export type { RequestContext } from './requestContext.js'
 

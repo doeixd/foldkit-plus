@@ -250,7 +250,7 @@ export const GuardServer = {
               return { ...record, values }
             },
           }
-        }),
+        }).pipe(Effect.withSpan('guard.readPlan', { attributes: { entity: entity.name } })),
       policy,
       [entity],
     )

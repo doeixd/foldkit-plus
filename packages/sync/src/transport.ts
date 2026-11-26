@@ -105,7 +105,7 @@ export const layerLoopback = (
       Effect.tryPromise({
         try: () => Promise.resolve(handler(cursor, pending, epoch)),
         catch: failure,
-      }),
+      }).pipe(Effect.withSpan('sync.exchange', { attributes: { transport: 'loopback' } })),
   })
 
 /** Wraps the promise-based client the replica already speaks. */
@@ -115,7 +115,7 @@ export const layerFromPromise = (transport: TransportClient): Layer.Layer<Transp
       Effect.tryPromise({
         try: () => transport.exchange(sequence(cursor), pending, epoch),
         catch: failure,
-      }),
+      }).pipe(Effect.withSpan('sync.exchange', { attributes: { transport: 'promise' } })),
   })
 
 /** Bridges the service back to the promise client the replica consumes. */

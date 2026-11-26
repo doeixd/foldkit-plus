@@ -13,7 +13,7 @@
  * (`Transition.lift`), SQL's guarded `UPDATE`, the checker, the solver, and
  * whether two transitions swap order (`Transition.commutes`).
  */
-import { Data, Option, Result, Schema } from 'effect'
+import { Data, Inspectable, Option, Pipeable, Result, Schema } from 'effect'
 import * as Node from './node.js'
 import {
   toNode,
@@ -154,8 +154,34 @@ export interface TransitionPostPaths<State, Input, Supplied> {
   readonly next: PathAccessor<TransitionPostEnv<State, Input, Supplied>, State>
 }
 
+/** Shared prototype giving every `Transition` Effect `Pipeable` and `Inspectable` support. */
+export const transitionProto = {
+  pipe(this: unknown) {
+    return Pipeable.pipeArguments(this, arguments)
+  },
+  toJSON(this: {
+    readonly writes: ReadonlyArray<{ readonly target: ReadonlyArray<string> }>
+    readonly emits: ReadonlyArray<{ readonly tag: string }>
+  }) {
+    return {
+      _id: 'metakit/Transition',
+      writes: this.writes.map(w => Path.format(w.target)),
+      emits: this.emits.map(e => e.tag),
+    }
+  },
+  toString(this: { readonly writes: ReadonlyArray<{ readonly target: ReadonlyArray<string> }> }) {
+    return `Transition(${this.writes.map(w => Path.format(w.target)).join(', ')})`
+  },
+  [Inspectable.NodeInspectSymbol](this: {
+    readonly writes: ReadonlyArray<{ readonly target: ReadonlyArray<string> }>
+  }) {
+    return `Transition(${this.writes.map(w => Path.format(w.target)).join(', ')})`
+  },
+}
+
 /** A guarded, single-step transition over `State`, `Input` and the `Supplied` values. */
-export interface Transition<State, Input, Emit = never, Supplied = NoSupplied> {
+export interface Transition<State, Input, Emit = never, Supplied = NoSupplied>
+  extends Pipeable.Pipeable {
   readonly _tag: 'Transition'
   readonly stateSchema: Option.Option<Schema.Codec<State>>
   readonly inputSchema: Option.Option<Schema.Codec<Input>>
@@ -384,8 +410,8 @@ export const make = <
             ),
           ),
         )
-  return {
-    _tag: 'Transition',
+  return Object.assign(Object.create(transitionProto), {
+    _tag: 'Transition' as const,
     stateSchema: Option.some(config.state as unknown as Schema.Codec<S['Type']>),
     inputSchema: Option.some(config.input as unknown as Schema.Codec<I['Type']>),
     suppliedSchema: Option.some(
@@ -398,7 +424,7 @@ export const make = <
       return { tag, fields, when }
     }),
     ...(Option.isSome(ensuresExpr) ? { ensures: ensuresExpr } : {}),
-  }
+  })
 }
 
 /** What `step` takes for a transition's supplied values: nothing for one that declares none. */

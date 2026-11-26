@@ -7,7 +7,7 @@
  * Opaque transitions (for arbitrary JS) can coexist beside declarative
  * `Transition`s without breaking types.
  */
-import { Option, Result, Schema, SchemaAST } from 'effect'
+import { Inspectable, Option, Pipeable, Result, Schema, SchemaAST } from 'effect'
 import type * as Expr from './expr.js'
 import * as Node from './node.js'
 import { rowsOver } from './ops/arr.js'
@@ -57,7 +57,28 @@ export type EmitOf<Transitions extends Readonly<Record<string, unknown>>> = Tran
   Transitions[keyof Transitions]
 >
 
-export interface Machine<State, Transitions extends Readonly<Record<string, unknown>>> {
+const machineProto = {
+  pipe(this: unknown) {
+    return Pipeable.pipeArguments(this, arguments)
+  },
+  toJSON(this: { readonly transitions: Readonly<Record<string, unknown>> }) {
+    return {
+      _id: 'metakit/Machine',
+      transitions: Object.keys(this.transitions),
+    }
+  },
+  toString(this: { readonly transitions: Readonly<Record<string, unknown>> }) {
+    return `Machine(${Object.keys(this.transitions).join(', ')})`
+  },
+  [Inspectable.NodeInspectSymbol](this: {
+    readonly transitions: Readonly<Record<string, unknown>>
+  }) {
+    return `Machine(${Object.keys(this.transitions).join(', ')})`
+  },
+}
+
+export interface Machine<State, Transitions extends Readonly<Record<string, unknown>>>
+  extends Pipeable.Pipeable {
   readonly stateSchema: Schema.Codec<State>
   readonly transitions: Transitions
   /**
@@ -148,13 +169,13 @@ export const make = <
       : ([state, []] as const)
   }
 
-  return {
+  return Object.assign(Object.create(machineProto) as Machine<State, Transitions>, {
     stateSchema: config.state as unknown as Schema.Codec<State>,
     transitions: config.transitions,
     dispatch,
     update,
     footprints: footprints as Machine<State, Transitions>['footprints'],
-  }
+  })
 }
 
 /** A child Machine's transitions, each lifted to run inside `Outer` (`Machine.lift`). */
@@ -477,15 +498,15 @@ const liftEachTransition = <Outer, Child, K extends string>(
             },
           ]
 
-  return {
-    _tag: 'Transition',
+  return Object.assign(Object.create(Transition.transitionProto), {
+    _tag: 'Transition' as const,
     stateSchema: Option.none(),
     inputSchema: extendInputSchema(transition.inputSchema, key, keyAst),
     suppliedSchema: transition.suppliedSchema,
     when,
     writes,
     emits,
-  }
+  })
 }
 
 /**

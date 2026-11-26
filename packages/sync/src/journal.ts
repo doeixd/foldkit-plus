@@ -473,6 +473,37 @@ export const journalExchange = <Message, Shared, Principal>(
  * the next commit; a commit stream that breaks is reported as `HostDefect`
  * (`Changes`), since no notice follows it.
  */
+/**
+ * `Scope`-managed version of `journalChanges`: forks the document commit
+ * listener into the caller's `Scope` via `Effect.forkScoped` so cleanup is
+ * automatic when the scope closes.
+ */
+export const journalChangesScoped = <Shared, Principal>(
+  journal: Journal<Operation, Shared, Principal, WrittenOperation>,
+  documentId: string,
+  listener: () => void,
+  options: {
+    readonly diagnostics?: ReportDiagnostic | undefined
+  } = {},
+): Effect.Effect<void, never, Scope.Scope> => {
+  const report = (diagnostic: SyncDiagnostic) => reportTo(options.diagnostics, diagnostic)
+  return Effect.asVoid(
+    Effect.forkScoped(
+      Stream.runForEach(
+        Stream.filter(journal.subscribe, key => key === documentId),
+        () =>
+          Effect.try(listener).pipe(
+            Effect.catch(thrown => report(listenerFailed('Notice', thrown.cause))),
+          ),
+      ).pipe(
+        Effect.catchCause(cause =>
+          Cause.hasInterruptsOnly(cause) ? Effect.void : report(hostDefect('Changes', cause)),
+        ),
+      ),
+    ),
+  )
+}
+
 export const journalChanges =
   <Shared, Principal>(
     journal: Journal<Operation, Shared, Principal, WrittenOperation>,

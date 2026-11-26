@@ -12,6 +12,7 @@ import { isNullOp } from './ops/null.js'
 import * as Path from './path.js'
 import type { Path as PathType } from './path.js'
 import {
+  transitionProto,
   Way,
   type EmitSpec,
   type NoSupplied,
@@ -120,8 +121,8 @@ export const lift = <Outer, Inner, Input, Emit, Supplied = NoSupplied>(
 ): Transition<Outer, Input, Emit, Supplied> => {
   const projected = new WeakMap<object, unknown>()
   const move = (node: Node.Node): Node.Node => rewriteStatePrefix(node, path.segments, projected)
-  return {
-    _tag: 'Transition',
+  return Object.assign(Object.create(transitionProto) as Transition<Outer, Input, Emit, Supplied>, {
+    _tag: 'Transition' as const,
     stateSchema: Option.none(),
     inputSchema: transition.inputSchema,
     suppliedSchema: transition.suppliedSchema,
@@ -157,5 +158,5 @@ export const lift = <Outer, Inner, Input, Emit, Supplied = NoSupplied>(
       fields: entry.fields.map(([name, node]) => [name, move(node)] as const),
       when: Option.map(entry.when, move),
     })),
-  }
+  })
 }

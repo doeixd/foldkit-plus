@@ -4,7 +4,7 @@
  * the layer capability a live insert needs, so a page that reads nothing live
  * keeps none of it.
  */
-import { Duration, Effect, Match, Option, Stream } from 'effect'
+import { Duration, Effect, Match, Option, Random, Stream } from 'effect'
 import type { Install, LiveCapability } from './capability.js'
 import { RemoteClient, remoteError } from './client.js'
 import type { LiveOptions } from './index.js'
@@ -23,13 +23,14 @@ import {
   type RemoteUnauthenticated,
 } from './wire.js'
 
-/** The wait before a stream's restart after `failures` breaks in a row: Sync's transport backoff. */
-const restartDelay = (options: LiveOptions, failures: number): Duration.Duration => {
-  const base = Duration.toMillis(Duration.fromInputUnsafe(options.retryBase ?? '50 millis'))
-  const max = Duration.toMillis(Duration.fromInputUnsafe(options.maxRetryDelay ?? '5 seconds'))
-  const backoff = Math.min(max, base * 2 ** Math.min(Math.max(failures, 1) - 1, 30))
-  return Duration.millis(backoff * (0.8 + Math.random() * 0.4))
-}
+/** The wait before a stream's restart after `failures` breaks in a row: Sync's transport backoff via Effect `Random`. */
+const restartDelay = (options: LiveOptions, failures: number): Effect.Effect<Duration.Duration> =>
+  Effect.map(Random.next, r => {
+    const base = Duration.toMillis(Duration.fromInputUnsafe(options.retryBase ?? '50 millis'))
+    const max = Duration.toMillis(Duration.fromInputUnsafe(options.maxRetryDelay ?? '5 seconds'))
+    const backoff = Math.min(max, base * 2 ** Math.min(Math.max(failures, 1) - 1, 30))
+    return Duration.millis(backoff * (0.8 + r * 0.4))
+  })
 
 const wallClock = (): number => Date.now()
 
@@ -131,7 +132,7 @@ const stream: LiveCapability['stream'] = (
   // resubscribe, so a resubscribe that fails is a break of its own; were the
   // two concurrent, its failure could land on the open gap and be ignored,
   // and the late `GapCleared` would leave the stream stopped.
-  return Stream.fromEffect(Effect.sleep(restartDelay(options, failures))).pipe(
+  return Stream.fromEffect(Effect.flatMap(restartDelay(options, failures), Effect.sleep)).pipe(
     Stream.drain,
     Stream.concat(
       Stream.make(

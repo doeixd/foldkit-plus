@@ -293,8 +293,8 @@ const build = (write: AnyWrite): WriteTransition => {
       )
     }
   }
-  return {
-    _tag: 'Transition',
+  return Object.assign(Object.create(Transition.transitionProto), {
+    _tag: 'Transition' as const,
     stateSchema: Option.some(
       Schema.Struct({
         present: Schema.Boolean,
@@ -308,7 +308,7 @@ const build = (write: AnyWrite): WriteTransition => {
     when: wrap(joined(Bool.andOp, guard)) as WriteTransition['when'],
     writes,
     emits: [],
-  }
+  })
 }
 
 /**

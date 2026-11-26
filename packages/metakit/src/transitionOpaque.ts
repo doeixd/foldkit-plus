@@ -13,6 +13,7 @@ import type { Path as PathType, StatePath } from './path.js'
 import {
   pathsOf,
   targetOf,
+  transitionProto,
   Way,
   type EmitSpec,
   type Emitted,
@@ -127,35 +128,38 @@ export const opaque = <
     ran.set(step, after)
     return after
   }
-  return {
-    _tag: 'Transition',
-    stateSchema: Option.some(config.state as unknown as Schema.Codec<S['Type']>),
-    inputSchema: Option.some(config.input as unknown as Schema.Codec<I['Type']>),
-    suppliedSchema: Option.some(
-      Schema.Struct(config.supplied ?? {}) as unknown as Schema.Codec<Path.EnvOf<Sup>>,
-    ),
-    when: wrap<Env, boolean>(
-      config.when === undefined ? Node.Lit({ value: true }) : toNode(config.when(env)),
-    ),
-    writes: writePaths.map(({ target, ast }) => ({
-      _tag: 'WriteEquation' as const,
-      target,
-      value: wrap<Env, unknown>(
-        Node.Opaque({
-          name: `${config.name}:${Path.format(target)}`,
-          reads: Option.some(reads),
-          run: step =>
-            Option.getOrNull(
-              Path.get(Path.make<S['Type'], unknown>(target, ast), next(step as Env)),
-            ),
-        }),
+  return Object.assign(
+    Object.create(transitionProto) as Transition<S['Type'], I['Type'], never, Path.EnvOf<Sup>>,
+    {
+      _tag: 'Transition' as const,
+      stateSchema: Option.some(config.state as unknown as Schema.Codec<S['Type']>),
+      inputSchema: Option.some(config.input as unknown as Schema.Codec<I['Type']>),
+      suppliedSchema: Option.some(
+        Schema.Struct(config.supplied ?? {}) as unknown as Schema.Codec<Path.EnvOf<Sup>>,
       ),
-      way: Way.set(),
-    })),
-    emits: (config.emits?.(env) ?? []).map((entry): EmitSpec => ({
-      tag: entry.tag,
-      fields: entry.fields,
-      when: entry.when,
-    })),
-  }
+      when: wrap<Env, boolean>(
+        config.when === undefined ? Node.Lit({ value: true }) : toNode(config.when(env)),
+      ),
+      writes: writePaths.map(({ target, ast }) => ({
+        _tag: 'WriteEquation' as const,
+        target,
+        value: wrap<Env, unknown>(
+          Node.Opaque({
+            name: `${config.name}:${Path.format(target)}`,
+            reads: Option.some(reads),
+            run: step =>
+              Option.getOrNull(
+                Path.get(Path.make<S['Type'], unknown>(target, ast), next(step as Env)),
+              ),
+          }),
+        ),
+        way: Way.set(),
+      })),
+      emits: (config.emits?.(env) ?? []).map((entry): EmitSpec => ({
+        tag: entry.tag,
+        fields: entry.fields,
+        when: entry.when,
+      })),
+    },
+  )
 }

@@ -1,6 +1,7 @@
 import { Effect, Exit, Inspectable, Option, Ref, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import * as Expr from '../src/expr.js'
+import * as Machine from '../src/machine.js'
 import * as Num from '../src/ops/num.js'
 import * as Path from '../src/path.js'
 import * as Policy from '../src/policy.js'
@@ -141,6 +142,21 @@ describe('metakit Effect 4.1.4 native integration (Phase 1)', () => {
     expect(
       pol.pipe(p => p.allow('read', { row: { id: 'a', balance: 1 }, principal: { id: 'u' } })),
     ).toBe(true)
+
+    const Tr = Transition.make({
+      state: Account,
+      input: Schema.Struct({ by: Schema.Int }),
+      when: ({ input }) => Num.gt(input.by, 0),
+      apply: ({ state, input }) => [
+        Transition.set(state.balance, Num.add(state.balance, input.by)),
+      ],
+    })
+    expect(Tr.pipe(t => t.writes.length)).toBe(1)
+    expect(String(Tr)).toBe('Transition(balance)')
+
+    const M = Machine.make({ state: Account, transitions: { Deposit: Tr } })
+    expect(M.pipe(m => Object.keys(m.transitions))).toEqual(['Deposit'])
+    expect(String(M)).toBe('Machine(Deposit)')
   })
 
   it('Transition.run Result composes cleanly inside Effect.gen via Effect.fromResult', async () => {
