@@ -10,7 +10,7 @@
  * For Tier 4 Z3 escalation and counterexample witnesses, pass a `Policy` to
  * `Prove.policyImplies` or `Prove.policyConsistent` in `metakit/prove`.
  */
-import { Inspectable, Option, Pipeable, Result, type Schema } from 'effect'
+import { Option, Pipeable, Result, type Schema } from 'effect'
 import * as AbstractCheck from './abstract/check.js'
 import { ordered, type Slice } from './abstract/unordered.js'
 import * as Expr from './expr.js'
@@ -35,17 +35,19 @@ export interface Definition<
   readonly rules: Rules
 }
 
-const policyProto = {
+const policyProto = /*#__PURE__*/ (() => ({
   pipe(this: unknown) {
     return Pipeable.pipeArguments(this, arguments)
   },
   toString(this: { readonly rules: Readonly<Record<string, unknown>> }) {
     return `Policy(${Object.keys(this.rules).join(', ')})`
   },
-  [Inspectable.NodeInspectSymbol](this: { readonly rules: Readonly<Record<string, unknown>> }) {
+  [Symbol.for('nodejs.util.inspect.custom')](this: {
+    readonly rules: Readonly<Record<string, unknown>>
+  }) {
     return `Policy(${Object.keys(this.rules).join(', ')})`
   },
-}
+}))()
 
 export interface Policy<
   Row,

@@ -13,7 +13,7 @@
  * (`Transition.lift`), SQL's guarded `UPDATE`, the checker, the solver, and
  * whether two transitions swap order (`Transition.commutes`).
  */
-import { Data, Inspectable, Option, Pipeable, Result, Schema } from 'effect'
+import { Data, Option, Pipeable, Result, Schema } from 'effect'
 import * as Node from './node.js'
 import {
   toNode,
@@ -155,7 +155,7 @@ export interface TransitionPostPaths<State, Input, Supplied> {
 }
 
 /** Shared prototype giving every `Transition` Effect `Pipeable` and `Inspectable` support. */
-export const transitionProto = {
+export const transitionProto = /*#__PURE__*/ (() => ({
   pipe(this: unknown) {
     return Pipeable.pipeArguments(this, arguments)
   },
@@ -172,12 +172,12 @@ export const transitionProto = {
   toString(this: { readonly writes: ReadonlyArray<{ readonly target: ReadonlyArray<string> }> }) {
     return `Transition(${this.writes.map(w => Path.format(w.target)).join(', ')})`
   },
-  [Inspectable.NodeInspectSymbol](this: {
+  [Symbol.for('nodejs.util.inspect.custom')](this: {
     readonly writes: ReadonlyArray<{ readonly target: ReadonlyArray<string> }>
   }) {
     return `Transition(${this.writes.map(w => Path.format(w.target)).join(', ')})`
   },
-}
+}))()
 
 /** A guarded, single-step transition over `State`, `Input` and the `Supplied` values. */
 export interface Transition<State, Input, Emit = never, Supplied = NoSupplied>

@@ -9,14 +9,14 @@ import * as ManagedResource from 'foldkit/managedResource'
 import type * as Submodel from 'foldkit/submodel'
 import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
-import { Path } from 'metakit'
-import * as Machine from 'metakit/machine'
+import type * as Machine from 'metakit/machine'
 import type { AnyMessage, Link } from './link.js'
 import type { AnyMachine, BundleSpec, Helper, ResourceEntries } from './bundle.js'
 import { helpersFor, readsArgs } from './helpers.js'
 import { keptDrawing } from './memo.js'
 
 const PlacedTypeId: unique symbol = Symbol.for('foldkit-bundle/Placed')
+const MACHINE_LIFT = Symbol.for('metakit/Machine.lift')
 
 declare const NoViewTypeId: unique symbol
 
@@ -655,7 +655,13 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     },
     ...(bundle.machine === undefined
       ? {}
-      : { machine: Machine.lift(Path.make(link.path), bundle.machine as never) }),
+      : {
+          machine: (
+            bundle.machine as unknown as {
+              readonly [MACHINE_LIFT]: (segments: ReadonlyArray<string>) => unknown
+            }
+          )[MACHINE_LIFT](link.path),
+        }),
   }
 }
 

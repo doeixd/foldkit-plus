@@ -5,7 +5,7 @@
  * brand and `node` field), so paths drop straight into expressions while
  * `Transition.set` requires a path from the transition's state accessor.
  */
-import { Inspectable, Option, Pipeable, Predicate, SchemaAST } from 'effect'
+import { Option, Pipeable, Predicate, SchemaAST } from 'effect'
 import type { Schema } from 'effect'
 import * as Node from './node.js'
 
@@ -44,7 +44,7 @@ export type AnyPath = Path<never, unknown>
 /** A path rooted in the state slice of a transition. */
 export type StatePath<Env, A> = Path<Env, A> & { readonly [StatePathTypeId]: true }
 
-const pathProto = {
+const pathProto = /*#__PURE__*/ (() => ({
   pipe(this: unknown) {
     return Pipeable.pipeArguments(this, arguments)
   },
@@ -54,10 +54,10 @@ const pathProto = {
   toString(this: { readonly segments: ReadonlyArray<string> }) {
     return `Path(${format(this.segments)})`
   },
-  [Inspectable.NodeInspectSymbol](this: { readonly segments: ReadonlyArray<string> }) {
+  [Symbol.for('nodejs.util.inspect.custom')](this: { readonly segments: ReadonlyArray<string> }) {
     return `Path(${format(this.segments)})`
   },
-}
+}))()
 
 /** Construct a `Path` from raw segments and an optional Schema AST. */
 export const make = <Env, A>(

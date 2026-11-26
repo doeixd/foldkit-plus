@@ -34,7 +34,7 @@ export default [
     edits: [
       {
         file: '../src/placed.ts',
-        find: '    ...(bundle.machine === undefined\n      ? {}\n      : { machine: Machine.lift(Path.make(link.path), bundle.machine as never) }),',
+        find: '    ...(bundle.machine === undefined\n      ? {}\n      : {\n          machine: (\n            bundle.machine as unknown as {\n              readonly [MACHINE_LIFT]: (segments: ReadonlyArray<string>) => unknown\n            }\n          )[MACHINE_LIFT](link.path),\n        }),',
         replace: '',
       },
     ],
@@ -45,9 +45,8 @@ export default [
     edits: [
       {
         file: '../src/placed.ts',
-        find: '    ...(bundle.machine === undefined\n      ? {}\n      : { machine: Machine.lift(Path.make(link.path), bundle.machine as never) }),',
-        replace:
-          '    ...(bundle.machine === undefined\n      ? {}\n      : { machine: Machine.lift(Path.make([]), bundle.machine as never) }),',
+        find: '          )[MACHINE_LIFT](link.path),',
+        replace: '          )[MACHINE_LIFT]([]),',
       },
     ],
     tests,

@@ -2,11 +2,11 @@
  * Internal helpers for wrapping `Node`s into typed `Expr<Env, A>` values and
  * accepting either an `Expr<Env, A>` or a plain literal `A` at call sites.
  */
-import { Inspectable, Pipeable } from 'effect'
+import { Pipeable } from 'effect'
 import * as Node from '../node.js'
 import { ExprTypeId, type Expr } from '../path.js'
 
-const exprProto = {
+const exprProto = /*#__PURE__*/ (() => ({
   pipe(this: unknown) {
     return Pipeable.pipeArguments(this, arguments)
   },
@@ -16,10 +16,10 @@ const exprProto = {
   toString(this: { readonly node: Node.Node }) {
     return `Expr(${Node.key(this.node)})`
   },
-  [Inspectable.NodeInspectSymbol](this: { readonly node: Node.Node }) {
+  [Symbol.for('nodejs.util.inspect.custom')](this: { readonly node: Node.Node }) {
     return `Expr(${Node.key(this.node)})`
   },
-}
+}))()
 
 /** Either an `Expr<Env, A>` or a plain literal value `A`. */
 export type ExprInput<Env, A> = Expr<Env, A> | A

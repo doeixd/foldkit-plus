@@ -7,7 +7,7 @@
  * Opaque transitions (for arbitrary JS) can coexist beside declarative
  * `Transition`s without breaking types.
  */
-import { Inspectable, Option, Pipeable, Result, Schema, SchemaAST } from 'effect'
+import { Option, Pipeable, Result, Schema, SchemaAST } from 'effect'
 import type * as Expr from './expr.js'
 import * as Node from './node.js'
 import { rowsOver } from './ops/arr.js'
@@ -57,7 +57,9 @@ export type EmitOf<Transitions extends Readonly<Record<string, unknown>>> = Tran
   Transitions[keyof Transitions]
 >
 
-const machineProto = {
+const MACHINE_LIFT = /*#__PURE__*/ Symbol.for('metakit/Machine.lift')
+
+const machineProto = /*#__PURE__*/ (() => ({
   pipe(this: unknown) {
     return Pipeable.pipeArguments(this, arguments)
   },
@@ -70,12 +72,18 @@ const machineProto = {
   toString(this: { readonly transitions: Readonly<Record<string, unknown>> }) {
     return `Machine(${Object.keys(this.transitions).join(', ')})`
   },
-  [Inspectable.NodeInspectSymbol](this: {
+  [Symbol.for('nodejs.util.inspect.custom')](this: {
     readonly transitions: Readonly<Record<string, unknown>>
   }) {
     return `Machine(${Object.keys(this.transitions).join(', ')})`
   },
-}
+  [MACHINE_LIFT](
+    this: Machine<unknown, Readonly<Record<string, unknown>>>,
+    segments: ReadonlyArray<string>,
+  ) {
+    return lift(Path.make(segments), this)
+  },
+}))()
 
 export interface Machine<State, Transitions extends Readonly<Record<string, unknown>>>
   extends Pipeable.Pipeable {

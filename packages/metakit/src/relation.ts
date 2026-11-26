@@ -16,7 +16,7 @@
  * A body reads the pointing row under `each`, and may read any slice but the
  * one the row asked about is in: SQL carries no second row into a subquery.
  */
-import { Inspectable, Option, Pipeable } from 'effect'
+import { Option, Pipeable } from 'effect'
 import type { Schema } from 'effect'
 import * as Node from './node.js'
 import {
@@ -51,17 +51,17 @@ export interface RelationOptions {
   readonly onDelete?: OnDelete
 }
 
-const relationProto = {
+const relationProto = /*#__PURE__*/ (() => ({
   pipe(this: unknown) {
     return Pipeable.pipeArguments(this, arguments)
   },
   toString(this: { readonly name: string }) {
     return `Relation(${this.name})`
   },
-  [Inspectable.NodeInspectSymbol](this: { readonly name: string }) {
+  [Symbol.for('nodejs.util.inspect.custom')](this: { readonly name: string }) {
     return `Relation(${this.name})`
   },
-}
+}))()
 
 /** The rows of one kind pointing at a row of another through one of their fields. */
 export interface Relation<Row> extends Pipeable.Pipeable {
