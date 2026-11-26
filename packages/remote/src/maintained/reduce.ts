@@ -85,11 +85,22 @@ export const reduceKeeper = <Row, V>(definition: ReduceDefinition<Row, V>): Keep
   let current: V = identity
   let dirty = false
 
+  const change = (next: () => V): void => {
+    if (dirty) return
+    try {
+      current = next()
+    } catch (error) {
+      if (!Node.isRefusal(error) || error.reason !== 'unsafe-integer') throw error
+      // A later row in the same read can cancel an intermediate overflow.
+      dirty = true
+    }
+  }
+
   const add = (row: Row): void => {
     if (dirty) return
     const v = pick(row)
     if (v === null || v === undefined) return
-    current = combine(current, v)
+    change(() => combine(current, v))
   }
 
   const remove = (row: Row): void => {
@@ -97,7 +108,7 @@ export const reduceKeeper = <Row, V>(definition: ReduceDefinition<Row, V>): Keep
     const v = pick(row)
     if (v === null || v === undefined) return
     if (inverse !== undefined) {
-      current = inverse(current, v)
+      change(() => inverse(current, v))
     } else {
       dirty = true
     }
@@ -109,12 +120,14 @@ export const reduceKeeper = <Row, V>(definition: ReduceDefinition<Row, V>): Keep
     const av = pick(after)
     if (Object.is(bv, av)) return
     if (bv === null || bv === undefined) {
-      if (av !== null && av !== undefined) current = combine(current, av)
+      if (av !== null && av !== undefined) change(() => combine(current, av))
       return
     }
     if (inverse !== undefined) {
-      current = inverse(current, bv)
-      if (av !== null && av !== undefined) current = combine(current, av)
+      change(() => {
+        const without = inverse(current, bv)
+        return av !== null && av !== undefined ? combine(without, av) : without
+      })
     } else {
       dirty = true
     }

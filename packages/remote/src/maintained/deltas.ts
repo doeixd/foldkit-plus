@@ -392,6 +392,9 @@ export const readingOf = <Row>(
     const swapFrom = (key: EntityKey, after: Member<Row> | undefined) =>
       swap(tracked, key, after, delta => emit({ ...delta, source: sourceOf(key) }))
     if (tracked.refused) {
+      // Recover once the store, pending layers, or connection change: a row
+      // that caused refusal (e.g. an optimistic NUL or overflow) may be gone.
+      if (storeMoved || isPending || was.connection !== inputs.connection) return Option.none()
       tracked.inputs = inputs
       return Option.some({ moved: false })
     }
@@ -413,18 +416,28 @@ export const readingOf = <Row>(
       const singleInsert = singleInsertOf(edges)
       const prevInsert =
         tracked.lastEdges === undefined ? undefined : singleInsertOf(tracked.lastEdges)
+      const addedKey =
+        singleInsert === undefined
+          ? undefined
+          : entityKey(singleInsert.added.ref.entity, singleInsert.added.ref.id)
       if (
         singleInsert !== undefined &&
-        changed.size === 0 &&
+        addedKey !== undefined &&
+        (changed.size === 0 || (changed.size === 1 && changed.has(addedKey))) &&
         (singleInsert.base === tracked.lastEdges ||
           (prevInsert !== undefined &&
             prevInsert.base === singleInsert.base &&
             prevInsert.added.key === singleInsert.added.key &&
             prevInsert.at === singleInsert.at))
       ) {
-        const addedKey = entityKey(singleInsert.added.ref.entity, singleInsert.added.ref.id)
         const hadMember = tracked.members.has(addedKey)
-        const judge = judgedAmong([addedKey])
+        let judge: (key: EntityKey) => 'in' | 'out' | 'unjudged'
+        try {
+          judge = judgedAmong([addedKey])
+        } catch (error) {
+          if (!(error instanceof QueryEvaluateError)) throw error
+          return Option.none()
+        }
         const nextMember = memberOf(addedKey, judge(addedKey))
         swapFrom(addedKey, nextMember)
         tracked.edges = undefined
@@ -464,7 +477,13 @@ export const readingOf = <Row>(
       tracked.lastEdges = edges
     }
     if (rejudge.length > 0) {
-      const judge = judgedAmong(rejudge)
+      let judge: (key: EntityKey) => 'in' | 'out' | 'unjudged'
+      try {
+        judge = judgedAmong(rejudge)
+      } catch (error) {
+        if (!(error instanceof QueryEvaluateError)) throw error
+        return Option.none()
+      }
       for (const key of rejudge) swapFrom(key, memberOf(key, judge(key)))
     }
     tracked.inputs = inputs

@@ -41,9 +41,12 @@ export const makeOrderIndex = <K>(
     return aId < bId ? -1 : aId > bId ? 1 : 0
   }
 
-  const sorted: Array<OrderEntry<K>> = [...entries].sort((a, b) =>
-    cmp(a.sortKey, a.key, b.sortKey, b.key),
-  )
+  const keyToSort = new Map<EntityKey, K>()
+  for (const entry of entries) keyToSort.set(entry.key, entry.sortKey)
+  const sorted: Array<OrderEntry<K>> = Array.from(keyToSort, ([key, sortKey]) => ({
+    key,
+    sortKey,
+  })).sort((a, b) => cmp(a.sortKey, a.key, b.sortKey, b.key))
 
   const positionOf = (sortKey: K, key: EntityKey): number => {
     let lo = 0
@@ -60,28 +63,37 @@ export const makeOrderIndex = <K>(
     return lo
   }
 
+  const removeAt = (key: EntityKey, sortKey: K): boolean => {
+    const at = positionOf(sortKey, key)
+    const existing = sorted[at]
+    if (existing === undefined || existing.key !== key) return false
+    sorted.splice(at, 1)
+    keyToSort.delete(key)
+    return true
+  }
+
   return {
     get size() {
       return sorted.length
     },
     positionOf,
     insert: (key, sortKey) => {
-      const at = positionOf(sortKey, key)
-      const existing = sorted[at]
-      if (existing !== undefined && existing.key === key) {
-        sorted[at] = { key, sortKey }
-        return at
+      if (keyToSort.has(key)) {
+        const oldSortKey = keyToSort.get(key)!
+        if (compare(oldSortKey, sortKey) === 0) {
+          const at = positionOf(oldSortKey, key)
+          sorted[at] = { key, sortKey }
+          keyToSort.set(key, sortKey)
+          return at
+        }
+        removeAt(key, oldSortKey)
       }
+      const at = positionOf(sortKey, key)
       sorted.splice(at, 0, { key, sortKey })
+      keyToSort.set(key, sortKey)
       return at
     },
-    remove: (key, sortKey) => {
-      const at = positionOf(sortKey, key)
-      const existing = sorted[at]
-      if (existing === undefined || existing.key !== key) return false
-      sorted.splice(at, 1)
-      return true
-    },
+    remove: removeAt,
     keys: () => sorted.map(e => e.key),
   }
 }

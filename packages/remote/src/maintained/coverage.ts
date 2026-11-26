@@ -10,20 +10,43 @@ import type { AnyQuery } from 'foldkit-entity'
 import { Abstract, Bool, type Expr, Node, Transition, Verdict } from 'metakit'
 import { wrap } from 'metakit/build'
 
-const rowToState = (node: Node.Node, input?: Readonly<Record<string, unknown>>): Node.Node =>
+const readInputPath = (
+  input: Readonly<Record<string, unknown>>,
+  path: ReadonlyArray<string>,
+): Option.Option<unknown> => {
+  let cursor: unknown = input
+  for (const segment of path) {
+    if (cursor === null || typeof cursor !== 'object' || !Object.hasOwn(cursor, segment)) {
+      return Option.none()
+    }
+    cursor = (cursor as Readonly<Record<string, unknown>>)[segment]
+  }
+  return Option.some(cursor === undefined ? null : cursor)
+}
+
+const rowToState = (
+  node: Node.Node,
+  inputNamespace: 'heldInput' | 'askedInput',
+  input?: Readonly<Record<string, unknown>>,
+): Node.Node =>
   Node.substitutePaths(node, segments => {
     if (segments[0] === 'row') {
       return Option.some(
         Node.Path({ segments: ['state', ...segments.slice(1)], ast: Option.none() }),
       )
     }
-    if (
-      segments[0] === 'input' &&
-      segments.length === 2 &&
-      input !== undefined &&
-      Object.hasOwn(input, segments[1]!)
-    ) {
-      return Option.some(Node.Lit({ value: input[segments[1]!] as Node.Lit['value'] }))
+    if (segments[0] === 'input' && segments.length >= 2) {
+      if (input !== undefined) {
+        const bound = readInputPath(input, segments.slice(1))
+        if (Option.isSome(bound)) {
+          return Option.some(Node.Lit({ value: bound.value as Node.Lit['value'] }))
+        }
+      }
+      // Keep unbound input parameters in distinct namespaces so held.input.x
+      // and asked.input.x never alias each other when left unbound.
+      return Option.some(
+        Node.Path({ segments: [inputNamespace, ...segments.slice(1)], ast: Option.none() }),
+      )
     }
     return Option.none()
   })
@@ -64,8 +87,8 @@ export const covers = (
     return Verdict.True()
   }
 
-  const heldNodes = held.where.map(p => rowToState(p.node, options?.heldInput))
-  const askedNodes = asked.where.map(p => rowToState(p.node, options?.askedInput))
+  const heldNodes = held.where.map(p => rowToState(p.node, 'heldInput', options?.heldInput))
+  const askedNodes = asked.where.map(p => rowToState(p.node, 'askedInput', options?.askedInput))
 
   const heldExpr = conjoinNodes(heldNodes)
   const askedExpr = conjoinNodes(askedNodes)
