@@ -89,7 +89,12 @@ export function notNaN(this: AbstractState, node: Node.Node): boolean {
   return Node.$match(node, {
     Lit: ({ value }) =>
       Array.isArray(value) ? !value.some(item => Number.isNaN(item)) : !Number.isNaN(value),
-    Path: path => Option.exists(this.fieldOf(path), info => info.kind !== 'number' || info.finite),
+    Path: path =>
+      Option.exists(this.fieldOf(path), info => info.kind !== 'number' || info.finite) ||
+      Option.exists(this.varOf(path), id => {
+        const iv = this.zone.intervalOf(id)
+        return Number.isFinite(iv.lo) || Number.isFinite(iv.hi)
+      }),
     // A number an operation gives is finite or refused (asked of separately); `coalesce` gives an operand.
     Call: ({ op, args }) => op.returns !== 'operand' || args.every(arg => notNaN.call(this, arg)),
     If: ({ then: thenNode, otherwise }) =>
