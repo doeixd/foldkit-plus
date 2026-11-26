@@ -113,7 +113,7 @@ export const ChargeFxFee = Transition.make({
     feeRate: Rate4.check(Schema.isBetween({ minimum: 1, maximum: 500 })), // 0.01% .. 5.00%
   }),
   when: ({ state, input }) => {
-    const fee = Money.mul(input.principal, input.feeRate, { rateScale: 4 })
+    const fee = Money.mul(input.principal, input.feeRate)
     return Expr.all(
       Eq.is(state.status, 'open'),
       Num.lte(fee, Num.sub(Num.add(state.balance, state.creditLimit), state.reserved)),
@@ -122,13 +122,13 @@ export const ChargeFxFee = Transition.make({
   apply: ({ state, input }) => [
     Transition.set(
       state.balance,
-      Money.sub(state.balance, Money.mul(input.principal, input.feeRate, { rateScale: 4 })),
+      Money.sub(state.balance, Money.mul(input.principal, input.feeRate)),
     ),
   ],
   emits: ({ state, input }) => [
     Transition.emit('FxFeeCharged', {
       accountId: state.id,
-      fee: Money.mul(input.principal, input.feeRate, { rateScale: 4 }),
+      fee: Money.mul(input.principal, input.feeRate),
     }),
   ],
 })

@@ -40,6 +40,7 @@ describe('Example 5: Feature-Flag & Rollout Custom Language', () => {
     ).toBe(false)
 
     // Partial evaluation with known env mismatch decides False without knowing userId
+    // because `bucket` and `semverGte` declare `claims: { total: true }` over `Text.schema`.
     expect(
       Verdict.isFalse(
         Expr.judge(
@@ -48,7 +49,7 @@ describe('Example 5: Feature-Flag & Rollout Custom Language', () => {
           { foreign: rolloutImpl },
         ),
       ),
-    ).toBe(false) // wait: bucket could still refuse on unknown userId unless unrefusable; residualize folds env check!
+    ).toBe(true)
 
     const residual = Expr.residualize(
       flagActiveFor,

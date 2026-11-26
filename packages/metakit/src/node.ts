@@ -198,6 +198,8 @@ export interface ForeignClaims {
   readonly associative?: true | { readonly unlessRefused: true }
   readonly invertible?: { readonly inverse: ForeignOp | 'self' }
   readonly monotone?: ReadonlyArray<MonotoneDirection>
+  /** Never throws or returns a `Refusal` when given non-refused arguments matching its Schemas. */
+  readonly total?: true
 }
 
 /** A precompiled Schema guard carried on a `ForeignOp` for runtime domain enforcement. */

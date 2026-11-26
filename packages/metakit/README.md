@@ -126,7 +126,10 @@ REFUTED Withdraw [PIN BROKEN]
 | Import | Runs in | Purpose |
 | --- | --- | --- |
 | `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 33-op core (`Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr` + derived helpers), the folds over a list (`Arr.any`, `Arr.sum`, …), what each op, fold and way of writing keeps (`opProperties`, `foldProperties`, `writeProperties`), operations your application defines (`Node.foreign`), and synchronous Interval + Zone checks (`Abstract`). A path to an `Option` field reads as its value or null. |
-| `metakit/relation` | Browser / server | Questions asked of the rows of another kind pointing at a row (`Relation.any`, `every`, `count`, `sum`, `min`, `max`), held under the row as `{ rows, whole }`; SQL writes each as a correlated subquery. |
+| `metakit/relation` | Browser / server | Questions asked of the rows of another kind pointing at a row (`Relation.any`, `every`, `count`, `sum`, `min`, `max`, `reduce`), with `Relation.withRows` for typed in-memory evaluation; SQL writes each as a correlated subquery. |
+| `metakit/operation` | Browser / server | Typed custom expression operations (`Operation.define`, `implement`, `implementations`) with algebraic claims checked by `Conformance.checkOperation` (high-level API over `Node.foreign`). |
+| `metakit/operation/sql` | Server | Dialect-specific SQL & aggregate lowerings (`lowering`, `lowerings`, `piece`) for custom operations. |
+| `metakit/language` | Browser / server | Bundles `Operation.define` families (`Language.make`) with exhaustive `implement`, dialect-checked `sql`, and `describe()` handshakes. |
 | `metakit/domain` | Browser / server | Currency-safe `Money`, fixed-scale `Decimal` (`Decimal.mul` and `Money.mul` round half-even in integers; evaluation, SQL on SQLite and Postgres, the checkers and `Rows.sum` read them, and a product past the safe range is refused), timezone-free `CalendarDay`, `OrderedEnum`, `Text` (text holding no NUL, which the checkers can prove rules over), and `Domain.domainOf`. |
 | `metakit/aggregates` | Browser / server | `Rows.sum` (of integers) and `Rows.count`, kept by O(1) deltas, and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any`, which rescan on a delete of the extreme. Imports no SQL. |
 | `metakit/aggregates/sql` | Server | `RowsSql.toSql(aggregate, options)`: an aggregate as a SQL expression. |
@@ -157,3 +160,4 @@ REFUTED Withdraw [PIN BROKEN]
 - [Verify a state machine in CI](./docs/proving-transitions.md) — pin proofs with `Prove.machine`, allow opaque transitions explicitly, and read counterexamples.
 - [Prune SSR payloads and gate dependent queries](./docs/resumability-and-queries.md) — static `affectedBy` maps, `Graph.pruneStatic`, and `Graph.queryReadiness`.
 - [Check what a proof of one step cannot](./docs/stores-and-order.md) — refuse a database that cannot hold a rule under concurrent writes, and test the orders replies can arrive in.
+- [Writing a generic helper over a Schema](../../docs/guides/generic-schema-helpers.md) — why combining `Schema.Struct` with `Schema.decodeUnknownSync` needs `SchemaOf`.

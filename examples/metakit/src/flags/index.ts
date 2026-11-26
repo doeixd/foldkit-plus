@@ -10,6 +10,7 @@
  */
 import { Schema } from 'effect'
 import { Arr, Bool, Eq, Expr, Num } from 'metakit'
+import { Text } from 'metakit/domain'
 import * as Language from 'metakit/language'
 import * as Operation from 'metakit/operation'
 import { lowering, lowerings, piece } from 'metakit/operation/sql'
@@ -22,18 +23,20 @@ export const Priority = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum:
 export const bucket = Operation.define({
   id: 'rollout.bucket',
   version: 1,
-  args: [Schema.String, Schema.String],
+  args: [Text.schema, Text.schema],
   returns: Bucket,
   nulls: 'strict',
+  claims: { total: true },
 })
 
 /** Semver comparison `version >= minVersion` (major.minor.patch). */
 export const semverGte = Operation.define({
   id: 'rollout.semverGte',
   version: 1,
-  args: [Schema.String, Schema.String],
+  args: [Text.schema, Text.schema],
   returns: Schema.Boolean,
   nulls: 'strict',
+  claims: { total: true },
 })
 
 /** Commutative monoid `max(a, b)` over `0..100` for combining rule priorities via `Arr.reduce`. */
@@ -118,18 +121,18 @@ export const FlagRule = Schema.Struct({
 })
 
 export const FeatureFlag = Schema.Struct({
-  key: Schema.String,
-  salt: Schema.String,
+  key: Text.schema,
+  salt: Text.schema,
   percent: Bucket,
-  minAppVersion: Schema.String,
+  minAppVersion: Text.schema,
   env: Schema.Literals(['dev', 'staging', 'prod']),
 })
 
 export const FlagRules = Relation.make('FlagRule.flagKey', FlagRule)
 
 export const TargetContext = Schema.Struct({
-  userId: Schema.String,
-  appVersion: Schema.String,
+  userId: Text.schema,
+  appVersion: Text.schema,
   env: Schema.Literals(['dev', 'staging', 'prod']),
 })
 

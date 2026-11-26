@@ -694,3 +694,43 @@ export const compose = <
     },
   })
 }
+
+/**
+ * Return a new `Machine` with a resolved lifted child merged under `prefix`
+ * (so `dispatch`, `update`, and `affordances` handle `${prefix}${tag}`
+ * directly without mutating the original machine).
+ */
+export const attach = <
+  State,
+  Own extends Readonly<Record<string, AnyTransition<State>>>,
+  Prefix extends string,
+  Child extends LazyMachineLike<State>,
+>(
+  machine: Machine<State, Own>,
+  prefix: Prefix,
+  child: Child,
+): Machine<
+  State,
+  Own & {
+    readonly [K in keyof Child['transitions'] & string as `${Prefix}${K}`]: Child['transitions'][K]
+  }
+> => {
+  const merged: Record<string, AnyTransition<State>> = { ...machine.transitions }
+  for (const [tag, transition] of Object.entries(child.transitions)) {
+    const full = `${prefix}${tag}`
+    if (Object.hasOwn(merged, full)) {
+      throw new Error(
+        `[metakit] Machine.attach: transition "${full}" is already registered on the machine`,
+      )
+    }
+    merged[full] = transition
+  }
+  return make({
+    state: machine.stateSchema,
+    transitions: merged as Own & {
+      readonly [
+        K in keyof Child['transitions'] & string as `${Prefix}${K}`
+      ]: Child['transitions'][K]
+    },
+  })
+}

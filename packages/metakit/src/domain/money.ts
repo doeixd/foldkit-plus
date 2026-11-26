@@ -7,9 +7,10 @@
  * errors. `Money` shares its implementation and its operations with `Decimal`.
  */
 import { Option, Result, Schema } from 'effect'
-import type { EnvOfInput, ExprInput, ValueOfInput } from '../ops/core.js'
+import * as Node from '../node.js'
+import { toNode, type EnvOfInput, type ExprInput, type ValueOfInput } from '../ops/core.js'
 import type { Expr } from '../path.js'
-import { DOMAIN_ANNOTATION_KEY } from './annotation.js'
+import { DOMAIN_ANNOTATION_KEY, domainOfAst } from './annotation.js'
 import type { DecimalValue } from './decimal.js'
 import * as Fixed from './fixed.js'
 
@@ -122,13 +123,28 @@ export const mul = <
 >(
   amount: M,
   rate: R,
-  options: { readonly rateScale: NoInfer<RateScale<R>> },
+  options?: { readonly rateScale?: NoInfer<RateScale<R>> },
 ): Expr<EnvOfInput<M> & EnvOfInput<R>, NonNullable<ValueOfInput<M>> | Fixed.NullIn<M | R>> => {
-  Fixed.assertScale(options.rateScale, 'Money.mul')
+  let rateScale: number | undefined = options?.rateScale
+  if (rateScale === undefined) {
+    const rateNode = toNode(rate)
+    if (Node.$is('Path')(rateNode) && Option.isSome(rateNode.ast)) {
+      const meta = domainOfAst(rateNode.ast.value)
+      if (Option.isSome(meta) && meta.value.kind === 'decimal') {
+        rateScale = meta.value.scale
+      }
+    }
+  }
+  if (rateScale === undefined) {
+    throw new Error(
+      '[metakit] Money.mul: pass { rateScale } when the rate is not a Schema-backed Decimal path',
+    )
+  }
+  Fixed.assertScale(rateScale, 'Money.mul')
   return Fixed.mulExpr(
     'money.mul',
     { value: amount, scale: Option.none() },
-    { value: rate, scale: Option.some(options.rateScale) },
-    options.rateScale,
+    { value: rate, scale: Option.some(rateScale) },
+    rateScale,
   )
 }

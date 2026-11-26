@@ -88,6 +88,8 @@ export type Claims<Args extends ReadonlyArray<Schema.Top>, R extends Schema.Top>
       }
     : 'invertible needs two arguments (A, B) => R'
   readonly monotone?: MonotoneTuple<Args>
+  /** Never throws or returns a `Refusal` when given non-refused arguments matching its Schemas. */
+  readonly total?: true
 }
 
 /** `null` when any argument in `Args` may be `null`, else `never`. */
@@ -264,6 +266,7 @@ const toForeignClaims = (raw: Record<string, unknown> | undefined): Node.Foreign
     associative?: true | { readonly unlessRefused: true }
     invertible?: { readonly inverse: Node.ForeignOp | 'self' }
     monotone?: ReadonlyArray<Node.MonotoneDirection>
+    total?: true
   } = {}
   if (raw['identity'] !== undefined) {
     out.identity = raw['identity'] as { readonly value: unknown; readonly side: Node.ClaimSide }
@@ -287,6 +290,7 @@ const toForeignClaims = (raw: Record<string, unknown> | undefined): Node.Foreign
   if (raw['monotone'] !== undefined) {
     out.monotone = [...(raw['monotone'] as ReadonlyArray<Node.MonotoneDirection>)]
   }
+  if (raw['total'] === true) out.total = true
   return out
 }
 

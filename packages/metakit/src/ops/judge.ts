@@ -133,6 +133,10 @@ const openCall = (
 ): Leftover => {
   const [only] = args
   const unrefused =
+    (Node.isForeign(op) &&
+      op.claims?.total === true &&
+      Object.hasOwn(foreign, Node.foreignName(op)) &&
+      args.every(arg => view.cannotRefuse(arg))) ||
     (args.length === 2 &&
       view.cannotRefuse(args[0]) &&
       view.cannotRefuse(args[1]) &&

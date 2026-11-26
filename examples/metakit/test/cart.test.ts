@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { Expr, Transition } from 'metakit'
 import * as AggregatesSql from 'metakit/aggregates/sql'
 import { Money } from 'metakit/domain'
+import * as Machine from 'metakit/machine'
 import {
   AddItem,
   CartItemCount,
@@ -65,10 +66,11 @@ describe('Example 6: E-Commerce Cart, Promotions & Lazy Checkout', () => {
     expect(removed.state.items).toHaveLength(0)
   })
 
-  it('resolves Machine.lazyChild on demand and runs lifted Checkout transitions', async () => {
+  it('resolves Machine.lazyChild on demand and attaches it for unified parent dispatch', async () => {
     expect(CartMachine.lazyChildren.Checkout.isLoaded()).toBe(false)
     const loaded = await CartMachine.lazyChildren.Checkout.resolve()
     expect(CartMachine.lazyChildren.Checkout.isLoaded()).toBe(true)
+    const full = Machine.attach(CartMachine, 'Checkout', loaded)
 
     const state: CartState = {
       tier: 'gold',
@@ -76,18 +78,19 @@ describe('Example 6: E-Commerce Cart, Promotions & Lazy Checkout', () => {
       checkout: { step: 'idle', shippingSelected: false, paymentAuthorized: false },
     }
 
-    const s1 = Result.getOrThrow(Transition.step(loaded.transitions.StartShipping, state, {}))
-    expect(s1.state.checkout.step).toBe('shipping')
+    const [s1] = full.update(state, { _tag: 'CheckoutStartShipping', input: {} })
+    expect(s1.checkout.step).toBe('shipping')
 
-    const s2 = Result.getOrThrow(Transition.step(loaded.transitions.SelectShipping, s1.state, {}))
-    expect(s2.state.checkout.step).toBe('payment')
-    expect(s2.state.checkout.shippingSelected).toBe(true)
+    const [s2] = full.update(s1, { _tag: 'CheckoutSelectShipping', input: {} })
+    expect(s2.checkout.step).toBe('payment')
+    expect(s2.checkout.shippingSelected).toBe(true)
 
-    const s3 = Result.getOrThrow(
-      Transition.step(loaded.transitions.AuthorizeAndConfirm, s2.state, { authCodeLength: 6 }),
-    )
-    expect(s3.state.checkout.step).toBe('confirmed')
-    expect(s3.emitted).toEqual([{ _tag: 'OrderConfirmed' }])
+    const [s3, emitted] = full.update(s2, {
+      _tag: 'CheckoutAuthorizeAndConfirm',
+      input: { authCodeLength: 6 },
+    })
+    expect(s3.checkout.step).toBe('confirmed')
+    expect(emitted).toEqual([{ _tag: 'OrderConfirmed' }])
   })
 
   it('maintains O(1) cart subtotal deltas and matches AggregatesSql.toSql in PGlite', async () => {
