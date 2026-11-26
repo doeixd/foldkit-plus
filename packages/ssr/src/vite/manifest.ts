@@ -129,6 +129,7 @@ export const manifestPlugin = <Tag extends string = string>(
     apply: 'build',
     applyToEnvironment: environment => environment.name === 'client',
     async buildStart() {
+      chunkRefs.clear()
       const resolvedRuntime = await this.resolve(options.entry)
       if (resolvedRuntime === null) {
         throw new Error(

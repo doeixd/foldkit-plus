@@ -107,7 +107,7 @@ describe('Binder lazy chunk loading policy and failure handling (Phase 7 Bouts 7
       `<form id="f"><button id="btn" type="submit" data-fk-msg="Inc" data-fk-payload='{"by":1}'>+</button></form>`,
     )
     const form = root.querySelector<HTMLFormElement>('#f')!
-    const submitSpy = vi.spyOn(form, 'submit').mockImplementation(() => undefined)
+    const requestSubmitSpy = vi.spyOn(form, 'requestSubmit').mockImplementation(() => undefined)
     let attempts = 0
 
     Binder.start({
@@ -124,9 +124,43 @@ describe('Binder lazy chunk loading policy and failure handling (Phase 7 Bouts 7
 
     root.querySelector<HTMLButtonElement>('#btn')!.click()
     await vi.waitFor(() => {
-      expect(submitSpy).toHaveBeenCalledTimes(1)
+      expect(requestSubmitSpy).toHaveBeenCalledTimes(1)
     })
     expect(attempts).toBe(1)
     claimBinder()?.take()
+  })
+
+  it('preserves FIFO order between a pending lazy press and an eager press, and flushes pending lazy presses on hand-over', async () => {
+    const root = makeRoot(
+      `<span data-fk-anchor="count">0</span>` +
+        `<button id="lazy" data-fk-msg="LazyAdd" data-fk-payload='{"by":10}'>+10</button>` +
+        `<button id="eager" data-fk-msg="Inc" data-fk-payload='{"by":1}'>+1</button>`,
+    )
+    let resolveLazy!: (entry: BinderTransition<Counter, 'LazyAdd'>) => void
+    Binder.start({
+      manifest: { transitions: { Inc: incEntry }, bindings },
+      envelope: { model: { count: 0 }, root },
+      wake: async () => undefined,
+      chunks: {
+        LazyAdd: () =>
+          new Promise<BinderTransition<Counter, 'LazyAdd'>>(resolve => {
+            resolveLazy = resolve
+          }),
+      },
+    })
+
+    // Click lazy button, then eager button while lazy is in flight: eager must wait!
+    root.querySelector<HTMLButtonElement>('#lazy')!.click()
+    root.querySelector<HTMLButtonElement>('#eager')!.click()
+    expect(root.querySelector('[data-fk-anchor="count"]')!.textContent).toBe('0')
+
+    // Hand-over before lazy resolves flushes both presses in exact FIFO order
+    const snap = claimBinder()!.take()
+    expect(snap.queued).toEqual([
+      { _tag: 'LazyAdd', by: 10 },
+      { _tag: 'Inc', by: 1 },
+    ])
+    // Resolving after stop() does nothing
+    resolveLazy({ tag: 'LazyAdd', schema: IncInput, transition: incTransition })
   })
 })

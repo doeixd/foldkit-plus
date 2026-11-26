@@ -8,7 +8,7 @@
  */
 import { Data, Match } from 'effect'
 import { Query as Relational, type AnyQuery } from 'foldkit-entity'
-import type { AnyOperation } from 'metakit/operation'
+import type { AnyOperation, OperationImplementations } from 'metakit/operation'
 import type { Definition } from './definition.js'
 
 export type Classification = Data.TaggedEnum<{
@@ -65,7 +65,7 @@ export const classify = <Row>(
       }
       return Classification.Update({ by: 'sorted-placement' })
     },
-    Reduce: ({ op }) => classifyOperation(op, { on }),
+    Reduce: ({ op, implementations }) => classifyOperation(op, { on, implementations }),
     Join: () => Classification.Update({ by: 'reverse-index' }),
   })
 }
@@ -73,12 +73,22 @@ export const classify = <Row>(
 /** Classify a custom `reduce` fold over a `metakit/operation` `Operation`. */
 export const classifyOperation = (
   op: AnyOperation,
-  options?: { readonly on?: 'insert' | 'delete' | undefined },
+  options?: {
+    readonly on?: 'insert' | 'delete' | undefined
+    readonly implementations?: OperationImplementations | undefined
+  },
 ): Classification => {
   const on = options?.on ?? 'delete'
   const { claims } = op.descriptor
   if (claims.invertible !== undefined) {
-    return Classification.Update({ by: 'fold-invertible' })
+    const inv = claims.invertible.inverse
+    const impls = options?.implementations
+    const hasInverse =
+      inv === 'self' ||
+      impls === undefined ||
+      (Object.hasOwn(impls, `${inv.id}@${inv.version}`) &&
+        impls[`${inv.id}@${inv.version}`] !== undefined)
+    if (hasInverse) return Classification.Update({ by: 'fold-invertible' })
   }
   if (on === 'insert' && claims.commutative === true && claims.associative === true) {
     return Classification.Update({ by: 'fold-insert-only' })

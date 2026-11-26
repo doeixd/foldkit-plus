@@ -39,6 +39,7 @@ const markTouchedAttribute = (el: Element, attrName: string): void => {
 export interface BinderTransitionLike<Model> {
   readonly _tag: 'Transition'
   readonly stateSchema: Option.Option<Schema.Codec<Model, Model>>
+  readonly suppliedSchema?: Option.Option<Schema.Top> | undefined
   readonly writes: ReadonlyArray<{ readonly target: ReadonlyArray<string> }>
   readonly emits: ReadonlyArray<unknown>
 }
@@ -149,8 +150,24 @@ const isUnsafeUrl = (raw: string): boolean => {
   return !ALLOWED_URL_SCHEMES.has(schemeMatch[1]!.toLowerCase())
 }
 
-const isUnsafeAttributeValue = (name: string, value: string): boolean =>
-  URL_ATTRIBUTES.has(name.toLowerCase()) && isUnsafeUrl(value)
+const isUnsafeAttributeValue = (name: string, value: string): boolean => {
+  const lower = name.toLowerCase()
+  if (!URL_ATTRIBUTES.has(lower)) return false
+  if (lower === 'srcset') {
+    for (const candidate of value.split(',')) {
+      const url = candidate.trim().split(/\s+/)[0]
+      if (url !== undefined && url !== '' && isUnsafeUrl(url)) return true
+    }
+    return false
+  }
+  if (lower === 'ping') {
+    for (const url of value.trim().split(/\s+/)) {
+      if (url !== '' && isUnsafeUrl(url)) return true
+    }
+    return false
+  }
+  return isUnsafeUrl(value)
+}
 
 const FORBIDDEN_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype'])
 
@@ -164,12 +181,20 @@ const hasForbiddenKey = (value: unknown): boolean => {
   return false
 }
 
+const hasSuppliedFields = <Model>(transition: BinderTransitionLike<Model>): boolean => {
+  const sup = transition.suppliedSchema
+  if (sup === undefined || !Option.isOption(sup) || Option.isNone(sup)) return false
+  const schema = sup.value as { readonly fields?: Record<string, unknown> }
+  return schema.fields !== undefined && Object.keys(schema.fields).length > 0
+}
+
 /** Whether every path `transition` writes is covered by at least one bound anchor's reads. */
 export const canAnswerLocally = <Model, Keys extends string>(
   transition: BinderTransitionLike<Model>,
   bindings: Bindings<Model, Keys>,
 ): boolean => {
   if (transition.emits.length > 0) return false
+  if (hasSuppliedFields(transition)) return false
   if (transition.writes.length === 0) return true
   if (Option.isNone(bindings.reads)) return false
   const boundReads = bindings.reads.value
@@ -286,7 +311,47 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
   const loadedChunks = new Map<string, BinderTransition<Model, string>>()
   const inflightChunks = new Map<string, Promise<BinderTransition<Model, string>>>()
   const pendingPresses = new Set<Element>()
+  const pendingOrder: Array<{
+    readonly tag: string
+    readonly el: Element
+    readonly rawPayload: Record<string, unknown>
+  }> = []
+  let drainingOrder = false
   const chunkTimeoutMs = options.chunkTimeoutMs ?? 3000
+
+  const parsePayload = (el: Element, tag: string): Record<string, unknown> | undefined => {
+    const rawPayload = el.getAttribute(BINDER_PAYLOAD_ATTRIBUTE)
+    if (rawPayload === null || rawPayload === '') return {}
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(rawPayload)
+    } catch (error) {
+      const issue = error instanceof Error ? error.message : String(error)
+      reportInvalid(formatInvalidPayload(tag, issue))
+      return undefined
+    }
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      reportInvalid(formatInvalidPayload(tag, 'expected a JSON object payload'))
+      return undefined
+    }
+    if (hasForbiddenKey(parsed)) {
+      reportInvalid(formatInvalidPayload(tag, 'payload contains a forbidden prototype key'))
+      return undefined
+    }
+    return parsed as Record<string, unknown>
+  }
+
+  const submitFormFallback = (form: HTMLFormElement, el: Element): void => {
+    if (typeof form.requestSubmit === 'function') {
+      try {
+        form.requestSubmit(el instanceof HTMLElement ? el : undefined)
+        return
+      } catch {
+        // jsdom throws Not implemented for requestSubmit; fall back to submit().
+      }
+    }
+    form.submit()
+  }
 
   const loadChunk = (tag: string): Promise<BinderTransition<Model, string>> | undefined => {
     const existing = loadedChunks.get(tag)
@@ -340,29 +405,9 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
   const applyResolvedEntry = (
     entry: BinderTransition<Model, string>,
     tag: string,
-    el: Element,
+    parsed: Record<string, unknown>,
     event?: Event,
   ): void => {
-    const rawPayload = el.getAttribute(BINDER_PAYLOAD_ATTRIBUTE)
-    let parsed: unknown = {}
-    if (rawPayload !== null && rawPayload !== '') {
-      try {
-        parsed = JSON.parse(rawPayload)
-      } catch (error) {
-        const issue = error instanceof Error ? error.message : String(error)
-        reportInvalid(formatInvalidPayload(tag, issue))
-        return
-      }
-      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        reportInvalid(formatInvalidPayload(tag, 'expected a JSON object payload'))
-        return
-      }
-      if (hasForbiddenKey(parsed)) {
-        reportInvalid(formatInvalidPayload(tag, 'payload contains a forbidden prototype key'))
-        return
-      }
-    }
-
     const decoded = Schema.decodeUnknownResult(entry.schema as Schema.Codec<unknown, unknown>)(
       parsed,
     )
@@ -424,77 +469,140 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
     })
   }
 
+  const resolveEagerEntry = (tag: string): BinderTransition<Model, string> | undefined => {
+    if (Object.hasOwn(options.manifest.transitions, tag)) {
+      return (
+        options.manifest.transitions as Readonly<Record<string, BinderTransition<Model, Tag>>>
+      )[tag]!
+    }
+    return loadedChunks.get(tag)
+  }
+
+  const drainPendingOrder = (): void => {
+    if (stopped || drainingOrder) return
+    const next = pendingOrder[0]
+    if (next === undefined) return
+    const eager = resolveEagerEntry(next.tag)
+    if (eager !== undefined) {
+      pendingOrder.shift()
+      pendingPresses.delete(next.el)
+      applyResolvedEntry(eager, next.tag, next.rawPayload)
+      drainPendingOrder()
+      return
+    }
+    if (options.chunks === undefined || !Object.hasOwn(options.chunks, next.tag)) {
+      pendingOrder.shift()
+      pendingPresses.delete(next.el)
+      queue.push({ ...next.rawPayload, _tag: next.tag })
+      triggerWake()
+      drainPendingOrder()
+      return
+    }
+    drainingOrder = true
+    const attemptLoad = () => {
+      const p = loadChunk(next.tag)
+      if (p === undefined) return Promise.reject(new Error(`missing chunk for "${next.tag}"`))
+      return withTimeout(p, chunkTimeoutMs)
+    }
+    const handleFailure = (error: unknown) => {
+      pendingOrder.shift()
+      pendingPresses.delete(next.el)
+      drainingOrder = false
+      if (stopped) return
+      const form = next.el.closest('form')
+      if (form !== null) {
+        submitFormFallback(form, next.el)
+      } else {
+        next.el.setAttribute('aria-disabled', 'true')
+        next.el.setAttribute('data-fk-chunk-failed', next.tag)
+        options.onChunkFailed?.({ tag: next.tag, element: next.el, error })
+      }
+      drainPendingOrder()
+    }
+    void attemptLoad().then(
+      entry => {
+        pendingOrder.shift()
+        pendingPresses.delete(next.el)
+        drainingOrder = false
+        if (!stopped) {
+          applyResolvedEntry(entry, next.tag, next.rawPayload)
+          drainPendingOrder()
+        }
+      },
+      firstError => {
+        if (stopped) {
+          pendingOrder.shift()
+          pendingPresses.delete(next.el)
+          drainingOrder = false
+          return
+        }
+        // Form controls release immediately to browser submission; non-form controls retry once.
+        if (next.el.closest('form') !== null) {
+          handleFailure(firstError)
+          return
+        }
+        void attemptLoad().then(
+          entry => {
+            pendingOrder.shift()
+            pendingPresses.delete(next.el)
+            drainingOrder = false
+            if (!stopped) {
+              applyResolvedEntry(entry, next.tag, next.rawPayload)
+              drainPendingOrder()
+            }
+          },
+          retryError => handleFailure(retryError),
+        )
+      },
+    )
+  }
+
   const handleEvent = (event: Event): void => {
     if (stopped || root === undefined) return
     const el = findMessageElement(event.target, root)
     if (el === null) return
+    if (el.getAttribute('aria-disabled') === 'true') {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      return
+    }
     const tag = el.getAttribute(BINDER_MESSAGE_ATTRIBUTE)
     if (tag === null || tag === '') return
 
-    if (Object.hasOwn(options.manifest.transitions, tag)) {
-      const entry = (
-        options.manifest.transitions as Readonly<Record<string, BinderTransition<Model, Tag>>>
-      )[tag]!
-      applyResolvedEntry(entry, tag, el, event)
+    const parsed = parsePayload(el, tag)
+    if (parsed === undefined) return
+
+    // If any lazy chunk press is currently in flight, serialize subsequent
+    // presses behind it in strict FIFO order (ignoring duplicate clicks on the
+    // same in-flight control).
+    if (pendingOrder.length > 0) {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      if (pendingPresses.has(el)) return
+      pendingPresses.add(el)
+      pendingOrder.push({ tag, el, rawPayload: parsed })
       return
     }
 
-    const cached = loadedChunks.get(tag)
-    if (cached !== undefined) {
-      applyResolvedEntry(cached, tag, el, event)
+    const eager = resolveEagerEntry(tag)
+    if (eager !== undefined) {
+      applyResolvedEntry(eager, tag, parsed, event)
       return
     }
 
     if (options.chunks !== undefined && Object.hasOwn(options.chunks, tag)) {
       event.preventDefault()
       event.stopImmediatePropagation()
-      // Never dispatch the same control's press twice while its chunk is in flight.
-      if (pendingPresses.has(el)) return
       pendingPresses.add(el)
-      const attemptLoad = () => {
-        const p = loadChunk(tag)
-        if (p === undefined) return Promise.reject(new Error(`missing chunk for "${tag}"`))
-        return withTimeout(p, chunkTimeoutMs)
-      }
-      const handleFailure = (error: unknown) => {
-        pendingPresses.delete(el)
-        if (stopped) return
-        const form = el.closest('form')
-        if (form !== null) {
-          form.submit()
-          return
-        }
-        el.setAttribute('aria-disabled', 'true')
-        el.setAttribute('data-fk-chunk-failed', tag)
-        options.onChunkFailed?.({ tag, element: el, error })
-      }
-      void attemptLoad().then(
-        entry => {
-          pendingPresses.delete(el)
-          if (!stopped) applyResolvedEntry(entry, tag, el)
-        },
-        firstError => {
-          if (stopped) {
-            pendingPresses.delete(el)
-            return
-          }
-          // Form controls release immediately to browser submission; non-form controls retry once.
-          if (el.closest('form') !== null) {
-            handleFailure(firstError)
-            return
-          }
-          void attemptLoad().then(
-            entry => {
-              pendingPresses.delete(el)
-              if (!stopped) applyResolvedEntry(entry, tag, el)
-            },
-            retryError => handleFailure(retryError),
-          )
-        },
-      )
+      pendingOrder.push({ tag, el, rawPayload: parsed })
+      drainPendingOrder()
       return
     }
 
+    // Undeclared Message: queue once for the runtime to replay on hand-over and wake.
+    queue.push({ ...parsed, _tag: tag })
+    event.preventDefault()
+    event.stopImmediatePropagation()
     triggerWake()
   }
 
@@ -531,6 +639,12 @@ export const start = <Model, Tag extends string = string, Keys extends string = 
   offerBinder({
     take: () => {
       stop()
+      // Flush any presses still waiting on lazy chunks into `queued` in FIFO order
+      // so `SSR.hydrate` replays them once rather than dropping them on hand-over.
+      for (const item of pendingOrder.splice(0)) {
+        pendingPresses.delete(item.el)
+        queue.push({ ...item.rawPayload, _tag: item.tag })
+      }
       return {
         model: currentModel,
         mutated: didMutate,

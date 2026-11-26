@@ -682,18 +682,20 @@ export const lazy = <State, Input = unknown, Emit = never, Supplied = NoSupplied
   const resolve = (): Promise<Transition<State, Input, Emit, Supplied>> => {
     if (Option.isSome(loaded)) return Promise.resolve(loaded.value)
     if (inflight !== undefined) return inflight
-    inflight = loader().then(
-      mod => {
-        const transition = 'default' in mod ? mod.default : mod
-        loaded = Option.some(transition)
-        inflight = undefined
-        return transition
-      },
-      err => {
-        inflight = undefined
-        throw err
-      },
-    )
+    inflight = Promise.resolve()
+      .then(loader)
+      .then(
+        mod => {
+          const transition = 'default' in mod ? mod.default : mod
+          loaded = Option.some(transition)
+          inflight = undefined
+          return transition
+        },
+        err => {
+          inflight = undefined
+          throw err
+        },
+      )
     return inflight
   }
   return {

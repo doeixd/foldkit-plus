@@ -1976,52 +1976,67 @@ const makeShape = <
     },
   ) {
     const limit = options.limit
-    if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) {
-      return yield* Effect.die(new Error('Journal.replay: limit must be a positive integer'))
+    if (
+      limit !== undefined &&
+      (!Number.isSafeInteger(limit) || limit < 1 || limit >= Number.MAX_SAFE_INTEGER)
+    ) {
+      return yield* Effect.die(
+        new Error('Journal.replay: limit must be a positive safe integer below MAX_SAFE_INTEGER'),
+      )
+    }
+    if (!Number.isSafeInteger(options.after) || options.after < 0) {
+      return yield* Effect.die(new Error('Journal.replay: after must be a non-negative integer'))
     }
     yield* Effect.annotateCurrentSpan({ key, after: options.after })
+
+    const loadSnapshot = (
+      reason: 'epoch-changed' | 'compacted' | 'cursor-ahead',
+    ): Effect.Effect<ReplayResult<Operation, Snapshot>, JournalError> =>
+      Effect.gen(function* () {
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const beforeEpoch = yield* epoch(key)
+          const loaded = yield* load(key)
+          const afterEpoch = yield* epoch(key)
+          if (beforeEpoch === afterEpoch) {
+            return {
+              _tag: 'Snapshot',
+              epoch: afterEpoch,
+              cursor: loaded.cursor,
+              snapshot: loaded.snapshot,
+              reason,
+            } satisfies ReplayResult<Operation, Snapshot>
+          }
+        }
+        const finalEpoch = yield* epoch(key)
+        const loaded = yield* load(key)
+        return {
+          _tag: 'Snapshot',
+          epoch: finalEpoch,
+          cursor: loaded.cursor,
+          snapshot: loaded.snapshot,
+          reason: 'epoch-changed',
+        } satisfies ReplayResult<Operation, Snapshot>
+      })
+
     const currentEpoch = yield* epoch(key)
     if (options.epoch !== undefined && options.epoch !== currentEpoch) {
-      const loaded = yield* load(key)
-      return {
-        _tag: 'Snapshot',
-        epoch: currentEpoch,
-        cursor: loaded.cursor,
-        snapshot: loaded.snapshot,
-        reason: 'epoch-changed',
-      } satisfies ReplayResult<Operation, Snapshot>
+      return yield* loadSnapshot('epoch-changed')
     }
     const readResult = yield* Effect.result(
       read(key, options.after, limit === undefined ? undefined : { limit: limit + 1 }),
     )
     if (Result.isFailure(readResult)) {
       return yield* Match.valueTags(readResult.failure, {
-        CompactedCursorError: () =>
-          Effect.gen(function* () {
-            const loaded = yield* load(key)
-            const freshEpoch = yield* epoch(key)
-            return {
-              _tag: 'Snapshot',
-              epoch: freshEpoch,
-              cursor: loaded.cursor,
-              snapshot: loaded.snapshot,
-              reason: 'compacted',
-            } satisfies ReplayResult<Operation, Snapshot>
-          }),
-        InvalidCursorError: () =>
-          Effect.gen(function* () {
-            const loaded = yield* load(key)
-            const freshEpoch = yield* epoch(key)
-            return {
-              _tag: 'Snapshot',
-              epoch: freshEpoch,
-              cursor: loaded.cursor,
-              snapshot: loaded.snapshot,
-              reason: 'cursor-ahead',
-            } satisfies ReplayResult<Operation, Snapshot>
-          }),
+        CompactedCursorError: () => loadSnapshot('compacted'),
+        InvalidCursorError: () => loadSnapshot('cursor-ahead'),
         JournalError: err => Effect.fail(err),
       })
+    }
+    // Re-check epoch after reading so a concurrent reset() cannot tag new-epoch
+    // operations with an old epoch id.
+    const afterReadEpoch = yield* epoch(key)
+    if (afterReadEpoch !== currentEpoch) {
+      return yield* loadSnapshot('epoch-changed')
     }
     const fetched = readResult.success
     const hasMore = limit !== undefined && fetched.length > limit
@@ -2030,7 +2045,7 @@ const makeShape = <
       operations.length > 0 ? toCursor(operations[operations.length - 1]!.sequence) : options.after
     return {
       _tag: 'Operations',
-      epoch: currentEpoch,
+      epoch: afterReadEpoch,
       cursor: nextCursor,
       operations,
       hasMore,

@@ -1427,6 +1427,32 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
       `[foldkit-remote-drizzle] writer: parentLock on ${binding.name} is supported on Postgres only; SQLite/D1 has no SELECT ... FOR UPDATE.`,
     )
   }
+  const existingParentIds = async (tx: unknown, id: string): Promise<ReadonlyArray<string>> => {
+    if (parentLock === undefined) return []
+    const cols: Record<string, AnyColumn> = {}
+    for (const field of parentLock.by) {
+      const col = binding.columns[field]
+      if (col !== undefined) cols[field] = col
+      else {
+        const rel = binding.relations[field]
+        if (rel !== undefined && rel.kind === 'one') cols[field] = rel.field
+      }
+    }
+    if (Object.keys(cols).length === 0) return []
+    const rows = await (tx as ParentLockTransaction)
+      .select(cols)
+      .from(binding.table as unknown as PgTable)
+      .where(eq(idColumn(binding), id))
+    const row = rows[0]
+    if (row === undefined) return []
+    const ids: Array<string> = []
+    for (const field of Object.keys(cols)) {
+      const val = row[field]
+      if (val !== null && val !== undefined) ids.push(String(val))
+    }
+    return ids
+  }
+
   const parentIdsFrom = (
     values: Readonly<Record<string, unknown>>,
     links: Readonly<Record<string, Option.Option<EntityRef>>>,
@@ -2648,31 +2674,42 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
         }
         let rows: ReadonlyArray<Record<string, unknown>>
         if (Option.isSome(book)) {
-          const parentIds = parentLock === undefined ? [] : parentIdsFrom(values, links)
+          const runUpdate = (tx: unknown) =>
+            (tx as DrizzleWrites)
+              .update(binding.table)
+              .set(set)
+              .where(where)
+              .returning(answered.columns)
           const done = yield* inLedger(
             book.value.ledger,
             book.value.ledger.scope(principal),
             book.value.op,
             request,
             id,
-            async tx => {
-              const lockedIds =
-                parentLock === undefined
-                  ? []
-                  : await lockParents(tx, parentLock.table, parentLock.id, parentIds)
-              const updated = (await (tx as DrizzleWrites)
-                .update(binding.table)
-                .set(set)
-                .where(where)
-                .returning(answered.columns)) as ReadonlyArray<Record<string, unknown>>
-              if (updated.length > 0 && parentLock?.onWrite !== undefined) {
-                await parentLock.onWrite({
-                  parentIds: lockedIds,
-                  tx: tx as ParentLockTransaction,
-                })
-              }
-              return updated
-            },
+            parentLock === undefined
+              ? runUpdate
+              : async tx => {
+                  const allParentIds = sortParentIds([
+                    ...(await existingParentIds(tx, id)),
+                    ...parentIdsFrom(values, links),
+                  ])
+                  const lockedIds = await lockParents(
+                    tx,
+                    parentLock.table,
+                    parentLock.id,
+                    allParentIds,
+                  )
+                  const updated = (await (runUpdate(tx) as PromiseLike<
+                    ReadonlyArray<Record<string, unknown>>
+                  >)) as ReadonlyArray<Record<string, unknown>>
+                  if (updated.length > 0 && parentLock.onWrite !== undefined) {
+                    await parentLock.onWrite({
+                      parentIds: lockedIds,
+                      tx: tx as ParentLockTransaction,
+                    })
+                  }
+                  return updated
+                },
             answered,
           )
           // Landed already: not written again.
@@ -2685,23 +2722,23 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
             where,
           })
         } else if (parentLock !== undefined) {
-          const parentIds = parentIdsFrom(values, links)
-          rows = yield* withParentLock(
-            parentLock.table,
-            parentLock.id,
-            parentIds,
-            async (tx, lockedIds) => {
-              const updated = (await tx
-                .update(binding.table)
-                .set(set)
-                .where(where)
-                .returning(answered.columns)) as ReadonlyArray<Record<string, unknown>>
-              if (updated.length > 0 && parentLock.onWrite !== undefined) {
-                await parentLock.onWrite({ parentIds: lockedIds, tx })
-              }
-              return updated
-            },
-          )
+          const incomingIds = parentIdsFrom(values, links)
+          rows = yield* withParentLock(parentLock.table, parentLock.id, [], async tx => {
+            const allParentIds = sortParentIds([
+              ...(await existingParentIds(tx, id)),
+              ...incomingIds,
+            ])
+            const lockedIds = await lockParents(tx, parentLock.table, parentLock.id, allParentIds)
+            const updated = (await tx
+              .update(binding.table)
+              .set(set)
+              .where(where)
+              .returning(answered.columns)) as ReadonlyArray<Record<string, unknown>>
+            if (updated.length > 0 && parentLock.onWrite !== undefined) {
+              await parentLock.onWrite({ parentIds: lockedIds, tx })
+            }
+            return updated
+          })
         } else {
           rows = yield* runStatement(
             () => writes.update(binding.table).set(set).where(where).returning(answered.columns),
@@ -2843,29 +2880,33 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
         // may not read, and a different answer per value would tell them.
         let inserted: ReadonlyArray<Record<string, unknown>>
         if (ledger !== undefined && Option.isSome(operation)) {
-          const parentIds = parentLock === undefined ? [] : parentIdsFrom(values, links)
           const done = yield* inLedger(
             ledger,
             ledger.scope(principal),
             operation.value,
             request,
             id,
-            async tx => {
-              const lockedIds =
-                parentLock === undefined
-                  ? []
-                  : await lockParents(tx, parentLock.table, parentLock.id, parentIds)
-              const rows = (await (statement(tx) as PromiseLike<
-                ReadonlyArray<Record<string, unknown>>
-              >)) as ReadonlyArray<Record<string, unknown>>
-              if (rows.length > 0 && parentLock?.onWrite !== undefined) {
-                await parentLock.onWrite({
-                  parentIds: lockedIds,
-                  tx: tx as ParentLockTransaction,
-                })
-              }
-              return rows
-            },
+            parentLock === undefined
+              ? statement
+              : async tx => {
+                  const parentIds = parentIdsFrom(values, links)
+                  const lockedIds = await lockParents(
+                    tx,
+                    parentLock.table,
+                    parentLock.id,
+                    parentIds,
+                  )
+                  const rows = (await (statement(tx) as PromiseLike<
+                    ReadonlyArray<Record<string, unknown>>
+                  >)) as ReadonlyArray<Record<string, unknown>>
+                  if (rows.length > 0 && parentLock.onWrite !== undefined) {
+                    await parentLock.onWrite({
+                      parentIds: lockedIds,
+                      tx: tx as ParentLockTransaction,
+                    })
+                  }
+                  return rows
+                },
             answered,
           )
           if (done._tag === 'Recorded') return yield* answerOfRecord(id, answered, done.answer)
@@ -2930,18 +2971,36 @@ export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
         // One statement unless the delete takes rows with it or clears links to it.
         const removal =
           Option.isNone(plan) && clears.length === 0
-            ? yield* Effect.gen(function* () {
-                const writes = yield* drizzleWrites
-                const rows = yield* runStatement(
-                  () =>
-                    writes
-                      .delete(binding.table)
-                      .where(where)
-                      .returning({ id: idColumn(binding) }),
-                  'Database write failed',
-                )
-                return { deleted: rows.length > 0, cascaded: [], cleared: [] }
-              })
+            ? parentLock !== undefined
+              ? yield* withParentLock(parentLock.table, parentLock.id, [], async tx => {
+                  const parentIds = sortParentIds(await existingParentIds(tx, id))
+                  const lockedIds = await lockParents(
+                    tx,
+                    parentLock.table,
+                    parentLock.id,
+                    parentIds,
+                  )
+                  const rows = (await tx
+                    .delete(binding.table)
+                    .where(where)
+                    .returning({ id: idColumn(binding) })) as ReadonlyArray<Record<string, unknown>>
+                  if (rows.length > 0 && parentLock.onWrite !== undefined) {
+                    await parentLock.onWrite({ parentIds: lockedIds, tx })
+                  }
+                  return { deleted: rows.length > 0, cascaded: [], cleared: [] }
+                })
+              : yield* Effect.gen(function* () {
+                  const writes = yield* drizzleWrites
+                  const rows = yield* runStatement(
+                    () =>
+                      writes
+                        .delete(binding.table)
+                        .where(where)
+                        .returning({ id: idColumn(binding) }),
+                    'Database write failed',
+                  )
+                  return { deleted: rows.length > 0, cascaded: [], cleared: [] }
+                })
             : yield* withCascade(plan, id, where, refusing, principal)
         if (removal.deleted)
           return DeleteOutcome.Deleted({ cascaded: removal.cascaded, cleared: removal.cleared })

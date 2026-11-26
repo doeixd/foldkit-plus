@@ -33,6 +33,11 @@ export const reduce = <Row, V>(
   pick: (row: Row) => V | null | undefined,
   implementations: OperationImplementations,
 ): ReduceDefinition<Row, V> => {
+  if (op.descriptor.args.length !== 2) {
+    throw new Error(
+      `[metakit] Arr.reduce: "${opTag(op)}" takes ${op.descriptor.args.length} arguments, but reduce requires a binary operation.`,
+    )
+  }
   const { claims } = op.descriptor
   if (
     claims.commutative !== true ||

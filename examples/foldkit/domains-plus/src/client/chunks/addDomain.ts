@@ -4,7 +4,6 @@
  * Loaded on intent (`pointerover` / `focusin` / `touchstart`), idle, or press
  * by `examples/foldkit/domains-plus/src/client/binder.ts`.
  */
-import { Schema } from 'effect'
 import { Transition } from 'metakit'
 import type { BinderTransition } from 'foldkit-ssr/binder'
 import {

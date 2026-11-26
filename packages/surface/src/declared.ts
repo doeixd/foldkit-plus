@@ -165,6 +165,7 @@ export interface Declared<Root, Message, Tag extends string, Resources = never, 
     commands?: Readonly<
       Record<string, (record: unknown) => ReadonlyArray<CommandOf<Root, Message, Resources>>>
     >,
+    supply?: (message: Message) => unknown,
   ) => ReadonlyArray<Message>
   /** Messages currently waiting for an unloaded lazy arm. */
   readonly waitingFor: (tag: string) => ReadonlyArray<Message>
@@ -261,7 +262,22 @@ const of = <
   const declaredTags = new Set<string>(Object.keys(machine.transitions))
   const isTag = (key: string): key is Tag => declaredTags.has(key)
   const appTags = Object.keys(messages).filter(key => messageTag(messages[key]) === key)
-  const undeclared = appTags.filter(tag => !declaredTags.has(tag))
+  const appTagSet = new Set<string>(appTags)
+  const lazyTagSet = new Set<string>()
+  for (const tag of config?.lazyTags ?? []) {
+    if (!appTagSet.has(tag)) {
+      throw new Error(
+        `Declared.of: lazyTags names "${tag}", which is not a Message of this application`,
+      )
+    }
+    if (declaredTags.has(tag)) {
+      throw new Error(
+        `Declared.of: lazyTags names "${tag}", which is already declared in machine.transitions`,
+      )
+    }
+    lazyTagSet.add(tag)
+  }
+  const undeclared = appTags.filter(tag => !declaredTags.has(tag) && !lazyTagSet.has(tag))
   const fallback = config?.fallback
   if (undeclared.length > 0 && fallback === undefined) {
     throw new Error(
@@ -290,7 +306,7 @@ const of = <
     (record: unknown) => ReadonlyArray<CommandOf<Root, Message, Resources>>
   > = Object.assign(Object.create(null), config?.commands ?? {})
   const dynamicArms = new Map<string, Transition.Transition<Root, unknown, unknown, unknown>>()
-  const lazyTagSet = new Set<string>(config?.lazyTags ?? [])
+  const dynamicSuppliers = new Map<string, (message: Message) => unknown>()
   const pendingByTag = new Map<string, Array<Message>>()
   const supplyTable: object = config?.supply ?? Object.create(null)
   const record = config?.record
@@ -373,7 +389,13 @@ const of = <
     transition: Transition.Transition<Root, unknown, unknown, unknown>,
     message: Message,
   ): Return => {
-    const stepped = Transition.step(transition, model, message, undefined, readerOptions)
+    const supplier = dynamicSuppliers.get(tag)
+    const supplied = supplier === undefined ? undefined : supplier(message)
+    if (supplier !== undefined && record !== undefined) {
+      const step: { readonly message: Message; readonly supplied: unknown } = { message, supplied }
+      if (isSuppliedStep(step)) record(step)
+    }
+    const stepped = Transition.step(transition, model, message, supplied, readerOptions)
     if (Result.isFailure(stepped)) return { model }
     const { state: next, emitted } = stepped.success
     if (emitted.length === 0) return { model: next }
@@ -419,8 +441,24 @@ const of = <
     Tag,
     Resources,
     SuppliedStep<Transitions, Message>
-  >['registerArm'] = (tag, transition, armCommands) => {
+  >['registerArm'] = (tag, transition, armCommands, armSupply) => {
+    if (!appTagSet.has(tag)) {
+      throw new Error(
+        `Declared.of: registerArm("${tag}") names a tag that is not a Message of this application`,
+      )
+    }
+    if (declaredTags.has(tag)) {
+      throw new Error(
+        `Declared.of: registerArm("${tag}") cannot overwrite a statically declared transition`,
+      )
+    }
+    if (declaresSupplied(transition) && armSupply === undefined) {
+      throw new Error(
+        `Declared.of: registerArm("${tag}") takes supplied values, and no supply function was given`,
+      )
+    }
     dynamicArms.set(tag, transition)
+    if (armSupply !== undefined) dynamicSuppliers.set(tag, armSupply)
     lazyTagSet.delete(tag)
     if (armCommands !== undefined) {
       for (const [key, handler] of Object.entries(armCommands)) {

@@ -15,6 +15,11 @@ export interface JoinDefinition<Row> {
   readonly targetOf: (row: Row) => string | null | undefined
 }
 
+/**
+ * Live reverse-indexed view of grouped rows: `forTarget` reads the maintained
+ * `ReverseIndex` for the latest `Maintained.value` read, so callers should not
+ * retain old `JoinedRows` references as historical point-in-time snapshots.
+ */
 export interface JoinedRows<Row> {
   /** Number of distinct target ids that currently have at least one pointing row. */
   readonly targetCount: number

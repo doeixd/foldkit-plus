@@ -591,18 +591,20 @@ export const lazyChild = <State, M extends LazyMachineLike<State>>(
   const resolve = (): Promise<M> => {
     if (Option.isSome(loaded)) return Promise.resolve(loaded.value)
     if (inflight !== undefined) return inflight
-    inflight = loader().then(
-      mod => {
-        const machine = 'default' in mod ? mod.default : mod
-        loaded = Option.some(machine)
-        inflight = undefined
-        return machine
-      },
-      err => {
-        inflight = undefined
-        throw err
-      },
-    )
+    inflight = Promise.resolve()
+      .then(loader)
+      .then(
+        mod => {
+          const machine = 'default' in mod ? mod.default : mod
+          loaded = Option.some(machine)
+          inflight = undefined
+          return machine
+        },
+        err => {
+          inflight = undefined
+          throw err
+        },
+      )
     return inflight
   }
   return {
@@ -670,6 +672,11 @@ export const compose = <
   const lazyMap: Record<string, LazyChild<S['Type']>> = {}
   if (config.lazyChildren !== undefined) {
     for (const [name, loader] of Object.entries(config.lazyChildren)) {
+      if (Object.hasOwn(config.children, name)) {
+        throw new Error(
+          `[metakit] Machine.compose: child prefix "${name}" is declared in both children and lazyChildren`,
+        )
+      }
       lazyMap[name] = lazyChild(name, loader)
     }
   }

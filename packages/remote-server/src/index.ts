@@ -3937,7 +3937,7 @@ export const checkAggregateRule = (
   const judged = rule.judged ?? 'read-first'
   if (gives(store, 'parent-serialized', judged)) return
   const isolates = store.isolates ?? 'statement'
-  if (isolates !== 'transaction') {
+  if (isolates !== 'transaction' && judged === 'read-first') {
     throw new Error(
       `[foldkit-remote-server] the rule "${rule.name}" of ${rule.entity} sums its ${rule.over} and needs parent-serialized; ${store.name} (${store.isolation} per ${isolates}) judges it from a read first. Judge it on Postgres with the parent lock, or as a guard in the statement.`,
     )
