@@ -190,8 +190,12 @@ export const meets = (a: ReadonlyArray<string>, b: ReadonlyArray<string>): boole
 export const format = (segments: ReadonlyArray<string>): string =>
   segments.length === 0 ? '$' : segments.join('.')
 
-/** What a path reads where the value is an Effect `Option`: its value, or null for none. */
-export type Read<A> = [A] extends [Option.Option<infer T>] ? T | null : A
+/** What a path reads: an `Option` reads as its value or null, and an absent/undefined field reads as null. */
+export type Read<A> = [Exclude<A, undefined>] extends [Option.Option<infer T>]
+  ? T | null
+  : undefined extends A
+    ? Exclude<A, undefined> | null
+    : A
 
 /** `null` where a read of `A` may give null: a null, an absent key, or a none. */
 type NullIn<A> = null extends A ? null : undefined extends A ? null : never

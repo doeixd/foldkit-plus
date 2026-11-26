@@ -82,6 +82,7 @@ export const readModel = (
     if (flags.length > 0) {
       const own = shape.absences.get(`absent:${name}`)
       if (flags.length === 1 && own !== undefined && flags[0] === `absent:${name}`) {
+        if (own.as === 'none') write(info.segments, Option.none())
         if (own.as === 'null') write(info.segments, null)
         if (own.as === 'undefined') write(info.segments, undefined)
         if (info.sort !== 'struct') flat[name] = null
@@ -90,7 +91,7 @@ export const readModel = (
     }
     const value = valueOf(name, info)
     if (Option.isNone(value)) continue
-    write(info.segments, value.value)
+    write(info.segments, info.isOption ? Option.some(value.value) : value.value)
     if (info.sort !== 'struct' && info.sort !== 'other') flat[name] = value.value
   }
   return { env, flat }

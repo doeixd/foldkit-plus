@@ -24,12 +24,14 @@ export interface PathInfo {
   readonly finite: boolean
   /** What the checks on text ask of it (none for any other sort); `nulFree` of `Text.schema`. */
   readonly text: TextChecks
+  /** True when the Schema stores this field as an Effect `Option`. */
+  readonly isOption?: boolean
 }
 
-/** A path that may read as null, and what a witness writes there: null, undefined, or no key. */
+/** A path that may read as null, and what a witness writes there: null, undefined, omitted, or Option.none(). */
 export interface Absence {
   readonly segments: ReadonlyArray<string>
-  readonly as: 'null' | 'undefined' | 'omitted'
+  readonly as: 'null' | 'undefined' | 'omitted' | 'none'
   readonly always: boolean
 }
 
@@ -118,21 +120,45 @@ const readShape = (
   shape: Shape,
 ): void => {
   const name = Path.format(segments)
-  const members = SchemaAST.isUnion(ast) ? ast.types : [ast]
-  const present = members.filter(m => !SchemaAST.isNull(m) && !SchemaAST.isUndefined(m))
-  const admitsNull = members.some(SchemaAST.isNull)
-  const admitsUndefined = members.some(SchemaAST.isUndefined)
-  const mayBeAbsent = admitsNull || optional || admitsUndefined
+  let current = ast
+  let admitsNull = false
+  let admitsUndefined = false
+  let isOption = false
+  let present: ReadonlyArray<SchemaAST.AST> = [current]
+  while (true) {
+    const opt = Path.optionInner(current)
+    if (Option.isSome(opt)) {
+      isOption = true
+      current = opt.value
+      present = [current]
+      continue
+    }
+    if (SchemaAST.isUnion(current)) {
+      if (current.types.some(SchemaAST.isNull)) admitsNull = true
+      if (current.types.some(SchemaAST.isUndefined)) admitsUndefined = true
+      const nonNull = current.types.filter(m => !SchemaAST.isNull(m) && !SchemaAST.isUndefined(m))
+      if (nonNull.length === 1) {
+        current = nonNull[0]!
+        present = [current]
+        continue
+      }
+      present = nonNull
+      break
+    }
+    present = [current]
+    break
+  }
+  const mayBeAbsent = admitsNull || optional || admitsUndefined || isOption
   const flag = `absent:${name}`
   const flags = mayBeAbsent ? [...above, flag] : above
   if (mayBeAbsent) {
     shape.absences.set(flag, {
       segments,
-      as: admitsNull ? 'null' : admitsUndefined ? 'undefined' : 'omitted',
+      as: isOption ? 'none' : admitsNull ? 'null' : admitsUndefined ? 'undefined' : 'omitted',
       always: present.length === 0,
     })
   }
-  const inner = present.length === 1 ? present[0]! : ast
+  const inner = present.length === 1 ? present[0]! : current
   const info = (sort: Sort, more?: Partial<PathInfo>): void => {
     shape.paths.set(name, {
       segments,
@@ -144,6 +170,7 @@ const readShape = (
       nan: false,
       finite: false,
       text: { minLength: 0, maxLength: Infinity, nulFree: false, modelled: true },
+      ...(isOption ? { isOption: true } : {}),
       ...more,
     })
   }
