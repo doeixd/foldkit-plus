@@ -2,13 +2,15 @@ import { PGlite } from '@electric-sql/pglite'
 import { Effect, Option, Result } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Expr, Verdict } from 'metakit'
-import { CalendarDay } from 'metakit/domain'
+import { CalendarDay, Money } from 'metakit/domain'
 import * as Graph from 'metakit/graph'
 import * as Prove from 'metakit/prove'
+import * as Relation from 'metakit/relation'
 import * as Sql from 'metakit/sql'
 import {
   CancellationPolicy,
   Reservation,
+  RoomReservations,
   popularRoom,
   roomAvailableFor,
 } from '../src/booking/index.js'
@@ -117,15 +119,11 @@ describe('Example 3: Hotel Booking & Cancellation Engine', () => {
     )
     expect(Verdict.isTrue(imp)).toBe(true)
 
-    // Unreachable impossibleTier is caught by policyConsistent (False = unsatisfiable)
-    const impossible = await Effect.runPromise(
-      Prove.policyConsistent(CancellationPolicy, 'impossibleTier'),
-    )
-    expect(Verdict.isFalse(impossible)).toBe(true)
-    const reachable = await Effect.runPromise(
-      Prove.policyConsistent(CancellationPolicy, 'fullRefund'),
-    )
-    expect(Verdict.isTrue(reachable)).toBe(true)
+    // Whole-policy consistency report detects unreachable impossibleTier in one call
+    const report = await Effect.runPromise(Prove.policyAllConsistent(CancellationPolicy))
+    expect(report.ok).toBe(false)
+    expect(report.unreachable).toEqual(['impossibleTier'])
+    expect(Verdict.isTrue(report.verdicts.fullRefund)).toBe(true)
   })
 
   it('reports queryReadiness before and after binding window parameters', () => {
@@ -154,28 +152,24 @@ describe('Example 3: Hotel Booking & Cancellation Engine', () => {
     )
     expect(ready.ready).toBe(true)
 
-    // In-memory evaluation of Relation.any agrees with SQL
+    // In-memory evaluation of Relation.any via typed Relation.withRows agrees with SQL
+    const roomWithBooking = Relation.withRows(
+      { id: 'r1', roomNumber: 101, nightlyRate: Money.minor('USD', 20000), active: true },
+      RoomReservations,
+      [
+        {
+          id: 'b1',
+          roomId: 'r1',
+          checkIn: day('2026-06-10'),
+          checkOut: day('2026-06-15'),
+          status: 'confirmed',
+          refundCents: null,
+        },
+      ],
+    )
     expect(
       Expr.holds(roomAvailableFor, {
-        row: {
-          id: 'r1',
-          roomNumber: 101,
-          nightlyRate: 20000 as never,
-          active: true,
-          '<Reservation.roomId': {
-            rows: [
-              {
-                id: 'b1',
-                roomId: 'r1',
-                checkIn: day('2026-06-10'),
-                checkOut: day('2026-06-15'),
-                status: 'confirmed',
-                refundCents: null,
-              },
-            ],
-            whole: true,
-          },
-        } as never,
+        row: roomWithBooking,
         window: { start: day('2026-06-12'), end: day('2026-06-14') },
       }),
     ).toBe(false)

@@ -51,16 +51,14 @@ describe('Example 6: E-Commerce Cart, Promotions & Lazy Checkout', () => {
 
     expect(Expr.holds(qualifiesForFreeShipping, { cart: patched.state })).toBe(false)
 
-    // OrderedEnum: bronze -> gold succeeds, gold -> silver is refused
+    // OrderedEnum: bronze -> gold succeeds, gold -> silver is refused (no `as const` needed!)
     const upgraded = Result.getOrThrow(
-      Transition.step(UpgradeTier, patched.state, { nextTier: 'gold' as const }),
+      Transition.step(UpgradeTier, patched.state, { nextTier: 'gold' }),
     )
     expect(upgraded.state.tier).toBe('gold')
     expect(Expr.holds(qualifiesForFreeShipping, { cart: upgraded.state })).toBe(true)
     expect(
-      Result.isFailure(
-        Transition.step(UpgradeTier, upgraded.state, { nextTier: 'silver' as const }),
-      ),
+      Result.isFailure(Transition.step(UpgradeTier, upgraded.state, { nextTier: 'silver' })),
     ).toBe(true)
 
     const removed = Result.getOrThrow(Transition.step(RemoveItem, upgraded.state, { id: 'i1' }))

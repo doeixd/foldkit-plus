@@ -75,7 +75,6 @@ const $cart = Path.from(CartState)
 export const CartMachine = Machine.compose({
   state: CartState,
   transitions: { AddItem, SetQuantity, RemoveItem, UpgradeTier },
-  children: {},
   lazyChildren: {
     Checkout: () =>
       import('./checkout.js').then(m => Machine.lift($cart.checkout, m.CheckoutMachine)),

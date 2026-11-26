@@ -173,10 +173,27 @@ export const cannotRefuse = (node: Node.Node): boolean =>
           cannotRefuse(args[1]!) &&
           Node.$is('Lit')(args[1]!) &&
           Array.isArray(args[1]!.value)
-        : callCannotRefuse(
-            op,
-            args.map(arg => [cannotRefuse(arg), kindOf(arg)]),
-          ),
+        : args.length === 2 &&
+            cannotRefuse(args[0]!) &&
+            cannotRefuse(args[1]!) &&
+            safeBoundedSum(
+              op,
+              Node.$is('Lit')(args[0]!) && typeof args[0]!.value === 'number'
+                ? Option.some(Math.abs(args[0]!.value))
+                : Node.$is('Path')(args[0]!)
+                  ? Option.flatMap(args[0]!.ast, maxAbsOfAst)
+                  : Option.none(),
+              Node.$is('Lit')(args[1]!) && typeof args[1]!.value === 'number'
+                ? Option.some(Math.abs(args[1]!.value))
+                : Node.$is('Path')(args[1]!)
+                  ? Option.flatMap(args[1]!.ast, maxAbsOfAst)
+                  : Option.none(),
+            )
+          ? true
+          : callCannotRefuse(
+              op,
+              args.map(arg => [cannotRefuse(arg), kindOf(arg)]),
+            ),
     If: () => false,
     Match: () => false,
     Opaque: () => false,
@@ -224,6 +241,55 @@ export const holdsRead = (over: Node.RowsOver, path: Node.PathNode): boolean =>
     List: () => Option.exists(path.ast, ast => present(ast).every(SchemaAST.isArrays)),
     Related: () => true,
   })
+
+/** Max absolute value of a bounded numeric Schema AST, if both sides are finite. */
+export const maxAbsOfAst = (ast: SchemaAST.AST): Option.Option<number> => {
+  const members = present(ast)
+  if (members.length === 0) return Option.none()
+  let worst = 0
+  for (const member of members) {
+    if (
+      SchemaAST.isLiteral(member) &&
+      typeof member.literal === 'number' &&
+      Number.isFinite(member.literal)
+    ) {
+      worst = Math.max(worst, Math.abs(member.literal))
+      continue
+    }
+    if (!SchemaAST.isNumber(member)) return Option.none()
+    let lo = Number.NEGATIVE_INFINITY
+    let hi = Number.POSITIVE_INFINITY
+    const scan = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): void => {
+      for (const check of checks) {
+        const rep = check.annotations?.representation
+        if (rep !== undefined && typeof rep.payload === 'object' && rep.payload !== null) {
+          const p = rep.payload as Record<string, unknown>
+          if (typeof p['minimum'] === 'number') lo = Math.max(lo, p['minimum'])
+          if (typeof p['exclusiveMinimum'] === 'number') lo = Math.max(lo, p['exclusiveMinimum'])
+          if (typeof p['maximum'] === 'number') hi = Math.min(hi, p['maximum'])
+          if (typeof p['exclusiveMaximum'] === 'number') hi = Math.min(hi, p['exclusiveMaximum'])
+        }
+        if (check._tag === 'FilterGroup') scan(check.checks)
+      }
+    }
+    if (member.checks !== undefined) scan(member.checks)
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return Option.none()
+    worst = Math.max(worst, Math.abs(lo), Math.abs(hi))
+  }
+  return Option.some(worst)
+}
+
+/** Whether `num.add` / `num.sub` over two bounded numeric operands cannot overflow `±MAX_SAFE_INTEGER`. */
+export const safeBoundedSum = (
+  op: Node.AnyOp,
+  leftBound: Option.Option<number>,
+  rightBound: Option.Option<number>,
+): boolean =>
+  !Node.isForeign(op) &&
+  (op.id === 'num.add' || op.id === 'num.sub') &&
+  Option.isSome(leftBound) &&
+  Option.isSome(rightBound) &&
+  leftBound.value + rightBound.value <= Number.MAX_SAFE_INTEGER
 
 /**
  * `cannotRefuse` of a call, from whether each operand cannot be refused and

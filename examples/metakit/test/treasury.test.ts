@@ -170,6 +170,7 @@ describe('Example 1: Treasury & FX Settlement Ledger', () => {
       creditLimit: usd(500),
       status: 'frozen' as const,
     })
+    expect(aff.disabled).toContain('Credit')
     expect(aff.disabled).toContain('HoldFunds')
     expect(aff.disabled).toContain('Freeze')
     expect(aff.available).toEqual([])

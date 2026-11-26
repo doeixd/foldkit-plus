@@ -26,7 +26,7 @@ export const validPrerequisites = Expr.in({ catalog: CatalogBase }, ({ catalog }
       Null.isNull(row.prereqId),
       Bool.and(
         Eq.isNot(row.prereqId, row.id),
-        Arr.any(catalog.research, dep => Eq.is(row.prereqId, dep.id)),
+        Arr.any(catalog.research, dep => Eq.is(dep.id, row.prereqId)),
       ),
     ),
   ),

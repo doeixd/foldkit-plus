@@ -31,6 +31,8 @@ import {
   isSafeRead,
   kindOf,
   kindOfValue,
+  maxAbsOfAst,
+  safeBoundedSum,
 } from './kind.js'
 import { nullBesideUnrefused, rewrite, rewriteForeign, type View } from './laws.js'
 import { lookupPartial } from './partial.js'
@@ -116,6 +118,13 @@ const view: View<unknown> = {
   ast: judged => (isLeftover(judged) ? judged.ast : Option.none()),
 }
 
+const maxAbsOfJudged = (judged: unknown): Option.Option<number> =>
+  isLeftover(judged)
+    ? Option.flatMap(judged.ast, maxAbsOfAst)
+    : typeof judged === 'number' && Number.isFinite(judged)
+      ? Option.some(Math.abs(judged))
+      : Option.none()
+
 /** A call left over, with its arguments judged. */
 const openCall = (
   op: Node.AnyOp,
@@ -123,12 +132,18 @@ const openCall = (
   foreign: ForeignImplementations,
 ): Leftover => {
   const [only] = args
-  return new Leftover(
-    callKind(op, args.map(kindOfJudged)),
+  const unrefused =
+    (args.length === 2 &&
+      view.cannotRefuse(args[0]) &&
+      view.cannotRefuse(args[1]) &&
+      safeBoundedSum(op, maxAbsOfJudged(args[0]), maxAbsOfJudged(args[1]))) ||
     callCannotRefuse(
       op,
       args.map(arg => [view.cannotRefuse(arg), kindOfJudged(arg)]),
-    ),
+    )
+  return new Leftover(
+    callKind(op, args.map(kindOfJudged)),
+    unrefused,
     undefined,
     args.length === 1 && isLeftover(only)
       ? { id: Node.isForeign(op) ? Node.foreignName(op) : op.id, arg: only }

@@ -20,7 +20,13 @@ import * as Verdict from './verdict.js'
 
 export { machine } from './prove/machine.js'
 export type { MachineProofEntry, MachineProofReport } from './prove/machine.js'
-export { policy, policyConsistent, policyImplies } from './prove/policy.js'
+export {
+  policy,
+  policyAllConsistent,
+  policyConsistent,
+  policyImplies,
+  type PolicyConsistencyReport,
+} from './prove/policy.js'
 export { SolverUnavailableError }
 export {
   Solver,

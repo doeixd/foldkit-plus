@@ -476,16 +476,16 @@ const observeWrite = <State>(
  */
 export const step = <State, Input, Emit, Supplied>(
   transition: Transition<State, Input, Emit, Supplied>,
-  state: State,
-  input: Input,
+  state: NoInfer<State>,
+  input: NoInfer<Input>,
   ...args: SuppliedArgs<Supplied>
 ): Result.Result<StepResult<State, Emit>, Refused> => evaluateStep(transition, state, input, args)
 
 /** Run one step and return the observed state writes when it succeeds. */
 export const stepObserved = <State, Input, Emit, Supplied>(
   transition: Transition<State, Input, Emit, Supplied>,
-  state: State,
-  input: Input,
+  state: NoInfer<State>,
+  input: NoInfer<Input>,
   ...args: SuppliedArgs<Supplied>
 ): Result.Result<
   StepResult<State, Emit> & { readonly writes: ReadonlyArray<ObservedWrite> },
@@ -592,8 +592,8 @@ const writeAt = <State>(
  */
 export const run = <State, Input, Emit, Supplied>(
   transition: Transition<State, Input, Emit, Supplied>,
-  state: State,
-  input: Input,
+  state: NoInfer<State>,
+  input: NoInfer<Input>,
   ...args: SuppliedArgs<Supplied>
 ): Result.Result<State, Refused> =>
   Result.map(step(transition, state, input, ...args), s => s.state)

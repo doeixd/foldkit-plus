@@ -625,7 +625,7 @@ type LazyChildResult<Loader> = Loader extends () => Promise<infer Mod>
 export const compose = <
   S extends Schema.Top,
   Own extends Readonly<Record<string, AnyTransition<S['Type']>>>,
-  Children extends Parts<S['Type']>,
+  Children extends Parts<S['Type']> = {},
   Lazy extends Readonly<
     Record<
       string,
@@ -636,7 +636,7 @@ export const compose = <
   config: {
     readonly state: S
     readonly transitions: Own
-    readonly children: Children
+    readonly children?: Children | undefined
     readonly lazyChildren?: Lazy | undefined
   } & ([SharedTags<Own, Children>] extends [never]
     ? unknown
@@ -661,10 +661,11 @@ export const compose = <
     from.set(tag, source)
     transitions.set(tag, transition)
   }
+  const children = config.children ?? ({} as Children)
   for (const [tag, transition] of Object.entries(config.transitions)) {
     add(tag, transition, 'the transitions')
   }
-  for (const [name, child] of Object.entries(config.children)) {
+  for (const [name, child] of Object.entries(children)) {
     for (const [tag, transition] of Object.entries(child.transitions)) {
       add(`${name}${tag}`, transition, `the child "${name}"`)
     }
@@ -672,7 +673,7 @@ export const compose = <
   const lazyMap: Record<string, LazyChild<S['Type']>> = {}
   if (config.lazyChildren !== undefined) {
     for (const [name, loader] of Object.entries(config.lazyChildren)) {
-      if (Object.hasOwn(config.children, name)) {
+      if (Object.hasOwn(children, name)) {
         throw new Error(
           `[metakit] Machine.compose: child prefix "${name}" is declared in both children and lazyChildren`,
         )

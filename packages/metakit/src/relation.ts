@@ -48,6 +48,21 @@ export const make = <S extends Schema.Top>(name: string, row: S): Relation<S['Ty
   row: row as unknown as Schema.Codec<S['Type']>,
 })
 
+/**
+ * Attach the rows pointing at `row` through `relation` for in-memory
+ * evaluation and partial evaluation (`whole` defaults to `true`).
+ */
+export const withRows = <Target extends object, Row>(
+  row: Target,
+  relation: Relation<Row>,
+  rows: ReadonlyArray<Row>,
+  options?: { readonly whole?: boolean },
+): Target =>
+  ({
+    ...row,
+    [Node.relatedSegment(relation.name)]: { rows, whole: options?.whole ?? true },
+  }) as Target
+
 /** The row a question is asked of: an expression giving it, null where there is none. */
 type RowInput = ExprInput<never, object | null>
 

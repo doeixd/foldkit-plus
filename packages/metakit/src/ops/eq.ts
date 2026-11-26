@@ -102,7 +102,7 @@ export const amongOp: Node.Op<'eq.among'> = {
  */
 export const is = <
   L extends ExprInput<never, unknown>,
-  R extends ExprInput<never, NoInfer<ValueOfInput<L>>>,
+  R extends ExprInput<never, NoInfer<ValueOfInput<L>> | null>,
 >(
   left: L,
   right: R,
@@ -111,7 +111,7 @@ export const is = <
 /** Inequality between two values of the same type. */
 export const isNot = <
   L extends ExprInput<never, unknown>,
-  R extends ExprInput<never, NoInfer<ValueOfInput<L>>>,
+  R extends ExprInput<never, NoInfer<ValueOfInput<L>> | null>,
 >(
   left: L,
   right: R,
@@ -124,7 +124,7 @@ export const isNot = <
  */
 export const equals = <
   L extends ExprInput<never, unknown>,
-  R extends ExprInput<never, NoInfer<ValueOfInput<L>>>,
+  R extends ExprInput<never, NoInfer<ValueOfInput<L>> | null>,
 >(
   left: L,
   right: R,

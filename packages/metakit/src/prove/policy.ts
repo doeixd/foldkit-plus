@@ -84,3 +84,41 @@ export const policyConsistent = <
       }),
   )
 }
+
+/** Report returned by `Prove.policyAllConsistent`. */
+export interface PolicyConsistencyReport<Rule extends string = string> {
+  readonly ok: boolean
+  readonly unreachable: ReadonlyArray<Rule>
+  readonly verdicts: Readonly<Record<Rule, Proof>>
+}
+
+/**
+ * Check consistency (reachability) of every rule in `pol`: `ok` is true only
+ * when every rule is proved reachable (`True`); `unreachable` lists every rule
+ * proved dead (`False`).
+ */
+export const policyAllConsistent = <
+  Row,
+  Principal,
+  Rules extends Readonly<Record<string, Expr.Expr<Policy.PolicyEnv<Row, Principal>, boolean>>>,
+>(
+  pol: Policy.Definition<Row, Principal, Rules>,
+  options?: ProveOptions,
+): Effect.Effect<PolicyConsistencyReport<keyof Rules & string>, SolverUnavailableError> =>
+  Effect.gen(function* () {
+    const names = Object.keys(pol.rules) as Array<keyof Rules & string>
+    const verdicts = {} as Record<keyof Rules & string, Proof>
+    const unreachable: Array<keyof Rules & string> = []
+    let ok = true
+    for (const name of names) {
+      const verdict = yield* policyConsistent(pol, name, options)
+      verdicts[name] = verdict
+      if (Verdict.isFalse(verdict)) {
+        unreachable.push(name)
+        ok = false
+      } else if (!Verdict.isTrue(verdict)) {
+        ok = false
+      }
+    }
+    return { ok, unreachable, verdicts }
+  })
