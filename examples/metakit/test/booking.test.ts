@@ -78,6 +78,14 @@ describe('Example 3: Hotel Booking & Cancellation Engine', () => {
         ['b-neg', 'r2', day('2026-07-01'), day('2026-07-03'), 'cancelled', null, -10],
       ),
     ).rejects.toThrow()
+    // 31-night stay violates Time.daysBetween(checkOut, checkIn) <= 30 CHECK
+    await expect(
+      db.query(
+        `INSERT INTO reservations (id, "roomId", "checkIn", "checkOut", status, "promoCode", "refundCents")
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        ['b-long', 'r2', day('2026-07-01'), day('2026-08-01'), 'confirmed', null, null],
+      ),
+    ).rejects.toThrow()
 
     // Query available rooms for June 12–14 via correlated NOT EXISTS subquery
     const availWhere = Result.getOrThrow(

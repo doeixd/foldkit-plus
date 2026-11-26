@@ -39,7 +39,7 @@ export const Reservation = Schema.Struct({
 }).pipe(
   Expr.refine(
     $ =>
-      Expr.all(Num.gt($.checkOut, $.checkIn), Num.lte(Time.daysBetween($.checkIn, $.checkOut), 30)),
+      Expr.all(Num.gt($.checkOut, $.checkIn), Num.lte(Time.daysBetween($.checkOut, $.checkIn), 30)),
     { message: 'stay must be between 1 and 30 nights' },
   ),
 )
@@ -87,7 +87,7 @@ export const CancellationPolicy = Policy.make({
   row: Reservation,
   principal: GuestPrincipal,
   rules: ({ row, principal }) => {
-    const daysNotice = Time.daysBetween(principal.today, row.checkIn)
+    const daysNotice = Time.daysBetween(row.checkIn, principal.today)
     const isConfirmed = Eq.is(row.status, 'confirmed')
     return {
       fullRefund: Expr.all(

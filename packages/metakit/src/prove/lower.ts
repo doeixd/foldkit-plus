@@ -360,10 +360,40 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       }
     }
   }
-  const length = (node: Node.Node): ZArith =>
-    Node.$is('Lit')(node) && typeof node.value === 'string'
-      ? z3.Int.val(Str.codePointLength(node.value))
-      : measure('strLen', node)
+  const length = (node: Node.Node): ZArith => {
+    if (Node.$is('Lit')(node) && typeof node.value === 'string') {
+      return z3.Int.val(Str.codePointLength(node.value))
+    }
+    if (Node.$is('Call')(node)) {
+      if (node.op.id === 'str.concat' && node.args.length === 2) {
+        return length(node.args[0]!).add(length(node.args[1]!))
+      }
+      if (
+        (node.op.id === 'str.lowerAscii' || node.op.id === 'str.upperAscii') &&
+        node.args.length === 1
+      ) {
+        return length(node.args[0]!)
+      }
+      if (node.op.id === 'str.trim' && node.args.length === 1) {
+        const m = measure('strLen', node)
+        solver.add(m.le(length(node.args[0]!)))
+        return m
+      }
+    }
+    const m = measure('strLen', node)
+    if (Node.$is('Path')(node)) {
+      const info = shape.paths.get(Path.format(node.segments))
+      if (info !== undefined && info.sort === 'text') {
+        const guard = (constraint: ZBool): void => {
+          solver.add(info.flags.length === 0 ? constraint : z3.Or(anyOf(info.flags), constraint))
+        }
+        // UTF-16 length bounds imply code-point length bounds: ceil(min/2) <= cpLen <= max.
+        if (info.text.minLength > 0) guard(m.ge(Math.ceil(info.text.minLength / 2)))
+        if (Number.isFinite(info.text.maxLength)) guard(m.le(info.text.maxLength))
+      }
+    }
+    return m
+  }
 
   const text = textReading({
     z3,
@@ -481,16 +511,9 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     },
     'num.div': ([a, b], [, divisorNode, modeNode, onZeroNode]) => {
       const left = number(a!)
-      if (!z3.isInt(left)) {
+      const right = number(b!)
+      if (!z3.isInt(left) || !z3.isInt(right)) {
         throw new Unsupported('num.div of an operand the solver does not read as an integer')
-      }
-      if (
-        !Node.$is('Lit')(divisorNode!) ||
-        typeof divisorNode.value !== 'number' ||
-        !Number.isSafeInteger(divisorNode.value) ||
-        divisorNode.value <= 0
-      ) {
-        throw new Unsupported('num.div requires a positive integer literal divisor in the solver')
       }
       if (!Node.$is('Lit')(modeNode!) || !isRoundingMode(modeNode.value)) {
         throw new Unsupported('num.div requires a literal rounding mode')
@@ -498,54 +521,125 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       if (!Node.$is('Lit')(onZeroNode!) || !isOnZero(onZeroNode.value)) {
         throw new Unsupported('num.div requires a literal onZero policy')
       }
-      const d = divisorNode.value
-      const qFloor = left.div(d)
-      const r = left.mod(d)
-      const twice = r.mul(2)
-      const zero = z3.Int.val(0)
       const mode = modeNode.value
+      const onZero = onZeroNode.value
+      const zero = z3.Int.val(0)
+      const litDiv =
+        Node.$is('Lit')(divisorNode!) &&
+        typeof divisorNode.value === 'number' &&
+        Number.isSafeInteger(divisorNode.value)
+          ? divisorNode.value
+          : undefined
+      if (litDiv === 0) {
+        const term = strict(
+          'num',
+          [a!, b!],
+          zero,
+          z3.Or(unsafe(left), onZero === 'refuse' ? z3.Bool.val(true) : never),
+        )
+        return onZero === 'null'
+          ? { ...term, isNull: z3.Or(term.isNull, z3.Not(term.refused)) }
+          : term
+      }
+      const isZero = litDiv !== undefined ? never : right.eq(zero)
+      const num =
+        litDiv !== undefined
+          ? litDiv < 0
+            ? left.neg()
+            : left
+          : z3.If(right.lt(zero), left.neg(), left)
+      const den: ZArith | number =
+        litDiv !== undefined ? Math.abs(litDiv) : z3.If(right.lt(zero), right.neg(), right)
+      const qFloor = num.div(den)
+      const r = num.mod(den)
+      const twice = r.mul(2)
       const quotient =
         mode === 'floor'
           ? qFloor
           : mode === 'ceiling'
             ? z3.If(r.eq(zero), qFloor, qFloor.add(1))
             : mode === 'toward-zero'
-              ? z3.If(z3.Or(r.eq(zero), left.ge(zero)), qFloor, qFloor.add(1))
+              ? z3.If(z3.Or(r.eq(zero), num.ge(zero)), qFloor, qFloor.add(1))
               : mode === 'half-even'
                 ? z3.If(
-                    twice.gt(d),
+                    twice.gt(den),
                     qFloor.add(1),
                     z3.If(
-                      twice.lt(d),
+                      twice.lt(den),
                       qFloor,
                       z3.If(qFloor.mod(2).eq(zero), qFloor, qFloor.add(1)),
                     ),
                   )
                 : z3.If(
-                    twice.gt(d),
+                    twice.gt(den),
                     qFloor.add(1),
-                    z3.If(twice.lt(d), qFloor, z3.If(left.ge(zero), qFloor.add(1), qFloor)),
+                    z3.If(twice.lt(den), qFloor, z3.If(num.ge(zero), qFloor.add(1), qFloor)),
                   )
-      return strict('num', [a!, b!], quotient, z3.Or(unsafe(left), unsafe(quotient)))
+      const refusedDiv =
+        litDiv !== undefined
+          ? z3.Or(unsafe(left), unsafe(quotient))
+          : z3.Or(
+              unsafe(left),
+              unsafe(right),
+              z3.And(z3.Not(isZero), unsafe(quotient)),
+              onZero === 'refuse' ? isZero : never,
+            )
+      const term = strict('num', [a!, b!], quotient, refusedDiv)
+      return onZero === 'null' && litDiv === undefined
+        ? { ...term, isNull: z3.Or(term.isNull, z3.And(z3.Not(term.refused), isZero)) }
+        : term
     },
-    'num.rem': ([a, b], [, divisorNode]) => {
+    'num.rem': ([a, b], [, divisorNode, onZeroNode]) => {
       const left = number(a!)
-      if (!z3.isInt(left)) {
+      const right = number(b!)
+      if (!z3.isInt(left) || !z3.isInt(right)) {
         throw new Unsupported('num.rem of an operand the solver does not read as an integer')
       }
-      if (
-        !Node.$is('Lit')(divisorNode!) ||
-        typeof divisorNode.value !== 'number' ||
-        !Number.isSafeInteger(divisorNode.value) ||
-        divisorNode.value <= 0
-      ) {
-        throw new Unsupported('num.rem requires a positive integer literal divisor in the solver')
+      const onZero =
+        onZeroNode === undefined
+          ? 'refuse'
+          : Node.$is('Lit')(onZeroNode) && isOnZero(onZeroNode.value)
+            ? onZeroNode.value
+            : undefined
+      if (onZero === undefined) {
+        throw new Unsupported('num.rem requires a literal onZero policy')
       }
-      const d = divisorNode.value
-      const r = left.mod(d)
       const zero = z3.Int.val(0)
-      const remVal = z3.If(z3.Or(r.eq(zero), left.ge(zero)), r, r.sub(d))
-      return strict('num', [a!, b!], remVal, z3.Or(unsafe(left), unsafe(remVal)))
+      const litDiv =
+        Node.$is('Lit')(divisorNode!) &&
+        typeof divisorNode.value === 'number' &&
+        Number.isSafeInteger(divisorNode.value)
+          ? divisorNode.value
+          : undefined
+      if (litDiv === 0) {
+        const term = strict(
+          'num',
+          [a!, b!],
+          zero,
+          z3.Or(unsafe(left), onZero === 'refuse' ? z3.Bool.val(true) : never),
+        )
+        return onZero === 'null'
+          ? { ...term, isNull: z3.Or(term.isNull, z3.Not(term.refused)) }
+          : term
+      }
+      const isZero = litDiv !== undefined ? never : right.eq(zero)
+      const den: ZArith | number =
+        litDiv !== undefined ? Math.abs(litDiv) : z3.If(right.lt(zero), right.neg(), right)
+      const r = left.mod(den)
+      const remVal = z3.If(z3.Or(r.eq(zero), left.ge(zero)), r, r.sub(den))
+      const refusedRem =
+        litDiv !== undefined
+          ? z3.Or(unsafe(left), unsafe(remVal))
+          : z3.Or(
+              unsafe(left),
+              unsafe(right),
+              z3.And(z3.Not(isZero), unsafe(remVal)),
+              onZero === 'refuse' ? isZero : never,
+            )
+      const term = strict('num', [a!, b!], remVal, refusedRem)
+      return onZero === 'null' && litDiv === undefined
+        ? { ...term, isNull: z3.Or(term.isNull, z3.And(z3.Not(term.refused), isZero)) }
+        : term
     },
     'time.addDays': ([a, b]) => {
       const [da, nb] = [number(a!), number(b!)]
