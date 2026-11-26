@@ -8,7 +8,7 @@ This guide lists every breaking change from unifying expressions, laws, operator
 `Module '"foldkit-entity"' has no exported member 'Laws'.`
 
 **Before:**
-```ts
+```ts sketch
 import { Entity, Laws } from 'foldkit-entity'
 ```
 
@@ -28,7 +28,7 @@ import { Laws } from 'foldkit-entity/laws'
 - `Property 'Proven' does not exist on type ...`
 
 **Before:**
-```ts
+```ts sketch
 import { Expr, Law, Operators } from 'foldkit-entity'
 const op = Expr.operator('flags.or', ..., [Law.Commutative, Law.within(0, 2147483647)])
 const table = Operators.implement(op, (a, b) => a | b)
@@ -58,7 +58,7 @@ const table = Operation.implementations('app', Operation.implement(flagsOr, (a, 
 `Cannot find module 'foldkit-remote/aggregate' or its corresponding type declarations.`
 
 **Before:**
-```ts
+```ts sketch
 import { aggregate } from 'foldkit-remote/aggregate'
 ```
 

@@ -153,7 +153,9 @@ export const compileRows = (statics: RowStatics) => {
       `<div class="${statics.rowAction}"><span class="${statics.price}" title="${escapeAttribute(premium + renewal)}">` +
       `${escapeText(registration)}</span>` +
       `<form data-foldkit-plus-on-submit="${binding}" class="${statics.cartForm}" method="post">` +
-      `<button${added ? ' data-added=""' : ''} aria-label="${added ? `Remove ${name} from` : `Add ${name} to`} cart" ` +
+      `<button${added ? ' data-added=""' : ''} data-fk-msg="${message._tag}" data-fk-payload="${escapeAttribute(
+        `{"name":${JSON.stringify(domain.name)}}`,
+      )}" aria-label="${added ? `Remove ${name} from` : `Add ${name} to`} cart" ` +
       `aria-description="${escapeAttribute(`${registration}. ${premium}${renewal}`)}" class="${statics.iconButton}" type="submit">` +
       `${added ? statics.checkIcon : statics.cartIcon}</button>` +
       `<input type="hidden" name="foldkit-plus-message" value="${escapeAttribute(
