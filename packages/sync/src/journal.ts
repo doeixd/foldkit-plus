@@ -473,6 +473,28 @@ export const journalExchange = <Message, Shared, Principal>(
  * the next commit; a commit stream that breaks is reported as `HostDefect`
  * (`Changes`), since no notice follows it.
  */
+const journalChangesEffect = <Shared, Principal>(
+  journal: Journal<Operation, Shared, Principal, WrittenOperation>,
+  documentId: string,
+  listener: () => void,
+  diagnostics?: ReportDiagnostic | undefined,
+): Effect.Effect<void> => {
+  const report = (diagnostic: SyncDiagnostic) => reportTo(diagnostics, diagnostic)
+  return Stream.runForEach(
+    Stream.filter(journal.subscribe, key => key === documentId),
+    () =>
+      Effect.try(listener).pipe(
+        Effect.catch(thrown => report(listenerFailed('Notice', thrown.cause))),
+      ),
+  ).pipe(
+    // A journal shutting down may end its stream by interrupting it, as it
+    // may end it; any other cause ends every later notice unannounced.
+    Effect.catchCause(cause =>
+      Cause.hasInterruptsOnly(cause) ? Effect.void : report(hostDefect('Changes', cause)),
+    ),
+  )
+}
+
 /**
  * `Scope`-managed version of `journalChanges`: forks the document commit
  * listener into the caller's `Scope` via `Effect.forkScoped` so cleanup is
@@ -485,24 +507,10 @@ export const journalChangesScoped = <Shared, Principal>(
   options: {
     readonly diagnostics?: ReportDiagnostic | undefined
   } = {},
-): Effect.Effect<void, never, Scope.Scope> => {
-  const report = (diagnostic: SyncDiagnostic) => reportTo(options.diagnostics, diagnostic)
-  return Effect.asVoid(
-    Effect.forkScoped(
-      Stream.runForEach(
-        Stream.filter(journal.subscribe, key => key === documentId),
-        () =>
-          Effect.try(listener).pipe(
-            Effect.catch(thrown => report(listenerFailed('Notice', thrown.cause))),
-          ),
-      ).pipe(
-        Effect.catchCause(cause =>
-          Cause.hasInterruptsOnly(cause) ? Effect.void : report(hostDefect('Changes', cause)),
-        ),
-      ),
-    ),
+): Effect.Effect<void, never, Scope.Scope> =>
+  Effect.asVoid(
+    Effect.forkScoped(journalChangesEffect(journal, documentId, listener, options.diagnostics)),
   )
-}
 
 export const journalChanges =
   <Shared, Principal>(
@@ -514,21 +522,8 @@ export const journalChanges =
     } = {},
   ): ((listener: () => void) => () => void) =>
   listener => {
-    const report = (diagnostic: SyncDiagnostic) => reportTo(options.diagnostics, diagnostic)
     const fiber = Effect.runFork(
-      Stream.runForEach(
-        Stream.filter(journal.subscribe, key => key === documentId),
-        () =>
-          Effect.try(listener).pipe(
-            Effect.catch(thrown => report(listenerFailed('Notice', thrown.cause))),
-          ),
-      ).pipe(
-        // A journal shutting down may end its stream by interrupting it, as it
-        // may end it; any other cause ends every later notice unannounced.
-        Effect.catchCause(cause =>
-          Cause.hasInterruptsOnly(cause) ? Effect.void : report(hostDefect('Changes', cause)),
-        ),
-      ),
+      journalChangesEffect(journal, documentId, listener, options.diagnostics),
     )
     return () => Effect.runSync(Fiber.interrupt(fiber))
   }
