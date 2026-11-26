@@ -21,8 +21,8 @@ export default [
   edit(
     'an earlier answer overwrites a field a later one settled',
     '../src/ledger.ts',
-    '.filter(([field]) => !newer(`${key}\\u0000${field}`)),',
-    '.filter(() => true),',
+    'return !newer(`${key}\\u0000${field}`)',
+    'return true',
   ),
   edit(
     'an earlier edit still shows a field a later answer settled',

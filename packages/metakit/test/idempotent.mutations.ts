@@ -51,8 +51,8 @@ export default [
     transitionTests,
     'rule 4: a patch that sets a field from itself is taken to be idempotent',
     commutes,
-    "condition === 'sets-unread' &&",
-    "condition === 'never' &&",
+    "if (condition === 'sets-unread') {",
+    "if (condition === 'never') {",
   ),
   mutation(
     propertyTests,

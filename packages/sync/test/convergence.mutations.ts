@@ -65,8 +65,8 @@ export default [
     todoTests,
     'a patch that sets a field from itself, a toggle, is taken to be idempotent',
     '../../metakit/src/transitionCommutes.ts',
-    "condition === 'sets-unread' &&",
-    'false &&',
+    "if (condition === 'sets-unread') {",
+    'if (false) {',
   ),
   mutation(
     todoTests,

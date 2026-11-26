@@ -23,8 +23,8 @@ export default [
     edits: [
       {
         file: '../src/ledger.ts',
-        find: '.filter(([field]) => !newer(`${key}\\u0000${field}`)),',
-        replace: '.filter(() => true),',
+        find: 'return !newer(`${key}\\u0000${field}`)',
+        replace: 'return true',
       },
     ],
     tests,

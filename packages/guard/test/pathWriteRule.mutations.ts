@@ -16,8 +16,8 @@ export default [
   edit(
     'an update is not held to its rule in the statement',
     drizzle,
-    '          ...required,\n          ...(yield* holdingInvariants',
-    '          ...(yield* holdingInvariants',
+    '          ...required,\n          ...targets.map(({ exists }) => exists),\n          ...(yield* holdingInvariants',
+    '          ...targets.map(({ exists }) => exists),\n          ...(yield* holdingInvariants',
   ),
   edit(
     'a delete is not held to its rule in the statement',
@@ -34,7 +34,7 @@ export default [
   edit(
     'a write may change what its rule reads of its own row',
     server,
-    'if (read.some(key => !sameStored(before[key], after[key]))) {',
+    'if (read.some(changed)) {',
     'if (false) {',
   ),
   edit(

@@ -153,7 +153,7 @@ export default [
   edit(
     'a live patch at the token keeps the floor',
     events,
-    'store: floor === undefined ? patched : clearFloors(patched, [key]),',
+    'store: !hasWritten || floor === undefined ? patched : clearFloors(patched, [key]),',
     'store: patched,',
   ),
   edit(

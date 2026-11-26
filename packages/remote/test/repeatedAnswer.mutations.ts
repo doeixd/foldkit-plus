@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file: '../src/ledger.ts',
-        find: '  if (repeated && !state.pending.has(requestId) && !state.failed.has(requestId))\n    return { store, state }\n',
+        find: '  if (repeated && !state.pending.has(requestId) && !state.failed.has(requestId))\n    return { store, state, applied: [] }\n',
         replace: '',
       },
     ],
