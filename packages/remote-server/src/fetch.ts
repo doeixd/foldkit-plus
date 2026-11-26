@@ -75,14 +75,15 @@ export const fetchLimitsConfig: Config.Config<{
   readonly maxBodyBytes: number
   readonly maxIdsPerEntity: number
   readonly maxDepth: number
-}> = Config.all({
-  path: Config.String('REMOTE_PATH').pipe(Config.withDefault('/remote')),
-  maxBodyBytes: Config.Int('REMOTE_MAX_BODY_BYTES').pipe(
-    Config.withDefault(DEFAULT_MAX_BODY_BYTES),
-  ),
-  maxIdsPerEntity: Config.Int('REMOTE_MAX_IDS_PER_ENTITY').pipe(Config.withDefault(1000)),
-  maxDepth: Config.Int('REMOTE_MAX_DEPTH').pipe(Config.withDefault(8)),
-})
+}> = /*#__PURE__*/ (() =>
+  Config.all({
+    path: Config.String('REMOTE_PATH').pipe(Config.withDefault('/remote')),
+    maxBodyBytes: Config.Int('REMOTE_MAX_BODY_BYTES').pipe(
+      Config.withDefault(DEFAULT_MAX_BODY_BYTES),
+    ),
+    maxIdsPerEntity: Config.Int('REMOTE_MAX_IDS_PER_ENTITY').pipe(Config.withDefault(1000)),
+    maxDepth: Config.Int('REMOTE_MAX_DEPTH').pipe(Config.withDefault(8)),
+  }))()
 
 /** What `serveFetch` needs of the host runtime, per request. */
 export interface FetchConfig<P, R, Env, RP = never> {

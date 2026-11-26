@@ -2370,10 +2370,11 @@ export const SSR = {
 export const ssrCacheConfig: Config.Config<{
   readonly buildId: string
   readonly check: boolean
-}> = Config.all({
-  buildId: Config.String('SSR_BUILD_ID').pipe(Config.withDefault('dev')),
-  check: Config.Boolean('SSR_CACHE_CHECK').pipe(Config.withDefault(false)),
-})
+}> = /*#__PURE__*/ (() =>
+  Config.all({
+    buildId: Config.String('SSR_BUILD_ID').pipe(Config.withDefault('dev')),
+    check: Config.Boolean('SSR_CACHE_CHECK').pipe(Config.withDefault(false)),
+  }))()
 
 export type { RequestContext } from './requestContext.js'
 
