@@ -160,10 +160,19 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   }
   const loader = Option.fromNullishOr(claim())
   const binder = Option.fromNullishOr(claimBinder())
-  const binderSnapshot = Option.map(binder, b => b.take())
+  let takenBinder:
+    | Option.Option<ReturnType<NonNullable<ReturnType<typeof claimBinder>>['take']>>
+    | undefined
+  const takeBinder = () => {
+    if (takenBinder === undefined) takenBinder = Option.map(binder, b => b.take())
+    return takenBinder
+  }
   // Every path below that does not resume the page lets the browser have what
-  // the loader held: a held submission posts.
-  const release = (): void => Option.match(loader, { onNone: () => {}, onSome: it => it.release() })
+  // the loader held (a held submission posts) and stops any active binder.
+  const release = (): void => {
+    takeBinder()
+    Option.match(loader, { onNone: () => {}, onSome: it => it.release() })
+  }
   const planMeta = plan.meta
   if (planMeta !== undefined) {
     config = {
@@ -222,7 +231,10 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     contain()
     return
   }
-  const adoptFrom = (model: Model): void => {
+  const adoptFrom = (
+    model: Model,
+    binderSnapshot: Option.Option<ReturnType<NonNullable<ReturnType<typeof claimBinder>>['take']>>,
+  ): void => {
     // A page recorded for its path, opened at a query: the application learns
     // the URL, as from a navigation, and the page starts now, since what it
     // shows is not yet the address.
@@ -357,39 +369,47 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     deferBoot(root, decoded.success, typed, { boot, answered }, pending, report, kept.success, held)
   }
   const prepare = options.prepare
-  let startingModel: Model
-  try {
-    const resumedModel =
-      plan.restore === undefined ? resumed.success : plan.restore(resumed.success)
-    // If the binder already stepped the Model before the runtime booted, start
-    // from the binder's state through `SSR.hydrate`'s `init` substitution.
-    // Shallow-merging onto `resumedModel` lets a lightweight binder operate on
-    // a slice of Model without losing `plan.restore` or non-binder fields.
-    startingModel = Option.match(binderSnapshot, {
-      onNone: () => resumedModel,
+  const mergeBinderModel = (
+    base: Model,
+    snapOpt: Option.Option<ReturnType<NonNullable<ReturnType<typeof claimBinder>>['take']>>,
+  ): Model =>
+    Option.match(snapOpt, {
+      onNone: () => base,
       onSome: snap => {
-        if (!snap.mutated) return resumedModel
+        if (!snap.mutated) return base
         if (
-          typeof resumedModel === 'object' &&
-          resumedModel !== null &&
+          typeof base === 'object' &&
+          base !== null &&
           typeof snap.model === 'object' &&
           snap.model !== null &&
-          !Array.isArray(resumedModel) &&
+          !Array.isArray(base) &&
           !Array.isArray(snap.model)
         ) {
-          return { ...resumedModel, ...(snap.model as Partial<Model>) }
+          return { ...base, ...(snap.model as Partial<Model>) }
         }
         return snap.model as Model
       },
     })
+  let restoredModel: Model
+  try {
+    restoredModel = plan.restore === undefined ? resumed.success : plan.restore(resumed.success)
   } catch (error) {
     report(pageContained('Invalid', error instanceof Error ? error.message : String(error)))
     release()
     contain()
     return
   }
-  if (prepare === undefined) adoptFrom(startingModel)
-  else void Effect.runPromise(prepare(startingModel)).then(adoptFrom)
+  if (prepare === undefined) {
+    const snap = takeBinder()
+    adoptFrom(mergeBinderModel(restoredModel, snap), snap)
+  } else {
+    // Keep the binder alive while async `prepare` runs, then take its final
+    // snapshot right before adopting so clicks during `prepare` are never lost.
+    void Effect.runPromise(prepare(restoredModel)).then(preparedModel => {
+      const snap = takeBinder()
+      adoptFrom(mergeBinderModel(preparedModel, snap), snap)
+    })
+  }
 }
 
 /**

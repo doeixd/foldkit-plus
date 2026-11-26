@@ -31,10 +31,9 @@
 
 ---
 
-## 2. Minor Open Review Follow-Ups (Non-Blocking)
+## 2. Minor Open Review Follow-Ups
 
-- `packages/ssr/src/client.ts`: async `options.prepare` gap between `claimBinder().take()` and `adoptFrom()`, and `plan.restore` interaction when `binderSnapshot.mutated === true` (Phase 6 audit #6 & #7).
-- `packages/bundle/src/bundle.ts`: if a caller passes a `Machine | undefined` union to `Bundle.make`, preserve `| undefined` in the inferred `bundle.machine` type (Bundle deep review #2).
+None — all review follow-ups (including `packages/ssr/src/client.ts` async `options.prepare` hand-over, `plan.restore` shallow merge, `packages/bundle/src/bundle.ts` `Machine | undefined` inference, and all 18 adversarial deep-review findings) are resolved.
 
 ---
 

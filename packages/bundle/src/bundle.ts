@@ -603,6 +603,7 @@ export interface MakeSpec<
   Resources extends ResourceEntries<Model, Message>,
   Helpers extends HelperRecord<Model, Message, OutMessage>,
   Transitions extends Readonly<Record<string, unknown>> = never,
+  Mach extends Machine.Machine<NoInfer<Model>, Transitions> | undefined = undefined,
 > {
   readonly name: Name
   readonly Model: Schema.Codec<Model, unknown>
@@ -629,8 +630,16 @@ export interface MakeSpec<
   /** A record, or a function of the args returning one, as `BundleSpec`'s. */
   readonly helpers?: Helpers | ((args: Args) => Helpers)
   /** Declarative `metakit` machine for this bundle, lifted at each placement's path. */
-  readonly machine?: Machine.Machine<NoInfer<Model>, Transitions> | undefined
+  readonly machine?: Mach & (Machine.Machine<NoInfer<Model>, Transitions> | undefined)
 }
+
+type InferredMachine<Model, Transitions extends Readonly<Record<string, unknown>>, Mach> = [
+  Transitions,
+] extends [never]
+  ? undefined
+  : undefined extends Mach
+    ? Machine.Machine<Model, Transitions> | undefined
+    : Machine.Machine<Model, Transitions>
 
 // `Model` is `const` because a paramless `init` is typed before the Schema
 // fixes `Model`, and `NoInfer` alone let its literals widen to `string` there.
@@ -653,6 +662,7 @@ export function make<
   Resources extends ResourceEntries<Model, Message> = {},
   Helpers extends HelperRecord<Model, Message, OutMessage> = {},
   Transitions extends Readonly<Record<string, unknown>> = never,
+  Mach extends Machine.Machine<NoInfer<Model>, Transitions> | undefined = undefined,
 >(
   name: Name,
   spec: Omit<
@@ -668,7 +678,8 @@ export function make<
       ViewInputs,
       Resources,
       Helpers,
-      Transitions
+      Transitions,
+      Mach
     >,
     'name'
   > & { readonly name?: never },
@@ -683,7 +694,7 @@ export function make<
   ViewInputs,
   Resources,
   Helpers,
-  [Transitions] extends [never] ? undefined : Machine.Machine<Model, Transitions>
+  InferredMachine<Model, Transitions, Mach>
 >
 export function make<
   const Name extends string,
@@ -698,6 +709,7 @@ export function make<
   Resources extends ResourceEntries<Model, Message> = {},
   Helpers extends HelperRecord<Model, Message, OutMessage> = {},
   Transitions extends Readonly<Record<string, unknown>> = never,
+  Mach extends Machine.Machine<NoInfer<Model>, Transitions> | undefined = undefined,
 >(
   spec: MakeSpec<
     Name,
@@ -711,7 +723,8 @@ export function make<
     ViewInputs,
     Resources,
     Helpers,
-    Transitions
+    Transitions,
+    Mach
   >,
 ): Bundle<
   Name,
@@ -724,7 +737,7 @@ export function make<
   ViewInputs,
   Resources,
   Helpers,
-  [Transitions] extends [never] ? undefined : Machine.Machine<Model, Transitions>
+  InferredMachine<Model, Transitions, Mach>
 >
 export function make(
   nameOrSpec: string | BundleSpec<string, any, any, any, any, any, any, any, any, any>,
