@@ -164,25 +164,33 @@ export const GuardSync = {
    * authorize: { EditedProducts: GuardSync.authorize(Policy, Edits) }
    * ```
    */
+  /** Effect-native version of `authorize`, preserving fiber context and tracing. */
+  authorizeEffect:
+    <User>(policy: Policy<User>, document: GuardedDocument<User>) =>
+    (request: {
+      readonly principal: Option.Option<User>
+      readonly message: { readonly changes: ReadonlyArray<CellChange> }
+    }): Effect.Effect<AuthorizeDecision> =>
+      Effect.gen(function* () {
+        const { principal, message } = request
+        const row = yield* policy.writable(document.entity, principal, 'Update')
+        if (isNever(row.condition)) return refusal(row.deny)
+        const members = yield* policy.writeMembers(
+          document.entity,
+          principal,
+          [...new Set(message.changes.map(change => change.member))],
+          'Update',
+        )
+        return first(members, condition => !isNever(condition))
+      }),
+
   authorize:
     <User>(policy: Policy<User>, document: GuardedDocument<User>) =>
     (request: {
       readonly principal: Option.Option<User>
       readonly message: { readonly changes: ReadonlyArray<CellChange> }
-    }): AuthorizeDecision => {
-      const { principal, message } = request
-      const row = Effect.runSync(policy.writable(document.entity, principal, 'Update'))
-      if (isNever(row.condition)) return refusal(row.deny)
-      const members = Effect.runSync(
-        policy.writeMembers(
-          document.entity,
-          principal,
-          [...new Set(message.changes.map(change => change.member))],
-          'Update',
-        ),
-      )
-      return first(members, condition => !isNever(condition))
-    },
+    }): AuthorizeDecision =>
+      Effect.runSync(GuardSync.authorizeEffect(policy, document)(request)),
 
   /**
    * The exchange's `admit` for `principal`: each row an operation's edits

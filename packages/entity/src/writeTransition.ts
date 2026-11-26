@@ -17,7 +17,7 @@
  * - an insert is `set` of `present` to true, and a delete to false.
  */
 import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
-import { Bool, Eq, Node, Null, Num, Path, Transition } from 'metakit'
+import { Bool, Eq, Expr, Node, Null, Num, Path, Transition } from 'metakit'
 import type { ExprContext } from './context.js'
 import { matchContext, viewerIdOf } from './context.js'
 import type { OneRelation } from './expr/operand.js'
@@ -54,10 +54,7 @@ type Equation = WriteTransition['writes'][number]
 const VIEWER = 'viewer'
 const NOW = 'now'
 
-const wrap = (node: Node.Node): Equation['value'] => ({
-  [Path.ExprTypeId]: undefined as never,
-  node,
-})
+const wrap = (node: Node.Node): Equation['value'] => Expr.fromNode(node)
 
 const read = (segments: ReadonlyArray<string>, schema: Schema.Top): Node.Node =>
   Node.Path({ segments, ast: Option.some(Schema.toEncoded(schema).ast) })

@@ -13,7 +13,7 @@
  * handover. This module is the server's side and the browser's
  * (`foldkit-ssr/client`) together.
  */
-import { Cause, Context, Effect, Exit, Layer, Option, Result, Schema } from 'effect'
+import { Cause, Clock, Context, Effect, Exit, Layer, Option, Result, Schema } from 'effect'
 import {
   FOLDKIT_FLAGS_ATTRIBUTE,
   Rendered,
@@ -1878,36 +1878,42 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       headers: page.headers.map(([name, value]): [string, string] => [name, value]),
     })
   }
-  const renderPage = async (request: Request): Promise<EntryResult> => {
-    if (prerendering(request)) return prerender(request)
-    const method = request.method.toUpperCase()
-    if (method !== 'GET' && method !== 'HEAD') return unkept(await answer(request))
-    const key = await Effect.runPromise(pageKey(options.buildId, request.url))
-    const kept = Option.filter(
-      Option.flatMap(await Effect.runPromise(store.match(key)), decodeKept),
-      page => fits(request, page.vary),
-    )
-    if (Option.isSome(kept)) {
-      if (check !== true) return served(kept.value)
-      const again = await answer(request)
-      if (again._tag === 'Rendered' && samePage(again, kept.value, Date.now()))
-        return served(kept.value)
-      await Effect.runPromise(reportTo(request)(Diagnostics.report(cachedPageDiffers(request.url))))
-      return unkept(again)
-    }
-    const watched: Watched = { read: { names: new Set(), all: false }, reads: [] }
-    const result = await answer(request, watched)
-    return Option.match(keepable(request, result, watched), {
-      onNone: () => unkept(result),
-      onSome: ({ page, maxAge, tags }) =>
-        Effect.runPromise(
+  const renderPageEffect = (request: Request): Effect.Effect<EntryResult> =>
+    Effect.gen(function* () {
+      if (prerendering(request)) return yield* Effect.promise(() => prerender(request))
+      const method = request.method.toUpperCase()
+      if (method !== 'GET' && method !== 'HEAD') {
+        return unkept(yield* Effect.promise(() => answer(request)))
+      }
+      const key = yield* pageKey(options.buildId, request.url)
+      const matched = yield* store.match(key)
+      const kept = Option.filter(Option.flatMap(matched, decodeKept), page =>
+        fits(request, page.vary),
+      )
+      if (Option.isSome(kept)) {
+        if (check !== true) return served(kept.value)
+        const again = yield* Effect.promise(() => answer(request))
+        const now = yield* Clock.currentTimeMillis
+        if (again._tag === 'Rendered' && samePage(again, kept.value, now)) {
+          return served(kept.value)
+        }
+        yield* reportTo(request)(Diagnostics.report(cachedPageDiffers(request.url)))
+        return unkept(again)
+      }
+      const watched: Watched = { read: { names: new Set(), all: false }, reads: [] }
+      const result = yield* Effect.promise(() => answer(request, watched))
+      return yield* Option.match(keepable(request, result, watched), {
+        onNone: () => Effect.succeed(unkept(result)),
+        onSome: ({ page, maxAge, tags }) =>
           Effect.as(
             store.put(key, JSON.stringify(page), { maxAge: maxAge.maxAge, tags }),
             served(page),
           ),
-        ),
-    })
-  }
+      })
+    }).pipe(Effect.withSpan('ssr.renderPage'))
+
+  const renderPage = (request: Request): Promise<EntryResult> =>
+    Effect.runPromise(renderPageEffect(request))
   return { renderPage }
 }
 

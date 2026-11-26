@@ -249,4 +249,4 @@ export const refute = (
           ? { verdict: Verdict.False(Option.some(flat)), env: Option.some(env) }
           : { verdict: unreproduced, env: Option.none() },
     })
-  })
+  }).pipe(Effect.withSpan('metakit.prove.z3', { attributes: { goals: goals.length } }))

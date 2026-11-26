@@ -9,7 +9,7 @@
  * Its own file, imported by `laws.ts` alone: a page never carries the checker.
  */
 import { Data, Match, Option, Schema } from 'effect'
-import { Abstract, Node, Path, Verdict } from 'metakit'
+import { Abstract, Expr, Node, Verdict } from 'metakit'
 import { evalNode } from 'metakit/build'
 import { finiteValues } from './enumerate.js'
 import { judgeAgainst, readsBefore, type Invariant } from './invariant.js'
@@ -50,7 +50,7 @@ export const Decision = Data.taggedEnum<Decision>()
 /** A rule or write this pass cannot read: why. */
 class Unreadable extends Error {}
 
-const expr = (node: Node.Node) => ({ [Path.ExprTypeId]: undefined as never, node })
+const expr = (node: Node.Node) => Expr.fromNode(node)
 
 /**
  * `node` over the transition's states: each segment of the row before `row.x`

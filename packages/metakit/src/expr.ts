@@ -36,7 +36,7 @@ import type { Verdict } from './verdict.js'
 
 export type { ExprType as Expr, ExprInput, EnvOfInput, ForeignImplementations }
 export type { ForeignImplementation } from './ops/eval.js'
-export { isExpr }
+export { isExpr, wrap as fromNode }
 
 /**
  * What evaluation, `residualize` and `judge` take besides the expression: the
