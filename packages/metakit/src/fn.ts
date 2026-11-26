@@ -124,6 +124,21 @@ export interface Fn<P extends ParamSchemas, R> extends Pipeable.Pipeable {
     args: unknown,
     options?: Expr.ReaderOptions,
   ) => Result.Result<R, FnContractError>
+  /** Sequential composition with a single-parameter `Fn`: feeds this function's output into `next`. */
+  readonly andThen: <K extends string, S extends SchemaOf, R2>(
+    next: Fn<Readonly<Record<K, S>>, R2>,
+  ) => Fn<P, R2>
+  /** Partial application: fix a subset of parameters to concrete literals, returning a `Fn` over the rest. */
+  readonly partial: <const Fixed extends Partial<ParamValues<P>>>(
+    fixed: Fixed,
+  ) => Fn<Omit<P, keyof Fixed & keyof P>, R>
+  /** Transform this function's output expression while preserving `params` and `where` clauses. */
+  readonly map: <R2>(
+    transform: (
+      result: ExprType<ParamValues<P>, R>,
+      params: ParamPaths<P>,
+    ) => ExprInput<ParamValues<P>, R2>,
+  ) => Fn<P, R2>
 }
 
 const paramPathsOf = <P extends ParamSchemas>(params: P): ParamPaths<P> => {
@@ -364,7 +379,7 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
     return Result.succeed(result)
   }
 
-  return Object.assign(callSymbolic, {
+  const self: Fn<P, R> = Object.assign(callSymbolic, {
     _tag: 'Fn' as const,
     params: parts.params,
     paramsSchema: parts.paramsSchema,
@@ -406,11 +421,24 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
     precondition,
     run,
     runChecked,
+    andThen: <K extends string, S extends SchemaOf, R2>(
+      next: Fn<Readonly<Record<K, S>>, R2>,
+    ): Fn<P, R2> => compose(self, next),
+    partial: <const Fixed extends Partial<ParamValues<P>>>(
+      fixed: Fixed,
+    ): Fn<Omit<P, keyof Fixed & keyof P>, R> => partial(self, fixed),
+    map: <R2>(
+      transform: (
+        result: ExprType<ParamValues<P>, R>,
+        params: ParamPaths<P>,
+      ) => ExprInput<ParamValues<P>, R2>,
+    ): Fn<P, R2> => map(self, transform),
     pipe() {
       // eslint-disable-next-line prefer-rest-params
       return Pipeable.pipeArguments(this, arguments)
     },
   })
+  return self
 }
 
 const buildSpec = <P extends ParamSchemas, R>(parts: {
@@ -501,4 +529,369 @@ export const make = <P extends ParamSchemas, R>(
     returnSchema: Option.none(),
     ensuresClauses: [],
   })
+}
+
+// ---------------------------------------------------------------------------
+// Composition & Combinators
+// ---------------------------------------------------------------------------
+
+/** Rewrite `params.<name>` inside an `ensures` clause using `argNodes`, prefixing remaining paths with `params`. */
+const substituteEnsuresParams = (
+  node: Node.Node,
+  argNodes: ReadonlyMap<string, Node.Node>,
+): Node.Node =>
+  Node.substitutePaths(node, segments => {
+    if (segments[0] !== 'params') return Option.none()
+    const head = segments[1]
+    if (head === undefined || !argNodes.has(head)) return Option.none()
+    const replacement = Node.prefix(argNodes.get(head)!, ['params'])
+    return Option.some(
+      segments.length === 2 ? replacement : projectArg(replacement, segments.slice(2), head),
+    )
+  })
+
+const mergeParamSchemas = (list: ReadonlyArray<ParamSchemas>): Record<string, SchemaOf> => {
+  const merged: Record<string, SchemaOf> = {}
+  for (const paramsObj of list) {
+    for (const [k, schema] of Object.entries(paramsObj)) {
+      if (!(k in merged)) merged[k] = schema
+    }
+  }
+  return merged
+}
+
+/**
+ * Sequential composition (`g ∘ f`).
+ *
+ * - Unary `g` (`compose(f, g)`): feeds `f`'s output into `g`'s sole parameter.
+ * - Multi-param `g` (`compose(f, g, (out, params) => ({ ... }))`): maps `f`'s
+ *   output and original parameters into `g`'s parameter record.
+ *
+ * Preserves `f`'s `where` clauses, substitutes `g`'s `where` and `ensures`
+ * clauses over `f`'s parameters, and keeps `g`'s `returnSchema`.
+ */
+export function compose<P extends ParamSchemas, R, K extends string, S extends SchemaOf, R2>(
+  f: Fn<P, R>,
+  g: Fn<Readonly<Record<K, S>>, R2>,
+): Fn<P, R2>
+export function compose<P extends ParamSchemas, R, P2 extends ParamSchemas, R2>(
+  f: Fn<P, R>,
+  g: Fn<P2, R2>,
+  mapArgs: (
+    out: ExprType<ParamValues<P>, R>,
+    params: ParamPaths<P>,
+  ) => { readonly [K in keyof P2]: ExprInput<ParamValues<P>, P2[K]['Type']> },
+): Fn<P, R2>
+export function compose<P extends ParamSchemas, R, P2 extends ParamSchemas, R2>(
+  f: Fn<P, R>,
+  g: Fn<P2, R2>,
+  mapArgs?: (
+    out: ExprType<ParamValues<P>, R>,
+    params: ParamPaths<P>,
+  ) => Readonly<Record<string, unknown>>,
+): Fn<P, R2> {
+  const gParamKeys = Object.keys(g.params)
+  let gArgs: Readonly<Record<string, unknown>>
+  if (mapArgs !== undefined) {
+    gArgs = mapArgs(f.body, paramPathsOf(f.params))
+  } else {
+    if (gParamKeys.length !== 1) {
+      throw new Error(
+        `[metakit/fn] Fn.compose(f, g) without a mapper requires g to have exactly 1 parameter, got ${gParamKeys.length} (${gParamKeys.join(', ')})`,
+      )
+    }
+    gArgs = { [gParamKeys[0]!]: f.body }
+  }
+
+  const gParamSet = new Set(gParamKeys)
+  const gArgNodes = new Map<string, Node.Node>()
+  for (const key of gParamKeys) {
+    if (!Object.hasOwn(gArgs, key)) {
+      throw new Error(`[metakit/fn] Fn.compose missing argument "${key}" for second function`)
+    }
+    gArgNodes.set(key, toNode(gArgs[key]))
+  }
+
+  const body = wrap<ParamValues<P>, R2>(substituteArgs(g.body.node, gParamSet, gArgs))
+  const gWheres = g.whereClauses.map(w =>
+    wrap<ParamValues<P>, boolean | null>(substituteArgs(w.node, gParamSet, gArgs)),
+  )
+  const gEnsures = g.ensuresClauses.map(e =>
+    wrap<EnsuresEnv<P, R2>, boolean | null>(substituteEnsuresParams(e.node, gArgNodes)),
+  )
+
+  return buildFn({
+    params: f.params,
+    paramsSchema: f.paramsSchema,
+    body,
+    whereClauses: [...f.whereClauses, ...gWheres],
+    returnSchema: g.returnSchema,
+    ensuresClauses: gEnsures,
+  })
+}
+
+/**
+ * Partial application: fix a subset of `f`'s parameters to concrete literals,
+ * returning a specialized `Fn` over the remaining parameters with `body`,
+ * `whereClauses`, and `ensuresClauses` substituted.
+ */
+export const partial = <P extends ParamSchemas, R, const Fixed extends Partial<ParamValues<P>>>(
+  f: Fn<P, R>,
+  fixed: Fixed,
+): Fn<Omit<P, keyof Fixed & keyof P>, R> => {
+  type Remaining = Omit<P, keyof Fixed & keyof P>
+  const fixedKeys = Object.keys(fixed)
+  for (const key of fixedKeys) {
+    if (!Object.hasOwn(f.params, key)) {
+      throw new Error(`[metakit/fn] Fn.partial received unknown parameter "${key}"`)
+    }
+  }
+  const fixedSet = new Set(fixedKeys)
+  const remainingParams: Record<string, SchemaOf> = {}
+  for (const [key, schema] of Object.entries(f.params)) {
+    if (!fixedSet.has(key)) remainingParams[key] = schema
+  }
+  const fixedNodes = new Map<string, Node.Node>()
+  for (const key of fixedKeys) {
+    fixedNodes.set(key, Node.Lit({ value: (fixed as Readonly<Record<string, unknown>>)[key] }))
+  }
+  const sub = (node: Node.Node): Node.Node =>
+    Node.substitutePaths(node, segments => {
+      const head = segments[0]
+      if (head === undefined || !fixedNodes.has(head)) return Option.none()
+      const replacement = fixedNodes.get(head)!
+      return Option.some(
+        segments.length === 1 ? replacement : projectArg(replacement, segments.slice(1), head),
+      )
+    })
+
+  const rem = remainingParams as Remaining
+  return buildFn<Remaining, R>({
+    params: rem,
+    paramsSchema: Schema.Struct(rem),
+    body: wrap<ParamValues<Remaining>, R>(sub(f.body.node)),
+    whereClauses: f.whereClauses.map(w =>
+      wrap<ParamValues<Remaining>, boolean | null>(sub(w.node)),
+    ),
+    returnSchema: f.returnSchema,
+    ensuresClauses: f.ensuresClauses.map(e =>
+      wrap<EnsuresEnv<Remaining, R>, boolean | null>(substituteEnsuresParams(e.node, fixedNodes)),
+    ),
+  })
+}
+
+/** Transform `f`'s output expression while preserving `params` and `whereClauses`. */
+export const map = <P extends ParamSchemas, R, R2>(
+  f: Fn<P, R>,
+  transform: (
+    result: ExprType<ParamValues<P>, R>,
+    params: ParamPaths<P>,
+  ) => ExprInput<ParamValues<P>, R2>,
+): Fn<P, R2> =>
+  buildFn({
+    params: f.params,
+    paramsSchema: f.paramsSchema,
+    body: wrap<ParamValues<P>, R2>(toNode(transform(f.body, paramPathsOf(f.params)))),
+    whereClauses: f.whereClauses,
+    returnSchema: Option.none(),
+    ensuresClauses: [],
+  })
+
+/** Adapt `f` to a new parameter schema `newParams` by mapping inputs through `mapArgs`. */
+export const contramap = <P extends ParamSchemas, R, P2 extends ParamSchemas>(
+  f: Fn<P, R>,
+  newParams: P2,
+  mapArgs: (args: ParamPaths<P2>) => {
+    readonly [K in keyof P]: ExprInput<ParamValues<P2>, P[K]['Type']>
+  },
+): Fn<P2, R> => {
+  const mapped = mapArgs(paramPathsOf(newParams))
+  const fKeys = Object.keys(f.params)
+  const fKeySet = new Set(fKeys)
+  const argNodes = new Map<string, Node.Node>()
+  for (const key of fKeys) {
+    argNodes.set(key, toNode((mapped as Readonly<Record<string, unknown>>)[key]))
+  }
+  return buildFn({
+    params: newParams,
+    paramsSchema: Schema.Struct(newParams),
+    body: wrap<ParamValues<P2>, R>(substituteArgs(f.body.node, fKeySet, mapped)),
+    whereClauses: f.whereClauses.map(w =>
+      wrap<ParamValues<P2>, boolean | null>(substituteArgs(w.node, fKeySet, mapped)),
+    ),
+    returnSchema: f.returnSchema,
+    ensuresClauses: f.ensuresClauses.map(e =>
+      wrap<EnsuresEnv<P2, R>, boolean | null>(substituteEnsuresParams(e.node, argNodes)),
+    ),
+  })
+}
+
+/** Negate a boolean predicate `Fn`. */
+export const not = <P extends ParamSchemas, R extends boolean | null>(
+  f: Fn<P, R>,
+): Fn<P, boolean | (null extends R ? null : never)> =>
+  buildFn({
+    params: f.params,
+    paramsSchema: f.paramsSchema,
+    body: wrap<ParamValues<P>, boolean | (null extends R ? null : never)>(
+      Node.Call({ op: Bool.notOp, args: [f.body.node] }),
+    ),
+    whereClauses: f.whereClauses,
+    returnSchema: Option.none(),
+    ensuresClauses: [],
+  })
+
+/** Conjunction (`f && g`) of two boolean predicate `Fn`s, merging their parameters and preconditions. */
+export const and = <
+  P1 extends ParamSchemas,
+  P2 extends ParamSchemas,
+  R1 extends boolean | null,
+  R2 extends boolean | null,
+>(
+  f: Fn<P1, R1>,
+  g: Fn<P2, R2>,
+): Fn<P1 & P2, boolean | (null extends R1 | R2 ? null : never)> => {
+  const merged = mergeParamSchemas([f.params, g.params]) as P1 & P2
+  return buildFn({
+    params: merged,
+    paramsSchema: Schema.Struct(merged),
+    body: wrap<ParamValues<P1 & P2>, boolean | (null extends R1 | R2 ? null : never)>(
+      Node.Call({ op: Bool.andOp, args: [f.body.node, g.body.node] }),
+    ),
+    whereClauses: [
+      ...(f.whereClauses as ReadonlyArray<ExprType<ParamValues<P1 & P2>, boolean | null>>),
+      ...(g.whereClauses as ReadonlyArray<ExprType<ParamValues<P1 & P2>, boolean | null>>),
+    ],
+    returnSchema: Option.none(),
+    ensuresClauses: [],
+  })
+}
+
+/** Disjunction (`f || g`) of two boolean predicate `Fn`s, merging their parameters and preconditions. */
+export const or = <
+  P1 extends ParamSchemas,
+  P2 extends ParamSchemas,
+  R1 extends boolean | null,
+  R2 extends boolean | null,
+>(
+  f: Fn<P1, R1>,
+  g: Fn<P2, R2>,
+): Fn<P1 & P2, boolean | (null extends R1 | R2 ? null : never)> => {
+  const merged = mergeParamSchemas([f.params, g.params]) as P1 & P2
+  return buildFn({
+    params: merged,
+    paramsSchema: Schema.Struct(merged),
+    body: wrap<ParamValues<P1 & P2>, boolean | (null extends R1 | R2 ? null : never)>(
+      Node.Call({ op: Bool.orOp, args: [f.body.node, g.body.node] }),
+    ),
+    whereClauses: [
+      ...(f.whereClauses as ReadonlyArray<ExprType<ParamValues<P1 & P2>, boolean | null>>),
+      ...(g.whereClauses as ReadonlyArray<ExprType<ParamValues<P1 & P2>, boolean | null>>),
+    ],
+    returnSchema: Option.none(),
+    ensuresClauses: [],
+  })
+}
+
+/** Logical implication (`f => g`, i.e. `!f || g`) of two boolean predicate `Fn`s. */
+export const implies = <
+  P1 extends ParamSchemas,
+  P2 extends ParamSchemas,
+  R1 extends boolean | null,
+  R2 extends boolean | null,
+>(
+  f: Fn<P1, R1>,
+  g: Fn<P2, R2>,
+): Fn<P1 & P2, boolean | (null extends R1 | R2 ? null : never)> =>
+  or(not(f), g) as Fn<P1 & P2, boolean | (null extends R1 | R2 ? null : never)>
+
+/**
+ * Conditional branching combinator: evaluates `onTrue` when `cond` holds, else
+ * `onFalse`. Each branch's preconditions are guarded by `cond` / `!cond`.
+ */
+export const ifElse = <
+  PC extends ParamSchemas,
+  RC extends boolean | null,
+  PT extends ParamSchemas,
+  PF extends ParamSchemas,
+  RT,
+  RF,
+>(
+  cond: Fn<PC, RC>,
+  onTrue: Fn<PT, RT>,
+  onFalse: Fn<PF, RF>,
+): Fn<PC & PT & PF, RT | RF> => {
+  type Merged = PC & PT & PF
+  const merged = mergeParamSchemas([cond.params, onTrue.params, onFalse.params]) as Merged
+  const notCondNode = Node.Call({ op: Bool.notOp, args: [cond.body.node] })
+  const guardedTrue = onTrue.whereClauses.map(w =>
+    wrap<ParamValues<Merged>, boolean | null>(
+      Node.Call({ op: Bool.orOp, args: [notCondNode, w.node] }),
+    ),
+  )
+  const guardedFalse = onFalse.whereClauses.map(w =>
+    wrap<ParamValues<Merged>, boolean | null>(
+      Node.Call({ op: Bool.orOp, args: [cond.body.node, w.node] }),
+    ),
+  )
+  return buildFn({
+    params: merged,
+    paramsSchema: Schema.Struct(merged),
+    body: wrap<ParamValues<Merged>, RT | RF>(
+      Node.If({ cond: cond.body.node, then: onTrue.body.node, otherwise: onFalse.body.node }),
+    ),
+    whereClauses: [
+      ...(cond.whereClauses as ReadonlyArray<ExprType<ParamValues<Merged>, boolean | null>>),
+      ...guardedTrue,
+      ...guardedFalse,
+    ],
+    returnSchema: Option.none(),
+    ensuresClauses: [],
+  })
+}
+
+/** Identity `Fn` for a single parameter `{ value: S }`. */
+export const identity = <S extends SchemaOf>(schema: S): Fn<{ readonly value: S }, S['Type']> =>
+  make({ value: schema }, ({ value }) => value).returns(schema)
+
+/** Constant `Fn` ignoring `paramSchemas` and always returning `value`. */
+export const constant = <P extends ParamSchemas, const A>(paramSchemas: P, value: A): Fn<P, A> =>
+  make(paramSchemas, () => value)
+
+/**
+ * Static `n`-fold composition of a single-parameter endomorphism `f`
+ * (`f(f(...f(x)))`). Statically unrolled so it remains terminating,
+ * SQL-lowerable, and Z3-verifiable.
+ */
+export const iterate = <K extends string, S extends SchemaOf>(
+  f: Fn<Readonly<Record<K, S>>, S['Type']>,
+  n: number,
+): Fn<Readonly<Record<K, S>>, S['Type']> => {
+  if (!Number.isInteger(n) || n < 0) {
+    throw new Error(`[metakit/fn] Fn.iterate requires a non-negative integer count, got ${n}`)
+  }
+  const keys = Object.keys(f.params)
+  if (keys.length !== 1) {
+    throw new Error(
+      `[metakit/fn] Fn.iterate requires a single-parameter function, got ${keys.length} (${keys.join(', ')})`,
+    )
+  }
+  const soleKey = keys[0]! as K
+  if (n === 0) {
+    return buildFn({
+      params: f.params,
+      paramsSchema: f.paramsSchema,
+      body: wrap<ParamValues<Readonly<Record<K, S>>>, S['Type']>(
+        Node.Path({ segments: [soleKey], ast: Option.some(f.params[soleKey].ast) }),
+      ),
+      whereClauses: [],
+      returnSchema: f.returnSchema,
+      ensuresClauses: [],
+    })
+  }
+  let acc = f
+  for (let i = 1; i < n; i++) {
+    acc = compose(acc, f)
+  }
+  return acc
 }
