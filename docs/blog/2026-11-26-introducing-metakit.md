@@ -1,22 +1,45 @@
 ---
-title: Introducing metakit: inspectable rules and state transitions over Effect Schema
-description: How attaching data-driven expressions and transitions to Effect Schema lets one declaration drive runtime validation, SQL, UI disabled states, forms, and proofs.
+title: Stop writing the same business rule four times
+description: How metakit replaces opaque JavaScript closures on Effect Schema with inspectable rules and state transitions that drive runtime checks, UI disabled states, SQL, and Z3 proofs.
 date: 2026-11-26
 author: Foldkit Plus
 tags: [metakit, effect, schema, sql, z3]
 ---
 
-# Introducing metakit: inspectable rules and state transitions over Effect Schema
+# Stop writing the same business rule four times
 
-When you model a domain with [Effect `Schema`](https://effect.website) (Effect v4), one declaration gives you TypeScript types, runtime decoding, JSON Schema, and property-test generators. That stops the moment you write a business rule like `Schema.makeFilter(a => a.reserved <= a.balance)` or a state update in a plain function. JavaScript closures are opaque: nothing outside `decode` can read them. You end up copying the same rule into Postgres or SQLite constraints, UI button `disabled` checks, and server handlers—and the copies drift apart.
+Every backend starts with a simple rule: *an account's reserved hold can never exceed its balance, and a withdrawal can only touch the unreserved remainder.*
 
-If you replace only those opaque closures with typed expression trees stored on the `Schema` itself, every consumer can read the exact same rule and state transition. That library is `metakit`, the expression and transition kernel behind Foldkit Plus. You can run the full walkthrough in [`examples/metakit/src/demo.ts`](../../examples/metakit/src/demo.ts) (`pnpm --filter foldkit-example-metakit demo`).
+You write that rule once in your [Effect `Schema`](https://effect.website) validator, copy it into your UI to disable the **Withdraw** button, and copy it a third time into a Postgres `UPDATE ... WHERE` clause. When one copy drifts, TypeScript cannot catch it because plain JavaScript filter functions are opaque.
 
-## Write a rule once on your Effect Schema
+**`metakit`** replaces only those opaque closures with typed expression trees stored directly on your Effect v4 `Schema`. One declaration drives runtime decoding, UI disabled states, parameterized Postgres or SQLite SQL, and automated proofs. You can read the complete runnable walkthrough in [`examples/metakit/src/demo.ts`](../../examples/metakit/src/demo.ts).
+
+Here is the drift bug you are trying to eliminate:
+
+```ts sketch
+// 1. Runtime validation (opaque closure)
+const Account = Schema.Struct({
+  id: Schema.String,
+  balance: Schema.Int,
+  reserved: Schema.Int,
+  status: Schema.Literals(['open', 'frozen']),
+}).check(Schema.makeFilter(a => a.balance >= 0 && a.reserved >= 0 && a.reserved <= a.balance))
+
+// 2. UI disabled check
+const disabled = account.status !== 'open' || amount > account.balance - account.reserved
+
+// 3. Server SQL — someone forgot `- reserved`
+await sql`UPDATE accounts SET balance = balance - ${amount}
+          WHERE id = ${id} AND status = 'open' AND balance >= ${amount}`
+```
+
+Copy #3 compiles, passes unit tests where `reserved` is `0`, and drains held funds in production.
+
+## Put the rule on your Effect Schema once
 
 Install `metakit` alongside Effect v4 (`pnpm add metakit effect`).
 
-Instead of passing a JavaScript closure to `Schema.makeFilter`, you pass a callback to `Expr.refine`. The callback receives `$`, a typed field accessor built from your `Schema`, and returns an expression tree using `metakit`'s operator modules (`Num` for numbers, `Eq` for equality, `Str` for text, `Bool` for booleans, `Expr.all` to combine conditions with AND):
+Instead of `Schema.makeFilter`, attach the rule with `Expr.refine` from `metakit`. Its callback receives `$`, a typed field accessor built from your `Schema.Struct`, and returns a data tree using operator helpers (`Num` for numbers, `Eq` for equality, `Expr.all` for logical AND). Pass `Account` to `Sql.toCheck` from `metakit/sql` to translate the same rule into a database constraint:
 
 ```ts
 import { Result, Schema } from 'effect'
@@ -24,45 +47,7 @@ import { Expr, Num } from 'metakit'
 import * as Sql from 'metakit/sql'
 
 const Account = Schema.Struct({
-  balance: Schema.Int,
-  reserved: Schema.Int,
-}).pipe(
-  Expr.refine($ => Expr.all(Num.gte($.balance, 0), Num.lte($.reserved, $.balance))),
-)
-
-const bad = Schema.decodeUnknownResult(Account)({ balance: 10, reserved: 20 })
-const check = Result.getOrThrow(Sql.toCheck(Account, { dialect: 'postgres' }))
-```
-
-What happens when this runs:
-- `Account` is still an ordinary Effect `Schema`: `Result.isFailure(bad)` is `true` because `20 <= 10` fails.
-- `Sql.toCheck` reads the expression tree stored on `Account`'s `SchemaAST` and returns a `Result` (failing with `SqlUnsupportedError` if a rule uses an operation SQL cannot express). With `{ dialect: 'postgres' }` (or `'sqlite'`), `check` is:
-  `CHECK (((("balance" >= 0) AND ("reserved" <= "balance"))) IS TRUE)`
-  which drops straight into a `CREATE TABLE` statement.
-
-You write the invariant once. Effect still owns decoding and TypeScript types, while your database enforces the identical constraint.
-
-## How metakit fits with Effect
-
-`metakit` extends Effect rather than wrapping or replacing it:
-
-- **Effect `Schema` stays the source of truth.** Expressions read typed field paths derived directly from your `Schema.Struct`. Your existing `Schema.Int`, `Schema.Literals`, `Schema.NullOr`, `Schema.optional`, and `Schema.Option` fields keep working, and `Expr.rulesOf(schema)` reads both `Expr.refine` rules and built-in Effect bounds like `Schema.isBetween` (returning each rule's path, expression, and message).
-- **Standard Effect data types everywhere.** Missing values use `Option`. Fallible calls—such as evaluating an overflowing integer, translating an unsupported expression to SQL, or running a refused transition—return Effect `Result` instead of throwing.
-- **Scoped solver proofs with `Layer`.** Asynchronous proofs return an `Effect` backed by a scoped `Solver` service (defaulting to the optional peer `z3-solver`, an SMT solver). You can bound solve time with `{ timeoutMs }` or swap the backend with `Layer.succeed`.
-- **Keep I/O in `Effect`.** `metakit` models pure, single-step rules and state updates. Keep clocks, ID generators, network calls, and retries in `Effect`: pass external values like `now` or `id` into a transition through `supplied`, and return side-effect descriptions as plain `emits` records for your runtime to execute.
-
-## Turn one state update into UI hints, SQL, and a proof
-
-Rules alone only check data at rest. Most bugs come from state updates: a UI disables a "Withdraw" button with one condition, an optimistic reducer applies a second, and a server `UPDATE` checks a third.
-
-`Transition.make` declares one guarded state update over your Effect `Schema`. Its guard (`when`) and writes (`apply`, using `Transition.set`, `Transition.add`, or list writes like `Transition.insert` and `Transition.patch`) are expression trees. You can also declare `supplied` values (like `{ now: Schema.Int }`, passed at runtime via `Transition.step(t, state, input, { now })`) and `emits` records:
-
-```ts
-import { Effect, Schema } from 'effect'
-import { Eq, Expr, Num, Transition, Verdict } from 'metakit'
-import * as Prove from 'metakit/prove'
-
-const Account = Schema.Struct({
+  id: Schema.String,
   balance: Schema.Int,
   reserved: Schema.Int,
   status: Schema.Literals(['open', 'frozen']),
@@ -72,10 +57,40 @@ const Account = Schema.Struct({
   ),
 )
 
+const bad = Schema.decodeUnknownResult(Account)({
+  id: 'acct_1',
+  balance: 10,
+  reserved: 20,
+  status: 'open',
+})
+const check: string = Result.getOrThrow(Sql.toCheck(Account, { dialect: 'postgres' }))
+```
+
+What happened:
+
+- `Account` is still an ordinary Effect `Schema`: `Result.isFailure(bad)` is `true` because `20 <= 10` fails.
+- `Sql.toCheck` returns an Effect `Result` (failing if a rule uses an operation SQL cannot express). Unwrapping it gives a plain SQL string you can drop into `CREATE TABLE`:
+
+```sql
+CHECK ((((("balance" >= 0) AND ("reserved" >= 0)) AND ("reserved" <= "balance"))) IS TRUE)
+```
+
+(`IS TRUE` ensures `NULL` values do not silently slip past a SQL `CHECK` constraint.)
+
+## Drive UI disabled states and SQL from one transition
+
+Data-at-rest checks only catch bad rows after the fact. Most drift happens in state updates: the UI checks one condition, the reducer applies a second, and the database runs a third.
+
+`Transition.make` declares one guarded state update over `Account` (reusing `Account` from above). Its guard (`when`) and list of field writes (`apply`, using `Transition.set`) are expression trees. Three consumers read that same `Withdraw` declaration:
+
+```ts
+import { Result, Schema } from 'effect'
+import { Eq, Expr, Num, Transition, Verdict } from 'metakit'
+import * as Sql from 'metakit/sql'
+
 const Withdraw = Transition.make({
   state: Account,
   input: Schema.Struct({ amount: Schema.Int.check(Schema.isGreaterThan(0)) }),
-  supplied: { now: Schema.Int },
   when: ({ state, input }) =>
     Expr.all(
       Eq.is(state.status, 'open'),
@@ -84,39 +99,126 @@ const Withdraw = Transition.make({
   apply: ({ state, input }) => [
     Transition.set(state.balance, Num.sub(state.balance, input.amount)),
   ],
-  emits: ({ input, supplied }) => [
-    Transition.emit('Withdrawn', { amount: input.amount, at: supplied.now }),
+})
+
+const frozen = { id: 'acct_1', balance: 500, reserved: 100, status: 'frozen' as const }
+const open = { id: 'acct_1', balance: 500, reserved: 100, status: 'open' as const }
+
+const canFrozen = Transition.can(Withdraw, { state: frozen })
+const canOpen = Transition.can(Withdraw, { state: open })
+const next = Transition.run(Withdraw, open, { amount: 50 })
+const update = Result.getOrThrow(
+  Sql.toUpdate('accounts', Withdraw, { amount: 50 }, {
+    dialect: 'postgres',
+    whereId: { column: 'id', value: 'acct_1' },
+  }),
+)
+```
+
+What happened:
+
+- **UI before the user types an amount:** `Transition.can` partially evaluates `when` with only `{ state }` and returns a three-valued `Verdict` (`True`, `False`, or `Unknown`). For `frozen`, `Verdict.isFalse(canFrozen)` is `true` so your UI disables the button immediately. For `open`, `Verdict.isUnknown(canOpen)` is `true` because the outcome still depends on `amount`, so the button stays enabled while waiting for input.
+- **Runtime execution:** `Transition.run` validates the input and guard, then returns `Result.succeed({ id: 'acct_1', balance: 450, reserved: 100, status: 'open' })`.
+- **Parameterized SQL:** `Sql.toUpdate` returns `{ text, params }`. All values are bound as parameters (`update.params` is `[50, 'open', 50, 'acct_1']`, never interpolated), identifiers are double-quoted, and arithmetic is clamped so Postgres rejects JavaScript safe-integer overflows just like JS does:
+
+```sql
+UPDATE "accounts"
+SET "balance" = CAST(NULLIF(NULLIF(LEAST(GREATEST((CAST("balance" AS numeric) - $1), -9007199254740992), 9007199254740992), 9007199254740992), -9007199254740992) AS bigint)
+WHERE (("id" = $4) AND (("status" IS NOT DISTINCT FROM $2) AND ($3 <= CAST(NULLIF(NULLIF(LEAST(GREATEST((CAST("balance" AS numeric) - "reserved"), -9007199254740992), 9007199254740992), 9007199254740992), -9007199254740992) AS bigint))))
+```
+
+Pass `update.text` and `update.params` straight to `pg`, `postgres.js`, or Drizzle.
+
+## Catch the forgotten `- reserved` bug before CI ships it
+
+Now introduce the exact bug from the opening snippet: check `amount <= balance` instead of `amount <= balance - reserved`. Group your transitions into a state machine with `Machine.make` (`metakit/machine`) and pass it to `Prove.machine` (`metakit/prove`, backed by the optional peer `z3-solver`, an automated theorem prover):
+
+```ts
+import { Effect, Schema } from 'effect'
+import { Eq, Expr, Num, Transition, Verdict } from 'metakit'
+import * as Machine from 'metakit/machine'
+import * as Prove from 'metakit/prove'
+
+const BuggyWithdraw = Transition.make({
+  state: Account,
+  input: Schema.Struct({ amount: Schema.Int.check(Schema.isGreaterThan(0)) }),
+  when: ({ state, input }) =>
+    Expr.all(Eq.is(state.status, 'open'), Num.lte(input.amount, state.balance)),
+  apply: ({ state, input }) => [
+    Transition.set(state.balance, Num.sub(state.balance, input.amount)),
   ],
 })
 
-const frozen = { balance: 500, reserved: 100, status: 'frozen' as const }
-const canWithdraw = Transition.can(Withdraw, { state: frozen })
-const proof = await Effect.runPromise(Prove.transition(Account, Withdraw))
-const disabled = Verdict.isFalse(canWithdraw)
-const proved = Verdict.isTrue(proof)
+const Ledger = Machine.make({ state: Account, transitions: { Withdraw: BuggyWithdraw } })
+const report = await Effect.runPromise(Prove.machine(Ledger))
+const fixedProof = await Effect.runPromise(Prove.transition(Account, Withdraw))
+const fixedOk = Verdict.isTrue(fixedProof)
 ```
 
-What happens when this runs:
-- `Transition.can` partially evaluates `Withdraw`'s guard with only `{ state: frozen }`—before the user enters an `amount` or `now`. It returns a three-valued `Verdict` (`True`, `False`, or `Unknown` when missing fields still matter). Here `disabled` is `true`, so your UI disables the button and an AI agent hides the tool.
-- `Prove.transition` checks whether `Withdraw` can ever break `Account`'s invariant for any valid state and input. Fast synchronous range checks prove `proved === true` immediately without starting Z3.
+`Prove.machine` checks whether any valid state and input can break `Account`'s invariant. For `BuggyWithdraw`, Z3 finds a failing case, replays it against your real `Account` `Schema`, and `report.format()` prints:
 
-If someone later deletes `Num.lte(input.amount, ...)` from the guard, `Prove.transition` escalates to Z3 and returns `Verdict.False` carrying a concrete counterexample (`balance: 0, reserved: 0, amount: 1 -> balance: -1`) replayed against your `Schema`. (`Prove.machine` runs this across every transition in a state machine and formats the counterexample report for CI.)
+```text
+REFUTED Withdraw
+  before:   {"balance":1,"reserved":1,"status":"open"}
+  input:    {"amount":1}
+  after:    {"balance":0,"reserved":1,"status":"open"}
+  violated: (((balance >= 0) && (reserved >= 0)) && (reserved <= balance))
+  repro:    Transition.run(Withdraw, {"balance":1,"reserved":1,"status":"open"}, {"amount":1})
+```
 
-## What metakit unlocks across your project
+You get a minimal, copy-pasteable reproduction without writing a fuzz test.
 
-Because rules and transitions are data instead of closures, every other layer reads the same declaration:
+For the fixed `Withdraw` transition, `Prove.transition` proves `fixedOk === true` synchronously using fast built-in arithmetic checks—without even starting Z3.
 
-- **Database queries and updates (`metakit/sql`, `metakit/drizzle`, `metakit/relation`, `metakit/aggregates`).** One rule translates to parameterized Postgres and SQLite `CHECK`, `WHERE`, and guarded `UPDATE` statements—as plain SQL text or Drizzle `SQL` fragments. `metakit/relation` compiles cross-table predicates into correlated subqueries, and `metakit/aggregates` computes O(1) incremental `sum`/`count` deltas that match SQL aggregates.
-- **Typed domain primitives (`metakit/domain`).** Fixed-scale integer `Money` and `Decimal` (exact half-even rounding in JS, SQL, and Z3), timezone-free `CalendarDay`, `OrderedEnum`, and NUL-free `Text` attach metadata directly to your `Schema`.
-- **State machines, forms, and agent tools (`metakit/machine`, `metakit/inspect`).** `Machine.make` and `Machine.compose` group transitions into an executable state machine with live `affordances` (`available`, `disabled`, `pending`). `Inspect.fieldSpecs` and `Inspect.toJsonSchema` extract field kinds, tightest numeric bounds, nullability, `title`/`description` annotations, and domain metadata straight off your `Schema` for forms and AI tool schemas.
-- **Static invalidation and SSR pruning (`metakit/graph`).** Because every transition declares which fields it reads and writes, `Graph.analyze` computes which UI bindings a transition can invalidate, and `Graph.pruneStatic` folds fields already known on the server at SSR time so static regions ship zero client reactivity.
-- **Concurrency and store checks (`metakit/pairs`, `metakit/store`).** `Transition.commutes` (and `Pairs.pairs`) proves when two transitions produce the same result in either order, while `Store.mount` refuses to start if your declared database isolation level cannot uphold a rule under concurrent writes.
-- **Custom domain operations (`metakit/operation`, `metakit/operation/sql`, `metakit/language`).** Register application-specific operations with typed Schemas, optional algebraic claims (`commutative`, `associative`, `identity`, `total`), and Postgres/SQLite SQL templates. `Language.make` bundles operation families for exhaustive JS and SQL registration, and `Conformance.checkOperation` (`metakit/conformance`) fuzz-tests your claims against your JS implementations.
+## Reuse verified functions and run them through Effect
 
-Every subpath is tree-shakeable: browser bundles import `metakit`, `metakit/domain`, `metakit/machine`, and `metakit/inspect` without pulling in SQL translators, Drizzle, or Z3.
+Real domains share calculations across guards, transitions, and queries. `Fn.params` (`metakit/fn`) declares a typed function with preconditions (`where`), a return `Schema` (`returns`), and postconditions (`ensures`). Calling it inside an expression inlines its tree so it still translates to SQL and proves in Z3 with `Prove.fn`.
+
+To evaluate expressions, transitions, or functions inside an Effect program, `metakit/interpreter` provides `Interpreter` as an Effect `Context.Reference`. You can `yield*` it directly and layer tracing spans, audit observers, or custom-operator allowlists using standard Effect `Layer`s:
+
+```ts
+import { Effect, Schema } from 'effect'
+import { Num, Verdict } from 'metakit'
+import * as Fn from 'metakit/fn'
+import * as Interpreter from 'metakit/interpreter'
+import * as Prove from 'metakit/prove'
+
+const NonNeg = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 1_000_000 }))
+
+const netAvailable = Fn.params({ balance: NonNeg, reserved: NonNeg })
+  .where(({ balance, reserved }) => Num.lte(reserved, balance))
+  .returns(NonNeg)
+  .ensures(({ params, result }) => Num.lte(result, params.balance))
+  .body(({ balance, reserved }) => Num.sub(balance, reserved))
+
+const proved = Verdict.isTrue(await Effect.runPromise(Prove.fn(netAvailable)))
+
+const available = await Effect.runPromise(
+  Effect.gen(function* () {
+    const interp = yield* Interpreter.Interpreter
+    return yield* interp.runFn(netAvailable, { balance: 500, reserved: 120 }, { checked: true })
+  }),
+)
+```
+
+What happened:
+
+- `Prove.fn(netAvailable)` verifies in Z3 that `netAvailable` never overflows, always satisfies `NonNeg`, and always holds `result <= balance` whenever `reserved <= balance` (`proved === true`).
+- `interp.runFn(..., { checked: true })` validates the parameters, checks `where`, evaluates the body, checks `returns` and `ensures`, and returns `380` (omitting `checked` skips the extra contract checks for hot paths).
+- Functions compose with `andThen`, `partial`, `ifElse`, and boolean combinators (`Fn.and`, `Fn.or`, `Fn.not`) while carrying their contracts forward.
+
+## The rest of the toolkit
+
+Every subpath is tree-shakeable. Browser bundles that import `metakit`, `metakit/domain`, `metakit/machine`, or `metakit/inspect` never pull in `metakit/sql`, `metakit/drizzle`, or `z3-solver`:
+
+- **Domain types (`metakit/domain`):** Fixed-scale `Money` and `Decimal` with exact half-even rounding in JS, SQL, and Z3, plus `CalendarDay`, `OrderedEnum`, `Id`, and fractional-index `Ordinal` ordering keys.
+- **Cross-table rules (`metakit/relation`, `metakit/aggregates`, `metakit/drizzle`):** Typed foreign-key relations (including self-referential trees and composite keys) that compile to Drizzle or raw SQL subqueries, plus O(1) incremental `sum` and `count` deltas.
+- **Concurrency checks (`metakit/pairs`, `metakit/store`):** `Transition.commutes` proves when two transitions give the same result in either order, and `Store.mountEffect` checks your declared database isolation level at startup, failing with `StoreRefused` if it cannot uphold your rules under concurrent writes.
+- **Custom operations (`metakit/operation`, `metakit/language`):** Register domain-specific operators with typed Schemas and SQL templates, then supply their JS implementations once via `Interpreter.layer({ foreign })`.
+- **Forms and JSON Schema (`metakit/inspect`):** `Inspect.fieldSpecs` and `Inspect.toJsonSchema` extract field kinds, numeric bounds, and nullability straight off your `Schema`.
 
 ## Where to go next
 
 - **Want a step-by-step tutorial?** Follow [Write a business rule once and run it in JS, SQL, forms, and proofs](../../packages/metakit/docs/getting-started.md).
-- **Want to explore real domains?** Read the runnable examples under [`examples/metakit/src/`](../../examples/metakit/src/)—including a Treasury FX ledger, a Tech Tree catalog with nested list rules, a Hotel Booking engine, and a Feature-Flag custom language.
+- **Want to see complete domains?** Browse [`examples/metakit/src/`](../../examples/metakit/src/)—including a Treasury FX ledger, a Hotel Booking engine, a Tech Tree catalog, and an E-Commerce cart.
 - **Writing generic helpers over Effect `Schema`?** Read [Writing a generic helper over a Schema](../guides/generic-schema-helpers.md).

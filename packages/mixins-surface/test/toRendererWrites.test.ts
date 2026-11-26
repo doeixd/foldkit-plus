@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Schema } from 'effect'
+import { Pipeable, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
@@ -40,6 +40,9 @@ const emptyMachine = {
   },
   update: () => {
     throw new Error('unused')
+  },
+  pipe() {
+    return Pipeable.pipeArguments(this, arguments)
   },
 }
 

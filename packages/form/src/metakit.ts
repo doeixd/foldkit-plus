@@ -217,6 +217,8 @@ const attributesOf = (spec: FieldSpec): InputAttributes =>
           orderedEnum: () => none,
           currency: () => none,
           text: () => none,
+          id: () => none,
+          ordinal: () => none,
         }),
       ),
   })
@@ -256,6 +258,8 @@ const controlFor = (domain: Domain.DomainMetadata): Option.Option<Control> =>
       orderedEnum: () => Option.none(),
       currency: () => Option.none(),
       text: () => Option.none(),
+      id: () => Option.none(),
+      ordinal: () => Option.none(),
     }),
   )
 
