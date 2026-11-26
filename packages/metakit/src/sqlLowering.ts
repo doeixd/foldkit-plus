@@ -601,17 +601,27 @@ export const lowerNode = (
           return Result.succeed([SqlPiece.Foreign({ op, args: lowered })])
         },
         // A condition that is null chooses neither branch: `ELSE` would take the second.
-        If: ({ cond, then, otherwise }) =>
-          Result.flatMap(ctx.lower(cond), c =>
+        If: ({ cond, then, otherwise }) => {
+          const typedArm = (node: Node.Node, sql: Sql): Sql =>
+            ctx.dialect === 'postgres' && Node.$is('Lit')(node) && typeof node.value === 'boolean'
+              ? q`CAST(${sql} AS boolean)`
+              : sql
+          return Result.flatMap(ctx.lower(cond), c =>
             Result.flatMap(ctx.lower(then), t =>
               Result.map(
                 ctx.lower(otherwise),
-                e => q`(CASE WHEN ${c} THEN ${t} WHEN NOT ${c} THEN ${e} END)`,
+                e =>
+                  q`(CASE WHEN ${c} THEN ${typedArm(then, t)} WHEN NOT ${c} THEN ${typedArm(otherwise, e)} END)`,
               ),
             ),
-          ),
-        Match: ({ on, cases, otherwise }) =>
-          Result.flatMap(ctx.lower(on), rawTarget => {
+          )
+        },
+        Match: ({ on, cases, otherwise }) => {
+          const typedArm = (node: Node.Node, sql: Sql): Sql =>
+            ctx.dialect === 'postgres' && Node.$is('Lit')(node) && typeof node.value === 'boolean'
+              ? q`CAST(${sql} AS boolean)`
+              : sql
+          return Result.flatMap(ctx.lower(on), rawTarget => {
             const target =
               ctx.dialect === 'sqlite' && needleKind(on) === 'text'
                 ? q`(${rawTarget} COLLATE BINARY)`
@@ -622,14 +632,16 @@ export const lowerNode = (
               if (Result.isFailure(when)) return when
               const then = ctx.lower(branch)
               if (Result.isFailure(then)) return then
-              arms.push(q`WHEN ${when.success} THEN ${then.success}`)
+              arms.push(q`WHEN ${when.success} THEN ${typedArm(branch, then.success)}`)
             }
             const rest = Option.match(otherwise, {
               onNone: (): Lowered => Result.succeed([]),
-              onSome: fallback => Result.map(ctx.lower(fallback), f => q` ELSE ${f}`),
+              onSome: fallback =>
+                Result.map(ctx.lower(fallback), f => q` ELSE ${typedArm(fallback, f)}`),
             })
             return Result.map(rest, e => q`(CASE ${target} ${joined(arms, ' ')}${e} END)`)
-          }),
+          })
+        },
         Opaque: ({ name }) => unsupported(`cannot lower opaque term "${name}" to SQL`),
         Rows: rows =>
           inBody ? unsupported('nested rows are not lowered to SQL') : lowerRows(rows, options),
