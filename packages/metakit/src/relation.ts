@@ -16,7 +16,7 @@
  * A body reads the pointing row under `each`, and may read any slice but the
  * one the row asked about is in: SQL carries no second row into a subquery.
  */
-import { Option } from 'effect'
+import { Inspectable, Option, Pipeable } from 'effect'
 import type { Schema } from 'effect'
 import * as Node from './node.js'
 import {
@@ -51,8 +51,20 @@ export interface RelationOptions {
   readonly onDelete?: OnDelete
 }
 
+const relationProto = {
+  pipe(this: unknown) {
+    return Pipeable.pipeArguments(this, arguments)
+  },
+  toString(this: { readonly name: string }) {
+    return `Relation(${this.name})`
+  },
+  [Inspectable.NodeInspectSymbol](this: { readonly name: string }) {
+    return `Relation(${this.name})`
+  },
+}
+
 /** The rows of one kind pointing at a row of another through one of their fields. */
-export interface Relation<Row> {
+export interface Relation<Row> extends Pipeable.Pipeable {
   readonly _tag: 'Relation'
   /** The kind and the field it points by, as `Follow.followee`. */
   readonly name: string
@@ -73,15 +85,16 @@ export const make = <S extends Schema.Top>(
   name: string,
   row: S,
   options?: RelationOptions,
-): Relation<S['Type']> => ({
-  _tag: 'Relation',
-  name,
-  row: row as unknown as Schema.Codec<S['Type']>,
-  ...(options?.cardinality === undefined ? {} : { cardinality: options.cardinality }),
-  ...(options?.foreignKey === undefined ? {} : { foreignKey: options.foreignKey }),
-  ...(options?.parentKey === undefined ? {} : { parentKey: options.parentKey }),
-  ...(options?.onDelete === undefined ? {} : { onDelete: options.onDelete }),
-})
+): Relation<S['Type']> =>
+  Object.assign(Object.create(relationProto) as Relation<S['Type']>, {
+    _tag: 'Relation' as const,
+    name,
+    row: row as unknown as Schema.Codec<S['Type']>,
+    ...(options?.cardinality === undefined ? {} : { cardinality: options.cardinality }),
+    ...(options?.foreignKey === undefined ? {} : { foreignKey: options.foreignKey }),
+    ...(options?.parentKey === undefined ? {} : { parentKey: options.parentKey }),
+    ...(options?.onDelete === undefined ? {} : { onDelete: options.onDelete }),
+  })
 
 /**
  * Declare a type-checked relation between a `parent` Schema and a `child`

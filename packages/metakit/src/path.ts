@@ -5,7 +5,7 @@
  * brand and `node` field), so paths drop straight into expressions while
  * `Transition.set` requires a path from the transition's state accessor.
  */
-import { Option, Predicate, SchemaAST } from 'effect'
+import { Inspectable, Option, Pipeable, Predicate, SchemaAST } from 'effect'
 import type { Schema } from 'effect'
 import * as Node from './node.js'
 
@@ -18,7 +18,7 @@ declare const StatePathTypeId: unique symbol
  * `Env` is contravariant (phantom) so an expression over `{ row }` widens into
  * `{ row, principal }` without adapters.
  */
-export interface Expr<in Env, out A> {
+export interface Expr<in Env, out A> extends Pipeable.Pipeable {
   readonly [ExprTypeId]: {
     readonly env: (env: Env) => void
     readonly out: () => A
@@ -44,6 +44,21 @@ export type AnyPath = Path<never, unknown>
 /** A path rooted in the state slice of a transition. */
 export type StatePath<Env, A> = Path<Env, A> & { readonly [StatePathTypeId]: true }
 
+const pathProto = {
+  pipe(this: unknown) {
+    return Pipeable.pipeArguments(this, arguments)
+  },
+  toJSON(this: { readonly segments: ReadonlyArray<string> }) {
+    return { _id: 'metakit/Path', path: format(this.segments) }
+  },
+  toString(this: { readonly segments: ReadonlyArray<string> }) {
+    return `Path(${format(this.segments)})`
+  },
+  [Inspectable.NodeInspectSymbol](this: { readonly segments: ReadonlyArray<string> }) {
+    return `Path(${format(this.segments)})`
+  },
+}
+
 /** Construct a `Path` from raw segments and an optional Schema AST. */
 export const make = <Env, A>(
   segments: ReadonlyArray<string>,
@@ -51,13 +66,13 @@ export const make = <Env, A>(
 ): Path<Env, A> => {
   const frozen = Object.freeze([...segments])
   const node = Node.Path({ segments: frozen, ast })
-  return {
+  return Object.assign(Object.create(pathProto) as Path<Env, A>, {
     [ExprTypeId]: undefined as never,
     [PathTypeId]: undefined as never,
     node,
     segments: frozen,
     ast,
-  }
+  })
 }
 
 /** The identity path `Env -> Env`. */
@@ -278,16 +293,20 @@ export const accessor = <Env, A>(
   const base = make<Env, A>(segments, ast)
   const props = propertyAsts(ast)
   const children = new Map<string, PathAccessor<Env, unknown>>()
-  const target: Record<PropertyKey, unknown> = {
+  const target: Record<PropertyKey, unknown> = Object.assign(Object.create(pathProto), {
     [ExprTypeId]: base[ExprTypeId],
     [PathTypeId]: base[PathTypeId],
     node: base.node,
     segments: base.segments,
     ast: base.ast,
-  }
+  })
   return new Proxy(target, {
     get(obj, prop, receiver) {
-      if (typeof prop === 'symbol' || Object.hasOwn(obj, prop)) {
+      if (
+        typeof prop === 'symbol' ||
+        Object.hasOwn(obj, prop) ||
+        ((prop === 'pipe' || prop === 'toString' || prop === 'toJSON') && !props.has(prop))
+      ) {
         return Reflect.get(obj, prop, receiver)
       }
       let child = children.get(prop)

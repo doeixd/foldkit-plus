@@ -14,7 +14,7 @@
  *    in seeded orders and checks a property after every step, and
  *    `undischarged` lists the obligations no passing walk covers.
  */
-import { Data, Option } from 'effect'
+import { Cause, Data, Effect, Exit, Option, type Scope } from 'effect'
 import type { Aggregate } from './aggregates.js'
 import * as Expr from './expr.js'
 import type { Machine } from './machine.js'
@@ -331,6 +331,161 @@ export const walk = <State, Name extends string, Of extends string = never>(
   return WalkResult.Held({ seed: first, runs })
 }
 
+/** One step of an `EffectScenario`: an effectful send, exchange, or transaction. */
+export interface EffectStep<World, Name extends string, E = unknown, R = never> {
+  readonly name: Name
+  readonly after?: ReadonlyArray<NoInfer<Name>>
+  readonly run: (world: World) => Effect.Effect<void, E, R>
+}
+
+/** `Scenario` for Effect-native steps: each order runs inside its own `Scope` for automatic teardown. */
+export interface EffectScenario<World, Name extends string, E = unknown, R = never> {
+  readonly initial: Effect.Effect<World, E, Scope.Scope | R>
+  readonly steps: ReadonlyArray<EffectStep<World, Name, E, R>>
+  /** Asked after every step, with the steps run so far: a reason when the property is broken. */
+  readonly holds: (
+    world: World,
+    ran: ReadonlyArray<Name>,
+  ) => Effect.Effect<Option.Option<string>, E, R>
+}
+
+/**
+ * Effect-native `walk`: runs seeded valid interleavings inside `Effect.scoped`,
+ * checks `holds` after every step, and shrinks any failing interleaving to a
+ * minimal witness. A step or check that fails or dies breaks the property with
+ * its rendered `Cause`.
+ */
+export const walkEffect = <World, Name extends string, E, R>(
+  scenario: EffectScenario<World, Name, E, R>,
+  options?: WalkOptions,
+): Effect.Effect<WalkResult<Name>, never, R> =>
+  Effect.suspend(() => {
+    type S = EffectStep<World, Name, E, R>
+    const { steps } = scenario
+    const names = new Set<Name>()
+    for (const step of steps) {
+      if (names.has(step.name)) {
+        return Effect.die(
+          new Error(`[metakit] Temporal.walkEffect: two steps are named "${step.name}"`),
+        )
+      }
+      names.add(step.name)
+    }
+    for (const step of steps) {
+      const unknown = (step.after ?? []).find(name => !names.has(name))
+      if (unknown !== undefined) {
+        return Effect.die(
+          new Error(
+            `[metakit] Temporal.walkEffect: step "${step.name}" runs after "${unknown}", which is no step`,
+          ),
+        )
+      }
+    }
+
+    const first = options?.seed ?? 1
+    const runs = options?.runs ?? 30
+    if (!Number.isInteger(runs) || runs <= 0) {
+      return Effect.die(
+        new Error(`[metakit] Temporal.walkEffect: runs must be a positive integer, got ${runs}`),
+      )
+    }
+
+    const orderOf = (seed: number): ReadonlyArray<S> => {
+      const next = generator(seed)
+      const ran = new Set<Name>()
+      const waiting = [...steps]
+      const order: Array<S> = []
+      while (waiting.length > 0) {
+        const ready = waiting.filter(step => (step.after ?? []).every(name => ran.has(name)))
+        const step = ready[Math.floor(next() * ready.length)]
+        if (step === undefined) {
+          throw new Error(
+            '[metakit] Temporal.walkEffect: steps wait on each other, or on one that is no step',
+          )
+        }
+        waiting.splice(waiting.indexOf(step), 1)
+        ran.add(step.name)
+        order.push(step)
+      }
+      return order
+    }
+
+    const formatCause = (cause: Cause.Cause<unknown>): string => {
+      const squashed = Cause.squash(cause)
+      return squashed instanceof Error ? squashed.message : String(squashed)
+    }
+
+    const broken = (
+      order: ReadonlyArray<S>,
+    ): Effect.Effect<
+      Option.Option<{ readonly ran: ReadonlyArray<S>; readonly reason: string }>,
+      never,
+      R
+    > =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const worldExit = yield* Effect.exit(scenario.initial)
+          if (Exit.isFailure(worldExit)) {
+            return Option.some({
+              ran: [] as ReadonlyArray<S>,
+              reason: `initial failed: ${formatCause(worldExit.cause)}`,
+            })
+          }
+          const world = worldExit.value
+          const ran: Array<Name> = []
+          for (const [at, step] of order.entries()) {
+            const stepExit = yield* Effect.exit(step.run(world))
+            const nextRan = [...ran, step.name]
+            const reason = Exit.isFailure(stepExit)
+              ? Option.some(`${step.name} threw: ${formatCause(stepExit.cause)}`)
+              : yield* Effect.exit(scenario.holds(world, nextRan)).pipe(
+                  Effect.map(holdsExit =>
+                    Exit.isFailure(holdsExit)
+                      ? Option.some(`${step.name} holds failed: ${formatCause(holdsExit.cause)}`)
+                      : holdsExit.value,
+                  ),
+                )
+            ran.push(step.name)
+            if (Option.isSome(reason)) {
+              return Option.some({ ran: order.slice(0, at + 1), reason: reason.value })
+            }
+          }
+          return Option.none()
+        }),
+      )
+
+    const shrunk = (failing: {
+      readonly ran: ReadonlyArray<S>
+      readonly reason: string
+    }): Effect.Effect<{ readonly ran: ReadonlyArray<S>; readonly reason: string }, never, R> =>
+      Effect.gen(function* () {
+        for (const step of failing.ran) {
+          const rest = failing.ran.filter(other => other !== step)
+          if (rest.some(other => (other.after ?? []).includes(step.name))) continue
+          const still = yield* broken(rest)
+          if (Option.isSome(still)) return yield* shrunk(still.value)
+        }
+        return failing
+      })
+
+    return Effect.gen(function* () {
+      for (let run = 0; run < runs; run++) {
+        const seed = first + run
+        const failing = yield* broken(orderOf(seed))
+        if (Option.isSome(failing)) {
+          const least = yield* shrunk(failing.value)
+          return WalkResult.Broken({
+            seed,
+            interleaving: failing.value.ran.map(step => step.name),
+            minimal: least.ran.map(step => step.name),
+            reason: least.reason,
+          })
+        }
+      }
+      return WalkResult.Held({ seed: first, runs })
+    })
+  })
+
 /** One step of an `AsyncScenario`: a send, an exchange, a transaction, awaited. */
 export interface AsyncStep<World, Name extends string> {
   readonly name: Name
@@ -360,102 +515,28 @@ export interface AsyncScenario<World, Name extends string> {
 export const walkAsync = async <World, Name extends string>(
   scenario: AsyncScenario<World, Name>,
   options?: WalkOptions,
-): Promise<WalkResult<Name>> => {
-  type S = AsyncStep<World, Name>
-  const { steps } = scenario
-  const names = new Set<Name>()
-  for (const step of steps) {
-    if (names.has(step.name)) {
-      throw new Error(`[metakit] Temporal.walkAsync: two steps are named "${step.name}"`)
-    }
-    names.add(step.name)
-  }
-  for (const step of steps) {
-    const unknown = (step.after ?? []).find(name => !names.has(name))
-    if (unknown !== undefined) {
-      throw new Error(
-        `[metakit] Temporal.walkAsync: step "${step.name}" runs after "${unknown}", which is no step`,
-      )
-    }
-  }
-
-  const orderOf = (seed: number): ReadonlyArray<S> => {
-    const next = generator(seed)
-    const ran = new Set<Name>()
-    const waiting = [...steps]
-    const order: Array<S> = []
-    while (waiting.length > 0) {
-      const ready = waiting.filter(step => (step.after ?? []).every(name => ran.has(name)))
-      const step = ready[Math.floor(next() * ready.length)]
-      if (step === undefined)
-        throw new Error(
-          '[metakit] Temporal.walkAsync: steps wait on each other, or on one that is no step',
-        )
-      waiting.splice(waiting.indexOf(step), 1)
-      ran.add(step.name)
-      order.push(step)
-    }
-    return order
-  }
-
-  /** The steps of `order` up to the first after which the property is broken, and why. */
-  const broken = async (
-    order: ReadonlyArray<S>,
-  ): Promise<Option.Option<{ readonly ran: ReadonlyArray<S>; readonly reason: string }>> => {
-    const world = await scenario.initial()
-    try {
-      const ran: Array<Name> = []
-      for (const [at, step] of order.entries()) {
-        const reason = await step.run(world).then(
-          () => scenario.holds(world, [...ran, step.name]),
-          (cause: unknown) =>
-            Option.some(
-              `${step.name} threw: ${cause instanceof Error ? cause.message : String(cause)}`,
-            ),
-        )
-        ran.push(step.name)
-        if (Option.isSome(reason))
-          return Option.some({ ran: order.slice(0, at + 1), reason: reason.value })
-      }
-      return Option.none()
-    } finally {
-      await scenario.finish?.(world)
-    }
-  }
-
-  const shrunk = async (failing: {
-    readonly ran: ReadonlyArray<S>
-    readonly reason: string
-  }): Promise<{ readonly ran: ReadonlyArray<S>; readonly reason: string }> => {
-    for (const step of failing.ran) {
-      const rest = failing.ran.filter(other => other !== step)
-      if (rest.some(other => (other.after ?? []).includes(step.name))) continue
-      const still = await broken(rest)
-      if (Option.isSome(still)) return shrunk(still.value)
-    }
-    return failing
-  }
-
-  const first = options?.seed ?? 1
-  const runs = options?.runs ?? 30
-  if (!Number.isInteger(runs) || runs <= 0) {
-    throw new Error(`[metakit] Temporal.walkAsync: runs must be a positive integer, got ${runs}`)
-  }
-  for (let run = 0; run < runs; run++) {
-    const seed = first + run
-    const failing = await broken(orderOf(seed))
-    if (Option.isSome(failing)) {
-      const least = await shrunk(failing.value)
-      return WalkResult.Broken({
-        seed,
-        interleaving: failing.value.ran.map(step => step.name),
-        minimal: least.ran.map(step => step.name),
-        reason: least.reason,
-      })
-    }
-  }
-  return WalkResult.Held({ seed: first, runs })
-}
+): Promise<WalkResult<Name>> =>
+  Effect.runPromise(
+    walkEffect<World, Name, unknown, never>(
+      {
+        initial: Effect.acquireRelease(
+          Effect.tryPromise({ try: () => scenario.initial(), catch: cause => cause }),
+          world =>
+            scenario.finish === undefined
+              ? Effect.void
+              : Effect.promise(() => scenario.finish!(world)).pipe(Effect.ignore),
+        ),
+        steps: scenario.steps.map(step => ({
+          name: step.name,
+          ...(step.after === undefined ? {} : { after: step.after }),
+          run: world => Effect.tryPromise({ try: () => step.run(world), catch: cause => cause }),
+        })),
+        holds: (world, ran) =>
+          Effect.tryPromise({ try: () => scenario.holds(world, ran), catch: cause => cause }),
+      },
+      options,
+    ),
+  )
 
 /**
  * A walk run for one obligation, and what it found. `answer` is set only by a

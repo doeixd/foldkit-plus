@@ -2,8 +2,24 @@
  * Internal helpers for wrapping `Node`s into typed `Expr<Env, A>` values and
  * accepting either an `Expr<Env, A>` or a plain literal `A` at call sites.
  */
+import { Inspectable, Pipeable } from 'effect'
 import * as Node from '../node.js'
 import { ExprTypeId, type Expr } from '../path.js'
+
+const exprProto = {
+  pipe(this: unknown) {
+    return Pipeable.pipeArguments(this, arguments)
+  },
+  toJSON(this: { readonly node: Node.Node }) {
+    return { _id: 'metakit/Expr', expr: Node.key(this.node) }
+  },
+  toString(this: { readonly node: Node.Node }) {
+    return `Expr(${Node.key(this.node)})`
+  },
+  [Inspectable.NodeInspectSymbol](this: { readonly node: Node.Node }) {
+    return `Expr(${Node.key(this.node)})`
+  },
+}
 
 /** Either an `Expr<Env, A>` or a plain literal value `A`. */
 export type ExprInput<Env, A> = Expr<Env, A> | A
@@ -25,10 +41,11 @@ export type UnionToIntersection<U> = (U extends unknown ? (x: U) => void : never
   : never
 
 /** Wrap a raw `Node` as a typed `Expr<Env, A>`. */
-export const wrap = <Env, A>(node: Node.Node): Expr<Env, A> => ({
-  [ExprTypeId]: undefined as never,
-  node,
-})
+export const wrap = <Env, A>(node: Node.Node): Expr<Env, A> =>
+  Object.assign(Object.create(exprProto) as Expr<Env, A>, {
+    [ExprTypeId]: undefined as never,
+    node,
+  })
 
 /** True when `value` is an `Expr` (including a `Path`). */
 export const isExpr = (value: unknown): value is Expr<never, unknown> =>

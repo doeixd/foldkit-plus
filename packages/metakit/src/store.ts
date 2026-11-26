@@ -9,7 +9,7 @@
  * up to hold a rule it cannot. This module imports no expression code, so a
  * server that only checks its stores carries nothing else of metakit.
  */
-import { Data } from 'effect'
+import { Data, Effect, Result } from 'effect'
 
 /**
  * How a store runs concurrent writes. `serializable`: as if one at a time.
@@ -129,11 +129,25 @@ export const refused = <Rule extends string>(
 ): ReadonlyArray<Requirement<Rule>> =>
   needed.filter(({ needs, judged }) => !gives(store, needs, judged))
 
+/** Check whether `store` can hold all `needed` requirements, returning a `Result` (yieldable in `Effect.gen`). */
+export const check = (
+  store: StoreCapabilities,
+  needed: ReadonlyArray<Requirement>,
+): Result.Result<void, StoreRefused> => {
+  const cannot = refused(store, needed)
+  return cannot.length > 0 ? Result.fail(new StoreRefused({ store, refused: cannot })) : Result.void
+}
+
+/** Effect-native store capability check: fails with `StoreRefused` when `store` cannot hold `needed`. */
+export const mountEffect = (
+  store: StoreCapabilities,
+  needed: ReadonlyArray<Requirement>,
+): Effect.Effect<void, StoreRefused> => Effect.fromResult(check(store, needed))
+
 /**
  * Call where a store is set up: throws `StoreRefused`, naming each rule, the
  * capability it needs and the store, when `store` cannot hold one of `needed`.
  */
 export const mount = (store: StoreCapabilities, needed: ReadonlyArray<Requirement>): void => {
-  const cannot = refused(store, needed)
-  if (cannot.length > 0) throw new StoreRefused({ store, refused: cannot })
+  Result.getOrThrow(check(store, needed))
 }

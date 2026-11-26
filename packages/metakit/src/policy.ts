@@ -10,7 +10,7 @@
  * For Tier 4 Z3 escalation and counterexample witnesses, pass a `Policy` to
  * `Prove.policyImplies` or `Prove.policyConsistent` in `metakit/prove`.
  */
-import { Option, Result, type Schema } from 'effect'
+import { Inspectable, Option, Pipeable, Result, type Schema } from 'effect'
 import * as AbstractCheck from './abstract/check.js'
 import { ordered, type Slice } from './abstract/unordered.js'
 import * as Expr from './expr.js'
@@ -35,11 +35,24 @@ export interface Definition<
   readonly rules: Rules
 }
 
+const policyProto = {
+  pipe(this: unknown) {
+    return Pipeable.pipeArguments(this, arguments)
+  },
+  toString(this: { readonly rules: Readonly<Record<string, unknown>> }) {
+    return `Policy(${Object.keys(this.rules).join(', ')})`
+  },
+  [Inspectable.NodeInspectSymbol](this: { readonly rules: Readonly<Record<string, unknown>> }) {
+    return `Policy(${Object.keys(this.rules).join(', ')})`
+  },
+}
+
 export interface Policy<
   Row,
   Principal,
   Rules extends Readonly<Record<string, Expr.Expr<PolicyEnv<Row, Principal>, boolean>>>,
-> extends Definition<Row, Principal, Rules> {
+>
+  extends Definition<Row, Principal, Rules>, Pipeable.Pipeable {
   /** Evaluate a named policy rule against a concrete `{ row, principal }`. */
   readonly allow: <K extends keyof Rules & string>(
     rule: K,
@@ -90,18 +103,19 @@ export const make = <
     return rules[rule]
   }
 
-  return {
+  return Object.assign(Object.create(policyProto) as Policy<Row, Principal, Rules>, {
     rowSchema: config.row as unknown as Schema.Codec<Row>,
     principalSchema: config.principal as unknown as Schema.Codec<Principal>,
     rules,
     // A rule allows only where it is true: not where it is null, and not where it is refused.
-    allow: (rule, env) =>
+    allow: (rule: keyof Rules & string, env: PolicyEnv<Row, Principal>) =>
       Result.match(Expr.evalResult(getRule(rule), env), {
         onSuccess: value => value === true,
         onFailure: () => false,
       }),
-    can: (rule, partial) => Expr.judge(getRule(rule), partial),
-  }
+    can: (rule: keyof Rules & string, partial: Expr.PartialEnv<PolicyEnv<Row, Principal>>) =>
+      Expr.judge(getRule(rule), partial),
+  })
 }
 
 /**
