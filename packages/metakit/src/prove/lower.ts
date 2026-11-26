@@ -1,5 +1,5 @@
 import { Option } from 'effect'
-import type { Arith, Bool, Context, FP, Solver } from 'z3-solver'
+import type { Arith, ArithSort, Bool, Context, FP, SMTSet, Solver } from 'z3-solver'
 import { abstractOps } from '../abstract/ops.js'
 import { noCandidate } from '../abstract/support.js'
 import * as Node from '../node.js'
@@ -15,10 +15,11 @@ export type Z3 = Context<'metakit'>
 export type ZBool = Bool<'metakit'>
 export type ZArith = Arith<'metakit'>
 export type ZFP = FP<'metakit'>
-export type ZExpr = ZBool | ZArith | ZFP
+export type ZSet = SMTSet<'metakit', ArithSort<'metakit'>>
+export type ZExpr = ZBool | ZArith | ZFP | ZSet
 
 /** What a term is, where the Schema or the operator says: a mismatch is undecided, not a proof. */
-export type Kind = 'bool' | 'num' | 'text' | 'null' | 'other'
+export type Kind = 'bool' | 'num' | 'text' | 'set' | 'null' | 'other'
 
 /**
  * A term as evaluation gives it: a value, null, or a refusal (a number past
@@ -90,7 +91,9 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
     throw new Unsupported(`expected a number, got ${term.kind}`)
   }
   const expr = (value: unknown): ZExpr => {
-    if (z3.isBool(value) || z3.isArith(value) || z3.isFP(value)) return value
+    if (z3.isBool(value) || z3.isArith(value) || z3.isFP(value) || z3.isArray(value)) {
+      return value as ZExpr
+    }
     throw new Unsupported('a term of no solver sort')
   }
   /** Two numbers in one sort: an integer beside a fraction is read as a real, which loses nothing. */
@@ -275,6 +278,9 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       throw new Unsupported(`eq.is of a ${a.kind} and a ${b.kind}`)
     }
     if (z3.isBool(a.value) && z3.isBool(b.value)) return a.value.eq(b.value)
+    if (a.kind === 'set' && b.kind === 'set') {
+      return (a.value as ZSet).eq(b.value as ZSet)
+    }
     if (isFpPair(a, b)) {
       const [left, right] = fpPair(a.value, b.value)
       // IEEE-754 numeric equality (`fp.eq` on non-NaN floats): equates -0.0 and +0.0.
@@ -416,6 +422,96 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       throw new Unsupported(`${id} of candidates that are not a literal array`)
     }
     return list.value
+  }
+
+  const intSort = z3.Int.sort()
+  const emptySet: ZSet = z3.EmptySet(intSort)
+  const sets = new Map<string, ZSet>()
+  const setElemSorts = new WeakMap<object, 'int' | 'text' | 'any'>()
+
+  interface SetTerm {
+    readonly set: ZSet
+    readonly bad: ZBool
+    readonly elemSort: 'int' | 'text' | 'any'
+  }
+
+  const tagSet = (set: ZSet, elemSort: 'int' | 'text' | 'any'): ZSet => {
+    setElemSorts.set(set, elemSort)
+    return set
+  }
+
+  const trySetOf = (term: Term, node: Node.Node): Option.Option<SetTerm> => {
+    if (term.kind === 'set') {
+      const set = term.value as ZSet
+      return Option.some({ set, bad: never, elemSort: setElemSorts.get(set) ?? 'any' })
+    }
+    if (Node.$is('Lit')(node) && Array.isArray(node.value)) {
+      if (node.value.length === 0) {
+        return Option.some({ set: emptySet, bad: never, elemSort: 'any' })
+      }
+      if (node.value.every(el => typeof el === 'string')) {
+        if (Node.holdsNul(node.value)) {
+          return Option.some({ set: emptySet, bad: z3.Bool.val(true), elemSort: 'text' })
+        }
+        let acc: ZSet = emptySet
+        for (const el of node.value) acc = z3.SetAdd(acc, z3.Int.val(codeOf(el)))
+        return Option.some({ set: tagSet(acc, 'text'), bad: never, elemSort: 'text' })
+      }
+      if (node.value.every(el => typeof el === 'number')) {
+        if (node.value.some(el => !Number.isFinite(el))) {
+          return Option.some({ set: emptySet, bad: z3.Bool.val(true), elemSort: 'int' })
+        }
+        if (node.value.every(el => Number.isSafeInteger(el))) {
+          let acc: ZSet = emptySet
+          for (const el of node.value) acc = z3.SetAdd(acc, z3.Int.val(BigInt(el + 0)))
+          return Option.some({ set: tagSet(acc, 'int'), bad: never, elemSort: 'int' })
+        }
+      }
+      return Option.none()
+    }
+    if (Node.$is('Path')(node)) {
+      const name = Path.format(node.segments)
+      const info = shape.paths.get(name)
+      if (info?.setElement !== undefined) {
+        let set = sets.get(name)
+        if (set === undefined) {
+          set = z3.Set.const(`set:${name}`, intSort)
+          sets.set(name, set)
+          setElemSorts.set(set, info.setElement)
+        }
+        const bad = info.setValid === true ? never : flagVar(`setBad:${name}`)
+        return Option.some({ set, bad, elemSort: info.setElement })
+      }
+    }
+    return Option.none()
+  }
+
+  const requireSet = (id: Node.CoreOpId, term: Term, node: Node.Node): SetTerm =>
+    Option.getOrElse(trySetOf(term, node), () => {
+      throw new Unsupported(`${id} on an operand the solver does not read as a scalar set`)
+    })
+
+  const compatibleSetSort = (id: Node.CoreOpId, a: SetTerm, b: SetTerm): 'int' | 'text' | 'any' => {
+    if (a.elemSort !== 'any' && b.elemSort !== 'any' && a.elemSort !== b.elemSort) {
+      throw new Unsupported(`${id} across mixed element kinds`)
+    }
+    return a.elemSort !== 'any' ? a.elemSort : b.elemSort
+  }
+
+  const setElemOf = (
+    id: Node.CoreOpId,
+    term: Term,
+    expected: 'int' | 'text' | 'any',
+  ): { readonly elem: ZArith; readonly bad: ZBool; readonly sort: 'int' | 'text' } => {
+    const val = term.value
+    if (!z3.isArith(val) || !z3.isInt(val) || term.kind === 'bool' || term.kind === 'set') {
+      throw new Unsupported(`${id} element is not an integer or text`)
+    }
+    const sort: 'int' | 'text' = term.kind === 'text' ? 'text' : 'int'
+    if (expected !== 'any' && expected !== sort) {
+      throw new Unsupported(`${id} element kind does not match the set`)
+    }
+    return { elem: val, bad: sort === 'int' ? unsafe(val) : never, sort }
   }
 
   /** The solver's reading of every primitive: a new one fails to compile until it has a row here. */
@@ -682,14 +778,18 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
           ? z3.Int.val(node.value.length)
           : measure('arrCount', node!),
       ),
-    'arr.isEmpty': ([a], [node]) =>
-      strict(
+    'arr.isEmpty': ([a], [node]) => {
+      if (a!.kind === 'set') {
+        return strict('bool', [a!], (a!.value as ZSet).eq(emptySet))
+      }
+      return strict(
         'bool',
         [a!],
         Node.$is('Lit')(node!) && Array.isArray(node.value)
           ? z3.Bool.val(node.value.length === 0)
           : measure('arrCount', node!).eq(0),
-      ),
+      )
+    },
     'arr.has': ([list, needle], [listNode, needleNode]) => {
       if (
         Node.$is('Lit')(listNode!) &&
@@ -697,6 +797,28 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
         listNode.value.some(el => typeof el === 'number' && !Number.isFinite(el))
       ) {
         return strict('bool', [list!, needle!], z3.Bool.val(false), z3.Bool.val(true))
+      }
+      const asSet = trySetOf(list!, listNode!)
+      const needleVal = needle!.value
+      if (
+        Option.isSome(asSet) &&
+        z3.isArith(needleVal) &&
+        z3.isInt(needleVal) &&
+        needle!.kind !== 'bool' &&
+        needle!.kind !== 'set' &&
+        (asSet.value.elemSort === 'any' ||
+          (asSet.value.elemSort === 'text' && needle!.kind === 'text') ||
+          (asSet.value.elemSort === 'int' && needle!.kind === 'num'))
+      ) {
+        const mem = z3.isSubset(z3.SetAdd(emptySet, needleVal), asSet.value.set)
+        if (list!.kind !== 'set') {
+          const count =
+            Node.$is('Lit')(listNode!) && Array.isArray(listNode.value)
+              ? z3.Int.val(listNode.value.length)
+              : measure('arrCount', listNode!)
+          solver.add(z3.Implies(mem, count.ge(1)))
+        }
+        return strict('bool', [list!, needle!], mem, asSet.value.bad)
       }
       const key = `arrHas:${Node.key(listNode!)}:${Node.key(needleNode!)}`
       const known = opaque.has(key)
@@ -715,9 +837,101 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       return strict('bool', [list!, needle!], sym)
     },
     'arr.append': () => listWrite('arr.append'),
-    'arr.include': () => listWrite('arr.include'),
-    'arr.exclude': () => listWrite('arr.exclude'),
+    'arr.include': ([a, b], [listNode]) => {
+      const s = requireSet('arr.include', a!, listNode!)
+      const e = setElemOf('arr.include', b!, s.elemSort)
+      const withElem = z3.SetAdd(s.set, e.elem)
+      const added = tagSet(
+        b!.isNull === never ? withElem : (z3.If(b!.isNull, s.set, withElem) as ZSet),
+        e.sort,
+      )
+      const refused = z3.Or(
+        a!.refused,
+        z3.And(
+          z3.Not(a!.isNull),
+          z3.Or(b!.refused, z3.And(z3.Not(b!.isNull), z3.Or(s.bad, e.bad))),
+        ),
+      )
+      return {
+        value: added,
+        isNull: z3.And(z3.Not(refused), a!.isNull),
+        refused,
+        kind: 'set',
+      }
+    },
+    'arr.exclude': ([a, b], [listNode]) => {
+      const s = requireSet('arr.exclude', a!, listNode!)
+      const e = setElemOf('arr.exclude', b!, s.elemSort)
+      const withoutElem = z3.SetDel(s.set, e.elem)
+      const removed = tagSet(
+        b!.isNull === never ? withoutElem : (z3.If(b!.isNull, s.set, withoutElem) as ZSet),
+        e.sort,
+      )
+      const refused = z3.Or(
+        a!.refused,
+        z3.And(
+          z3.Not(a!.isNull),
+          z3.Or(b!.refused, z3.And(z3.Not(b!.isNull), z3.Or(s.bad, e.bad))),
+        ),
+      )
+      return {
+        value: removed,
+        isNull: z3.And(z3.Not(refused), a!.isNull),
+        refused,
+        kind: 'set',
+      }
+    },
     'arr.move': () => listWrite('arr.move'),
+    'set.union': ([a, b], [na, nb]) => {
+      const sa = requireSet('set.union', a!, na!)
+      const sb = requireSet('set.union', b!, nb!)
+      const sort = compatibleSetSort('set.union', sa, sb)
+      return strict(
+        'set',
+        [a!, b!],
+        tagSet(z3.SetUnion(sa.set, sb.set), sort),
+        z3.Or(sa.bad, sb.bad),
+      )
+    },
+    'set.intersect': ([a, b], [na, nb]) => {
+      const sa = requireSet('set.intersect', a!, na!)
+      const sb = requireSet('set.intersect', b!, nb!)
+      const sort = compatibleSetSort('set.intersect', sa, sb)
+      return strict(
+        'set',
+        [a!, b!],
+        tagSet(z3.SetIntersect(sa.set, sb.set), sort),
+        z3.Or(sa.bad, sb.bad),
+      )
+    },
+    'set.difference': ([a, b], [na, nb]) => {
+      const sa = requireSet('set.difference', a!, na!)
+      const sb = requireSet('set.difference', b!, nb!)
+      const sort = compatibleSetSort('set.difference', sa, sb)
+      return strict(
+        'set',
+        [a!, b!],
+        tagSet(z3.SetDifference(sa.set, sb.set), sort),
+        z3.Or(sa.bad, sb.bad),
+      )
+    },
+    'set.subset': ([a, b], [na, nb]) => {
+      const sa = requireSet('set.subset', a!, na!)
+      const sb = requireSet('set.subset', b!, nb!)
+      compatibleSetSort('set.subset', sa, sb)
+      return strict('bool', [a!, b!], z3.isSubset(sa.set, sb.set), z3.Or(sa.bad, sb.bad))
+    },
+    'set.disjoint': ([a, b], [na, nb]) => {
+      const sa = requireSet('set.disjoint', a!, na!)
+      const sb = requireSet('set.disjoint', b!, nb!)
+      compatibleSetSort('set.disjoint', sa, sb)
+      return strict(
+        'bool',
+        [a!, b!],
+        z3.SetIntersect(sa.set, sb.set).eq(emptySet),
+        z3.Or(sa.bad, sb.bad),
+      )
+    },
   }
 
   const lower = (node: Node.Node): Term =>
@@ -817,7 +1031,19 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
   const nulFlags = (): ReadonlyArray<ZBool> =>
     Array.from(flagVars).flatMap(([name, flag]) => (name.startsWith('nul:') ? [flag] : []))
 
-  return { lower, holds, flagVar, vars, lengths, codeTexts, opaque, nanReads, nulFlags }
+  return {
+    lower,
+    holds,
+    flagVar,
+    vars,
+    sets,
+    lengths,
+    codeTexts,
+    codeOf,
+    opaque,
+    nanReads,
+    nulFlags,
+  }
 }
 
 export type Lowered = ReturnType<typeof lowering>

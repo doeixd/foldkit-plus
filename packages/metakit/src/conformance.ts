@@ -16,6 +16,7 @@ import * as Interval from './abstract/interval.js'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
 import * as Arr from './ops/arr.js'
+import * as Sets from './ops/set.js'
 import * as Bool from './ops/bool.js'
 import * as Eq from './ops/eq.js'
 import { evalNode } from './ops/eval.js'
@@ -92,6 +93,11 @@ export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
   'arr.include': Arr.includeOp,
   'arr.exclude': Arr.excludeOp,
   'arr.move': Arr.moveOp,
+  'set.union': Sets.unionOp,
+  'set.intersect': Sets.intersectOp,
+  'set.difference': Sets.differenceOp,
+  'set.subset': Sets.subsetOp,
+  'set.disjoint': Sets.disjointOp,
 }
 
 /** What an operand is drawn from: a field of a kind, or a literal the call is written with. */
@@ -154,6 +160,11 @@ const operands: Readonly<Record<Node.CoreOpId, ReadonlyArray<Operand>>> = {
   'arr.include': ['items', 'text'],
   'arr.exclude': ['items', 'text'],
   'arr.move': ['items', 'day', 'day', 'day'],
+  'set.union': ['items', 'items'],
+  'set.intersect': ['items', 'items'],
+  'set.difference': ['items', 'items'],
+  'set.subset': ['items', 'items'],
+  'set.disjoint': ['items', 'items'],
 }
 
 /** One operand: what the environment holds, and a Schema that admits it (none: a literal). */

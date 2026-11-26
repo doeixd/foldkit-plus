@@ -81,6 +81,11 @@ export const opLaws: { readonly [Id in Node.CoreOpId]: OpLaws } = {
   'arr.include': {},
   'arr.exclude': {},
   'arr.move': {},
+  'set.union': {},
+  'set.intersect': {},
+  'set.difference': {},
+  'set.subset': {},
+  'set.disjoint': {},
 }
 
 /** What partial evaluation reads of `any` and `every`: the answer that decides each. */

@@ -553,6 +553,11 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
   'arr.include': () => listWrite('arr.include'),
   'arr.exclude': () => listWrite('arr.exclude'),
   'arr.move': () => listWrite('arr.move'),
+  'set.union': () => listWrite('set.union'),
+  'set.intersect': () => listWrite('set.intersect'),
+  'set.difference': () => listWrite('set.difference'),
+  'set.subset': () => listWrite('set.subset'),
+  'set.disjoint': () => listWrite('set.disjoint'),
 }
 
 /**

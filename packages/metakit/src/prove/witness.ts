@@ -36,11 +36,49 @@ export const readModel = (
   z3: Z3,
   model: Model<'metakit'>,
   shape: Shape,
-  { flagVar, vars, lengths, codeTexts }: Lowered,
+  { flagVar, vars, sets, lengths, codeTexts, codeOf }: Lowered,
 ): { readonly env: unknown; readonly flat: Readonly<Record<string, unknown>> } => {
   const isSet = (flag: string): boolean => model.eval(flagVar(flag), true).toString() === 'true'
   const absent = new Set(Array.from(shape.absences.keys()).filter(isSet))
+  // Build one shared candidate universe across every set in the model so
+  // co-finite Z3 array models (e.g. `store(const(true), 5, false)`) test the
+  // same distinguishing elements on every set path.
+  const sharedCandidates = new Set<number>([0, 1])
+  for (const code of codeTexts.keys()) sharedCandidates.add(code)
+  for (const set of sets.values()) {
+    const raw = model.eval(set, true).toString()
+    for (const match of raw.matchAll(/-?\d+/g)) {
+      const n = Number(match[0])
+      if (Number.isSafeInteger(n)) sharedCandidates.add(n)
+    }
+  }
+  for (const [vName, vInfo] of shape.paths) {
+    if (vInfo.sort === 'int' || vInfo.sort === 'text') {
+      const assigned = model.eval(vars.get(vName)!, true)
+      if (z3.isIntVal(assigned)) sharedCandidates.add(Number(assigned.value()))
+    }
+  }
+  const readSet = (name: string, info: PathInfo): Option.Option<unknown> => {
+    const set = sets.get(name)
+    if (set === undefined || info.setElement === undefined) return placeholder(info.ast)
+    const candidates =
+      info.setLiterals !== undefined
+        ? new Set(info.setLiterals.map(lit => (typeof lit === 'string' ? codeOf(lit) : lit)))
+        : sharedCandidates
+    const items: Array<number | string> = []
+    for (const c of candidates) {
+      if (model.eval(z3.isMember(z3.Int.val(BigInt(c)), set), true).toString() === 'true') {
+        if (info.setElement === 'int') {
+          items.push(c)
+        } else {
+          items.push(codeTexts.get(c) ?? witnessText(String(c), Option.none()))
+        }
+      }
+    }
+    return Option.some(items)
+  }
   const valueOf = (name: string, info: PathInfo): Option.Option<unknown> => {
+    if (info.setElement !== undefined) return readSet(name, info)
     const assigned = model.eval(vars.get(name)!, true)
     switch (info.sort) {
       case 'bool':

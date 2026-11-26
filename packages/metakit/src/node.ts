@@ -59,6 +59,11 @@ export type CoreOpId =
   | 'arr.include'
   | 'arr.exclude'
   | 'arr.move'
+  | 'set.union'
+  | 'set.intersect'
+  | 'set.difference'
+  | 'set.subset'
+  | 'set.disjoint'
 
 export type OpId = CoreOpId
 

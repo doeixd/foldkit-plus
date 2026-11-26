@@ -1,6 +1,7 @@
 import { Option, Predicate, Schema, SchemaAST } from 'effect'
 import type { Slice } from '../abstract/unordered.js'
-import { textChecksOf, type TextChecks } from '../ops/textChecks.js'
+import * as Node from '../node.js'
+import { isInteger, textChecksOf, type TextChecks } from '../ops/textChecks.js'
 import * as Path from '../path.js'
 
 /** What a Schema says of each path. */
@@ -26,6 +27,12 @@ export interface PathInfo {
   readonly text: TextChecks
   /** True when the Schema stores this field as an Effect `Option`. */
   readonly isOption?: boolean
+  /** Element kind when this path is a scalar array (`Schema.Array(Int | Text | Literals)`). */
+  readonly setElement?: 'int' | 'text'
+  /** True when every element admitted by the array's element Schema is guaranteed finite & NUL-free. */
+  readonly setValid?: boolean
+  /** Exact literal elements when the array's element Schema is a finite literal union. */
+  readonly setLiterals?: ReadonlyArray<string | number>
 }
 
 /** A path that may read as null, and what a witness writes there: null, undefined, omitted, or Option.none(). */
@@ -228,6 +235,31 @@ const readShape = (
   if (SchemaAST.isBoolean(inner)) return info('bool')
   if (SchemaAST.isString(inner)) {
     return info('text', { text: textChecksOf(inner) })
+  }
+  if (SchemaAST.isArrays(inner) && inner.elements.length === 0 && inner.rest.length === 1) {
+    const elem = inner.rest[0]!
+    if (isInteger(elem)) {
+      return info('other', { setElement: 'int', setValid: true })
+    }
+    if (SchemaAST.isString(elem)) {
+      return info('other', { setElement: 'text', setValid: textChecksOf(elem).nulFree })
+    }
+    const elemChoices = SchemaAST.isUnion(elem) ? elem.types : [elem]
+    const elemLits = elemChoices.flatMap(choice => Option.toArray(scalarLiteral(choice)))
+    if (elemChoices.length > 0 && elemLits.length === elemChoices.length) {
+      if (elemLits.every(lit => typeof lit === 'string')) {
+        return info('other', {
+          setElement: 'text',
+          setValid: !Node.holdsNul(elemLits),
+          setLiterals: elemLits,
+        })
+      }
+      if (
+        elemLits.every((lit): lit is number => typeof lit === 'number' && Number.isSafeInteger(lit))
+      ) {
+        return info('other', { setElement: 'int', setValid: true, setLiterals: elemLits })
+      }
+    }
   }
   return info('other')
 }
