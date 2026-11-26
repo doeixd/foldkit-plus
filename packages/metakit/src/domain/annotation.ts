@@ -32,6 +32,16 @@ export type DomainMetadata =
       /** Text holding no NUL character (`Text.schema`). */
       readonly kind: 'text'
     }
+  | {
+      /** Branded, non-empty, NUL-free entity identifier (`Id.make`). */
+      readonly kind: 'id'
+      readonly entity: string
+      readonly prefix?: string
+    }
+  | {
+      /** Lexicographic fractional-index ordinal (`Ordinal.schema`). */
+      readonly kind: 'ordinal'
+    }
 
 /**
  * Read `metakit/domain` metadata from a `SchemaAST.AST`, scanning check

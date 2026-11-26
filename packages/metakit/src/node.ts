@@ -255,6 +255,7 @@ export const RESERVED_PREFIXES = [
   'time.',
   'str.',
   'arr.',
+  'set.',
   'rows.',
 ] as const
 
@@ -376,7 +377,11 @@ export type RowsFold =
  */
 export type RowsOver = Data.TaggedEnum<{
   List: { readonly list: Node }
-  Related: { readonly of: Node; readonly relation: string }
+  Related: {
+    readonly of: Node
+    readonly relation: string
+    readonly cardinality?: 'one' | 'optional' | 'many'
+  }
 }>
 
 export const RowsOver = Data.taggedEnum<RowsOver>()

@@ -44,8 +44,8 @@ export { relatedSubquery, type ForeignSql } from './sqlRender.js'
  */
 export interface RelationTable {
   readonly table: string
-  readonly foreignKey: string
-  readonly key?: string
+  readonly foreignKey: string | ReadonlyArray<string>
+  readonly key?: string | ReadonlyArray<string>
 }
 
 /** The table of each relation a `Rows` node over related rows names, by relation. */
@@ -96,10 +96,11 @@ const renderer = (options: {
   readonly relations?: RelationTables | undefined
 }) => {
   const params: Array<unknown> = []
+  let aliasCount = 0
   const column = columnNames(options.column)
   const render = (
     sql: Sql,
-    related?: RelationTable,
+    related?: { readonly alias: string },
   ): Result.Result<string, SqlUnsupportedError> => {
     let text = ''
     for (const piece of sql) {
@@ -128,7 +129,7 @@ const renderer = (options: {
             ? Result.fail(
                 new SqlUnsupportedError({ reason: 'a related row is read outside its rows' }),
               )
-            : Result.succeed(`${quoteIdent(related.table)}.${options.column(segments)}`),
+            : Result.succeed(`${quoteIdent(related.alias)}.${options.column(segments)}`),
         Rows: piece => renderRows(piece, render),
       })
       if (Result.isFailure(part)) return part
@@ -138,7 +139,10 @@ const renderer = (options: {
   }
   const renderRows = (
     piece: Extract<SqlPiece, { readonly _tag: 'Rows' }>,
-    render: (sql: Sql, related?: RelationTable) => Result.Result<string, SqlUnsupportedError>,
+    render: (
+      sql: Sql,
+      related?: { readonly alias: string },
+    ) => Result.Result<string, SqlUnsupportedError>,
   ): Result.Result<string, SqlUnsupportedError> => {
     const outer = options.table
     if (piece.of.length > 0) {
@@ -156,17 +160,33 @@ const renderer = (options: {
       )
     }
     return Result.flatMap(relationSql(options.relations ?? {}, piece.relation), related => {
-      if (related.table === outer) {
+      const selfRef = related.table === outer
+      const alias = selfRef ? `__rel_${aliasCount++}` : related.table
+      const fkCols = Array.isArray(related.foreignKey) ? related.foreignKey : [related.foreignKey]
+      const pkCols =
+        related.key === undefined
+          ? ['id']
+          : Array.isArray(related.key)
+            ? related.key
+            : [related.key]
+      if (fkCols.length !== pkCols.length) {
         return Result.fail(
           new SqlUnsupportedError({
-            reason: `rows of a table related to itself (${piece.relation})`,
+            reason: `relation ${piece.relation} foreignKey (${fkCols.length}) and key (${pkCols.length}) column counts differ`,
           }),
         )
       }
+      const matches = fkCols
+        .map(
+          (fk, i) =>
+            `${quoteIdent(alias)}.${quoteIdent(fk)} = ${quoteIdent(outer)}.${quoteIdent(pkCols[i]!)}`,
+        )
+        .join(' AND ')
+      const relCtx = { alias }
       const body = (part: Option.Option<Sql>) =>
         Option.match(part, {
           onNone: () => Result.succeed(Option.none<string>()),
-          onSome: each => Result.map(render(each, related), Option.some),
+          onSome: each => Result.map(render(each, relCtx), Option.some),
         })
       // Value before filter: the subquery writes SELECT's value ahead of WHERE's filter,
       // and SQLite's `?` takes parameters in the order the text names them.
@@ -175,8 +195,10 @@ const renderer = (options: {
           relatedSubquery(
             piece.fold,
             {
-              from: quoteIdent(related.table),
-              matches: `${quoteIdent(related.table)}.${quoteIdent(related.foreignKey)} = ${quoteIdent(outer)}.${quoteIdent(related.key ?? 'id')}`,
+              from: selfRef
+                ? `${quoteIdent(related.table)} AS ${quoteIdent(alias)}`
+                : quoteIdent(related.table),
+              matches,
               where,
               value,
               aggregate:
@@ -199,7 +221,7 @@ const renderer = (options: {
                           ),
                           agg =>
                             Result.map(
-                              render(idPieces, related),
+                              render(idPieces, relCtx),
                               idSql => `COALESCE(${agg}, ${idSql})`,
                             ),
                         ),

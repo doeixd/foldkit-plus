@@ -992,17 +992,33 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
         const rest = Option.match(otherwise, {
           onSome: lower,
           onNone: () => {
-            // Evaluation refuses a value no case names; only a Schema that names every value rules it out.
+            // Evaluation refuses a value no case names; only a Schema or expression whose
+            // every non-null outcome is in `named` rules it out.
             const named = new Set(cases.map(([value]) => Node.wellFormed(value)))
-            const info = Node.$is('Path')(on)
-              ? shape.paths.get(Path.format(on.segments))
-              : undefined
-            const covered =
-              info !== undefined &&
-              info.sort === 'text' &&
-              info.literals.length > 0 &&
-              info.literals.every(value => named.has(Node.wellFormed(String(value))))
-            if (!covered) {
+            const isCovered = (subject: Node.Node): boolean =>
+              Node.$match(subject, {
+                Lit: ({ value }) =>
+                  value === null ||
+                  (typeof value === 'string' && named.has(Node.wellFormed(value))),
+                Path: ({ segments }) => {
+                  const info = shape.paths.get(Path.format(segments))
+                  return (
+                    info !== undefined &&
+                    info.sort === 'text' &&
+                    info.literals.length > 0 &&
+                    info.literals.every(value => named.has(Node.wellFormed(String(value))))
+                  )
+                },
+                Call: ({ op, args }) =>
+                  op.id === 'null.coalesce' && args.length >= 2 && args.every(isCovered),
+                If: ({ then, otherwise: alt }) => isCovered(then) && isCovered(alt),
+                Match: ({ cases: innerCases, otherwise: alt }) =>
+                  innerCases.every(([, arm]) => isCovered(arm)) &&
+                  Option.match(alt, { onNone: () => true, onSome: isCovered }),
+                Opaque: () => false,
+                Rows: () => false,
+              })
+            if (!isCovered(on)) {
               throw new Unsupported('a match that may meet a value none of its cases names')
             }
             // A null subject, the one value left, gives null.
@@ -1022,8 +1038,43 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
         }
         return { ...present(free, 'other'), isNull: flagVar(`absent:${key}`) }
       },
-      Rows: ({ fold }): Term => {
-        throw new Unsupported(`the fold rows.${fold}`)
+      Rows: rows => {
+        const over = rows.over
+        if (
+          Node.RowsOver.$is('Related')(over) &&
+          (rows.fold === 'count' || rows.fold === 'any' || rows.fold === 'every')
+        ) {
+          const ofTerm = lower(over.of)
+          const baseKey = `relCount:${Node.key(over.of)}:${over.relation}`
+          let total = lengths.get(baseKey)
+          if (total === undefined) {
+            total = z3.Int.const(baseKey)
+            lengths.set(baseKey, total)
+            opaque.set(baseKey, total)
+            solver.add(total.ge(0))
+            if (over.cardinality === 'one') solver.add(total.eq(1))
+            else if (over.cardinality === 'optional') solver.add(total.le(1))
+          }
+          const matching = Option.match(rows.where, {
+            onNone: () => total,
+            onSome: whereNode => {
+              const matchKey = `relMatch:${Node.key(over.of)}:${over.relation}:${Node.key(whereNode)}`
+              let m = lengths.get(matchKey)
+              if (m === undefined) {
+                m = z3.Int.const(matchKey)
+                lengths.set(matchKey, m)
+                opaque.set(matchKey, m)
+                solver.add(m.ge(0))
+                solver.add(m.le(total))
+              }
+              return m
+            },
+          })
+          if (rows.fold === 'count') return strict('num', [ofTerm], matching)
+          if (rows.fold === 'any') return strict('bool', [ofTerm], matching.ge(1))
+          return strict('bool', [ofTerm], matching.eq(total))
+        }
+        throw new Unsupported(`the fold rows.${rows.fold}`)
       },
     })
 

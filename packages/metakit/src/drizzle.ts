@@ -33,8 +33,8 @@ import type { Refused, Transition } from './transition.js'
  */
 export interface DrizzleRelation {
   readonly table: Table
-  readonly foreignKey: string
-  readonly key?: string
+  readonly foreignKey: string | ReadonlyArray<string>
+  readonly key?: string | ReadonlyArray<string>
 }
 
 /** The table of each relation a `Rows` node over related rows names, by relation. */
@@ -75,12 +75,18 @@ const renderer = (
   },
 ) => {
   const columns: Readonly<Record<string, SQLChunk>> = getTableColumns(table)
+  let aliasCount = 0
+  const quoteIdent = (name: string): string => `"${name.replaceAll('"', '""')}"`
+  const aliasedCol = (col: SQLChunk, alias: string): SQLChunk => {
+    const colName = (col as { readonly name?: string }).name
+    return colName !== undefined ? sql.raw(`${quoteIdent(alias)}.${quoteIdent(colName)}`) : col
+  }
   const key = columnNames(segments => segments.join('_'))
   const column = (segments: ReadonlyArray<string>): Result.Result<string, SqlUnsupportedError> =>
     Result.flatMap(key(segments), name => Result.map(columnOf(columns, name), () => name))
   const render = (
     pieces: Sql,
-    related?: DrizzleRelation,
+    related?: { readonly rel: DrizzleRelation; readonly alias?: string },
   ): Result.Result<SQL, SqlUnsupportedError> => {
     const chunks: Array<SQLChunk> = []
     for (const piece of pieces) {
@@ -112,7 +118,9 @@ const renderer = (
             ? Result.fail(
                 new SqlUnsupportedError({ reason: 'a related row is read outside its rows' }),
               )
-            : columnOf(getTableColumns(related.table), segments.join('_')),
+            : Result.map(columnOf(getTableColumns(related.rel.table), segments.join('_')), col =>
+                related.alias === undefined ? col : aliasedCol(col, related.alias),
+              ),
         Rows: piece => renderRows(piece),
       })
       if (Result.isFailure(chunk)) return Result.fail(chunk.failure)
@@ -131,27 +139,47 @@ const renderer = (
       )
     }
     return Result.flatMap(relationSql(options.relations ?? {}, piece.relation), related => {
-      if (related.table === table) {
+      const selfRef = related.table === table
+      const alias = selfRef ? `__rel_${aliasCount++}` : undefined
+      const relCols: Readonly<Record<string, SQLChunk>> = getTableColumns(related.table)
+      const fkNames = Array.isArray(related.foreignKey) ? related.foreignKey : [related.foreignKey]
+      const pkNames =
+        related.key === undefined
+          ? ['id']
+          : Array.isArray(related.key)
+            ? related.key
+            : [related.key]
+      if (fkNames.length !== pkNames.length) {
         return Result.fail(
           new SqlUnsupportedError({
-            reason: `rows of a table related to itself (${piece.relation})`,
+            reason: `relation ${piece.relation} foreignKey (${fkNames.length}) and key (${pkNames.length}) column counts differ`,
           }),
         )
       }
+      const relCtx = alias === undefined ? { rel: related } : { rel: related, alias }
       const body = (part: Option.Option<Sql>) =>
         Option.match(part, {
           onNone: () => Result.succeed(Option.none<SQL>()),
-          onSome: each => Result.map(render(each, related), Option.some),
+          onSome: each => Result.map(render(each, relCtx), Option.some),
         })
-      return Result.flatMap(columnOf(getTableColumns(related.table), related.foreignKey), foreign =>
-        Result.flatMap(columnOf(columns, related.key ?? 'id'), own =>
+      return Result.flatMap(Result.all(fkNames.map(fk => columnOf(relCols, fk))), foreignCols =>
+        Result.flatMap(Result.all(pkNames.map(pk => columnOf(columns, pk))), ownCols =>
           Result.flatMap(body(piece.where), where =>
             Result.flatMap(body(piece.value), value =>
               relatedSubquery<SQL>(
                 piece.fold,
                 {
-                  from: sql`${related.table}`,
-                  matches: sql`${foreign} = ${own}`,
+                  from:
+                    alias === undefined
+                      ? sql`${related.table}`
+                      : sql`${related.table} AS ${sql.raw(quoteIdent(alias))}`,
+                  matches: sql.join(
+                    foreignCols.map((fc, i) => {
+                      const left = alias === undefined ? fc : aliasedCol(fc, alias)
+                      return sql`${left} = ${ownCols[i]!}`
+                    }),
+                    sql.raw(' AND '),
+                  ),
                   where,
                   value,
                   aggregate:
@@ -178,7 +206,7 @@ const renderer = (
                               ),
                               agg =>
                                 Result.map(
-                                  render(idPieces, related),
+                                  render(idPieces, relCtx),
                                   idSql => sql`COALESCE(${agg}, ${idSql})`,
                                 ),
                             ),

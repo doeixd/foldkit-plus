@@ -38,7 +38,10 @@ export const isFiniteNumber = (ast: SchemaAST.AST): boolean =>
 /** A check that refuses text holding a NUL: the one `Text.schema` makes, by its annotation. */
 export const declaresNoNul = (check: SchemaAST.Check<unknown>): boolean => {
   const domain: unknown = check.annotations?.[DOMAIN_ANNOTATION_KEY]
-  return Predicate.hasProperty(domain, 'kind') && domain.kind === 'text'
+  return (
+    Predicate.hasProperty(domain, 'kind') &&
+    (domain.kind === 'text' || domain.kind === 'id' || domain.kind === 'ordinal')
+  )
 }
 
 const refusesNul = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): boolean => {

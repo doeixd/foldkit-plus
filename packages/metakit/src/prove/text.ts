@@ -92,7 +92,15 @@ export const textReading = (kit: TextKit) => {
         )
       },
       Opaque: opaqueNode => flagVar(`nul:${Node.key(opaqueNode)}`),
-      Rows: rows => flagVar(`nul:${Node.key(rows)}`),
+      Rows: rows =>
+        rows.fold === 'count' ||
+        rows.fold === 'any' ||
+        rows.fold === 'every' ||
+        rows.fold === 'sum' ||
+        rows.fold === 'min' ||
+        rows.fold === 'max'
+          ? never
+          : flagVar(`nul:${Node.key(rows)}`),
     })
 
   /** A text predicate the solver cannot read: free, but for the lengths it implies. */

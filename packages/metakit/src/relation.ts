@@ -32,6 +32,25 @@ import { readsOfNode } from './ops/reads.js'
 import { loadRows } from './ops/rowsLoad.js'
 import type { Expr } from './path.js'
 
+/** Cardinality of a relation from parent to child rows. */
+export type Cardinality = 'one' | 'optional' | 'many'
+
+/** Referential action when the parent row is deleted. */
+export type OnDelete = 'restrict' | 'cascade' | 'setNull'
+
+/** A single field key or a composite tuple of field keys on `Row`. */
+export type KeySpec<Row> =
+  | (keyof Row & string)
+  | readonly [keyof Row & string, ...(keyof Row & string)[]]
+
+/** Optional relational metadata on a `Relation`. */
+export interface RelationOptions {
+  readonly cardinality?: Cardinality
+  readonly foreignKey?: string | ReadonlyArray<string>
+  readonly parentKey?: string | ReadonlyArray<string>
+  readonly onDelete?: OnDelete
+}
+
 /** The rows of one kind pointing at a row of another through one of their fields. */
 export interface Relation<Row> {
   readonly _tag: 'Relation'
@@ -39,14 +58,64 @@ export interface Relation<Row> {
   readonly name: string
   /** The Schema of a pointing row. */
   readonly row: Schema.Codec<Row>
+  /** Cardinality from parent row to pointing rows (`'one'`, `'optional'`, or `'many'`). */
+  readonly cardinality?: Cardinality
+  /** Foreign-key field(s) on the child row pointing to the parent. */
+  readonly foreignKey?: string | ReadonlyArray<string>
+  /** Primary/key field(s) on the parent row (default `'id'`). */
+  readonly parentKey?: string | ReadonlyArray<string>
+  /** Referential action when the parent row is deleted. */
+  readonly onDelete?: OnDelete
 }
 
-/** Declare a relation: `Relation.make('Follow.followee', Follow)`. */
-export const make = <S extends Schema.Top>(name: string, row: S): Relation<S['Type']> => ({
+/** Declare a relation: `Relation.make('Follow.followee', Follow, { cardinality: 'many' })`. */
+export const make = <S extends Schema.Top>(
+  name: string,
+  row: S,
+  options?: RelationOptions,
+): Relation<S['Type']> => ({
   _tag: 'Relation',
   name,
   row: row as unknown as Schema.Codec<S['Type']>,
+  ...(options?.cardinality === undefined ? {} : { cardinality: options.cardinality }),
+  ...(options?.foreignKey === undefined ? {} : { foreignKey: options.foreignKey }),
+  ...(options?.parentKey === undefined ? {} : { parentKey: options.parentKey }),
+  ...(options?.onDelete === undefined ? {} : { onDelete: options.onDelete }),
 })
+
+/**
+ * Declare a type-checked relation between a `parent` Schema and a `child`
+ * Schema, verifying that `foreignKey` exists on `child` and `parentKey` exists
+ * on `parent` (supporting both single and composite keys).
+ */
+export const define = <Parent extends Schema.Top, Child extends Schema.Top>(config: {
+  readonly name: string
+  readonly parent: Parent
+  readonly child: Child
+  readonly foreignKey: KeySpec<Child['Type']>
+  readonly parentKey?: KeySpec<Parent['Type']>
+  readonly cardinality?: Cardinality
+  readonly onDelete?: OnDelete
+}): Relation<Child['Type']> => {
+  const fk = Array.isArray(config.foreignKey) ? config.foreignKey : [config.foreignKey]
+  const pk =
+    config.parentKey === undefined
+      ? ['id']
+      : Array.isArray(config.parentKey)
+        ? config.parentKey
+        : [config.parentKey]
+  if (fk.length !== pk.length) {
+    throw new Error(
+      `[metakit] Relation.define("${config.name}"): foreignKey has ${fk.length} column(s) but parentKey has ${pk.length}.`,
+    )
+  }
+  return make(config.name, config.child, {
+    ...(config.cardinality === undefined ? {} : { cardinality: config.cardinality }),
+    foreignKey: config.foreignKey,
+    ...(config.parentKey === undefined ? {} : { parentKey: config.parentKey }),
+    ...(config.onDelete === undefined ? {} : { onDelete: config.onDelete }),
+  })
+}
 
 /**
  * Attach the rows pointing at `row` through `relation` for in-memory
@@ -107,7 +176,11 @@ const related = <Row>(
   loadRows()
   return Node.Rows({
     fold,
-    over: Node.RowsOver.Related({ of: row, relation: relation.name }),
+    over: Node.RowsOver.Related({
+      of: row,
+      relation: relation.name,
+      ...(relation.cardinality === undefined ? {} : { cardinality: relation.cardinality }),
+    }),
     where: Option.map(Option.fromUndefinedOr(parts.test), test =>
       bodyOver(row, relation, test, name, each),
     ),

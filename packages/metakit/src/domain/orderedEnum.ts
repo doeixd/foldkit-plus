@@ -10,6 +10,7 @@ import { Option, Schema } from 'effect'
 import * as Node from '../node.js'
 import * as Bool from '../ops/bool.js'
 import { isExpr, toNode, wrap, type EnvOfInput, type ExprInput } from '../ops/core.js'
+import * as Num from '../ops/num.js'
 import * as Ord from '../ops/ord.js'
 import type { Expr } from '../path.js'
 import { DOMAIN_ANNOTATION_KEY } from './annotation.js'
@@ -17,10 +18,30 @@ import { DOMAIN_ANNOTATION_KEY } from './annotation.js'
 export interface OrderedEnum<Values extends readonly [string, ...Array<string>]> {
   readonly schema: Schema.Literals<Values>
   readonly values: Values
+  /** Smallest value in the order (`values[0]`). */
+  readonly min: Values[number]
+  /** Largest value in the order (`values[values.length - 1]`). */
+  readonly max: Values[number]
   /** Lower an enum expression or literal to its integer rank `0..values.length - 1`. */
   readonly rank: <X extends ExprInput<never, Values[number]>>(
     value: X,
   ) => Expr<EnvOfInput<X>, number>
+  /** Next value in the order, or `null` at `max`. */
+  readonly next: <X extends ExprInput<never, Values[number]>>(
+    value: X,
+  ) => Expr<EnvOfInput<X>, Values[number] | null>
+  /** Previous value in the order, or `null` at `min`. */
+  readonly prev: <X extends ExprInput<never, Values[number]>>(
+    value: X,
+  ) => Expr<EnvOfInput<X>, Values[number] | null>
+  /** Signed rank difference `rank(a) - rank(b)`. */
+  readonly distance: <
+    L extends ExprInput<never, Values[number]>,
+    R extends ExprInput<never, Values[number]>,
+  >(
+    left: L,
+    right: R,
+  ) => Expr<EnvOfInput<L> & EnvOfInput<R>, number>
   readonly lt: <
     L extends ExprInput<never, Values[number]>,
     R extends ExprInput<never, Values[number]>,
@@ -102,6 +123,39 @@ export const make = <const Values extends readonly [string, ...Array<string>]>(
     )
   }
 
+  const min: Values[number] = values[0]
+  const max: Values[number] = values[values.length - 1]!
+
+  const shift =
+    (delta: 1 | -1) =>
+    <X extends ExprInput<never, Values[number]>>(
+      value: X,
+    ): Expr<EnvOfInput<X>, Values[number] | null> => {
+      if (!isExpr(value)) {
+        const idx = rankMap.get(value as string)
+        if (idx === undefined) {
+          throw new Error(`[metakit] OrderedEnum value "${String(value)}" is not in enum`)
+        }
+        const target = values[idx + delta]
+        return wrap(Node.Lit({ value: target ?? null }))
+      }
+      const cases: Array<readonly [string, Node.Node]> = values.map(
+        (v, i) => [v, Node.Lit({ value: values[i + delta] ?? null })] as const,
+      )
+      return wrap(
+        Node.Match({
+          on: toNode(value),
+          cases,
+          otherwise: Option.none(),
+        }),
+      )
+    }
+
+  const next = shift(1)
+  const prev = shift(-1)
+  const distance: OrderedEnum<Values>['distance'] = (left, right) =>
+    Num.sub(rank(left), rank(right))
+
   const lt: OrderedEnum<Values>['lt'] = (left, right) => Ord.lt(rank(left), rank(right))
   const lte: OrderedEnum<Values>['lte'] = (left, right) => Ord.lte(rank(left), rank(right))
   const gt: OrderedEnum<Values>['gt'] = (left, right) => Ord.gt(rank(left), rank(right))
@@ -109,5 +163,5 @@ export const make = <const Values extends readonly [string, ...Array<string>]>(
   const between: OrderedEnum<Values>['between'] = (value, lo, hi) =>
     Bool.and(gte(value, lo), lte(value, hi))
 
-  return { schema, values, rank, lt, lte, gt, gte, between }
+  return { schema, values, min, max, rank, next, prev, distance, lt, lte, gt, gte, between }
 }
