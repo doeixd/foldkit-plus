@@ -14,6 +14,7 @@
       "metakit/conformance": ["./src/conformance.ts"],
       "metakit/domain": ["./src/domain.ts"],
       "metakit/drizzle": ["./src/drizzle.ts"],
+      "metakit/fn": ["./src/fn.ts"],
       "metakit/graph": ["./src/graph.ts"],
       "metakit/graph/match": ["./src/graph/match.ts"],
       "metakit/graph/prune": ["./src/graph/prune.ts"],

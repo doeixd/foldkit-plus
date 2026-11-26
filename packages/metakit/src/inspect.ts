@@ -9,6 +9,7 @@ import { Option, Schema, SchemaAST } from 'effect'
 import { domainOfAst, type DomainMetadata } from './domain/annotation.js'
 import * as Expr from './expr.js'
 import { isIntCheck } from './intCheck.js'
+import type { Fn, FnSpec, ParamSchemas } from './fn.js'
 import * as Node from './node.js'
 import { optionInner } from './path.js'
 
@@ -341,4 +342,31 @@ export const toJsonSchema = <S extends Schema.Top>(
   if (Option.isSome(title)) json['title'] = title.value
   if (Option.isSome(description)) json['description'] = description.value
   return json
+}
+
+/** Inspected metadata for a `metakit/fn` `Fn` or `FnSpec` (forms, docs, agent tools). */
+export interface FnSpecInfo {
+  readonly params: ReadonlyArray<FieldSpec>
+  readonly paramsJsonSchema: Readonly<Record<string, unknown>>
+  readonly returns: Option.Option<FieldSpec>
+  readonly returnsJsonSchema: Option.Option<Readonly<Record<string, unknown>>>
+  readonly hasWhere: boolean
+  readonly whereCount: number
+  readonly hasEnsures: boolean
+  readonly ensuresCount: number
+}
+
+/** Extract parameter specs, JSON Schemas, return metadata, and contract counts from a `Fn` or `FnSpec`. */
+export const fn = <P extends ParamSchemas, R>(target: Fn<P, R> | FnSpec<P, R>): FnSpecInfo => {
+  const retSpecs = Option.map(target.returnSchema, s => fieldSpecs(s))
+  return {
+    params: fieldSpecs(target.paramsSchema),
+    paramsJsonSchema: toJsonSchema(target.paramsSchema),
+    returns: Option.flatMap(retSpecs, list => Option.fromUndefinedOr(list[0])),
+    returnsJsonSchema: Option.map(target.returnSchema, s => toJsonSchema(s)),
+    hasWhere: target.whereClauses.length > 0,
+    whereCount: target.whereClauses.length,
+    hasEnsures: target.ensuresClauses.length > 0,
+    ensuresCount: target.ensuresClauses.length,
+  }
 }

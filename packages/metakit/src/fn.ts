@@ -10,6 +10,7 @@
 import { Data, Option, Pipeable, Result, Schema } from 'effect'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
+import { currentEach } from './ops/arr.js'
 import * as Bool from './ops/bool.js'
 import { toNode, wrap, type EnvOfInput, type ExprInput } from './ops/core.js'
 import * as Path from './path.js'
@@ -176,6 +177,76 @@ const projectArg = (arg: Node.Node, rest: ReadonlyArray<string>, paramName: stri
     },
   })
 
+/** Alpha-rename `Rows` binders when a `Fn` is called inside an outer `Rows` fold. */
+const freshenRows = (node: Node.Node, startDepth: number): Node.Node => {
+  const renameBinder = (target: Node.Node, from: string, to: string): Node.Node =>
+    Node.$match(target, {
+      Lit: l => l,
+      Path: p =>
+        p.segments[0] === from
+          ? Node.Path({ segments: [to, ...p.segments.slice(1)], ast: p.ast })
+          : p,
+      Call: ({ op, args }) => Node.Call({ op, args: args.map(a => renameBinder(a, from, to)) }),
+      If: ({ cond, then, otherwise }) =>
+        Node.If({
+          cond: renameBinder(cond, from, to),
+          then: renameBinder(then, from, to),
+          otherwise: renameBinder(otherwise, from, to),
+        }),
+      Match: ({ on, cases, otherwise }) =>
+        Node.Match({
+          on: renameBinder(on, from, to),
+          cases: cases.map(([v, b]) => [v, renameBinder(b, from, to)] as const),
+          otherwise: Option.map(otherwise, b => renameBinder(b, from, to)),
+        }),
+      Opaque: o => o,
+      Rows: rows =>
+        Node.rowsEach(rows) === from
+          ? Node.mapRows(
+              rows,
+              source => renameBinder(source, from, to),
+              body => body,
+            )
+          : Node.mapRows(
+              rows,
+              source => renameBinder(source, from, to),
+              body => renameBinder(body, from, to),
+            ),
+    })
+
+  const visit = (current: Node.Node, depth: number): Node.Node =>
+    Node.$match(current, {
+      Lit: l => l,
+      Path: p => p,
+      Call: ({ op, args }) => Node.Call({ op, args: args.map(a => visit(a, depth)) }),
+      If: ({ cond, then, otherwise }) =>
+        Node.If({
+          cond: visit(cond, depth),
+          then: visit(then, depth),
+          otherwise: visit(otherwise, depth),
+        }),
+      Match: ({ on, cases, otherwise }) =>
+        Node.Match({
+          on: visit(on, depth),
+          cases: cases.map(([v, b]) => [v, visit(b, depth)] as const),
+          otherwise: Option.map(otherwise, b => visit(b, depth)),
+        }),
+      Opaque: o => o,
+      Rows: rows => {
+        const oldBinder = Node.rowsEach(rows)
+        const nextBinder = `${Node.EACH}#${depth}`
+        const renamed = Node.mapRows(
+          rows,
+          source => visit(source, depth),
+          body => visit(renameBinder(body, oldBinder, nextBinder), depth + 1),
+        )
+        return Node.Rows({ ...renamed, each: nextBinder })
+      },
+    })
+
+  return visit(node, startDepth)
+}
+
 /** Substitute concrete/symbolic `args` into `node` over parameter names `paramNames`. */
 const substituteArgs = (
   node: Node.Node,
@@ -189,7 +260,12 @@ const substituteArgs = (
     }
     argNodes.set(name, toNode(args[name]))
   }
-  return Node.substitutePaths(node, segments => {
+  const outerEach = currentEach()
+  const prepared =
+    outerEach === Node.EACH
+      ? node
+      : freshenRows(node, Number(outerEach.slice(Node.EACH.length + 1)) || 1)
+  return Node.substitutePaths(prepared, segments => {
     const head = segments[0]
     if (head === undefined || !argNodes.has(head)) return Option.none()
     const replacement = argNodes.get(head)!
