@@ -20,6 +20,7 @@
       "metakit/graph/prune": ["./src/graph/prune.ts"],
       "metakit/graph/readiness": ["./src/graph/readiness.ts"],
       "metakit/inspect": ["./src/inspect.ts"],
+      "metakit/interpreter": ["./src/interpreter.ts"],
       "metakit/language": ["./src/language.ts"],
       "metakit/machine": ["./src/machine.ts"],
       "metakit/operation": ["./src/operation.ts"],

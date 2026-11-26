@@ -67,6 +67,11 @@
       "types": "./dist/inspect.d.ts",
       "import": "./dist/inspect.js"
     },
+    "./interpreter": {
+      "foldkit-plus:source": "./src/interpreter.ts",
+      "types": "./dist/interpreter.d.ts",
+      "import": "./dist/interpreter.js"
+    },
     "./graph": {
       "foldkit-plus:source": "./src/graph.ts",
       "types": "./dist/graph.d.ts",

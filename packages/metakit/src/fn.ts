@@ -118,9 +118,12 @@ export interface Fn<P extends ParamSchemas, R> extends Pipeable.Pipeable {
     args: Args,
   ) => ExprType<MergedArgEnv<Args>, boolean | null>
   /** Fast direct runtime evaluation over concrete parameter values. */
-  readonly run: (args: ParamValues<P>) => R
+  readonly run: (args: ParamValues<P>, options?: Expr.ReaderOptions) => R
   /** Checked runtime evaluation verifying params Schema, `where`, `returns`, and `ensures`. */
-  readonly runChecked: (args: unknown) => Result.Result<R, FnContractError>
+  readonly runChecked: (
+    args: unknown,
+    options?: Expr.ReaderOptions,
+  ) => Result.Result<R, FnContractError>
 }
 
 const paramPathsOf = <P extends ParamSchemas>(params: P): ParamPaths<P> => {
@@ -304,9 +307,13 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
   ): ExprType<MergedArgEnv<Args>, boolean | null> =>
     wrap(conjoin(parts.whereClauses.map(w => substituteArgs(w.node, paramNames, args))))
 
-  const run = (args: ParamValues<P>): R => Expr.evaluate(parts.body, args)
+  const run = (args: ParamValues<P>, options?: Expr.ReaderOptions): R =>
+    Expr.evaluate(parts.body, args, options)
 
-  const runChecked = (rawArgs: unknown): Result.Result<R, FnContractError> => {
+  const runChecked = (
+    rawArgs: unknown,
+    options?: Expr.ReaderOptions,
+  ): Result.Result<R, FnContractError> => {
     const decoded = decodeParams(rawArgs)
     if (Result.isFailure(decoded)) {
       return Result.fail(
@@ -320,7 +327,7 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
     const paramsVal = decoded.success as ParamValues<P>
     for (const w of parts.whereClauses) {
       try {
-        if (Expr.evaluate(w, paramsVal) !== true) {
+        if (Expr.evaluate(w, paramsVal, options) !== true) {
           return Result.fail(
             new FnContractError({ phase: 'where', detail: 'precondition did not hold' }),
           )
@@ -331,7 +338,7 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
     }
     let result: R
     try {
-      result = Expr.evaluate(parts.body, paramsVal)
+      result = Expr.evaluate(parts.body, paramsVal, options)
     } catch (cause) {
       return Result.fail(new FnContractError({ phase: 'body', detail: String(cause), cause }))
     }
@@ -345,7 +352,7 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
     }
     for (const e of parts.ensuresClauses) {
       try {
-        if (Expr.evaluate(e, { params: paramsVal, result }) !== true) {
+        if (Expr.evaluate(e, { params: paramsVal, result }, options) !== true) {
           return Result.fail(
             new FnContractError({ phase: 'ensures', detail: 'postcondition did not hold' }),
           )
