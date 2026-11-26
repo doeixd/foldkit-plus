@@ -333,6 +333,11 @@
       "types": "./dist/metakit/drizzle.d.mts",
       "import": "./dist/metakit/drizzle.mjs"
     },
+    "./metakit/fn": {
+      "foldkit-plus:source": "./src/metakit/fn.ts",
+      "types": "./dist/metakit/fn.d.mts",
+      "import": "./dist/metakit/fn.mjs"
+    },
     "./metakit/machine": {
       "foldkit-plus:source": "./src/metakit/machine.ts",
       "types": "./dist/metakit/machine.d.mts",
@@ -342,6 +347,11 @@
       "foldkit-plus:source": "./src/metakit/inspect.ts",
       "types": "./dist/metakit/inspect.d.mts",
       "import": "./dist/metakit/inspect.mjs"
+    },
+    "./metakit/interpreter": {
+      "foldkit-plus:source": "./src/metakit/interpreter.ts",
+      "types": "./dist/metakit/interpreter.d.mts",
+      "import": "./dist/metakit/interpreter.mjs"
     },
     "./metakit/graph": {
       "foldkit-plus:source": "./src/metakit/graph.ts",
@@ -378,10 +388,20 @@
       "types": "./dist/metakit/operation/sql.d.mts",
       "import": "./dist/metakit/operation/sql.mjs"
     },
+    "./metakit/language": {
+      "foldkit-plus:source": "./src/metakit/language.ts",
+      "types": "./dist/metakit/language.d.mts",
+      "import": "./dist/metakit/language.mjs"
+    },
     "./metakit/store": {
       "foldkit-plus:source": "./src/metakit/store.ts",
       "types": "./dist/metakit/store.d.mts",
       "import": "./dist/metakit/store.mjs"
+    },
+    "./metakit/store/check": {
+      "foldkit-plus:source": "./src/metakit/store/check.ts",
+      "types": "./dist/metakit/store/check.d.mts",
+      "import": "./dist/metakit/store/check.mjs"
     },
     "./metakit/pairs": {
       "foldkit-plus:source": "./src/metakit/pairs.ts",
@@ -792,6 +812,11 @@
       "foldkit-plus:source": "./src/ssr/loader.ts",
       "types": "./dist/ssr/loader.d.mts",
       "import": "./dist/ssr/loader.mjs"
+    },
+    "./ssr/binder": {
+      "foldkit-plus:source": "./src/ssr/binder.ts",
+      "types": "./dist/ssr/binder.d.mts",
+      "import": "./dist/ssr/binder.mjs"
     },
     "./ssr/vite": {
       "foldkit-plus:source": "./src/ssr/vite.ts",
