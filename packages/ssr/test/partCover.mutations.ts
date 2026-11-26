@@ -11,7 +11,7 @@ const tests = [
   'packages/ssr/test/parts.test.ts',
   'packages/ssr/test/family.test.ts',
 ]
-const restores = '(part.restores ?? []).some(contains)'
+const restores = 'coveredBy(part.restores ?? [])'
 const resumes = 'part.covers.some(name => reads.includes(name))'
 
 export default [

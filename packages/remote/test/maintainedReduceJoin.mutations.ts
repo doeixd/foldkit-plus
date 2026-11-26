@@ -4,8 +4,9 @@ export default [
     edits: [
       {
         file: '../src/maintained/reduce.ts',
-        find: '    if (inverse !== undefined) {\n      current = inverse(current, bv)',
-        replace: '    if (false && inverse !== undefined) {\n      current = inverse(current, bv)',
+        find: '    if (inverse !== undefined) {\n      change(() => {\n        const without = inverse(current, bv)',
+        replace:
+          '    if (false && inverse !== undefined) {\n      change(() => {\n        const without = inverse(current, bv)',
       },
     ],
     tests: ['packages/remote/test/maintainedReduceJoin.test.ts'],

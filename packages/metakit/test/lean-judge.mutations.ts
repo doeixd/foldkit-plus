@@ -58,11 +58,8 @@ export default [
   ),
   mutation(
     'a call left over is never shown unrefused',
-    `callCannotRefuse(
-      op,
-      args.map(arg => [view.cannotRefuse(arg), kindOfJudged(arg)]),
-    ),`,
-    'false,',
+    'callKind(op, args.map(kindOfJudged)),\n    unrefused,',
+    'callKind(op, args.map(kindOfJudged)),\n    false,',
   ),
   mutation(
     'a foreign call left over with no implementation is not named',
@@ -88,12 +85,12 @@ export default [
   ),
   mutation(
     'a call a fold rewrites to is taken as the operand',
-    '? openCall(made.call, [made.operand, made.literal], foreign)',
-    '? made.operand',
+    "return Option.match(rewrite(view, op, judged), {\n        onNone: () => openCall(op, judged, foreign),\n        onSome: made =>\n          'value' in made\n            ? made.value\n            : 'call' in made\n              ? openCall(made.call, [made.operand, made.literal], foreign)",
+    "return Option.match(rewrite(view, op, judged), {\n        onNone: () => openCall(op, judged, foreign),\n        onSome: made =>\n          'value' in made\n            ? made.value\n            : 'call' in made\n              ? made.operand",
   ),
   mutation(
     'a body left over reads its element unexpanded',
-    'readsOfRows(kept.over, from, read),',
+    'readsOfRows(kept.over, from, read, Node.rowsEach(kept)),',
     'read,',
   ),
   mutation(

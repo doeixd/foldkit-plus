@@ -28,13 +28,13 @@ export default [
   ),
   edit(
     'emitted commands are dropped',
-    '    if (emitted.length === 0) return { model: next }',
-    '    if (true) return { model: next }',
+    '    const [next, emitted] = machine.update(model, machineMessage, readerOptions)\n    if (emitted.length === 0) return { model: next }',
+    '    const [next, emitted] = machine.update(model, machineMessage, readerOptions)\n    if (true) return { model: next }',
   ),
   edit(
     'a record with no handler is not reported',
-    '      if (!Object.hasOwn(commandsTable, recordTag)) {',
-    '      if (false) {',
+    "      // The table is looked up by name, and a name it lacks is reported below.\n      const recordTag = Option.getOrElse(tagOf(emittedRecord), () => '')\n      if (!Object.hasOwn(commandsTable, recordTag)) {",
+    "      // The table is looked up by name, and a name it lacks is reported below.\n      const recordTag = Option.getOrElse(tagOf(emittedRecord), () => '')\n      if (false) {",
   ),
   edit('step is the tracked update', '    step: rawUpdate,', '    step: update,'),
   edit(

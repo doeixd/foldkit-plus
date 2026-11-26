@@ -14,7 +14,7 @@ export default [
     edits: [
       {
         file: index,
-        find: "  if (plan.restored.some(({ path: outer }) => contains(outer))) return 'restored'\n",
+        find: "  if (coveredBy(plan.restored.map(({ path: outer }) => outer))) return 'restored'\n",
         replace: '',
       },
     ],
@@ -36,8 +36,8 @@ export default [
     edits: [
       {
         file: client,
-        find: '    startingModel = plan.restore === undefined ? resumed.success : plan.restore(resumed.success)',
-        replace: '    startingModel = resumed.success',
+        find: '    restoredModel = plan.restore === undefined ? resumed.success : plan.restore(resumed.success)',
+        replace: '    restoredModel = resumed.success',
       },
     ],
     tests,

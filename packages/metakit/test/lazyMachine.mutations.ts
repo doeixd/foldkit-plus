@@ -4,8 +4,8 @@ export default [
     edits: [
       {
         file: '../src/transition.ts',
-        find: '      err => {\n        inflight = undefined\n        throw err\n      },',
-        replace: '      err => {\n        throw err\n      },',
+        find: '        err => {\n          inflight = undefined\n          throw err\n        },',
+        replace: '        err => {\n          throw err\n        },',
       },
     ],
     tests: ['packages/metakit/test/lazyMachine.test.ts'],

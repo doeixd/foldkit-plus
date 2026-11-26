@@ -34,12 +34,12 @@ export default [
   ),
   edit(
     'Postgres said to run serializable is still read-committed',
-    "store: storeOf(binding.table, options.isolation === 'serializable'),",
-    'store: storeOf(binding.table, false),',
+    "store: storeOf(binding.table, options.isolation === 'serializable', parentLock !== undefined),",
+    'store: storeOf(binding.table, false, parentLock !== undefined),',
   ),
   edit(
     'Postgres is said to lock the parent row',
-    "isolates: 'transaction',\n        parentRowLock: false,",
+    "isolates: 'transaction',\n        parentRowLock,",
     "isolates: 'transaction',\n        parentRowLock: true,",
   ),
   {

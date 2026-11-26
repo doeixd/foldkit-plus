@@ -160,8 +160,8 @@ export default [
     rowsTests,
     'judge takes some related rows for all of them',
     residual,
-    'if (whole && answers.every(each => Option.isSome(reader.known(each)))) {',
-    'if (answers.every(each => Option.isSome(reader.known(each)))) {',
+    'if (whole && !missingOp && answers.every(each => Option.isSome(reader.known(each)))) {',
+    'if (!missingOp && answers.every(each => Option.isSome(reader.known(each)))) {',
   ),
 
   // What a fold reads.
@@ -234,7 +234,7 @@ export default [
     transitionTests,
     'insert appends a key already there',
     lists,
-    'Node.If({ cond: present, then: list.node, otherwise: made.node }),',
+    'Node.If({ cond, then: list.node, otherwise: made.node }),',
     'made.node,',
   ),
   mutation(

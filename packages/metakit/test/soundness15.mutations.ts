@@ -16,9 +16,9 @@ export default [
     name: 'SQL lowerCheck treats absent optional key as failing',
     edits: [
       {
-        file: '../src/sqlStatements.ts',
-        find: 'info !== undefined && info.optional',
-        replace: 'false',
+        file: '../src/expr.ts',
+        find: 'const isOptionalKey = SchemaAST.isOptional(prop.type)',
+        replace: 'const isOptionalKey = false',
       },
     ],
     tests,
@@ -27,9 +27,9 @@ export default [
     name: 'Prover skips optional key nullable guard on schema rules',
     edits: [
       {
-        file: '../src/prove/solve.ts',
-        find: 'if (info === undefined || !info.optional) return node',
-        replace: 'return node',
+        file: '../src/expr.ts',
+        find: 'node: guardNullable(rule.node, childAt), message: rule.message',
+        replace: 'node: rule.node, message: rule.message',
       },
     ],
     tests,

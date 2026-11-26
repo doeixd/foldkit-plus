@@ -141,8 +141,8 @@ export default [
   mutation(
     'SQL does not read a product as an integer term',
     '../src/ops/integerTerm.ts',
-    "  'num.neg',\n  'num.mulScaled',\n  'null.coalesce',",
-    "  'num.neg',\n  'null.coalesce',",
+    "  'num.neg',\n  'num.mulScaled',\n  'time.addDays',",
+    "  'num.neg',\n  'time.addDays',",
     unit,
   ),
   // The checker
@@ -199,8 +199,8 @@ export default [
   mutation(
     'the solver reads a fraction as an integer',
     solverRow,
-    'if (!z3.isInt(left) || !z3.isInt(right)) {',
-    'if (false) {',
+    "if (!z3.isInt(left) || !z3.isInt(right)) {\n        throw new Unsupported('num.mulScaled of an operand the solver does not read as an integer')",
+    "if (false) {\n        throw new Unsupported('num.mulScaled of an operand the solver does not read as an integer')",
     unit,
   ),
   // Aggregates

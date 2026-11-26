@@ -30,7 +30,7 @@ export default [
   edit(
     'a post is kept',
     entry,
-    "if (method !== 'GET' && method !== 'HEAD') return unkept(await answer(request))",
+    "      if (method !== 'GET' && method !== 'HEAD') {\n        return unkept(yield* Effect.promise(() => answer(request)))\n      }",
     '',
   ),
   edit('a page not found is kept', entry, 'if (status !== 200) return', 'if (false) return'),
@@ -123,7 +123,7 @@ export default [
   edit(
     'a difference passes the check',
     entry,
-    "again._tag === 'Rendered' && samePage(again, kept.value, Date.now())",
+    "again._tag === 'Rendered' && samePage(again, kept.value, now)",
     'true',
   ),
   edit('a time stamped on the page is compared', page, "? 'T' : digits", '? digits : digits'),

@@ -6,8 +6,8 @@ export default [
     edits: [
       {
         file: '../src/storeCheck.ts',
-        find: "  const checkSerializableTx =\n    declared.isolation === 'serializable' && declared.isolates === 'transaction'",
-        replace: '  const checkSerializableTx = false',
+        find: "    const checkSerializableTx =\n      declared.isolation === 'serializable' && declared.isolates === 'transaction'",
+        replace: '    const checkSerializableTx = false',
       },
     ],
     tests,

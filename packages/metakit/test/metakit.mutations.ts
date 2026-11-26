@@ -109,8 +109,8 @@ export default [
   policy(
     'a path of no known sort is an integer to the solver',
     proveShape,
-    "return info('real', { nan: Schema.is(Schema.make<Schema.Top>(ast))(Number.NaN) })",
-    "return info('int', { nan: Schema.is(Schema.make<Schema.Top>(ast))(Number.NaN) })",
+    "return info('real', { nan, finite: !nan && !is(Infinity) && !is(-Infinity) })",
+    "return info('int', { nan, finite: !nan && !is(Infinity) && !is(-Infinity) })",
   ),
   {
     name: 'mixed literal sorts silently alias text with numbers',
@@ -194,8 +194,8 @@ export default [
     edits: [
       {
         file: sql,
-        find: "'eq.is': numeric(byDialect('IS NOT DISTINCT FROM', 'IS')),",
-        replace: "'eq.is': numeric(() => '='),",
+        find: "'eq.is': textEqual(byDialect('IS NOT DISTINCT FROM', 'IS')),",
+        replace: "'eq.is': textEqual(() => '='),",
       },
     ],
     tests: sqlTests,
@@ -282,8 +282,8 @@ export default [
     edits: [
       {
         file: graphStructure,
-        find: '    const hit = new Set<string>(unknownReaders)\n    const bridged = new Set<RowToModelLink>()',
-        replace: '    const hit = new Set<string>()\n    const bridged = new Set<RowToModelLink>()',
+        find: '    const hit = new Set<R>(unknownReaders)\n    const bridged = new Set<RowToModelLink>()',
+        replace: '    const hit = new Set<R>()\n    const bridged = new Set<RowToModelLink>()',
       },
     ],
     tests: graphTests,

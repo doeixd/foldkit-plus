@@ -224,8 +224,9 @@ export default [
     edits: [
       {
         file: may,
-        find: 'Option.match(rule, { onNone: () => true,',
-        replace: 'Option.match(rule, { onNone: () => false,',
+        find: '  const allows = (rule: Option.Option<RowRule>) =>\n    Option.match(rule, {\n      onNone: () => Option.some(true),',
+        replace:
+          '  const allows = (rule: Option.Option<RowRule>) =>\n    Option.match(rule, {\n      onNone: () => Option.some(false),',
       },
     ],
     tests,
@@ -235,8 +236,8 @@ export default [
     edits: [
       {
         file,
-        find: '...Option.match(may, { onNone: () => [], onSome: ({ fields }) => fields }),',
-        replace: '',
+        find: '            onSome: plan => [...new Set([...fields, ...plan.fields])],',
+        replace: '            onSome: () => fields,',
       },
     ],
     tests,
@@ -246,8 +247,8 @@ export default [
     edits: [
       {
         file,
-        find: "fields: ['id', ...new Set(mayConditions(rules).flatMap(Condition.members))],",
-        replace: 'fields: [...new Set(mayConditions(rules).flatMap(Condition.members))],',
+        find: "        fields: [...new Set(['id', ...[...dependencies.values()].flat()])],",
+        replace: '        fields: [...new Set([...dependencies.values()].flat())],',
       },
     ],
     tests: ['packages/guard/test/drizzle.test.ts'],

@@ -86,8 +86,8 @@ export default [
   ),
   mutation(
     'mount lets a refused store through',
-    'if (cannot.length > 0) throw new StoreRefused',
-    'if (cannot.length < 0) throw new StoreRefused',
+    'return cannot.length > 0 ? Result.fail(new StoreRefused({ store, refused: cannot })) : Result.void',
+    'return cannot.length < 0 ? Result.fail(new StoreRefused({ store, refused: cannot })) : Result.void',
     store,
   ),
   mutation(
@@ -112,7 +112,7 @@ export default [
   ),
   mutation(
     'a write under a path does not disturb a read of it',
-    'left.every((segment, at) => segment === right[at])',
+    'Path.meets(left, right)',
     'left.length === right.length && left.every((segment, at) => segment === right[at])',
   ),
   mutation(
@@ -139,6 +139,8 @@ export default [
     'the property is asked only after the last step',
     'if (Option.isSome(reason)) {',
     'if (Option.isSome(reason) && at === order.length - 1) {',
+    file,
+    true,
   ),
   mutation(
     'shrinking drops a step another waits on',
@@ -154,8 +156,8 @@ export default [
   ),
   mutation(
     'a broken walk discharges its obligation',
-    'discharges.filter(closes)',
-    'discharges.filter(() => true)',
+    'return broke(walks) !== undefined || !walks.some(walk => closes(owned, walk))',
+    "return !walks.some(walk => closes(owned, walk) || WalkResult.$is('Broken')(walk.result))",
   ),
   mutation(
     'a scenario with no step of the obligation discharges it',

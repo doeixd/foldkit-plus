@@ -143,7 +143,14 @@ export default [
   },
   {
     name: 'a handler defect is reported outside the reporter given',
-    edits: [{ file, find: '      }).pipe(reportingFor(request)),', replace: '      }),' }],
+    edits: [
+      {
+        file,
+        find: "Effect.withSpan('remote.fetch', { attributes: { path } }),\n              reportingFor(request),\n            ),\n          )\n    const exit = await runRequest",
+        replace:
+          "Effect.withSpan('remote.fetch', { attributes: { path } }),\n            ),\n          )\n    const exit = await runRequest",
+      },
+    ],
     tests,
   },
   {

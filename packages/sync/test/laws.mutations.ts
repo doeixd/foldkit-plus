@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file: '../src/mount.ts',
-        find: 'Option.isSome(declared) ? [] : readsOutside(model, message)',
+        find: 'Option.isSome(declared) ? { fields: [] } : readsOutside(model, message)',
         replace: 'readsOutside(model, message)',
       },
     ],

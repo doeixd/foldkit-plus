@@ -78,7 +78,7 @@ export default [
   edit(
     'an answer that is the replay is read again',
     replay,
-    'Option.exists(replayed(layer, key, field, newer), value =>',
+    'Option.exists(replayed(layer, key, field, newer, foreign), value =>',
     'Option.exists(Option.none(), value =>',
   ),
 ]

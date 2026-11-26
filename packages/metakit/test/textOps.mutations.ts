@@ -17,8 +17,8 @@ export default [
     edits: [
       {
         file: '../src/sqlLowering.ts',
-        find: 'q`(CASE WHEN (${s}) IS NULL OR (${suffix}) IS NULL THEN NULL ELSE (length(${suffix}) = 0 OR substr(${s}, -length(${suffix})) = ${suffix}) END)`',
-        replace: 'q`(substr(${s}, -length(${suffix})) = ${suffix})`',
+        find: 'q`(CASE WHEN (${s}) IS NULL OR (${suffix}) IS NULL THEN NULL ELSE (length(${suffix}) = 0 OR substr(${s}, -length(${suffix})) COLLATE BINARY = ${suffix}) END)`',
+        replace: 'q`(substr(${s}, -length(${suffix})) COLLATE BINARY = ${suffix})`',
       },
     ],
     tests,
@@ -28,8 +28,9 @@ export default [
     edits: [
       {
         file: '../src/sqlLowering.ts',
-        find: 'q`(CASE WHEN (${s}) IS NULL OR (${suffix}) IS NULL THEN NULL ELSE (length(${suffix}) = 0 OR substr(${s}, -length(${suffix})) = ${suffix}) END)`',
-        replace: 'q`(length(${suffix}) = 0 OR substr(${s}, -length(${suffix})) = ${suffix})`',
+        find: 'q`(CASE WHEN (${s}) IS NULL OR (${suffix}) IS NULL THEN NULL ELSE (length(${suffix}) = 0 OR substr(${s}, -length(${suffix})) COLLATE BINARY = ${suffix}) END)`',
+        replace:
+          'q`(length(${suffix}) = 0 OR substr(${s}, -length(${suffix})) COLLATE BINARY = ${suffix})`',
       },
     ],
     tests,

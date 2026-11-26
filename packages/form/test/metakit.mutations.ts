@@ -26,8 +26,8 @@ export default [
   ),
   edit(
     'a guard refused over the values entered leaves `can` Unknown',
-    '      refusedIsFalse(\n        Transition.can(',
-    '      (verdict => verdict)(\n        Transition.can(',
+    '    refusedIsFalse(\n      Transition.can(',
+    '    (verdict => verdict)(\n      Transition.can(',
   ),
   edit(
     'an exclusive lower bound of a whole key is shown as it is',

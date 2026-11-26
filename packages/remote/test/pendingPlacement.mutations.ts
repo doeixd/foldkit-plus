@@ -140,8 +140,8 @@ export default [
     edits: [
       {
         file: layers,
-        find: 'Before: place => void (placed = withEdge(placed, edge, place)),',
-        replace: 'Before: () => undefined,',
+        find: '        Before: place => {\n          placed = withEdge(placed, edge, place)\n          placedKeys.add(edge.key)\n        },',
+        replace: '        Before: () => undefined,',
       },
     ],
     tests,
@@ -151,8 +151,8 @@ export default [
     edits: [
       {
         file: layers,
-        find: 'End: place => void (placed = withEdge(placed, edge, place)),',
-        replace: 'End: () => undefined,',
+        find: '        End: place => {\n          placed = withEdge(placed, edge, place)\n          placedKeys.add(edge.key)\n        },',
+        replace: '        End: () => undefined,',
       },
     ],
     tests,

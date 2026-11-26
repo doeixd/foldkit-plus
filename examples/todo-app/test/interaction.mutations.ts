@@ -69,8 +69,9 @@ export default [
     edits: [
       {
         file: '../../../packages/surface/src/declared.ts',
-        find: '    if (emitted.length === 0) return { model: next }',
-        replace: '    if (emitted.length === 0) return { model: { ...next } }',
+        find: '    const [next, emitted] = machine.update(model, machineMessage, readerOptions)\n    if (emitted.length === 0) return { model: next }',
+        replace:
+          '    const [next, emitted] = machine.update(model, machineMessage, readerOptions)\n    if (emitted.length === 0) return { model: { ...next } }',
       },
     ],
     tests: [unit],

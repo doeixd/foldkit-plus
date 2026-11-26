@@ -15,7 +15,7 @@ export default [
     edits: [
       {
         file: '../src/binder.ts',
-        find: "        el.setAttribute('aria-disabled', 'true')",
+        find: "        next.el.setAttribute('aria-disabled', 'true')",
         replace: '        // skipped aria-disabled',
       },
     ],

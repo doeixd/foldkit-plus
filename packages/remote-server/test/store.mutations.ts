@@ -54,8 +54,8 @@ export default [
   ),
   edit(
     'an invariant reading other rows asks nothing',
-    '.filter(held => dependenciesOf(held.predicate).reaches.length > 0)',
-    '.filter(() => false)',
+    '      ...judged\n        .filter(held => dependenciesOf(held.predicate).reaches.length > 0)',
+    '      ...judged\n        .filter(() => false)',
   ),
   edit(
     'the memory writer names a store that merges writes later',

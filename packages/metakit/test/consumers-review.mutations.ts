@@ -59,8 +59,8 @@ export default [
   mutation(
     'the literals under NullOr are not read as an enum',
     inspect,
-    'present.length === 1 && SchemaAST.isUnion(inner) ? inner.types : present',
-    'present',
+    '      if (present.length === 1) {',
+    '      if (present.length === 1 && !SchemaAST.isUnion(present[0]!)) {',
     integrationTests,
   ),
   mutation(
@@ -80,7 +80,7 @@ export default [
   mutation(
     'the solver takes the last case of a match for every value no case names',
     proveLower,
-    'if (!covered) {',
+    'if (!isCovered(on)) {',
     'if (false) {',
     proveTests,
   ),
@@ -129,7 +129,7 @@ export default [
   mutation(
     'the solver runs past its time',
     proveSolve,
-    "solver.set('timeout', problem.timeoutMs)",
+    "solver.set('timeout', effectiveTimeout)",
     "solver.set('timeout', 600_000)",
     proveTests,
   ),
@@ -178,14 +178,14 @@ export default [
   mutation(
     'SQL takes the second branch of a choice whose condition is null',
     lowering,
-    'e => q`(CASE WHEN ${c} THEN ${t} WHEN NOT ${c} THEN ${e} END)`',
-    'e => q`(CASE WHEN ${c} THEN ${t} ELSE ${e} END)`',
+    'q`(CASE WHEN ${c} THEN ${typedArm(then, t)} WHEN NOT ${c} THEN ${typedArm(otherwise, e)} END)`',
+    'q`(CASE WHEN ${c} THEN ${typedArm(then, t)} ELSE ${typedArm(otherwise, e)} END)`',
     parityTests,
   ),
   mutation(
     'SQL leaves a null needle unknown among candidates that are not null',
     lowering,
-    ': q`((${needle} IS NOT NULL) AND ${among})`',
+    ': q`((${target} IS NOT NULL) AND ${among})`',
     ': among',
     parityTests,
   ),
@@ -199,15 +199,15 @@ export default [
   mutation(
     'SQL equality is unknown of a null',
     lowering,
-    "'eq.isNot': numeric(byDialect('IS DISTINCT FROM', 'IS NOT')),",
-    "'eq.isNot': numeric(() => '<>'),",
+    "'eq.isNot': textEqual(byDialect('IS DISTINCT FROM', 'IS NOT')),",
+    "'eq.isNot': textEqual(() => '<>'),",
     parityTests,
   ),
   mutation(
     'SQLite takes a prefix by the length of the text, not of the prefix',
     lowering,
-    ': q`(substr(${s}, 1, length(${prefix})) = ${prefix})`',
-    ': q`(substr(${s}, 1, length(${s})) = ${prefix})`',
+    ': q`(substr(${s}, 1, length(${prefix})) COLLATE BINARY = ${prefix})`',
+    ': q`(substr(${s}, 1, length(${s})) COLLATE BINARY = ${prefix})`',
     parityTests,
   ),
   mutation(
@@ -248,8 +248,8 @@ export default [
   mutation(
     'a list of only null is written IN ()',
     lowering,
-    'if (items.length === 0) return Result.succeed(q`(${needle} IS NULL)`)',
-    'if (false) return Result.succeed(q`(${needle} IS NULL)`)',
+    'if (items.length === 0) return Result.succeed(q`(${target} IS NULL)`)',
+    'if (false) return Result.succeed(q`(${target} IS NULL)`)',
     loweringTests,
   ),
   mutation(

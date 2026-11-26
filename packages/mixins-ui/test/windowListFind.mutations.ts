@@ -101,8 +101,9 @@ export default [
     edits: [
       {
         file,
-        find: "Reveal({ id: model.id, index, align: 'center' })",
-        replace: "Reveal({ id: model.id, index, align: 'start' })",
+        find: "Transition.emit('Reveal', { id: state.id, index: input.index, align: 'center' as const })",
+        replace:
+          "Transition.emit('Reveal', { id: state.id, index: input.index, align: 'start' as const })",
       },
     ],
     tests: unit,

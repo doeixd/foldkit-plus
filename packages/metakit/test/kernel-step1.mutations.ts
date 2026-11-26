@@ -31,8 +31,8 @@ const table = [
     propertyTests,
     'subtraction is declared monotone up in what it takes away',
     properties,
-    "monotone: ['up', 'down'] },",
-    "monotone: ['up', 'up'] },",
+    "'num.sub': { monotone: ['up', 'down'] },",
+    "'num.sub': { monotone: ['up', 'up'] },",
   ),
   mutation(
     propertyTests,
@@ -284,7 +284,7 @@ const foreign = [
   mutation(
     foreignTests,
     'a foreign id may take a core prefix',
-    '../src/node.ts',
+    '../src/operation.ts',
     'if (reserved !== undefined) {',
     'if (false) {',
   ),

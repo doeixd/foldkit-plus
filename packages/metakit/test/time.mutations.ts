@@ -26,8 +26,8 @@ export default [
     edits: [
       {
         file: '../src/sqlLowering.ts',
-        find: 'q`(CASE WHEN (${a}) IS NULL OR (${b}) IS NULL OR (${c}) IS NULL OR (${d}) IS NULL THEN NULL ELSE ((${a}) < (${d}) AND (${c}) < (${b})) END)`',
-        replace: 'q`((${a}) < (${d}) AND (${c}) < (${b}))`',
+        find: "q`(CASE WHEN ${joined(checks, ' OR ')} THEN NULL ELSE ${cmp} END)`",
+        replace: 'cmp',
       },
     ],
     tests: ['packages/metakit/test/time.test.ts'],

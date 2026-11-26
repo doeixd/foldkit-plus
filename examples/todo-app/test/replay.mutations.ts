@@ -11,14 +11,14 @@ export default [
   edit(
     'the derived update runs emitted records in reverse order',
     '../../../packages/surface/src/declared.ts',
-    'for (const emittedRecord of emitted) {',
-    'for (const emittedRecord of [...emitted].reverse()) {',
+    '    for (const emittedRecord of emitted) {\n      // The table is looked up by name, and a name it lacks is reported below.',
+    '    for (const emittedRecord of [...emitted].reverse()) {\n      // The table is looked up by name, and a name it lacks is reported below.',
   ),
   edit(
     'the derived update returns a new Model for a step that changes nothing',
     '../../../packages/surface/src/declared.ts',
-    '    if (emitted.length === 0) return { model: next }',
-    '    if (emitted.length === 0) return { model: { ...next } }',
+    '    const [next, emitted] = machine.update(model, machineMessage, readerOptions)\n    if (emitted.length === 0) return { model: next }',
+    '    const [next, emitted] = machine.update(model, machineMessage, readerOptions)\n    if (emitted.length === 0) return { model: { ...next } }',
   ),
   edit(
     'a requested todo’s fact loses the request it answers',

@@ -8,7 +8,11 @@ export default [
   {
     name: 'a guard that is Unknown hides the tool',
     edits: [
-      { file: tools, find: '!Verdict.isFalse(canDispatch', replace: 'Verdict.isTrue(canDispatch' },
+      {
+        file: tools,
+        find: '!Verdict.isFalse(\n        canDispatch',
+        replace: 'Verdict.isTrue(\n        canDispatch',
+      },
     ],
     tests,
   },
@@ -17,8 +21,8 @@ export default [
     edits: [
       {
         file: tools,
-        find: '!Verdict.isFalse(canDispatch',
-        replace: '!Verdict.isUnknown(canDispatch',
+        find: '!Verdict.isFalse(\n        canDispatch',
+        replace: '!Verdict.isUnknown(\n        canDispatch',
       },
     ],
     tests,

@@ -13,7 +13,7 @@ const edit = (name: string, find: string, replace: string, file = '../src/closur
 })
 
 export default [
-  edit('reads resets no field', '    for (const key of fields) reset[key] = baseline[key]\n', ''),
+  edit('reads resets no field', '      reset[key] = baseline[key]\n', ''),
   edit(
     'the slices are compared by identity alone',
     'return !Object.is(after, other) && !equal(after, other)',
@@ -21,10 +21,14 @@ export default [
   ),
   edit(
     'a field at its initial value is a candidate',
-    ' && !Object.is(live[key], baseline[key])',
-    '',
+    '      (set !== undefined || !partial.has(key)) &&\n      !Object.is(live[key], baseline[key]),',
+    '      (set !== undefined || !partial.has(key)),',
   ),
-  edit('a field the projection owns is a candidate', 'key => !own.has(key) &&', 'key =>'),
+  edit(
+    'a field the projection owns is a candidate',
+    '    key =>\n      !whole.has(key) &&\n      (set !== undefined || !partial.has(key)) &&',
+    '    key =>\n      (set !== undefined || !partial.has(key)) &&',
+  ),
   edit(
     'fields that each alone is enough go unnamed',
     'return named.length === 0 ? outside : named',

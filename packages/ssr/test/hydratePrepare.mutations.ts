@@ -5,7 +5,15 @@
  */
 const client = '../src/client.ts'
 const tests = ['packages/ssr/test/hydratePrepare.test.ts']
-const call = '  else void Effect.runPromise(prepare(startingModel)).then(adoptFrom)\n'
+const call = `  } else {
+    // Keep the binder alive while async \`prepare\` runs, then take its final
+    // snapshot right before adopting so clicks during \`prepare\` are never lost.
+    void Effect.runPromise(prepare(restoredModel)).then(preparedModel => {
+      const snap = takeBinder()
+      adoptFrom(mergeBinderModel(preparedModel, snap), snap)
+    })
+  }
+`
 
 export default [
   {
@@ -14,8 +22,13 @@ export default [
       {
         file: client,
         find: call,
-        replace:
-          '  else void Effect.runPromise(prepare(startingModel)).then(() => adoptFrom(startingModel))\n',
+        replace: `  } else {
+    void Effect.runPromise(prepare(restoredModel)).then(() => {
+      const snap = takeBinder()
+      adoptFrom(mergeBinderModel(restoredModel, snap), snap)
+    })
+  }
+`,
       },
     ],
     tests,
@@ -26,8 +39,12 @@ export default [
       {
         file: client,
         find: call,
-        replace:
-          '  else {\n    void Effect.runPromise(prepare(startingModel))\n    adoptFrom(startingModel)\n  }\n',
+        replace: `  } else {
+    void Effect.runPromise(prepare(restoredModel))
+    const snap = takeBinder()
+    adoptFrom(mergeBinderModel(restoredModel, snap), snap)
+  }
+`,
       },
     ],
     tests,

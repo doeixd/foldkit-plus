@@ -136,15 +136,22 @@ export default [
     edits: [
       {
         file: '../src/sheet.ts',
-        find: '!Number.isInteger(at) || at < 0 || at >= model.points.length',
-        replace: 'false',
+        find: '        Bool.and(\n          Bool.and(Ord.gte(input.at, 0), Ord.lt(input.at, Arr.count(state.points))),\n          Eq.isNot(input.at, state.at),\n        ),',
+        replace: '        Eq.isNot(input.at, state.at),',
       },
     ],
     tests: [unit],
   },
   {
     name: 'the point it is at is a change',
-    edits: [{ file: '../src/sheet.ts', find: 'at === model.at || ', replace: '' }],
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: "    SnappedTo: ({ at }) => ({\n      model: machine.update(model, { _tag: 'SnappedTo', input: { at } })[0],\n    }),",
+        replace:
+          "    SnappedTo: ({ at }) => ({\n      model: at === model.at ? { ...model } : machine.update(model, { _tag: 'SnappedTo', input: { at } })[0],\n    }),",
+      },
+    ],
     tests: [unit],
   },
 ]

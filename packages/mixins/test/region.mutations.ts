@@ -21,8 +21,9 @@ export default [
     edits: [
       {
         file: '../../surface/src/index.ts',
-        find: 'before !== undefined &&',
-        replace: 'before !== undefined || true || ',
+        find: '        const hit =\n          before !== undefined &&\n          !always &&',
+        replace:
+          '        const hit =\n          before !== undefined || true ||\n          !always &&',
       },
     ],
     tests,

@@ -55,8 +55,8 @@ export default [
   ),
   mutation(
     'undefined stays a member of an optional field',
-    'ast.types.filter(t => !SchemaAST.isNull(t) && !SchemaAST.isUndefined(t))',
-    'ast.types.filter(t => !SchemaAST.isNull(t))',
+    'current.types.filter(t => !SchemaAST.isNull(t) && !SchemaAST.isUndefined(t))',
+    'current.types.filter(t => !SchemaAST.isNull(t))',
   ),
   mutation(
     'a CalendarDay claims the date format',

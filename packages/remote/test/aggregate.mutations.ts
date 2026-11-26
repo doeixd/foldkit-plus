@@ -125,8 +125,8 @@ export default [
   ),
   edit(
     'the list keeps its old order after a page reorders the same rows',
-    '      if (moved || reorder) {',
-    '      if (reorder) {',
+    '      } else if (moved || reorder) {',
+    '      } else if (reorder) {',
     '../src/maintained/definition.ts',
     maintained,
   ),
@@ -209,8 +209,8 @@ export default [
   ),
   edit(
     'the aggregate is over the window a read of the list shows',
-    '          .shown(remote, identity, inputs.connection)\n',
-    '          .shown(remote, identity, inputs.connection)\n          .slice(0, 25)\n',
+    '      inputs.connection === undefined ? [] : inner.shown(remote, identity, inputs.connection)\n',
+    '      inputs.connection === undefined ? [] : inner.shown(remote, identity, inputs.connection).slice(0, 25)\n',
     deltas,
   ),
   edit(

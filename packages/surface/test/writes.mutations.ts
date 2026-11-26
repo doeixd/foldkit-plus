@@ -70,8 +70,8 @@ export default [
   ),
   edit(
     'Surface.rootView ignores installed Writes hook',
-    '    if (hook !== undefined) {',
-    '    if (false) {',
+    '      if (hookedView !== undefined) return hookedView(root, h)\n',
+    '',
     '../src/index.ts',
   ),
   edit(
@@ -113,13 +113,13 @@ export default [
   ),
   check(
     'a declared write is reported as undeclared',
-    '!declared.value.some(write => isPrefix(write, path))',
+    '!declared.value.some(write => covers(write, path))',
     'true',
   ),
   check(
     'a write declared below a change covers it',
-    '!declared.value.some(write => isPrefix(write, path))',
-    '!declared.value.some(write => isPrefix(path, write))',
+    '!declared.value.some(write => covers(write, path))',
+    '!declared.value.some(write => covers(path, write))',
   ),
   check('a struct is compared whole, not by its fields', '  if (walk) {', '  if (false) {'),
   check(

@@ -21,8 +21,9 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: 'shown(Data.get(Quote, name).read(model)), DomainCase.guards.Available',
-        replace: 'shown(Data.get(Quote, name).read(model)), () => true',
+        find: 'makeDomainsMachine(Model, (model, name) =>\n  Array.findFirst(shown(Data.get(Quote, name).read(model)), DomainCase.guards.Available),',
+        replace:
+          'makeDomainsMachine(Model, (model, name) =>\n  Array.findFirst(shown(Data.get(Quote, name).read(model)), () => true),',
       },
     ],
     tests,
@@ -64,8 +65,12 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: 'const closed = isSheetDialogMessage(message) && isCompletedCloseDialog(message.message)',
-        replace: 'const closed = isSheetDialogMessage(message)',
+        find: `    CartSheetStep: ({ sheet, message }) => {
+      const cmds = Command.mapMessages(Sheet.update(sheet, message).commands ?? [], cartSheet.wrap)
+      const closed = isSheetDialogMessage(message) && isCompletedCloseDialog(message.message)`,
+        replace: `    CartSheetStep: ({ sheet, message }) => {
+      const cmds = Command.mapMessages(Sheet.update(sheet, message).commands ?? [], cartSheet.wrap)
+      const closed = isSheetDialogMessage(message)`,
       },
     ],
     tests,

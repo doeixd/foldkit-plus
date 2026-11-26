@@ -138,7 +138,7 @@ export default [
     edits: [
       {
         file: reads,
-        find: 'Stream.fromEffect(Effect.sleep(restartDelay(options, failures)))',
+        find: 'Stream.fromEffect(Effect.flatMap(restartDelay(options, failures), Effect.sleep))',
         replace: 'Stream.fromEffect(Effect.void)',
       },
     ],

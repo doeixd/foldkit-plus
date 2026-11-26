@@ -138,8 +138,8 @@ export default [
   mutation(
     'Money.mul does not move the point',
     money,
-    '    options.rateScale,\n',
-    '    0,\n',
+    '    { value: rate, scale: Option.some(rateScale) },\n    rateScale,\n',
+    '    { value: rate, scale: Option.some(rateScale) },\n    0,\n',
     domainTests,
   ),
   // 7. Aggregates: integer sums, SQL's null and NaN answers
