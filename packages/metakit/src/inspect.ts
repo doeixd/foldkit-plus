@@ -35,6 +35,8 @@ export interface FieldSpec {
   readonly exclusiveMax: Option.Option<number>
   readonly literals: Option.Option<ReadonlyArray<string | number | boolean>>
   readonly domain: Option.Option<DomainMetadata>
+  readonly title: Option.Option<string>
+  readonly description: Option.Option<string>
 }
 
 type Bounds = Pick<FieldSpec, 'min' | 'max' | 'exclusiveMin' | 'exclusiveMax'>
@@ -145,6 +147,20 @@ const kindOf = (ast: SchemaAST.AST): FieldSpec['kind'] => {
   return 'unknown'
 }
 
+const stringAnnotation = (
+  ast: SchemaAST.AST,
+  key: 'title' | 'description',
+): Option.Option<string> => {
+  if (ast.checks !== undefined) {
+    for (let i = ast.checks.length - 1; i >= 0; i--) {
+      const value = ast.checks[i]!.annotations?.[key]
+      if (typeof value === 'string') return Option.some(value)
+    }
+  }
+  const direct = ast.annotations?.[key]
+  return typeof direct === 'string' ? Option.some(direct) : Option.none()
+}
+
 /** A field's spec, the AST left once `null` and `undefined` are taken out, and its path. */
 interface Field {
   readonly spec: FieldSpec
@@ -179,6 +195,10 @@ const readField = (
       ...bounds,
       literals: isEnum ? Option.some(literals) : Option.none(),
       domain: Option.orElse(domainOfAst(ast), () => domainOfAst(inner)),
+      title: Option.orElse(stringAnnotation(ast, 'title'), () => stringAnnotation(inner, 'title')),
+      description: Option.orElse(stringAnnotation(ast, 'description'), () =>
+        stringAnnotation(inner, 'description'),
+      ),
     },
     inner,
     at,
@@ -275,18 +295,25 @@ const fieldJson = (field: Field, rules: ReadonlyArray<Node.Node>): Record<string
   if (Option.isSome(spec.exclusiveMin)) json['exclusiveMinimum'] = spec.exclusiveMin.value
   if (Option.isSome(spec.exclusiveMax)) json['exclusiveMaximum'] = spec.exclusiveMax.value
   if (Option.isSome(spec.domain)) json['x-metakit-domain'] = spec.domain.value
+  if (Option.isSome(spec.title)) json['title'] = spec.title.value
+  if (Option.isSome(spec.description)) json['description'] = spec.description.value
   return json
 }
 
 /**
- * Generate a JSON Schema object enriched with `Expr.refine` bounds and
- * `metakit/domain` metadata (`x-metakit-domain`). Arrays state their item shape
- * and nested structs their properties; `required` lists only keys that may not
- * be left out.
+ * Generate a JSON Schema object enriched with `Expr.refine` bounds,
+ * `title`/`description` annotations, and `metakit/domain` metadata
+ * (`x-metakit-domain`). Arrays state their item shape and nested structs their
+ * properties; `required` lists only keys that may not be left out.
  */
 export const toJsonSchema = <S extends Schema.Top>(
   schema: S,
 ): Readonly<Record<string, unknown>> => {
   const rules = ruleNodes(schema)
-  return objectJson(fieldsOf(schema.ast, rules, []), rules)
+  const json = objectJson(fieldsOf(schema.ast, rules, []), rules)
+  const title = stringAnnotation(schema.ast, 'title')
+  const description = stringAnnotation(schema.ast, 'description')
+  if (Option.isSome(title)) json['title'] = title.value
+  if (Option.isSome(description)) json['description'] = description.value
+  return json
 }

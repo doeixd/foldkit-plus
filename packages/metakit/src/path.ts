@@ -318,6 +318,13 @@ export type EnvOf<Shape extends Readonly<Record<string, Schema.Top>>> = {
   readonly [K in keyof Shape]: Shape[K]['Type']
 }
 
+/**
+ * Constraint for a generic helper that both composes a Schema (`Schema.Struct`,
+ * `Schema.Array`, `Expr.refine`) and decodes it synchronously
+ * (`Schema.decodeUnknownSync`).
+ */
+export type SchemaOf = Schema.Top & Schema.ConstraintDecoder<unknown>
+
 /** Build the proxy record `{ row, principal, ... }` for an `Env` shape. */
 export const forEnv = <Shape extends Readonly<Record<string, Schema.Top>>>(
   shape: Shape,

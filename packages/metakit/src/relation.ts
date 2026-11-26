@@ -22,6 +22,7 @@ import * as Node from './node.js'
 import {
   assertCommutativeMonoid,
   bodyOf,
+  currentEach,
   type CommutativeMonoid,
   type Each,
   type Outside,
@@ -56,11 +57,13 @@ const bodyOver = <Row>(
   relation: Relation<Row>,
   build: (each: Each<Row>) => unknown,
   name: string,
+  each: string,
 ): Node.Node => {
   const body = bodyOf(
     Option.some(relation.row.ast),
     build as (each: Each<unknown>) => unknown,
     name,
+    each,
   )
   const slice = Node.$is('Path')(of) ? of.segments[0] : undefined
   const reads = Option.getOrElse(readsOfNode(body), () => [])
@@ -85,18 +88,20 @@ const related = <Row>(
 ): Node.Node => {
   const row = toNode(of)
   const name = `Relation.${fold}`
+  const each = currentEach()
   loadRows()
   return Node.Rows({
     fold,
     over: Node.RowsOver.Related({ of: row, relation: relation.name }),
     where: Option.map(Option.fromUndefinedOr(parts.test), test =>
-      bodyOver(row, relation, test, name),
+      bodyOver(row, relation, test, name, each),
     ),
     value: Option.map(Option.fromUndefinedOr(parts.value), value =>
-      bodyOver(row, relation, value, name),
+      bodyOver(row, relation, value, name, each),
     ),
     set: [],
     ...(parts.op === undefined ? {} : { op: parts.op }),
+    ...(each === Node.EACH ? {} : { each }),
   })
 }
 

@@ -158,13 +158,108 @@ describe('a fold over a list, evaluated', () => {
     ).toBe('unportable')
   })
 
-  it('a body holds no second Rows and no opaque term', () => {
-    expect(() =>
-      Arr.any(state.items, each => Arr.any(state.items, other => Eq.is(other.id, each.id))),
-    ).toThrow('no second Rows')
+  it('refuses an opaque term in a body, including inside a nested fold', () => {
     expect(() =>
       Arr.any(state.items, () => Expr.opaque({ name: 'secret', reads: [] }, () => true)),
     ).toThrow('no opaque term')
+    expect(() =>
+      Arr.any(state.items, () =>
+        Arr.any(state.items, () => Expr.opaque({ name: 'inner', reads: [] }, () => true)),
+      ),
+    ).toThrow('no opaque term')
+  })
+
+  it('supports nested list folds for cross-list rules, self-uniqueness, and nested arrays', () => {
+    const Catalog = Schema.Struct({
+      eras: Schema.Array(Schema.Struct({ ordinal: Schema.Int })),
+      research: Schema.Array(Schema.Struct({ id: Schema.String, era: Schema.Int })),
+    }).pipe(
+      Expr.refine($ =>
+        Arr.every($.research, row => Arr.any($.eras, era => Eq.is(row.era, era.ordinal))),
+      ),
+      Expr.refine($ =>
+        Arr.every($.research, row =>
+          Eq.is(
+            Arr.count($.research, other => Eq.is(other.id, row.id)),
+            1,
+          ),
+        ),
+      ),
+    )
+
+    const valid = {
+      eras: [{ ordinal: 1 }, { ordinal: 2 }],
+      research: [
+        { id: 'r1', era: 1 },
+        { id: 'r2', era: 2 },
+      ],
+    }
+    expect(Schema.decodeUnknownSync(Catalog)(valid)).toEqual(valid)
+
+    // Missing era fails cross-list rule
+    expect(() =>
+      Schema.decodeUnknownSync(Catalog)({
+        eras: [{ ordinal: 1 }],
+        research: [{ id: 'r1', era: 2 }],
+      }),
+    ).toThrow()
+
+    // Duplicate id fails uniqueness rule
+    expect(() =>
+      Schema.decodeUnknownSync(Catalog)({
+        eras: [{ ordinal: 1 }],
+        research: [
+          { id: 'r1', era: 1 },
+          { id: 'r1', era: 1 },
+        ],
+      }),
+    ).toThrow()
+
+    const [crossList, unique] = Expr.refinementsOf(Catalog)
+    expect(Expr.reads(crossList!)).toEqual(
+      Option.some([
+        ['research', '*', 'era'],
+        ['eras', '*', 'ordinal'],
+      ]),
+    )
+    expect(Expr.reads(unique!)).toEqual(Option.some([['research', '*', 'id']]))
+
+    // Partial evaluation & judge over nested folds
+    expect(Verdict.isTrue(Expr.judge(crossList!, valid))).toBe(true)
+    expect(
+      Verdict.isFalse(
+        Expr.judge(crossList!, { eras: [{ ordinal: 1 }], research: [{ id: 'r1', era: 2 }] }),
+      ),
+    ).toBe(true)
+    expect(Verdict.isUnknown(Expr.judge(crossList!, { research: [{ id: 'r1', era: 1 }] }))).toBe(
+      true,
+    )
+    const partial = Expr.residualize(crossList!, { eras: [{ ordinal: 1 }] })
+    expect(Expr.holds(partial, valid)).toBe(false)
+    expect(Expr.holds(partial, { eras: [{ ordinal: 1 }], research: [{ id: 'r1', era: 1 }] })).toBe(
+      true,
+    )
+
+    // Nested array-of-arrays: inner source reads outer element
+    const Groups = Schema.Struct({
+      groups: Schema.Array(
+        Schema.Struct({
+          items: Schema.Array(Schema.Struct({ n: Schema.Int })),
+        }),
+      ),
+    }).pipe(Expr.refine($ => Arr.every($.groups, g => Arr.every(g.items, i => Ord.gt(i.n, 0)))))
+    const [nestedRule] = Expr.refinementsOf(Groups)
+    expect(Expr.reads(nestedRule!)).toEqual(Option.some([['groups', '*', 'items', '*', 'n']]))
+    expect(Expr.holds(nestedRule!, { groups: [{ items: [{ n: 1 }, { n: 2 }] }] })).toBe(true)
+    expect(Expr.holds(nestedRule!, { groups: [{ items: [{ n: 1 }, { n: 0 }] }] })).toBe(false)
+
+    // Lifting a nested fold prefixes only unbound paths, never outer/inner `each`
+    const lifted = Expr.lift(
+      Path.field<{ readonly wrap: typeof Groups.Type }, 'wrap'>('wrap'),
+      nestedRule!,
+    )
+    expect(Expr.reads(lifted)).toEqual(Option.some([['wrap', 'groups', '*', 'items', '*', 'n']]))
+    expect(Expr.holds(lifted, { wrap: { groups: [{ items: [{ n: 3 }] }] } })).toBe(true)
   })
 })
 

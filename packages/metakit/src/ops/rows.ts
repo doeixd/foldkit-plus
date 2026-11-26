@@ -17,10 +17,14 @@ import { readable } from '../path.js'
 import { applyForeign, type ForeignImplementations } from './eval.js'
 
 /** The environment a body reads for one element: `env` with the element under `each`. */
-export const withEach = (env: unknown, element: unknown): Readonly<Record<string, unknown>> =>
+export const withEach = (
+  env: unknown,
+  element: unknown,
+  each: string = Node.EACH,
+): Readonly<Record<string, unknown>> =>
   env !== null && typeof env === 'object' && !Array.isArray(env)
-    ? { ...(env as Record<string, unknown>), [Node.EACH]: element }
-    : { [Node.EACH]: element }
+    ? { ...(env as Record<string, unknown>), [each]: element }
+    : { [each]: element }
 
 /** The elements a `Rows` node folds, read from its source, or the value it gives without them. */
 export type Elements = Data.TaggedEnum<{
@@ -267,11 +271,12 @@ export const answersBy = (
   env: unknown,
   run: (node: Node.Node, env: unknown) => unknown,
 ): Answers => {
+  const each = Node.rowsEach(rows)
   const envs = new Map<number, unknown>()
   const envOf = (index: number): unknown => {
     let known = envs.get(index)
     if (known === undefined) {
-      known = withEach(env, elements[index])
+      known = withEach(env, elements[index], each)
       envs.set(index, known)
     }
     return known

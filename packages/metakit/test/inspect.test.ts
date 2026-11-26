@@ -1,5 +1,6 @@
 import { Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
+import { Expr, Num, Str } from 'metakit'
 import { CalendarDay } from 'metakit/domain'
 import * as Inspect from 'metakit/inspect'
 
@@ -98,5 +99,54 @@ describe('Inspect.toJsonSchema', () => {
     expect(Inspect.toJsonSchema(Booking)).toEqual(
       object({ day: { type: 'integer', 'x-metakit-domain': { kind: 'calendarDay' } } }, ['day']),
     )
+  })
+
+  it('carries title and description into FieldSpec and JSON Schema across shapes and refine orders', () => {
+    const Before = Schema.String.annotate({ title: 'Name', description: 'Display name' }).pipe(
+      Expr.refine($ => Num.gt(Str.len($), 0)),
+    )
+    const After = Schema.String.pipe(
+      Expr.refine($ => Num.gt(Str.len($), 0)),
+      Schema.annotate({ title: 'Code', description: 'Short code' }),
+    )
+    const Item = Schema.Struct({
+      before: Before,
+      after: After,
+      note: Schema.optional(Schema.String.annotate({ title: 'Note' })),
+      tags: Schema.Array(Schema.String.annotate({ title: 'Tag' })).annotate({
+        title: 'Tags',
+        description: 'Labels',
+      }),
+      plain: Schema.Number,
+    }).annotate({ title: 'Item', description: 'One catalog item' })
+
+    const specs = Inspect.fieldSpecs(Item)
+    expect(specs.map(s => [s.name, s.title, s.description])).toEqual([
+      ['before', Option.some('Name'), Option.some('Display name')],
+      ['after', Option.some('Code'), Option.some('Short code')],
+      ['note', Option.some('Note'), Option.none()],
+      ['tags', Option.some('Tags'), Option.some('Labels')],
+      ['plain', Option.none(), Option.none()],
+    ])
+
+    expect(Inspect.toJsonSchema(Item)).toEqual({
+      ...object(
+        {
+          before: { type: 'string', title: 'Name', description: 'Display name' },
+          after: { type: 'string', title: 'Code', description: 'Short code' },
+          note: { type: 'string', title: 'Note' },
+          tags: {
+            type: 'array',
+            title: 'Tags',
+            description: 'Labels',
+            items: { type: 'string', title: 'Tag' },
+          },
+          plain: { type: 'number' },
+        },
+        ['before', 'after', 'tags', 'plain'],
+      ),
+      title: 'Item',
+      description: 'One catalog item',
+    })
   })
 })

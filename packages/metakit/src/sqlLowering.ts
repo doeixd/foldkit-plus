@@ -616,7 +616,8 @@ export const lowerNode = (
             return Result.map(rest, e => q`(CASE ${target} ${joined(arms, ' ')}${e} END)`)
           }),
         Opaque: ({ name }) => unsupported(`cannot lower opaque term "${name}" to SQL`),
-        Rows: rows => lowerRows(rows, options),
+        Rows: rows =>
+          inBody ? unsupported('nested rows are not lowered to SQL') : lowerRows(rows, options),
       }),
   }
   return ctx.lower(node)

@@ -4,11 +4,8 @@
  * the columns it sets and its guard.
  */
 import { Option, Result, Schema } from 'effect'
-import { collectFields, pathKey, type FieldInfo } from './abstract/fields.js'
 import * as Expr from './expr.js'
-import * as Node from './node.js'
-import * as Bool from './ops/bool.js'
-import * as Null from './ops/null.js'
+import type * as Node from './node.js'
 import { residualizeNode } from './ops/residualize.js'
 import {
   lowerNode,
@@ -29,25 +26,9 @@ const text = (sql: string): SqlPiece => SqlPiece.Text({ text: sql })
  * refuses the value.
  */
 export const lowerCheck = (schema: Schema.Top, dialect: SqlDialect): Lowered => {
-  const fields = new Map<string, FieldInfo>()
-  collectFields(schema.ast, [], fields)
   const rules: Array<Sql> = []
   for (const rule of Expr.rulesOf(schema)) {
-    const info = rule.at.length > 0 ? fields.get(pathKey(rule.at)) : undefined
-    const guarded =
-      info !== undefined && info.optional
-        ? Node.Call({
-            op: Bool.orOp,
-            args: [
-              Node.Call({
-                op: Null.isNullOp,
-                args: [Node.Path({ segments: rule.at, ast: Option.none() })],
-              }),
-              rule.expr.node,
-            ],
-          })
-        : rule.expr.node
-    const lowered = lowerNode(guarded, { dialect, rowPrefix: [] })
+    const lowered = lowerNode(rule.expr.node, { dialect, rowPrefix: [] })
     if (Result.isFailure(lowered)) return lowered
     rules.push(lowered.success)
   }

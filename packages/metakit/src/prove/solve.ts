@@ -1,10 +1,7 @@
 import { Context, Data, Effect, Layer, Option, Semaphore, type Scope } from 'effect'
 import type { Solver as Z3Solver } from 'z3-solver'
-import { collectFields, pathKey, type FieldInfo } from '../abstract/fields.js'
 import * as Expr from '../expr.js'
 import * as Node from '../node.js'
-import * as Bool from '../ops/bool.js'
-import * as Null from '../ops/null.js'
 import type { Slice } from '../abstract/unordered.js'
 import type { ProveOptions } from '../prove.js'
 import * as Verdict from '../verdict.js'
@@ -220,21 +217,9 @@ export const refute = (
 > =>
   Effect.gen(function* () {
     const backend = yield* Solver
-    const rules = slices.flatMap(([under, schema]) => {
-      const fields = new Map<string, FieldInfo>()
-      collectFields(schema.ast, under, fields)
-      return Expr.rulesOf(schema).map(rule => {
-        const node = Node.prefix(rule.expr.node, under)
-        const at = [...under, ...rule.at]
-        const info = rule.at.length > 0 ? fields.get(pathKey(at)) : undefined
-        if (info === undefined || !info.optional) return node
-        const absent = Node.Call({
-          op: Null.isNullOp,
-          args: [Node.Path({ segments: at, ast: Option.none() })],
-        })
-        return Node.Call({ op: Bool.orOp, args: [absent, node] })
-      })
-    })
+    const rules = slices.flatMap(([under, schema]) =>
+      Expr.rulesOf(schema).map(rule => Node.prefix(rule.expr.node, under)),
+    )
     const solved = yield* Effect.scoped(
       backend.solve({
         slices,

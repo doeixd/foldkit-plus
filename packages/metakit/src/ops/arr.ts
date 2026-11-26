@@ -324,20 +324,32 @@ export const elementAst = (list: Node.Node): Option.Option<SchemaAST.AST> => {
     : Option.none()
 }
 
+let bodyDepth = 0
+
+/** The slice name for a `Rows` body at the current nesting depth (`each`, `each#1`, …). */
+export const currentEach = (): string => (bodyDepth === 0 ? Node.EACH : `${Node.EACH}#${bodyDepth}`)
+
 /**
  * A body built from `build`, called once with a path for an element whose
- * Schema is `element`. A body holds no second `Rows` and no opaque term in
- * this phase, so every reader sees all it asks.
+ * Schema is `element`. A body holds no opaque term, so every reader sees all
+ * it asks. Nested list folds bind their elements under distinct slices
+ * (`each`, `each#1`, …) so outer and inner elements do not collide.
  */
 export const bodyOf = (
   element: Option.Option<SchemaAST.AST>,
   build: (each: Each<unknown>) => unknown,
   name: string,
+  each: string = Node.EACH,
 ): Node.Node => {
-  return checkBody(toNode(build(Path.accessor([Node.EACH], element))), name)
+  bodyDepth += 1
+  try {
+    return checkBody(toNode(build(Path.accessor([each], element))), name)
+  } finally {
+    bodyDepth -= 1
+  }
 }
 
-/** `node`, refused where it holds a second `Rows` or an opaque term, which no body may in this phase. */
+/** `node`, refused where it holds an opaque term, which no body may. */
 export const checkBody = (node: Node.Node, name: string): Node.Node => {
   const refuse = (current: Node.Node): void =>
     Node.$match(current, {
@@ -352,8 +364,9 @@ export const checkBody = (node: Node.Node, name: string): Node.Node => {
           `[metakit] ${name}: a body holds no opaque term ("${opaque}"), which no reader could see`,
         )
       },
-      Rows: () => {
-        throw new Error(`[metakit] ${name}: a body holds no second Rows in this phase`)
+      Rows: rows => {
+        refuse(Node.rowsSource(rows.over))
+        for (const part of Node.rowsBody(rows)) refuse(part)
       },
     })
   refuse(node)
@@ -369,6 +382,7 @@ export const rowsOver = (
     readonly value?: Node.Node
     readonly set?: ReadonlyArray<readonly [string, Node.Node]>
     readonly op?: Node.ForeignOp
+    readonly each?: string
   },
 ): Node.Node => {
   loadRowsEvaluation()
@@ -379,6 +393,7 @@ export const rowsOver = (
     value: Option.fromUndefinedOr(body.value),
     set: body.set ?? [],
     ...(body.op === undefined ? {} : { op: body.op }),
+    ...(body.each === undefined || body.each === Node.EACH ? {} : { each: body.each }),
   })
 }
 
@@ -394,9 +409,11 @@ const fold =
     const source = toNode(list)
     const element = elementAst(source)
     const name = `Arr.${kind}`
+    const each = currentEach()
     return rowsOver(kind, source, {
-      ...(parts.test === undefined ? {} : { where: bodyOf(element, parts.test, name) }),
-      ...(parts.value === undefined ? {} : { value: bodyOf(element, parts.value, name) }),
+      each,
+      ...(parts.test === undefined ? {} : { where: bodyOf(element, parts.test, name, each) }),
+      ...(parts.value === undefined ? {} : { value: bodyOf(element, parts.value, name, each) }),
     })
   }
 
@@ -510,11 +527,13 @@ export const reduce = <
   assertCommutativeMonoid(op.descriptor, 'Arr.reduce')
   const source = toNode(list)
   const element = elementAst(source)
+  const each = currentEach()
   return wrap(
     rowsOver('reduce', source, {
       op: op.descriptor,
-      value: bodyOf(element, value as Body, 'Arr.reduce'),
-      ...(test === undefined ? {} : { where: bodyOf(element, test as Body, 'Arr.reduce') }),
+      each,
+      value: bodyOf(element, value as Body, 'Arr.reduce', each),
+      ...(test === undefined ? {} : { where: bodyOf(element, test as Body, 'Arr.reduce', each) }),
     }),
   )
 }

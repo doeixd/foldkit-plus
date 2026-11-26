@@ -24,6 +24,7 @@ import {
 } from './ops/core.js'
 import { evalNode, type ForeignImplementations } from './ops/eval.js'
 import { present } from './ops/kind.js'
+import { isNullOp } from './ops/null.js'
 import { gtOp, gteOp, ltOp, lteOp } from './ops/ord.js'
 import { readsOfNode } from './ops/reads.js'
 import { judgeNode } from './ops/judge.js'
@@ -296,9 +297,10 @@ export interface Refinement<A> {
  * Read every rule attached to `schema`, with where it sits and its message:
  * each `Expr.refine` and each built-in Effect numeric bound (`isGreaterThan`,
  * `isGreaterThanOrEqualTo`, `isLessThan`, `isLessThanOrEqualTo`, and
- * `isBetween`, which gives one rule per side), on the schema itself and on
- * nested struct properties. A check on a union member (`Schema.optional`,
- * `Schema.NullOr`) is not read.
+ * `isBetween`, which gives one rule per side), on the schema itself, on
+ * nested struct properties, and under `Schema.optional`, `Schema.optionalKey`,
+ * and `Schema.NullOr` (guarded with `Null.isNull(at) || rule` so absent or
+ * null values pass). Checks on multi-branch non-nullish unions are not read.
  */
 export const rulesOf = <S extends Schema.Top>(schema: S): ReadonlyArray<Refinement<S['Type']>> =>
   collectAstRefinements(schema.ast, []).map(rule => ({
@@ -374,6 +376,31 @@ const collectChecks = (
   }
 }
 
+const isGuardedAt = (node: Node.Node, at: ReadonlyArray<string>): boolean => {
+  if (!Node.$is('Call')(node) || node.op.id !== 'bool.or' || node.args.length !== 2) return false
+  const left = node.args[0]!
+  if (!Node.$is('Call')(left) || left.op.id !== 'null.isNull' || left.args.length !== 1) {
+    return false
+  }
+  const target = left.args[0]!
+  return (
+    Node.$is('Path')(target) &&
+    target.segments.length === at.length &&
+    target.segments.every((seg, i) => seg === at[i])
+  )
+}
+
+const guardNullable = (node: Node.Node, at: ReadonlyArray<string>): Node.Node =>
+  isGuardedAt(node, at)
+    ? node
+    : Node.Call({
+        op: Bool.orOp,
+        args: [
+          Node.Call({ op: isNullOp, args: [Node.Path({ segments: at, ast: Option.none() })] }),
+          node,
+        ],
+      })
+
 const collectAstRefinements = (
   ast: SchemaAST.AST,
   at: ReadonlyArray<string>,
@@ -382,7 +409,27 @@ const collectAstRefinements = (
   if (SchemaAST.isObjects(ast)) {
     for (const prop of ast.propertySignatures) {
       if (typeof prop.name === 'string') {
-        out.push(...collectAstRefinements(prop.type, [...at, prop.name]))
+        const childAt = [...at, prop.name]
+        const isOptionalKey = SchemaAST.isOptional(prop.type)
+        for (const rule of collectAstRefinements(prop.type, childAt)) {
+          out.push(
+            isOptionalKey
+              ? { at: rule.at, node: guardNullable(rule.node, childAt), message: rule.message }
+              : rule,
+          )
+        }
+      }
+    }
+  } else if (SchemaAST.isUnion(ast)) {
+    const nullish = ast.types.filter(t => SchemaAST.isNull(t) || SchemaAST.isUndefined(t))
+    const presentMembers = ast.types.filter(t => !SchemaAST.isNull(t) && !SchemaAST.isUndefined(t))
+    if (nullish.length > 0 && presentMembers.length === 1) {
+      for (const rule of collectAstRefinements(presentMembers[0]!, at)) {
+        out.push({
+          at: rule.at,
+          node: guardNullable(rule.node, at),
+          message: rule.message,
+        })
       }
     }
   }

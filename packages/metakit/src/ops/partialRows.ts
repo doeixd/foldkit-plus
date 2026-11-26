@@ -20,9 +20,9 @@ export interface RowsReader<T> {
 }
 
 /** `env` without a value under `each`, which inside a body is the body's element. */
-const withoutEach = (env: unknown): unknown => {
-  if (env === null || typeof env !== 'object' || !Object.hasOwn(env, Node.EACH)) return env
-  const { [Node.EACH]: _, ...rest } = env as Record<string, unknown>
+const withoutEach = (env: unknown, each: string): unknown => {
+  if (env === null || typeof env !== 'object' || !Object.hasOwn(env, each)) return env
+  const { [each]: _, ...rest } = env as Record<string, unknown>
   return rest
 }
 
@@ -66,8 +66,9 @@ export const partialRows = <T>(
   lookup: (segments: ReadonlyArray<string>) => Option.Option<unknown>,
   foreign?: ForeignImplementations,
 ): T => {
+  const each = Node.rowsEach(rows)
   const source = reader.judge(Node.rowsSource(rows.over), partialEnv)
-  const outer = withoutEach(partialEnv)
+  const outer = withoutEach(partialEnv, each)
   const kept = (): T => reader.kept(rows, source, outer)
   const sourceValue = reader.known(source)
   const held: Option.Option<Elements> = Option.isSome(sourceValue)
@@ -88,7 +89,7 @@ export const partialRows = <T>(
   if (Elements.$is('Absent')(held.value)) return kept()
   const { elements, whole } = held.value
   const answer = (node: Node.Node, index: number): T =>
-    reader.judge(node, withEach(outer, elements[index]))
+    reader.judge(node, withEach(outer, elements[index], each))
   const tests = Option.match(rows.where, {
     onNone: () => elements.map(() => reader.value(true)),
     onSome: where => elements.map((_, index) => answer(where, index)),

@@ -13,9 +13,7 @@
 import { Option, Schema } from 'effect'
 import * as Expr from '../expr.js'
 import * as Node from '../node.js'
-import * as Bool from '../ops/bool.js'
 import type { ForeignImplementations } from '../ops/eval.js'
-import * as Null from '../ops/null.js'
 import * as Path from '../path.js'
 import type { Transition, TransitionEnv } from '../transition.js'
 import * as Verdict from '../verdict.js'
@@ -67,26 +65,9 @@ const afterWrites = (node: Node.Node, writes: ReadonlyArray<Write>): Node.Node =
     return Option.none()
   })
 
-/**
- * The rules of `schema`, read under `under`. A rule on a field that may be
- * absent says nothing where it is: it is the rule, or the field is null.
- */
-const rulesUnder = (
-  schema: Schema.Top,
-  under: ReadonlyArray<string>,
-  fields: ReadonlyMap<string, FieldInfo>,
-): ReadonlyArray<Node.Node> =>
-  Expr.rulesOf(schema).map(rule => {
-    const node = Node.prefix(rule.expr.node, under)
-    const at = [...under, ...rule.at]
-    const info = rule.at.length > 0 ? fields.get(pathKey(at)) : undefined
-    if (info === undefined || !info.optional) return node
-    const absent = Node.Call({
-      op: Null.isNullOp,
-      args: [Node.Path({ segments: at, ast: Option.none() })],
-    })
-    return Node.Call({ op: Bool.orOp, args: [absent, node] })
-  })
+/** The rules of `schema`, read under `under`. */
+const rulesUnder = (schema: Schema.Top, under: ReadonlyArray<string>): ReadonlyArray<Node.Node> =>
+  Expr.rulesOf(schema).map(rule => Node.prefix(rule.expr.node, under))
 
 /** Tier 3 synchronous check: does `schema` entail `goal`? */
 export const checkInvariant = <S extends Schema.Top>(
@@ -96,7 +77,7 @@ export const checkInvariant = <S extends Schema.Top>(
 ): Verdict.Verdict<never> => {
   const fields = new Map<string, FieldInfo>()
   collectFields(schema.ast, [], fields)
-  const invariants = rulesUnder(schema, [], fields).map(normalize)
+  const invariants = rulesUnder(schema, []).map(normalize)
   const target = normalize(goal.node)
   const state = new AbstractState([...invariants, target], fields, undefined, options?.foreign)
   for (const inv of invariants) state.assume(inv)
@@ -122,7 +103,7 @@ const stepState = <S extends Schema.Top, I, Emit, Sup>(
 ) => {
   const fields = new Map<string, FieldInfo>()
   collectFields(stateSchema.ast, ['state'], fields)
-  const preInvariants = rulesUnder(stateSchema, ['state'], fields)
+  const preInvariants = rulesUnder(stateSchema, ['state'])
 
   const otherInvariants: Array<Node.Node> = []
   const slices: ReadonlyArray<readonly [string, Option.Option<Schema.Top>]> = [
@@ -132,7 +113,7 @@ const stepState = <S extends Schema.Top, I, Emit, Sup>(
   for (const [slice, schema] of slices) {
     if (Option.isNone(schema)) continue
     collectFields(schema.value.ast, [slice], fields)
-    otherInvariants.push(...rulesUnder(schema.value, [slice], fields))
+    otherInvariants.push(...rulesUnder(schema.value, [slice]))
   }
 
   const writes: ReadonlyArray<Write> = transition.writes.map(eq => ({

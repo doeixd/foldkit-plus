@@ -55,7 +55,9 @@ export const readsOfNode = (
         visit(Node.rowsSource(rows.over), segments => source.push(segments))
         const body: Array<ReadonlyArray<string>> = []
         for (const each of Node.rowsBody(rows)) visit(each, segments => body.push(segments))
-        for (const segments of readsOfRows(rows.over, source, body)) read(segments)
+        for (const segments of readsOfRows(rows.over, source, body, Node.rowsEach(rows))) {
+          read(segments)
+        }
       },
     })
   }
@@ -74,6 +76,7 @@ export const readsOfRows = (
   over: Node.RowsOver,
   source: ReadonlyArray<ReadonlyArray<string>>,
   body: ReadonlyArray<ReadonlyArray<string>>,
+  each: string = Node.EACH,
 ): ReadonlyArray<ReadonlyArray<string>> => {
   const bases = source.map(segments =>
     Node.RowsOver.$match(over, {
@@ -81,12 +84,11 @@ export const readsOfRows = (
       Related: ({ relation }) => [...segments, Node.relatedSegment(relation)],
     }),
   )
+  const isOwn = (segments: ReadonlyArray<string>): boolean => Node.readsEach(segments, each)
   return [
     ...body.flatMap(segments =>
-      Node.readsEach(segments)
-        ? bases.map(base => [...base, '*', ...segments.slice(1)])
-        : [segments],
+      isOwn(segments) ? bases.map(base => [...base, '*', ...segments.slice(1)]) : [segments],
     ),
-    ...(body.some(Node.readsEach) ? [] : bases),
+    ...(body.some(isOwn) ? [] : bases),
   ]
 }

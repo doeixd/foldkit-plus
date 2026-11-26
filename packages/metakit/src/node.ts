@@ -397,6 +397,8 @@ export interface Rows {
   readonly set: ReadonlyArray<readonly [field: string, value: Node]>
   /** The custom operation a `reduce` fold combines its elements' values with. */
   readonly op?: ForeignOp | undefined
+  /** The slice this fold binds its element under (defaults to `EACH`). */
+  readonly each?: string | undefined
 }
 
 export type Node = Lit | PathNode | Call | If | Match | Opaque | Rows
@@ -423,6 +425,7 @@ export const mapRows = (
     value: Option.map(rows.value, body),
     set: rows.set.map(([field, value]) => [field, body(value)] as const),
     ...(rows.op === undefined ? {} : { op: rows.op }),
+    ...(rows.each === undefined ? {} : { each: rows.each }),
   })
 
 /** The nodes of a `Rows` body: its test, its value and what `set` writes. */
@@ -432,8 +435,12 @@ export const rowsBody = (rows: Rows): ReadonlyArray<Node> => [
   ...rows.set.map(([, value]) => value),
 ]
 
-/** Whether `segments` reads the element of a `Rows` body. */
-export const readsEach = (segments: ReadonlyArray<string>): boolean => segments[0] === EACH
+/** The slice `rows` binds its element under (`rows.each ?? EACH`). */
+export const rowsEach = (rows: Rows): string => rows.each ?? EACH
+
+/** Whether `segments` reads the element bound under `each` (default `EACH`). */
+export const readsEach = (segments: ReadonlyArray<string>, each: string = EACH): boolean =>
+  segments[0] === each
 
 const identities = new WeakMap<object, number>()
 const symbols = new Map<symbol, number>()
@@ -508,98 +515,100 @@ export const key = (node: Node): string =>
       })};${Option.match(rows.where, { onNone: () => '', onSome: key })};${Option.match(
         rows.value,
         { onNone: () => '', onSome: key },
-      )};${rows.set.map(([field, value]) => `${JSON.stringify(field)}:${key(value)}`).join(',')}${rows.op === undefined ? '' : `;${foreignName(rows.op)}`})`,
+      )};${rows.set.map(([field, value]) => `${JSON.stringify(field)}:${key(value)}`).join(',')}${rows.op === undefined ? '' : `;${foreignName(rows.op)}`}${rows.each === undefined ? '' : `;@${rows.each}`})`,
   })
 
-/**
- * A body with every path that does not read its element prefixed: the body
- * holds no opaque term (the constructors refuse one), so its paths are all it
- * reads.
- */
-const prefixBody = (body: Node, segments: ReadonlyArray<string>): Node =>
-  mapPaths(body, path =>
-    readsEach(path.segments)
-      ? path
-      : Path({ segments: [...segments, ...path.segments], ast: path.ast }),
-  )
-
-/** Prefix every `Path` (and `Opaque` read/env) inside `node` with `segments`. */
+/** Prefix every unbound `Path` (and `Opaque` read/env) inside `node` with `segments`. */
 export const prefix = (node: Node, segments: ReadonlyArray<string>): Node => {
   if (segments.length === 0) return node
-  return $match(node, {
-    Lit: lit => lit,
-    Rows: rows =>
-      mapRows(
-        rows,
-        source => prefix(source, segments),
-        body => prefixBody(body, segments),
-      ),
-    Path: ({ segments: inner, ast }) => Path({ segments: [...segments, ...inner], ast }),
-    Call: ({ op, args }) => Call({ op, args: args.map(a => prefix(a, segments)) }),
-    If: ({ cond, then, otherwise }) =>
-      If({
-        cond: prefix(cond, segments),
-        then: prefix(then, segments),
-        otherwise: prefix(otherwise, segments),
-      }),
-    Match: ({ on, cases, otherwise }) =>
-      Match({
-        on: prefix(on, segments),
-        cases: cases.map(([v, b]) => [v, prefix(b, segments)] as const),
-        otherwise: Option.map(otherwise, b => prefix(b, segments)),
-      }),
-    Opaque: ({ name, reads, run }) =>
-      Opaque({
-        name,
-        reads: Option.map(reads, list => list.map(s => [...segments, ...s])),
-        run: env => {
-          let sub: unknown = env
-          for (const seg of segments) {
-            if (
-              sub === null ||
-              sub === undefined ||
-              typeof sub !== 'object' ||
-              !Object.hasOwn(sub, seg)
-            ) {
-              return undefined
+  const visit = (current: Node, bound: ReadonlySet<string>): Node =>
+    $match(current, {
+      Lit: lit => lit,
+      Rows: rows => {
+        const innerBound = new Set(bound)
+        innerBound.add(rowsEach(rows))
+        return mapRows(
+          rows,
+          source => visit(source, bound),
+          body => visit(body, innerBound),
+        )
+      },
+      Path: path =>
+        path.segments.length > 0 && bound.has(path.segments[0]!)
+          ? path
+          : Path({ segments: [...segments, ...path.segments], ast: path.ast }),
+      Call: ({ op, args }) => Call({ op, args: args.map(a => visit(a, bound)) }),
+      If: ({ cond, then, otherwise }) =>
+        If({
+          cond: visit(cond, bound),
+          then: visit(then, bound),
+          otherwise: visit(otherwise, bound),
+        }),
+      Match: ({ on, cases, otherwise }) =>
+        Match({
+          on: visit(on, bound),
+          cases: cases.map(([v, b]) => [v, visit(b, bound)] as const),
+          otherwise: Option.map(otherwise, b => visit(b, bound)),
+        }),
+      Opaque: ({ name, reads, run }) =>
+        Opaque({
+          name,
+          reads: Option.map(reads, list => list.map(s => [...segments, ...s])),
+          run: env => {
+            let sub: unknown = env
+            for (const seg of segments) {
+              if (
+                sub === null ||
+                sub === undefined ||
+                typeof sub !== 'object' ||
+                !Object.hasOwn(sub, seg)
+              ) {
+                return undefined
+              }
+              sub = (sub as Record<string, unknown>)[seg]
             }
-            sub = (sub as Record<string, unknown>)[seg]
-          }
-          return run(sub)
-        },
-      }),
-  })
+            return run(sub)
+          },
+        }),
+    })
+  return visit(node, new Set())
 }
 
 /**
  * Every `Path` node in `node` passed through `path`. Inside a `Rows` body a
- * path that reads the body's element is bound there and is left as it is.
+ * path that reads a bound element slice is left as it is.
  */
-export const mapPaths = (node: Node, path: (node: PathNode) => Node): Node =>
-  $match(node, {
-    Lit: lit => lit,
-    Path: path,
-    Call: ({ op, args }) => Call({ op, args: args.map(a => mapPaths(a, path)) }),
-    If: ({ cond, then, otherwise }) =>
-      If({
-        cond: mapPaths(cond, path),
-        then: mapPaths(then, path),
-        otherwise: mapPaths(otherwise, path),
-      }),
-    Match: ({ on, cases, otherwise }) =>
-      Match({
-        on: mapPaths(on, path),
-        cases: cases.map(([v, b]) => [v, mapPaths(b, path)] as const),
-        otherwise: Option.map(otherwise, b => mapPaths(b, path)),
-      }),
-    Opaque: o => o,
-    Rows: rows =>
-      mapRows(
-        rows,
-        source => mapPaths(source, path),
-        body => mapPaths(body, inner => (readsEach(inner.segments) ? inner : path(inner))),
-      ),
-  })
+export const mapPaths = (node: Node, path: (node: PathNode) => Node): Node => {
+  const visit = (current: Node, bound: ReadonlySet<string>): Node =>
+    $match(current, {
+      Lit: lit => lit,
+      Path: p => (p.segments.length > 0 && bound.has(p.segments[0]!) ? p : path(p)),
+      Call: ({ op, args }) => Call({ op, args: args.map(a => visit(a, bound)) }),
+      If: ({ cond, then, otherwise }) =>
+        If({
+          cond: visit(cond, bound),
+          then: visit(then, bound),
+          otherwise: visit(otherwise, bound),
+        }),
+      Match: ({ on, cases, otherwise }) =>
+        Match({
+          on: visit(on, bound),
+          cases: cases.map(([v, b]) => [v, visit(b, bound)] as const),
+          otherwise: Option.map(otherwise, b => visit(b, bound)),
+        }),
+      Opaque: o => o,
+      Rows: rows => {
+        const innerBound = new Set(bound)
+        innerBound.add(rowsEach(rows))
+        return mapRows(
+          rows,
+          source => visit(source, bound),
+          body => visit(body, innerBound),
+        )
+      },
+    })
+  return visit(node, new Set())
+}
 
 /** Substitute matching `Path` nodes using `replace`. */
 export const substitutePaths = (

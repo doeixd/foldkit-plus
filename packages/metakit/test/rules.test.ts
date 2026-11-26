@@ -1,6 +1,7 @@
-import { Option, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Expr, Num } from 'metakit'
+import { Abstract, Expr, Null, Num, Path, Str, Verdict } from 'metakit'
+import * as Sql from 'metakit/sql'
 
 const shown = (schema: Schema.Top) =>
   Expr.rulesOf(schema).map(rule => ({
@@ -63,12 +64,72 @@ describe('Expr.rulesOf', () => {
     ])
   })
 
-  it('does not read a check on a nullable or optional property', () => {
+  it('reads checks under NullOr, optional, and optionalKey guarded by null.isNull', () => {
+    const NonEmpty = Schema.String.pipe(
+      Expr.refine($ => Num.gt(Str.len($), 0), { message: 'non-empty' }),
+    )
     const Row = Schema.Struct({
       a: Schema.NullOr(Schema.Number.check(Schema.isGreaterThan(0))),
-      b: Schema.optional(Schema.Number.check(Schema.isGreaterThan(0))),
+      b: Schema.optional(NonEmpty),
+      c: Schema.optionalKey(NonEmpty),
+      d: Schema.optional(Schema.NullOr(NonEmpty)),
+      multi: Schema.Union([NonEmpty, Schema.Number]),
     })
-    expect(Expr.rulesOf(Row)).toEqual([])
+    expect(shown(Row)).toEqual([
+      { at: ['a'], expr: '(null.isNull(a) || (a > 0))', message: Option.none() },
+      {
+        at: ['b'],
+        expr: '(null.isNull(b) || (str.len(b) > 0))',
+        message: Option.some('non-empty'),
+      },
+      {
+        at: ['c'],
+        expr: '(null.isNull(c) || (str.len(c) > 0))',
+        message: Option.some('non-empty'),
+      },
+      {
+        at: ['d'],
+        expr: '(null.isNull(d) || (str.len(d) > 0))',
+        message: Option.some('non-empty'),
+      },
+    ])
+
+    const rules = Expr.rulesOf(Row)
+    expect(Expr.holds(rules[0]!.expr, { a: null, multi: 0 })).toBe(true)
+    expect(Expr.holds(rules[0]!.expr, { a: 1, multi: 0 })).toBe(true)
+    expect(Expr.holds(rules[0]!.expr, { a: 0, multi: 0 })).toBe(false)
+    expect(Expr.holds(rules[1]!.expr, { a: null, multi: 0 })).toBe(true)
+    expect(Expr.holds(rules[1]!.expr, { a: null, b: 'ok', multi: 0 })).toBe(true)
+    expect(Expr.holds(rules[1]!.expr, { a: null, b: '', multi: 0 })).toBe(false)
+
+    const Doc = Schema.Struct({
+      note: Schema.optional(NonEmpty),
+      tag: Schema.NullOr(NonEmpty),
+    })
+    const pg = Sql.toCheck(Doc, { dialect: 'postgres' })
+    const sqlite = Sql.toCheck(Doc, { dialect: 'sqlite' })
+    expect(Result.isSuccess(pg)).toBe(true)
+    expect(Result.isSuccess(sqlite)).toBe(true)
+    if (Result.isSuccess(pg)) {
+      expect(pg.success).toBe(
+        'CHECK (((("note" IS NULL) OR (char_length("note") > 0)) AND (("tag" IS NULL) OR (char_length("tag") > 0))) IS TRUE)',
+      )
+    }
+    if (Result.isSuccess(sqlite)) {
+      expect(sqlite.success).toBe(
+        'CHECK (((("note" IS NULL) OR (length("note") > 0)) AND (("tag" IS NULL) OR (length("tag") > 0))) IS TRUE)',
+      )
+    }
+
+    const Score = Schema.Struct({
+      score: Schema.NullOr(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+    })
+    const $ = Path.from(Score)
+    const verdict = Abstract.checkInvariant(
+      Score,
+      Expr.implies(Null.isNotNull($.score), Num.gte($.score, 0)),
+    )
+    expect(Verdict.isTrue(verdict)).toBe(true)
   })
 
   it('reads each side of an isBetween with its own exclusivity', () => {

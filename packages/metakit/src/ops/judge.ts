@@ -264,7 +264,7 @@ const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): 
               undefined,
               undefined,
               Option.map(Option.all([readsOf(source), readsTogether(body)]), ([from, read]) =>
-                readsOfRows(kept.over, from, read),
+                readsOfRows(kept.over, from, read, Node.rowsEach(kept)),
               ),
               opaqueIn([source, ...body]),
               kept.op !== undefined && !Object.hasOwn(foreign, Node.foreignName(kept.op))
