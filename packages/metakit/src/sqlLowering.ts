@@ -602,21 +602,27 @@ export const lowerNode = (
         },
         // A condition that is null chooses neither branch: `ELSE` would take the second.
         If: ({ cond, then, otherwise }) => {
+          const isNullLit = (node: Node.Node): boolean =>
+            Node.$is('Lit')(node) && (node.value === null || node.value === undefined)
           const typedArm = (node: Node.Node, sql: Sql): Sql =>
             ctx.dialect === 'postgres' && Node.$is('Lit')(node) && typeof node.value === 'boolean'
               ? q`CAST(${sql} AS boolean)`
               : sql
           return Result.flatMap(ctx.lower(cond), c =>
             Result.flatMap(ctx.lower(then), t =>
-              Result.map(
-                ctx.lower(otherwise),
-                e =>
-                  q`(CASE WHEN ${c} THEN ${typedArm(then, t)} WHEN NOT ${c} THEN ${typedArm(otherwise, e)} END)`,
+              Result.map(ctx.lower(otherwise), e =>
+                // Postgres types an all-NULL CASE as `text`, which breaks boolean/numeric callers;
+                // a bare NULL stays `unknown` and coerces to any surrounding SQL type.
+                isNullLit(then) && isNullLit(otherwise)
+                  ? q`NULL`
+                  : q`(CASE WHEN ${c} THEN ${typedArm(then, t)} WHEN NOT ${c} THEN ${typedArm(otherwise, e)} END)`,
               ),
             ),
           )
         },
         Match: ({ on, cases, otherwise }) => {
+          const isNullLit = (node: Node.Node): boolean =>
+            Node.$is('Lit')(node) && (node.value === null || node.value === undefined)
           const typedArm = (node: Node.Node, sql: Sql): Sql =>
             ctx.dialect === 'postgres' && Node.$is('Lit')(node) && typeof node.value === 'boolean'
               ? q`CAST(${sql} AS boolean)`
@@ -626,6 +632,9 @@ export const lowerNode = (
               ctx.dialect === 'sqlite' && needleKind(on) === 'text'
                 ? q`(${rawTarget} COLLATE BINARY)`
                 : rawTarget
+            const allNull =
+              cases.every(([, branch]) => isNullLit(branch)) &&
+              Option.match(otherwise, { onNone: () => true, onSome: isNullLit })
             const arms: Array<Sql> = []
             for (const [value, branch] of cases) {
               const when = literal(value)
@@ -639,7 +648,9 @@ export const lowerNode = (
               onSome: fallback =>
                 Result.map(ctx.lower(fallback), f => q` ELSE ${typedArm(fallback, f)}`),
             })
-            return Result.map(rest, e => q`(CASE ${target} ${joined(arms, ' ')}${e} END)`)
+            return Result.map(rest, e =>
+              allNull ? q`NULL` : q`(CASE ${target} ${joined(arms, ' ')}${e} END)`,
+            )
           })
         },
         Opaque: ({ name }) => unsupported(`cannot lower opaque term "${name}" to SQL`),
