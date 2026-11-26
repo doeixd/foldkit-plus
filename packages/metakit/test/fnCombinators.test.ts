@@ -74,7 +74,6 @@ describe('metakit/fn composition & combinators', () => {
     const { row } = Path.forEnv({ row: Row })
     const whereSql = Sql.toWhere(Num.gte(tenOff({ price: row.price }), 25), {
       dialect: 'postgres',
-      columns: { price: 'price' },
     })
     expect(Result.isSuccess(whereSql)).toBe(true)
   })
@@ -126,5 +125,29 @@ describe('metakit/fn composition & combinators', () => {
     expect(Fn.iterate(step, 1).run({ x: 3 })).toBe(7)
     expect(Fn.iterate(step, 3).run({ x: 1 })).toBe(15) // 1 -> 3 -> 7 -> 15
     expect(() => Fn.iterate(step, -1)).toThrow(/non-negative integer/)
+  })
+
+  it('validates fixed values in partial, rejects conflicting shared param schemas, and short-circuits untaken ifElse preconditions', () => {
+    const applyDiscount = Fn.params({ price: BoundedInt, off: BoundedInt }).body(({ price, off }) =>
+      Num.sub(price, off),
+    )
+    expect(() => applyDiscount.partial({ off: -5 })).toThrow(
+      /does not satisfy its parameter Schema/,
+    )
+
+    const f1 = Fn.make({ x: Schema.Int }, ({ x }) => Num.gt(x, 0))
+    const f2 = Fn.make({ x: NonNegInt }, ({ x }) => Num.lte(x, 10))
+    expect(() => Fn.and(f1, f2)).toThrow(/conflicting parameter Schemas/)
+
+    // Untaken branch's `where` divides by `x`: must NOT evaluate when `x === 0`
+    const isPos = Fn.make({ x: Schema.Int }, ({ x }) => Num.gt(x, 0))
+    const divBranch = Fn.params({ x: Schema.Int })
+      .where(({ x }) => Num.gt(Num.div(100, x, { rounding: 'toward-zero', onZero: 'refuse' }), 0))
+      .body(({ x }) => Num.div(100, x, { rounding: 'toward-zero', onZero: 'refuse' }))
+    const fallback = Fn.make({ x: Schema.Int }, () => 0)
+
+    const safe = Fn.ifElse(isPos, divBranch, fallback)
+    expect(Result.getOrThrow(safe.runChecked({ x: 0 }))).toBe(0)
+    expect(Result.getOrThrow(safe.runChecked({ x: 4 }))).toBe(25)
   })
 })

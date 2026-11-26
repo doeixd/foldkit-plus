@@ -159,4 +159,49 @@ describe('metakit/interpreter (Effect service & composable layers)', () => {
     expect(events[0]?.kind === 'eval' && events[0].ok).toBe(true)
     expect(events[1]?.kind === 'judge' && events[1].verdict).toBe('True')
   })
+
+  it('preserves observer middleware when withForeign or withAllowlist is layered on top, and blocks step foreign smuggling', async () => {
+    const events: Array<Interpreter.InterpreterEvent> = []
+    const acc = Path.from(Account)
+
+    // Layer order: withAllowlist -> withForeign -> withObserver (observer is UNDER withForeign/withAllowlist)
+    const stackedLayer = Interpreter.withAllowlist(new Set(['math.double'])).pipe(
+      Layer.provide(
+        Interpreter.withForeign(Operation.implementations('math', doubleImpl, tripleImpl)),
+      ),
+      Layer.provide(
+        Interpreter.withObserver(event =>
+          Effect.sync(() => {
+            events.push(event)
+          }),
+        ),
+      ),
+    )
+
+    const TripleTransition = Transition.make({
+      state: Account,
+      input: Schema.Struct({ amount: Schema.Int }),
+      when: ({ input }) => Num.gt(input.amount, 0),
+      apply: ({ state, input }) => [
+        Transition.set(state.balance, Num.add(state.balance, tripleOp(input.amount))),
+      ],
+    })
+
+    const out = await Effect.runPromise(
+      Interpreter.evalExpr(doubleOp(acc.balance), { id: 'a', balance: 6 }).pipe(
+        Effect.provide(stackedLayer),
+      ),
+    )
+    expect(out).toBe(12)
+    expect(events.map(e => e.kind)).toEqual(['eval'])
+
+    // Attempting to smuggle disallowed `tripleImpl` via caller options must be refused by allowlist
+    const smuggledExit = await Effect.runPromiseExit(
+      Interpreter.step(TripleTransition, { id: 'a', balance: 0 }, { amount: 5 }, undefined, {
+        foreign: Operation.implementations('smuggle', tripleImpl),
+      }).pipe(Effect.provide(stackedLayer)),
+    )
+    expect(Exit.isFailure(smuggledExit)).toBe(true)
+    expect(events.map(e => e.kind)).toEqual(['eval', 'step'])
+  })
 })

@@ -554,7 +554,14 @@ const mergeParamSchemas = (list: ReadonlyArray<ParamSchemas>): Record<string, Sc
   const merged: Record<string, SchemaOf> = {}
   for (const paramsObj of list) {
     for (const [k, schema] of Object.entries(paramsObj)) {
-      if (!(k in merged)) merged[k] = schema
+      const existing = merged[k]
+      if (existing === undefined) {
+        merged[k] = schema
+      } else if (existing !== schema && existing.ast !== schema.ast) {
+        throw new Error(
+          `[metakit/fn] conflicting parameter Schemas for shared parameter "${k}" when combining functions`,
+        )
+      }
     }
   }
   return merged
@@ -644,6 +651,13 @@ export const partial = <P extends ParamSchemas, R, const Fixed extends Partial<P
   for (const key of fixedKeys) {
     if (!Object.hasOwn(f.params, key)) {
       throw new Error(`[metakit/fn] Fn.partial received unknown parameter "${key}"`)
+    }
+    const val = (fixed as Readonly<Record<string, unknown>>)[key]
+    const paramSchema = f.params[key]! as unknown as Schema.Codec<unknown>
+    if (!Schema.is(paramSchema)(val)) {
+      throw new Error(
+        `[metakit/fn] Fn.partial value for "${key}" does not satisfy its parameter Schema`,
+      )
     }
   }
   const fixedSet = new Set(fixedKeys)
@@ -823,15 +837,14 @@ export const ifElse = <
 ): Fn<PC & PT & PF, RT | RF> => {
   type Merged = PC & PT & PF
   const merged = mergeParamSchemas([cond.params, onTrue.params, onFalse.params]) as Merged
-  const notCondNode = Node.Call({ op: Bool.notOp, args: [cond.body.node] })
   const guardedTrue = onTrue.whereClauses.map(w =>
     wrap<ParamValues<Merged>, boolean | null>(
-      Node.Call({ op: Bool.orOp, args: [notCondNode, w.node] }),
+      Node.If({ cond: cond.body.node, then: w.node, otherwise: Node.Lit({ value: true }) }),
     ),
   )
   const guardedFalse = onFalse.whereClauses.map(w =>
     wrap<ParamValues<Merged>, boolean | null>(
-      Node.Call({ op: Bool.orOp, args: [cond.body.node, w.node] }),
+      Node.If({ cond: cond.body.node, then: Node.Lit({ value: true }), otherwise: w.node }),
     ),
   )
   return buildFn({
