@@ -57,7 +57,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +832 on 2026-11-22: 227,639 measured after the Phase 1 gate fixes (an operand past the safe range refused
 // by every reader; ops/integerTerm) and Phase 5 items 5 and 10 (the late-answer record for every domain
 // with writes; `replayOver`), code every page that evaluates and writes runs. Ceiling: the reading plus 300.
-const CEILING = 227_939
+// +2,561 on 2026-11-26 (CI read 230,055): metakit's core evaluator and judge grew with Sets,
+// Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote gained IVM coverage/reparenting
+// fixes and Effect Clock integration. Ceiling: CI's reading plus ~400, rounded up.
+const CEILING = 230_500
 
 clientBudget({
   name: 'entity',

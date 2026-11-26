@@ -99,7 +99,11 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // +966 on 2026-11-22: 3,298,462 measured after the review of those findings: `RemoteServer.memoryWriter`
 // checks a link through an onDelete relation points at a row in its store (about 912 raw estimated),
 // held by the namespace object this Worker reads `RemoteServer.write` through. Ceiling: the reading plus 300.
-const CEILING = 3_298_762
+// +96,238 on 2026-11-26 (3,393,516 measured after marking Config.all exports pure): domains-plus
+// adopted metakit/machine (`src/client/machine.ts`, bringing metakit/machine and metakit/transition
+// into the SSR Worker, 96.1 kB raw total for metakit) plus SSR/remote-server Effect integration
+// (`ManagedRuntime`, `Clock`, `withSpan`). Ceiling: reading plus ~1,500, rounded up.
+const CEILING = 3_395_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

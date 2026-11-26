@@ -27,7 +27,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // each other section's code, 91.8 kB brotli in 25 lazy chunks, arrives as it nears the window. It was
 // 205.9 kB with everything at start. The ceiling is that plus about 1%; `absent` pins the modules that
 // only an island uses, so one imported from the start code again fails here.
-const CEILING = 151_500
+// +900 on 2026-11-26 (CI read 151,959): foldkit-bundle's placement machine-lifting symbol path and
+// foldkit-surface diagnostics updates. Ceiling: CI's reading plus ~400, rounded up.
+const CEILING = 152_400
 
 clientBudget({
   name: 'design-system',

@@ -63,7 +63,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // metakit's evaluator and judge on every page that reaches entity (15.9 kB minified, `node`,
 // `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
 // 2026-11-21. Ceiling: the reading plus 300.
-const CEILING = 169_656
+// +2,844 on 2026-11-26 (CI read 172,128): metakit's core evaluator and judge grew with Sets,
+// Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote gained IVM fixes and Effect Clock
+// integration. Ceiling: CI's reading plus ~400, rounded up.
+const CEILING = 172_500
 
 clientBudget({
   name: 'cms',

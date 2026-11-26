@@ -46,7 +46,11 @@ import { record } from '../../../scripts/perf-report.mjs'
 // defaults (182). The reading then was 4,664,580: the other 3,269 since 4,660,217 came with other
 // sessions' commits between (9bf8c0510, 1b401baa4), not this change, so not raised for. Ceiling: the
 // last ceiling plus this change's estimate.
-const CEILING = 4_661_611
+// +68,389 on 2026-11-26 (4,721,293 measured locally after marking Config.all exports pure, down
+// from 4,735,183 on CI before the pure annotation): metakit's expanded core/store/relation/sets
+// runtime, foldkit-remote IVM/Effect updates, and remote-server ManagedRuntime/withSpan. Ceiling:
+// reading plus Linux/Windows variance headroom, rounded up.
+const CEILING = 4_730_000
 
 // The replica side of `foldkit-sync`. A server reaches `Sync` through the namespace
 // object, or a shared module does, and the bundler then keeps all of these.

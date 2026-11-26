@@ -35,7 +35,11 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   // metakit's evaluator and judge, as on every Remote page (see examples/cloudflare and the ledger,
   // docs/design/metakit-unification-LEDGER.md). Not measured step by step; the growth matches the other
   // entity pages' 4.5 to 5.6 kB, accepted by the maintainer on 2026-11-21. Ceilings: the reading plus 300.
-  ['api-cache', 208_761], // 208,461 bytes
+  // api-cache (210,696), auth (157,421) and form (153,087) on 2026-11-26 (CI): metakit's core
+  // evaluator and judge grew with Sets, Domain.Id/Ordinal and Pipeable/Inspectable (+1.2 kB brotli
+  // on entity pages), and foldkit-remote gained IVM coverage/reparenting fixes and Effect Clock/Random
+  // integration (+0.7 kB on api-cache). Ceilings: CI's reading plus ~400, rounded up.
+  ['api-cache', 211_100], // 210,696 bytes
   // 2026-11-18: auth, form, routing, shopping-cart, weather and websocket-chat each grew past their
   // ceiling: 151,886, 147,400, 135,620, 122,513, 126,693 and 129,129. The six draw Input, Textarea
   // or Field, and the Input recipe (`recipes/field.ts`) gained the grouped start and end sides and
@@ -43,7 +47,7 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   // the pages without a text field moved by under 20 bytes. Their first chunks hold no mixins-ui module
   // the pages do not draw (none of bundles, choice, configure, calendar, combobox, fileUpload or
   // rowContent). Each ceiling is the reading plus about 0.5%, rounded up to 500.
-  ['auth', 156_179], // 155,879 bytes
+  ['auth', 157_800], // 157,421 bytes
   // counter was 115,953 on origin/main (1bbd87d15), 47 under its ceiling; 115,981 here.
   // counter +193 and kanban +171 on 2026-11-18 from themed text selection (90ab7073e), measured in
   // one tree with `defaults.ts` and `theme/oklch.ts` swapped back (115,942 and 137,346): the
@@ -53,7 +57,7 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   ['domains', 191_000], // 187,092 bytes
   // form +65 over 148,000 on 2026-11-19 (148,065, down from 153,234 once `expr.ts` stopped
   // pulling `jsonSchema.ts` via `Law`): `Expr.add`/`sub`/`implies`, `in:` and `Entity.transition` (#600).
-  ['form', 151_853], // 151,553 bytes
+  ['form', 153_500], // 153,087 bytes
   ['job-application', 191_170], // 190,870 bytes
   // kanban +350 on 2026-11-22: CI on Linux read 137,650 after Phase 1 (its Surface module and the
   // evaluator modules the gate fixes touched). Ceiling: CI's reading plus 300.

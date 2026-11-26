@@ -23,7 +23,10 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // entity does (15.9 kB minified), accepted by the maintainer on 2026-11-21. Ceiling: the reading plus 300.
 // site +3,614 on 2026-11-22, permanent: 331,814 measured after step 10 (333,714 before it, in one tree),
 // over since step 5 for the same reason. Ceiling: the reading plus 300.
-const CEILINGS = { studio: 378_068, site: 332_114 }
+// studio +4,432 on 2026-11-26 (CI read 382,052): metakit's core evaluator/judge growth (Sets,
+// Domain.Id/Ordinal, Pipeable/Inspectable) and foldkit-remote IVM/Effect integration carried by
+// the shared entry and studio chunk. Ceiling: CI's reading plus ~400, rounded up.
+const CEILINGS = { studio: 382_500, site: 332_114 }
 
 /** Strings only the editor's code writes: its form control's kind, its toolbar's keys. */
 const EDITOR = ['RichTextInput', 'FormattingToolbarKeys']

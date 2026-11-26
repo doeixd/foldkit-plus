@@ -46,7 +46,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // evaluates carries: an operand past the safe range refused by every reader (63fac3ae0: ops/judge,
 // ops/kind, ops/laws, ops/num) and a fraction beside an integer term refused (ops/integerTerm, guard's
 // condition). Part of the Phase 1 cost the maintainer accepted. Ceiling: CI's reading plus 300.
-const CEILING = 234_141
+// +2,359 on 2026-11-26 (CI read 236,063): metakit's core evaluator and judge grew with Sets,
+// Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote/sync gained IVM and Effect
+// integration. Ceiling: CI's reading plus ~400, rounded up.
+const CEILING = 236_500
 
 clientBudget({
   name: 'auth',
