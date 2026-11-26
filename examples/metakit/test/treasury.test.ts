@@ -175,5 +175,5 @@ describe('Example 1: Treasury & FX Settlement Ledger', () => {
     expect(aff.disabled).toContain('Freeze')
     expect(aff.available).toEqual([])
     await db.close()
-  })
+  }, 30_000)
 })

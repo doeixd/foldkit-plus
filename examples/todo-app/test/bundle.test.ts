@@ -36,7 +36,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // `ops/str`, `ops/bool` and `ops/null`: 18.2 kB minified of `metakit` in all, which every
 // page of the application runs as its `update`. Ceiling that plus about 1%, rounded up to the
 // next 500 bytes.
-const CEILING = 173_500
+// +3,100 on 2026-11-26 (CI read 176,095): metakit's core evaluator/machine updates (Sets,
+// Domain.Id/Ordinal, Pipeable/Inspectable, nested folds) and foldkit-sync Effect tracing. Ceiling:
+// CI's reading plus ~500, rounded up.
+const CEILING = 176_600
 
 clientBudget({
   name: 'todo-app',

@@ -63,7 +63,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // One rule replays a pending write over a newer value (`foldkit-remote/replay.js`, which replaces
 // `keeping.js`, and metakit's `ops/ways.js` rows for `set` and `add`): about 710 bytes minified,
 // on every page with writes. Ceiling: the reading plus 300.
-const CEILING = 259_366
+// +3,034 on 2026-11-26 (CI read 261,974): metakit's core evaluator and judge grew with Sets,
+// Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote gained IVM fixes and Effect
+// Clock/Random integration. Ceiling: CI's reading plus ~400, rounded up.
+const CEILING = 262_400
 
 clientBudget({
   name: 'reference',

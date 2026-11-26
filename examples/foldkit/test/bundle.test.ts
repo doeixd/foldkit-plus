@@ -58,7 +58,7 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   // form +65 over 148,000 on 2026-11-19 (148,065, down from 153,234 once `expr.ts` stopped
   // pulling `jsonSchema.ts` via `Law`): `Expr.add`/`sub`/`implies`, `in:` and `Entity.transition` (#600).
   ['form', 153_500], // 153,087 bytes
-  ['job-application', 191_170], // 190,870 bytes
+  ['job-application', 192_900], // 192,461 bytes (CI 2026-11-26, metakit core ops)
   // kanban +350 on 2026-11-22: CI on Linux read 137,650 after Phase 1 (its Surface module and the
   // evaluator modules the gate fixes touched). Ceiling: CI's reading plus 300.
   ['kanban', 137_950], // 137,650 bytes
@@ -72,7 +72,7 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   ['shopping-cart', 123_500], // 122,513 bytes
   ['snake', 117_500], // 114,955 bytes
   ['ssg', 125_500], // 122,802 bytes
-  ['ssr', 130_500], // 127,784 bytes
+  ['ssr', 131_000], // 130,618 bytes (CI 2026-11-26, foldkit-ssr updates)
   ['todo', 131_000], // 128,027 bytes
   ['ui-showcase', 202_000], // 201,331 bytes
   ['weather', 127_500], // 126,693 bytes
