@@ -52,6 +52,11 @@
       "types": "./dist/drizzle.d.ts",
       "import": "./dist/drizzle.js"
     },
+    "./fn": {
+      "foldkit-plus:source": "./src/fn.ts",
+      "types": "./dist/fn.d.ts",
+      "import": "./dist/fn.js"
+    },
     "./machine": {
       "foldkit-plus:source": "./src/machine.ts",
       "types": "./dist/machine.d.ts",

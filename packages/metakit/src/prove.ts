@@ -18,6 +18,7 @@ import { holdsOf } from './prove/witness.js'
 import type * as Transition from './transition.js'
 import * as Verdict from './verdict.js'
 
+export { proveFn as fn } from './prove/fn.js'
 export { machine } from './prove/machine.js'
 export type { MachineProofEntry, MachineProofReport } from './prove/machine.js'
 export {

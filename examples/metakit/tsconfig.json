@@ -25,6 +25,7 @@
       "metakit/operation/sql": ["../../packages/metakit/src/operationSql.ts"],
       "metakit/pairs": ["../../packages/metakit/src/pairs.ts"],
       "metakit/policy": ["../../packages/metakit/src/policy.ts"],
+      "metakit/fn": ["../../packages/metakit/src/fn.ts"],
       "metakit/prove": ["../../packages/metakit/src/prove.ts"],
       "metakit/relation": ["../../packages/metakit/src/relation.ts"],
       "metakit/sql": ["../../packages/metakit/src/sql.ts"],

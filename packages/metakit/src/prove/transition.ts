@@ -17,10 +17,10 @@ import * as Verdict from '../verdict.js'
 import { Unsupported } from './lower.js'
 import { shapeOf, type PathInfo, type Shape } from './shape.js'
 import { refute, type Proof, type SolverUnavailableError } from './solve.js'
-import { at, type Replay } from './witness.js'
+import { at, holdsOf, type Replay } from './witness.js'
 
 /** The value `written` puts at the path `rest` under its target, where that can be followed. */
-const project = (written: Node.Node, rest: ReadonlyArray<string>): Node.Node =>
+export const project = (written: Node.Node, rest: ReadonlyArray<string>): Node.Node =>
   Node.$match(written, {
     Path: ({ segments }) => Node.Path({ segments: [...segments, ...rest], ast: Option.none() }),
     Lit: ({ value }) =>
@@ -103,7 +103,11 @@ const textFits = (checks: TextChecks, value: Node.Node): ReadonlyArray<Node.Node
  * that may not be null is not, and a bound or a set of literals declared
  * inside `NullOr` or `optional` (which no rule reads) holds of what is written.
  */
-const writtenFits = (info: PathInfo, value: Node.Node, shape: Shape): ReadonlyArray<Node.Node> => {
+export const writtenFits = (
+  info: PathInfo,
+  value: Node.Node,
+  shape: Shape,
+): ReadonlyArray<Node.Node> => {
   const isNull = call(isNullOp, value)
   const bound = (op: Node.Op, limit: Option.Option<number>): ReadonlyArray<Node.Node> =>
     Option.match(limit, { onNone: () => [], onSome: at => [call(op, value, lit(at))] })
@@ -165,8 +169,11 @@ export const proveTransition = <State, Input, Emit, Supplied>(
   if (Option.isSome(tr.inputSchema)) slices.push([['input'], tr.inputSchema.value])
   // A supplied value is any its Schema admits: the proof holds for every time and id.
   if (Option.isSome(tr.suppliedSchema)) slices.push([['supplied'], tr.suppliedSchema.value])
+  const ensuresOpt = tr.ensures ?? Option.none()
   const tier3 = AbstractCheck.checkTransition(stateSchema, tr)
-  if (Verdict.isTrue(tier3)) return Effect.succeed({ verdict: tier3, replay: Option.none() })
+  if (Option.isNone(ensuresOpt) && Verdict.isTrue(tier3)) {
+    return Effect.succeed({ verdict: tier3, replay: Option.none() })
+  }
 
   const shape = shapeOf(slices)
   const rules = Expr.refinementsOf(stateSchema).map(rule => Node.prefix(rule.node, ['state']))
@@ -178,9 +185,24 @@ export const proveTransition = <State, Input, Emit, Supplied>(
       ),
     )
 
+  const substituteNext = (node: Node.Node): Node.Node =>
+    Node.substitutePaths(node, segments => {
+      if (segments[0] !== 'next') return Option.none()
+      return Option.some(
+        afterWrites(
+          Node.Path({ segments: ['state', ...segments.slice(1)], ast: Option.none() }),
+          tr.writes,
+        ),
+      )
+    })
+
   let goals: ReadonlyArray<Node.Node>
   try {
-    goals = [...rules.map(rule => afterWrites(rule, tr.writes)), ...fits()]
+    goals = [
+      ...rules.map(rule => afterWrites(rule, tr.writes)),
+      ...fits(),
+      ...(Option.isSome(ensuresOpt) ? [substituteNext(ensuresOpt.value.node)] : []),
+    ]
   } catch (error) {
     if (!(error instanceof Unsupported)) throw error
     return Effect.succeed({
@@ -204,7 +226,13 @@ export const proveTransition = <State, Input, Emit, Supplied>(
         input,
         supplied,
       )
-      if (Result.isFailure(stepped) || Schema.is(stateSchema)(stepped.success)) return false
+      if (Result.isFailure(stepped)) return false
+      const schemaOk = Schema.is(stateSchema)(stepped.success)
+      const ensuresOk = Option.match(ensuresOpt, {
+        onNone: () => true,
+        onSome: e => holdsOf(e.node, { state: before, input, supplied, next: stepped.success }),
+      })
+      if (schemaOk && ensuresOk) return false
       replayed = Option.some({ before, input, after: stepped.success })
       return true
     }),

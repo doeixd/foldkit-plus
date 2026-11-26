@@ -138,6 +138,22 @@ export type EmitOfEntries<Entries> =
       : never
     : never
 
+/** Environment available inside `Transition.make`'s optional `ensures` postcondition. */
+export interface TransitionPostEnv<State, Input, Supplied = NoSupplied> {
+  readonly state: State
+  readonly input: Input
+  readonly supplied: Supplied
+  readonly next: State
+}
+
+/** Path accessors passed to `Transition.make`'s optional `ensures` postcondition. */
+export interface TransitionPostPaths<State, Input, Supplied> {
+  readonly state: PathAccessor<TransitionPostEnv<State, Input, Supplied>, State>
+  readonly input: PathAccessor<TransitionPostEnv<State, Input, Supplied>, Input>
+  readonly supplied: PathAccessor<TransitionPostEnv<State, Input, Supplied>, Supplied>
+  readonly next: PathAccessor<TransitionPostEnv<State, Input, Supplied>, State>
+}
+
 /** A guarded, single-step transition over `State`, `Input` and the `Supplied` values. */
 export interface Transition<State, Input, Emit = never, Supplied = NoSupplied> {
   readonly _tag: 'Transition'
@@ -147,6 +163,10 @@ export interface Transition<State, Input, Emit = never, Supplied = NoSupplied> {
   readonly when: ExprType<TransitionEnv<State, Input, Supplied>, boolean | null>
   readonly writes: ReadonlyArray<WriteEquation<State, Input, unknown, Supplied>>
   readonly emits: ReadonlyArray<EmitSpec>
+  /** Optional relational postcondition over `{ state, input, supplied, next }`. */
+  readonly ensures?: Option.Option<
+    ExprType<TransitionPostEnv<State, Input, Supplied>, boolean | null>
+  >
   readonly _emit?: () => Emit
   readonly _supplied?: () => Supplied
 }
@@ -335,12 +355,35 @@ export const make = <
     env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>,
   ) => ReadonlyArray<WriteEquation<S['Type'], I['Type'], unknown, Path.EnvOf<Sup>>>
   readonly emits?: (env: TransitionPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>) => Entries
+  /** Optional relational postcondition over `{ state, input, supplied, next }`, proved by `Prove.transition` / `Prove.machine`. */
+  readonly ensures?: (
+    env: TransitionPostPaths<S['Type'], I['Type'], Path.EnvOf<Sup>>,
+  ) => ExprInput<TransitionPostEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>, boolean | null>
 }): Transition<S['Type'], I['Type'], EmitOfEntries<Entries>, Path.EnvOf<Sup>> => {
   type Env = TransitionEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>
+  type PostEnv = TransitionPostEnv<S['Type'], I['Type'], Path.EnvOf<Sup>>
   const env = pathsOf(config.state, config.input, config.supplied ?? ({} as Sup))
   const whenExpr: ExprType<Env, boolean | null> = wrap(
     config.when === undefined ? Node.Lit({ value: true }) : toNode(config.when(env)),
   )
+  const ensuresExpr: Option.Option<ExprType<PostEnv, boolean | null>> =
+    config.ensures === undefined
+      ? Option.none()
+      : Option.some(
+          wrap(
+            toNode(
+              config.ensures({
+                state: Path.accessor(['state'], Option.some(config.state.ast)),
+                input: Path.accessor(['input'], Option.some(config.input.ast)),
+                supplied: Path.accessor(
+                  ['supplied'],
+                  Option.some(Schema.Struct(config.supplied ?? {}).ast),
+                ),
+                next: Path.accessor(['next'], Option.some(config.state.ast)),
+              }),
+            ),
+          ),
+        )
   return {
     _tag: 'Transition',
     stateSchema: Option.some(config.state as unknown as Schema.Codec<S['Type']>),
@@ -354,6 +397,7 @@ export const make = <
       for (const [name] of fields) rejectReservedField(name)
       return { tag, fields, when }
     }),
+    ...(Option.isSome(ensuresExpr) ? { ensures: ensuresExpr } : {}),
   }
 }
 
