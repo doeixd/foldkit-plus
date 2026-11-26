@@ -10,6 +10,7 @@ import { domainOfAst, type DomainMetadata } from './domain/annotation.js'
 import * as Expr from './expr.js'
 import { isIntCheck } from './intCheck.js'
 import * as Node from './node.js'
+import { optionInner } from './path.js'
 
 export interface FieldSpec {
   readonly name: string
@@ -177,16 +178,24 @@ const unwrapNullish = (
 } => {
   let nullable = false
   let current = ast
-  while (SchemaAST.isUnion(current)) {
-    if (current.types.some(SchemaAST.isNull)) nullable = true
-    const present = current.types.filter(t => !SchemaAST.isNull(t) && !SchemaAST.isUndefined(t))
-    if (present.length === 1) {
-      current = present[0]!
-    } else {
+  while (true) {
+    const opt = optionInner(current)
+    if (Option.isSome(opt)) {
+      nullable = true
+      current = opt.value
+      continue
+    }
+    if (SchemaAST.isUnion(current)) {
+      if (current.types.some(SchemaAST.isNull)) nullable = true
+      const present = current.types.filter(t => !SchemaAST.isNull(t) && !SchemaAST.isUndefined(t))
+      if (present.length === 1) {
+        current = present[0]!
+        continue
+      }
       return { inner: current, nullable, members: present }
     }
+    return { inner: current, nullable, members: [current] }
   }
-  return { inner: current, nullable, members: [current] }
 }
 
 const readField = (

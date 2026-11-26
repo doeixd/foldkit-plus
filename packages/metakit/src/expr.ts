@@ -432,6 +432,17 @@ const collectAstRefinements = (
         })
       }
     }
+  } else {
+    const optInner = Path.optionInner(ast)
+    if (Option.isSome(optInner)) {
+      for (const rule of collectAstRefinements(optInner.value, at)) {
+        out.push({
+          at: rule.at,
+          node: guardNullable(rule.node, at),
+          message: rule.message,
+        })
+      }
+    }
   }
   if (ast.checks !== undefined) {
     collectChecks(ast.checks, at, Option.none(), out)
