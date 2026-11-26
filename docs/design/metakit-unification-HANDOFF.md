@@ -24,7 +24,9 @@
 | **Phase 4 Part A & B (DONE)** | Typed custom operations, `reduce`, `combine`, Entity migration, permissions example; maintained values (`foldkit-remote/maintained`: deltas, binary-search placement 17 comps / 2.8 ms at 100k rows, `coverage`, `asOf`, `classify`, `indexes`, `dependentQuery`, `Maintained.reduce`, `Maintained.join`, seeded differentials), Postgres `SELECT ... FOR UPDATE` parent lock + stored totals + D1 aggregate refusal, Durable Object `Journal.replay` + Phase 4 Part B audit fixes | Prior commits + `d2bded751`, `8986268f6`, `224000091`, `d4beb0f6f`, `c9b1c0172` |
 | **Phase 5 (DONE)** | Store capabilities & orderings + Bout 5.1 cleanup (`checksTargets` doc, `JournalStore === StoreCapabilities` type test) | `ab41873a8`, `12c2faa99` |
 | **Phase 6 (6.2–6.15 — DONE)** | Trusted-region browser probe, `liveSet`, `Binding`, `foldkit-ssr/binder`, hand-over in `SSR.hydrate` (with slice-preserving merge), `KeepTyped` extensions, `static.ts`, `domains-plus` on `DOMAINS_PLUS_BINDER=1` + `e2e/binder.e2e.ts` (2/2 passing, 0 rebuilt elements) + ledger measurements (binder chunk 4.18 kB brotli, stays opt-in due to 50.4 kB shared `effect/Schema` + `metakit` chunk), security & deep-review audits | `9e3380092`, `b60aa8d4d`, `8771d6cc9`, `3b86818a8`, `ad6a70b90`, `9b76bd4ac`, `2be4d1b31` |
-| **Phase 7 (7.1–7.10 — DONE)** | `Transition.lazy`, `Machine.lazyChild`/`Machine.compose({ lazyChildren })`, `Manifest<Tag>` + `defineManifest` + `manifestFromChunks` + `manifestPlugin` (`foldkit-ssr/vite`), binder intent-prefetch (`pointerover`/`focusin`/`touchstart`/idle) + 3 s timeout + single-retry `aria-disabled` & form-POST fallback, `Declared.of` `registerArm`/`lazyTags`, `domains-plus` lazy `addDomain` chunk (**327 B brotli**) + `e2e/chunks.e2e.ts` (2/2 passing) | Phase 7 commit |
+| **Phase 7 (7.1–7.10 — DONE)** | `Transition.lazy`, `Machine.lazyChild`/`Machine.compose({ lazyChildren })`, `Manifest<Tag>` + `defineManifest` + `manifestFromChunks` + `manifestPlugin` (`foldkit-ssr/vite`), binder intent-prefetch (`pointerover`/`focusin`/`touchstart`/idle) + 3 s timeout + single-retry `aria-disabled` & form-POST fallback, `Declared.of` `registerArm`/`lazyTags`, `domains-plus` lazy `addDomain` chunk (**327 B brotli**) + `e2e/chunks.e2e.ts` (2/2 passing) | `b57c52c7c` |
+| **Phase 8 (8.1–8.10 — DONE)** | Verified zero deleted APIs across examples; wrote 8 task guides under `docs/guides/`, `docs/upgrading-metakit.md`, and `docs/blog/2026-11-25-metakit-unification.md`; updated `skills/foldkit-plus/references/{metakit,ssr,surface}.md` and `examples/site/src/catalog.ts` (`tsc -b examples/site` pass) | Phase 8 commit |
+| **Final DX Audit (DONE)** | Verified zero-annotation inference across `Operation.define`, `Language.make`, `Transition.make`/`combine`, `Machine.make`, `Declared.of`, `Binding.define`, `defineManifest`, and `Temporal.protocol` (`tsc -b examples/kitchen-sink` pass; caught & fixed `foldkit-surface/declared` import in `docs/guides/declare-update.md`) | Phase 8 commit |
 | **Phase 9 (9.1–9.6 — DONE)** | `metakit/language`, `foldkit-agent` `x-metakit-operations`, `metakit/store/check` + store adapter tests (`remote-server`, `remote-drizzle`, `durable`, `sync`), `Temporal.protocol`, `examples/metakit` permissions language + differential tests | `8e7337927`, `19be7425f`, `2628828a5`, `12c2faa99`, `acccb125b` |
 
 ---
@@ -36,14 +38,6 @@
 
 ---
 
-## 3. Remaining Work (Ordered Checklist)
+## 3. Remaining Work
 
-1. **Phase 8 (Examples, Guides, Skill, Site, Post — Bouts 8.1–8.10):**
-   - **Bouts 8.1–8.4:** Migrate remaining examples (`reference`, `chirp`, `registry`, `cms`, `pages`, `writes`, `writes-domain`, `cloudflare`, `auth`, `entity`, `remote`, `sync`, `todo`) to declared Messages + write verifier.
-   - **Bouts 8.5–8.8:** Task guides (per `docs/agents/writing-docs.md`, each checked by a cold reader) + upgrade guide for Phases 1–4 breaks.
-   - **Bout 8.9:** Update `skills/foldkit-plus/` (`SKILL.md` and references, all snippets compiled) and `examples/site/src/catalog.ts`.
-   - **Bout 8.10:** Blog post in `examples/site/public/blog/`.
-
-8. **Final Developer-Experience Audit:**
-   - Inference without annotations across `Expr`, `Transition`, `Machine`, `Declared.of`, `Graph.of`, `Rows`, `Operation`, `Maintained`, `Binding`, `Language`.
-   - Negative error locations & messages, compile cost (rule 21 instantiation counts), and refusal text audit (rule 20).
+All phases (Phases 0–9) and the Final Developer-Experience Audit of `docs/design/metakit-unification-PLAN.md` are complete on `ui-polish`. Only the two non-blocking follow-ups in Section 2 and pushing/CI remain.

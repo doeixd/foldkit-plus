@@ -474,9 +474,17 @@ Met in applications on this stack: what failed, and what to do instead.
   Check the bundle's size after an import from a package that also runs on a
   server.
 
+## Pre-hydration binder and per-Message chunks (`foldkit-ssr/binder`, `foldkit-ssr/vite`)
+
+- `Binding.define` declares typed DOM anchor bindings (`Binding.text`, `Binding.attribute`, `Binding.shown`, `Binding.order`); `bindings.attr(h, key)` writes `data-fk-anchor="<key>"` and refuses undeclared keys at compile time.
+- `Binder.start({ manifest, chunks?, envelope, wake, idleWake?, chunkTimeoutMs?, onChunkFailed? })` (`foldkit-ssr/binder`) answers declared presses before the Foldkit runtime loads, prefetches lazy `chunks` on `pointerover`/`focusin`/`touchstart`/idle, holds presses while a chunk loads (running at most once), releases failed form presses to browser `form.submit()`, retries failed non-form chunks once before marking `aria-disabled="true"`, and hands its updated state slice to `SSR.hydrate` (which merges it onto `resumedModel` and drains queued Messages in FIFO order).
+- `defineManifest`, `manifestFromChunks`, and `manifestPlugin` (`foldkit-ssr/vite`) map every Message tag to exactly one chunk (checked at compile time and runtime) and expose resolved chunk URLs via `virtual:foldkit-ssr-manifest`.
+
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/ssr/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/guides/resume-before-runtime.md
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/guides/cut-script-by-message.md
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/foldkit/ssr
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/reference (pages
   rendered in a Worker as the reader, with `SSR.requestContext`)

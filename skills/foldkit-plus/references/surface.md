@@ -525,3 +525,5 @@ Met in applications on this stack: what failed, and what to do instead.
 - Replication guide (writable projections + MessageSets): https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md
 - Agents guide (projection as context): https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md
 - Real usage: https://github.com/doeixd/foldkit-plus/blob/main/examples/todo/src/agent.ts
+- Declared updates and lazy arms (`Declared.of` with `lazyTags`, `registerArm`, `waitingFor`): https://github.com/doeixd/foldkit-plus/blob/main/docs/guides/declare-update.md
+- Static Message impact graphs (`Graph.of`, `impactOf`, `deadReaders`): https://github.com/doeixd/foldkit-plus/blob/main/docs/guides/message-impact.md

@@ -71,6 +71,8 @@ export const subsites: ReadonlyArray<Subsite> = [
     [
       doc('versus-bundle', 'Surface and Bundle', 'surface-vs-bundles'),
       doc('surface-writes', 'Drawing only what a Message can change', 'surface-writes'),
+      doc('declare-update', 'Declare your update', 'guides/declare-update'),
+      doc('message-impact', 'See what a Message can affect', 'guides/message-impact'),
     ],
   ),
   family(
@@ -293,7 +295,15 @@ export const subsites: ReadonlyArray<Subsite> = [
       shelf: 'Delivery',
       packages: ['ssr', 'host'],
     },
-    [doc('without-javascript', 'Pages that work without JavaScript', 'progressive-enhancement')],
+    [
+      doc('without-javascript', 'Pages that work without JavaScript', 'progressive-enhancement'),
+      doc(
+        'resume-before-runtime',
+        'Make a page answer before the framework loads',
+        'guides/resume-before-runtime',
+      ),
+      doc('cut-script-by-message', 'Cut script by Message', 'guides/cut-script-by-message'),
+    ],
   ),
   family({
     id: 'media',
@@ -357,6 +367,15 @@ export const learn: Subsite = {
     doc('declarations', 'From declarations to the screen', 'declared-data-to-ui'),
     doc('wiring', 'Wiring', 'wiring'),
     doc('errors', 'Errors and failures', 'errors'),
+    doc('maintained-lists', 'Keep a list up to date', 'guides/maintained-lists'),
+    doc('custom-operations', 'Define an operation and check its laws', 'guides/custom-operations'),
+    doc('store-capabilities', 'Hold a rule to a store', 'guides/store-capabilities'),
+    doc(
+      'custom-language-and-protocol',
+      'Write your own language, store or protocol',
+      'guides/custom-language-and-protocol',
+    ),
+    doc('upgrading-metakit', 'Upgrading across the MetaKit unification', 'upgrading-metakit'),
     doc('upgrading-0-41', 'Upgrading to 0.41', 'upgrading-0.41'),
     doc('glossary', 'Glossary', 'glossary'),
   ],
