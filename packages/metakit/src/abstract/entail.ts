@@ -16,6 +16,7 @@ import {
 } from './matches.js'
 import type { AbstractState } from './state.js'
 import { MAX_SPLITS, agree, numberOf, proved, refuted, show } from './support.js'
+import { notNaN, refusesNaN } from './values.js'
 import { ZERO } from './zone.js'
 
 const MAX_ROUNDS = 16
@@ -258,6 +259,10 @@ export function decide(this: AbstractState, goal: Node.Node): Verdict.Verdict<ne
           // Text holding a NUL is refused, which is neither true nor false.
           if (row.unportable && !call.args.every(arg => this.portable(arg))) {
             return Verdict.Unknown('an operand may be text holding a NUL')
+          }
+          // NaN is refused by equality and ordering operations, which is neither true nor false.
+          if (refusesNaN.has(call.op.id) && !call.args.every(arg => notNaN.call(this, arg))) {
+            return Verdict.Unknown('an operand may be NaN')
           }
           return row.decide(call.args, this)
         },

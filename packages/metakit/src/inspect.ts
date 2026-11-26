@@ -168,6 +168,27 @@ interface Field {
   readonly at: ReadonlyArray<string>
 }
 
+const unwrapNullish = (
+  ast: SchemaAST.AST,
+): {
+  readonly inner: SchemaAST.AST
+  readonly nullable: boolean
+  readonly members: ReadonlyArray<SchemaAST.AST>
+} => {
+  let nullable = false
+  let current = ast
+  while (SchemaAST.isUnion(current)) {
+    if (current.types.some(SchemaAST.isNull)) nullable = true
+    const present = current.types.filter(t => !SchemaAST.isNull(t) && !SchemaAST.isUndefined(t))
+    if (present.length === 1) {
+      current = present[0]!
+    } else {
+      return { inner: current, nullable, members: present }
+    }
+  }
+  return { inner: current, nullable, members: [current] }
+}
+
 const readField = (
   name: string,
   ast: SchemaAST.AST,
@@ -175,12 +196,7 @@ const readField = (
   rules: ReadonlyArray<Node.Node>,
   at: ReadonlyArray<string>,
 ): Field => {
-  const present = SchemaAST.isUnion(ast)
-    ? ast.types.filter(t => !SchemaAST.isNull(t) && !SchemaAST.isUndefined(t))
-    : [ast]
-  const inner = present.length === 1 ? present[0]! : ast
-  // `NullOr(Literals([...]))` holds its literals in a union of their own.
-  const members = present.length === 1 && SchemaAST.isUnion(inner) ? inner.types : present
+  const { inner, nullable, members } = unwrapNullish(ast)
   const literals = members.flatMap(member => Option.toArray(scalarLiteral(member)))
   const isEnum = members.length > 0 && literals.length === members.length
   // A check on a `NullOr` or `optional` member sits outside the parent's rules, so read it here.
@@ -191,7 +207,7 @@ const readField = (
       name,
       kind: isEnum ? 'enum' : members.length === 1 ? kindOf(inner) : 'unknown',
       optional,
-      nullable: SchemaAST.isUnion(ast) && ast.types.some(SchemaAST.isNull),
+      nullable,
       ...bounds,
       literals: isEnum ? Option.some(literals) : Option.none(),
       domain: Option.orElse(domainOfAst(ast), () => domainOfAst(inner)),

@@ -36,6 +36,8 @@ export function hasValue(this: AbstractState, node: Node.Node): boolean {
       const settled = (arg: Node.Node): boolean => isRead(arg) || this.hasValue(arg)
       const row = abstractOf(call.op, this.foreign)
       if (row.unportable && !call.args.every(arg => this.portable(arg))) return false
+      if (refusesNaN.has(call.op.id) && !call.args.every(arg => notNaN.call(this, arg)))
+        return false
       if (row._tag !== 'Term' && row.valued !== undefined) return row.valued(call.args, this)
       if (call.op.nulls === 'strict') {
         return call.args.every(arg => this.hasValue(arg)) && this.inRange(call)
@@ -70,17 +72,20 @@ export function hasValue(this: AbstractState, node: Node.Node): boolean {
 }
 
 /** The predicates that refuse NaN, in either operand, besides refusing a refused one. */
-const refusesNaN: ReadonlySet<string> = new Set([
+export const refusesNaN: ReadonlySet<string> = new Set([
   'ord.lt',
   'ord.lte',
   'ord.gt',
   'ord.gte',
+  'eq.is',
+  'eq.isNot',
+  'eq.in',
   'eq.equals',
   'eq.among',
 ])
 
 /** Whether `node` is never NaN: not a number, a finite one, or what an operation gave. */
-function notNaN(this: AbstractState, node: Node.Node): boolean {
+export function notNaN(this: AbstractState, node: Node.Node): boolean {
   return Node.$match(node, {
     Lit: ({ value }) =>
       Array.isArray(value) ? !value.some(item => Number.isNaN(item)) : !Number.isNaN(value),
