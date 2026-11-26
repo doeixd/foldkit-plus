@@ -484,14 +484,29 @@ export const sqlOps: Readonly<Record<Node.CoreOpId, SqlLowerer>> = {
     if (s1 === undefined || e1 === undefined || s2 === undefined || e2 === undefined) {
       return unsupported('time.overlaps takes 4 arguments')
     }
+    if (args.some(arg => Node.$is('Lit')(arg) && (arg.value === null || arg.value === undefined))) {
+      return Result.succeed(q`NULL`)
+    }
     return Result.flatMap(ctx.lower(s1), a =>
       Result.flatMap(ctx.lower(e1), b =>
         Result.flatMap(ctx.lower(s2), c =>
-          Result.map(
-            ctx.lower(e2),
-            d =>
-              q`(CASE WHEN (${a}) IS NULL OR (${b}) IS NULL OR (${c}) IS NULL OR (${d}) IS NULL THEN NULL ELSE ((${a}) < (${d}) AND (${c}) < (${b})) END)`,
-          ),
+          Result.map(ctx.lower(e2), d => {
+            // Skip `IS NULL` on non-null literals so Postgres never sees an untyped `($n) IS NULL`.
+            const checks = (
+              [
+                [s1, a],
+                [e1, b],
+                [s2, c],
+                [e2, d],
+              ] as const
+            )
+              .filter(([node]) => !Node.$is('Lit')(node))
+              .map(([, sql]) => q`(${sql}) IS NULL`)
+            const cmp = q`((${a}) < (${d}) AND (${c}) < (${b}))`
+            return checks.length === 0
+              ? cmp
+              : q`(CASE WHEN ${joined(checks, ' OR ')} THEN NULL ELSE ${cmp} END)`
+          }),
         ),
       ),
     )
