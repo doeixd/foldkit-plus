@@ -15,24 +15,16 @@ import { AbstractState, abstractOps, collectFields, type FieldInfo } from './abs
 import * as Interval from './abstract/interval.js'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
-import * as Arr from './ops/arr.js'
-import * as Sets from './ops/set.js'
-import * as Bool from './ops/bool.js'
-import * as Eq from './ops/eq.js'
 import { evalNode } from './ops/eval.js'
-import * as MulScaled from './ops/mulScaled.js'
-import * as Null from './ops/null.js'
-import * as Num from './ops/num.js'
-import * as Ord from './ops/ord.js'
 import { residualizeNode } from './ops/residualize.js'
-import * as Str from './ops/str.js'
-import * as Time from './ops/time.js'
+import { coreOps } from './ops/table.js'
 import { checkFoldProperties } from './foldChecks.js'
 import { foldProperties, opProperties, writeProperties } from './properties.js'
 import { checkProperties, sameAnswer, type PropertyReport } from './propertyChecks.js'
 import { checkWriteProperties, type WriteReport } from './writeChecks.js'
 import * as Verdict from './verdict.js'
 
+export { coreOps } from './ops/table.js'
 export { checkProperties, type PropertyFailure, type PropertyReport } from './propertyChecks.js'
 export { checkFoldProperties } from './foldChecks.js'
 export { checkWriteProperties, type WriteReport } from './writeChecks.js'
@@ -45,60 +37,6 @@ export const checkAllFoldProperties = (): ReadonlyArray<PropertyReport> =>
 /** `checkWriteProperties` of every way of writing, against what `writeProperties` lists of it. */
 export const checkAllWriteProperties = (): ReadonlyArray<WriteReport> =>
   Struct.keys(writeProperties).map(way => checkWriteProperties(way, writeProperties[way]))
-
-/** Every primitive's descriptor: a new `CoreOpId` fails to compile until its operator is here. */
-export const coreOps: { readonly [Id in Node.CoreOpId]: Node.Op<Id> } = {
-  'bool.and': Bool.andOp,
-  'bool.or': Bool.orOp,
-  'bool.not': Bool.notOp,
-  'eq.is': Eq.isOp,
-  'eq.isNot': Eq.isNotOp,
-  'eq.in': Eq.inOp,
-  'eq.equals': Eq.equalsOp,
-  'eq.among': Eq.amongOp,
-  'null.isNull': Null.isNullOp,
-  'null.coalesce': Null.coalesceOp,
-  'str.lowerAscii': Str.lowerAsciiOp,
-  'str.upperAscii': Str.upperAsciiOp,
-  'str.trim': Str.trimOp,
-  'str.concat': Str.concatOp,
-  'str.lt': Str.ltOp,
-  'str.lte': Str.lteOp,
-  'str.gt': Str.gtOp,
-  'str.gte': Str.gteOp,
-  'ord.lt': Ord.ltOp,
-  'ord.lte': Ord.lteOp,
-  'ord.gt': Ord.gtOp,
-  'ord.gte': Ord.gteOp,
-  'num.add': Num.addOp,
-  'num.sub': Num.subOp,
-  'num.mul': Num.mulOp,
-  'num.neg': Num.negOp,
-  'num.mulScaled': MulScaled.mulScaledOp,
-  'num.div': Num.divOp,
-  'num.rem': Num.remOp,
-  'time.addDays': Time.addDaysOp,
-  'time.addMonths': Time.addMonthsOp,
-  'time.daysBetween': Time.daysBetweenOp,
-  'time.startOfMonth': Time.startOfMonthOp,
-  'time.overlaps': Time.overlapsOp,
-  'str.len': Str.lenOp,
-  'str.startsWith': Str.startsWithOp,
-  'str.endsWith': Str.endsWithOp,
-  'str.contains': Str.containsOp,
-  'arr.count': Arr.countOp,
-  'arr.isEmpty': Arr.isEmptyOp,
-  'arr.has': Arr.hasOp,
-  'arr.append': Arr.appendOp,
-  'arr.include': Arr.includeOp,
-  'arr.exclude': Arr.excludeOp,
-  'arr.move': Arr.moveOp,
-  'set.union': Sets.unionOp,
-  'set.intersect': Sets.intersectOp,
-  'set.difference': Sets.differenceOp,
-  'set.subset': Sets.subsetOp,
-  'set.disjoint': Sets.disjointOp,
-}
 
 /** What an operand is drawn from: a field of a kind, or a literal the call is written with. */
 type Operand =

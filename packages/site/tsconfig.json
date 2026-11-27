@@ -46,6 +46,7 @@
       "metakit": ["../metakit/src/index.ts"],
       "metakit/aggregates": ["../metakit/src/aggregates.ts"],
       "metakit/aggregates/sql": ["../metakit/src/aggregatesSql.ts"],
+      "metakit/artifact": ["../metakit/src/artifact.ts"],
       "metakit/build": ["../metakit/src/build.ts"],
       "metakit/conformance": ["../metakit/src/conformance.ts"],
       "metakit/domain": ["../metakit/src/domain.ts"],

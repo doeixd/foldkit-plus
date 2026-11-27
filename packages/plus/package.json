@@ -328,6 +328,11 @@
       "types": "./dist/metakit/aggregates/sql.d.mts",
       "import": "./dist/metakit/aggregates/sql.mjs"
     },
+    "./metakit/artifact": {
+      "foldkit-plus:source": "./src/metakit/artifact.ts",
+      "types": "./dist/metakit/artifact.d.mts",
+      "import": "./dist/metakit/artifact.mjs"
+    },
     "./metakit/drizzle": {
       "foldkit-plus:source": "./src/metakit/drizzle.ts",
       "types": "./dist/metakit/drizzle.d.mts",
