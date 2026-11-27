@@ -19,7 +19,13 @@ import { Option, Schema, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import { applyForeign, evalNode, ifArm, matchArm, type ForeignImplementations } from './eval.js'
 import { cannotRefuse, isPortableRead, isSafeRead, kindOf } from './kind.js'
-import { nullBesideUnrefused, rewrite, rewriteForeign, type View } from './laws.js'
+import {
+  nullBesideUnrefused,
+  rewrite,
+  rewriteForeign,
+  type ForeignRewritePolicy,
+  type View,
+} from './laws.js'
 import { lookupPartial } from './partial.js'
 import { partialRows } from './partialRows.js'
 
@@ -60,6 +66,7 @@ export const residualizeNode = (
   node: Node.Node,
   partialEnv: unknown,
   foreign: ForeignImplementations = {},
+  rewritePolicy?: ForeignRewritePolicy,
 ): Node.Node =>
   Node.$match(node, {
     Lit: lit => lit,
@@ -69,10 +76,11 @@ export const residualizeNode = (
         onSome: value => Node.Lit({ value }),
       }),
     Call: ({ op, args }) => {
-      const nextArgs = args.map(arg => residualizeNode(arg, partialEnv, foreign))
+      const nextArgs = args.map(arg => residualizeNode(arg, partialEnv, foreign, rewritePolicy))
       if (nullBesideUnrefused(residual, op, nextArgs)) return Node.Lit({ value: null })
       if (Node.isForeign(op)) {
-        if (!Object.hasOwn(foreign, Node.foreignName(op))) return Node.Call({ op, args: nextArgs })
+        const key = Node.foreignName(op)
+        if (!Object.hasOwn(foreign, key)) return Node.Call({ op, args: nextArgs })
         if (nextArgs.every(Node.$is('Lit'))) {
           return Node.Lit({
             value: applyForeign(
@@ -82,7 +90,7 @@ export const residualizeNode = (
             ),
           })
         }
-        return Option.match(rewriteForeign(residual, op, nextArgs), {
+        return Option.match(rewriteForeign(residual, op, nextArgs, foreign[key], rewritePolicy), {
           onNone: () => Node.Call({ op, args: nextArgs }),
           onSome: (made): Node.Node =>
             'value' in made
@@ -118,33 +126,36 @@ export const residualizeNode = (
     },
     // No `if c then a else a -> a`: a null or refused `c` gives neither.
     If: branch => {
-      const cond = residualizeNode(branch.cond, partialEnv, foreign)
+      const cond = residualizeNode(branch.cond, partialEnv, foreign, rewritePolicy)
       if (Node.$is('Lit')(cond)) {
         const taken = ifArm(branch, evalNode(cond, undefined))
         return 'arm' in taken
-          ? residualizeNode(taken.arm, partialEnv, foreign)
+          ? residualizeNode(taken.arm, partialEnv, foreign, rewritePolicy)
           : Node.Lit({ value: taken.value })
       }
       return Node.If({
         cond,
-        then: residualizeNode(branch.then, partialEnv, foreign),
-        otherwise: residualizeNode(branch.otherwise, partialEnv, foreign),
+        then: residualizeNode(branch.then, partialEnv, foreign, rewritePolicy),
+        otherwise: residualizeNode(branch.otherwise, partialEnv, foreign, rewritePolicy),
       })
     },
     Match: match => {
-      const on = residualizeNode(match.on, partialEnv, foreign)
+      const on = residualizeNode(match.on, partialEnv, foreign, rewritePolicy)
       if (Node.$is('Lit')(on)) {
         const taken = matchArm(match, evalNode(on, undefined))
         return 'arm' in taken
-          ? residualizeNode(taken.arm, partialEnv, foreign)
+          ? residualizeNode(taken.arm, partialEnv, foreign, rewritePolicy)
           : Node.Lit({ value: taken.value })
       }
       return Node.Match({
         on,
         cases: match.cases.map(
-          ([value, arm]) => [value, residualizeNode(arm, partialEnv, foreign)] as const,
+          ([value, arm]) =>
+            [value, residualizeNode(arm, partialEnv, foreign, rewritePolicy)] as const,
         ),
-        otherwise: Option.map(match.otherwise, arm => residualizeNode(arm, partialEnv, foreign)),
+        otherwise: Option.map(match.otherwise, arm =>
+          residualizeNode(arm, partialEnv, foreign, rewritePolicy),
+        ),
       })
     },
     Opaque: opaque => {
@@ -163,14 +174,14 @@ export const residualizeNode = (
         rows,
         partialEnv,
         {
-          judge: (inner, env) => residualizeNode(inner, env, foreign),
+          judge: (inner, env) => residualizeNode(inner, env, foreign, rewritePolicy),
           known: residual.known,
           value: value => Node.Lit({ value }),
           kept: (kept, source, outer) =>
             Node.mapRows(
               kept,
               () => source,
-              body => residualizeNode(body, outer, foreign),
+              body => residualizeNode(body, outer, foreign, rewritePolicy),
             ),
         },
         segments => lookupPartial(partialEnv, segments, Option.none(), true),

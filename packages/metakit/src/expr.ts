@@ -28,23 +28,41 @@ import { isNullOp } from './ops/null.js'
 import { gtOp, gteOp, ltOp, lteOp } from './ops/ord.js'
 import { readsOfNode } from './ops/reads.js'
 import { judgeNode } from './ops/judge.js'
+import {
+  foreignEvidence,
+  type EvidenceAssurance,
+  type ForeignClaimKind,
+  type ForeignRewriteEvidence,
+  type ForeignRewritePolicy,
+} from './ops/laws.js'
 import { loadRows } from './ops/rowsLoad.js'
 import { residualizeNode } from './ops/residualize.js'
 import * as Path from './path.js'
 import type { Expr as ExprType, Path as PathType, PathAccessor } from './path.js'
 import type { Verdict } from './verdict.js'
 
-export type { ExprType as Expr, ExprInput, EnvOfInput, ForeignImplementations }
+export type {
+  ExprType as Expr,
+  ExprInput,
+  EnvOfInput,
+  ForeignImplementations,
+  EvidenceAssurance,
+  ForeignClaimKind,
+  ForeignRewriteEvidence,
+  ForeignRewritePolicy,
+}
 export type { ForeignImplementation } from './ops/eval.js'
-export { isExpr, wrap as fromNode }
+export { isExpr, wrap as fromNode, foreignEvidence }
 
 /**
  * What evaluation, `residualize` and `judge` take besides the expression: the
- * implementations of the foreign operations it calls, by id. A call with
- * none is refused by evaluation and `Unknown` to `judge`.
+ * implementations of the foreign operations it calls, by id, and an optional
+ * `rewritePolicy` gating algebraic claim rewrites on bound evidence. A call
+ * with no implementation is refused by evaluation and `Unknown` to `judge`.
  */
 export interface ReaderOptions {
   readonly foreign?: ForeignImplementations
+  readonly rewritePolicy?: ForeignRewritePolicy
 }
 
 /** Annotation key under which `Expr.refine` stores its `Node` on a `SchemaAST.Filter`. */
@@ -508,7 +526,8 @@ export const residualize = <Env, A>(
   expr: ExprType<Env, A>,
   partialEnv: PartialEnv<Env>,
   options?: ReaderOptions,
-): ExprType<Env, A> => wrap(residualizeNode(expr.node, partialEnv, options?.foreign))
+): ExprType<Env, A> =>
+  wrap(residualizeNode(expr.node, partialEnv, options?.foreign, options?.rewritePolicy))
 
 /**
  * Partially evaluate a boolean `expr` and return its Kleene $K_3$ `Verdict`.
@@ -521,7 +540,7 @@ export const judge = <Env>(
 ): Verdict<never> => {
   // A list fold loads only its evaluation; judging one in part needs its judgement too.
   loadRows()
-  return judgeNode(expr.node, partialEnv, options?.foreign)
+  return judgeNode(expr.node, partialEnv, options?.foreign, options?.rewritePolicy)
 }
 
 /**

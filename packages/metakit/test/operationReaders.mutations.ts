@@ -33,4 +33,10 @@ export default [
     'if (iv.lo !== iv.hi && (!shape.convex || (shape.isInt && isInts[i] !== true))) {',
     'if (false && iv.lo !== iv.hi && (!shape.convex || (shape.isInt && isInts[i] !== true))) {',
   ),
+  edit(
+    'permitsForeignRewrite ignores bound implementation identity on rebind',
+    laws,
+    'entry.implementation === boundImpl &&',
+    'true &&',
+  ),
 ]

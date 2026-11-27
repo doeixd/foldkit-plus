@@ -34,7 +34,13 @@ import {
   maxAbsOfAst,
   safeBoundedSum,
 } from './kind.js'
-import { nullBesideUnrefused, rewrite, rewriteForeign, type View } from './laws.js'
+import {
+  nullBesideUnrefused,
+  rewrite,
+  rewriteForeign,
+  type ForeignRewritePolicy,
+  type View,
+} from './laws.js'
 import { lookupPartial } from './partial.js'
 import { readsOfRows } from './reads.js'
 import { rowsJudgement } from './rowsReading.js'
@@ -177,7 +183,12 @@ const openChoice = (on: Leftover, arms: ReadonlyArray<unknown>): Leftover =>
     unsupportedIn([on, ...arms]),
   )
 
-const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): unknown =>
+const judge = (
+  node: Node.Node,
+  env: unknown,
+  foreign: ForeignImplementations,
+  rewritePolicy?: ForeignRewritePolicy,
+): unknown =>
   Node.$match(node, {
     Lit: ({ value }) => (value === undefined ? null : value),
     Path: path =>
@@ -196,13 +207,14 @@ const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): 
           ),
       ),
     Call: ({ op, args }) => {
-      const judged = args.map(arg => judge(arg, env, foreign))
+      const judged = args.map(arg => judge(arg, env, foreign, rewritePolicy))
       if (nullBesideUnrefused(view, op, judged)) return null
       const known = !judged.some(isLeftover)
       if (Node.isForeign(op)) {
-        if (!Object.hasOwn(foreign, Node.foreignName(op))) return openCall(op, judged, foreign)
+        const key = Node.foreignName(op)
+        if (!Object.hasOwn(foreign, key)) return openCall(op, judged, foreign)
         if (known) return applyForeign(op, judged, foreign)
-        return Option.match(rewriteForeign(view, op, judged), {
+        return Option.match(rewriteForeign(view, op, judged, foreign[key], rewritePolicy), {
           onNone: () => openCall(op, judged, foreign),
           onSome: made =>
             'value' in made
@@ -224,26 +236,26 @@ const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): 
       })
     },
     If: branch => {
-      const cond = judge(branch.cond, env, foreign)
+      const cond = judge(branch.cond, env, foreign, rewritePolicy)
       if (!isLeftover(cond)) {
         const taken = ifArm(branch, cond === undefined ? null : cond)
-        return 'arm' in taken ? judge(taken.arm, env, foreign) : taken.value
+        return 'arm' in taken ? judge(taken.arm, env, foreign, rewritePolicy) : taken.value
       }
       return openChoice(cond, [
-        judge(branch.then, env, foreign),
-        judge(branch.otherwise, env, foreign),
+        judge(branch.then, env, foreign, rewritePolicy),
+        judge(branch.otherwise, env, foreign, rewritePolicy),
       ])
     },
     Match: match => {
-      const on = judge(match.on, env, foreign)
+      const on = judge(match.on, env, foreign, rewritePolicy)
       if (!isLeftover(on)) {
         const taken = matchArm(match, on === undefined ? null : on)
-        return 'arm' in taken ? judge(taken.arm, env, foreign) : taken.value
+        return 'arm' in taken ? judge(taken.arm, env, foreign, rewritePolicy) : taken.value
       }
       return openChoice(
         on,
         [...match.cases.map(([, arm]) => arm), ...Option.toArray(match.otherwise)].map(arm =>
-          judge(arm, env, foreign),
+          judge(arm, env, foreign, rewritePolicy),
         ),
       )
     },
@@ -265,11 +277,11 @@ const judge = (node: Node.Node, env: unknown, foreign: ForeignImplementations): 
         rows,
         env,
         {
-          judge: (inner, at) => judge(inner, at, foreign),
+          judge: (inner, at) => judge(inner, at, foreign, rewritePolicy),
           known: view.known,
           value: value => value,
           kept: (kept, source, outer) => {
-            const body = Node.rowsBody(kept).map(each => judge(each, outer, foreign))
+            const body = Node.rowsBody(kept).map(each => judge(each, outer, foreign, rewritePolicy))
             return new Leftover(
               kindOf(kept),
               foldCannotRefuse(
@@ -327,8 +339,9 @@ export const settleNode = (
   node: Node.Node,
   partialEnv: unknown,
   foreign: ForeignImplementations = {},
+  rewritePolicy?: ForeignRewritePolicy,
 ): Settled => {
-  const judged = judge(node, partialEnv, foreign)
+  const judged = judge(node, partialEnv, foreign, rewritePolicy)
   if (!isLeftover(judged)) return Settled.Known({ value: judged })
   const reads = once(judged.reads)
   const unsupported = judged.unsupported
@@ -367,8 +380,9 @@ export const judgeNode = (
   node: Node.Node,
   partialEnv: unknown,
   foreign: ForeignImplementations = {},
+  rewritePolicy?: ForeignRewritePolicy,
 ): Verdict.Verdict<never> =>
-  Settled.$match(settleNode(node, partialEnv, foreign), {
+  Settled.$match(settleNode(node, partialEnv, foreign, rewritePolicy), {
     Known: ({ value }) => {
       if (value === true) return Verdict.True(Option.some(Verdict.Proved('concrete')))
       if (!Node.isRefusal(value)) return Verdict.False<never>()

@@ -245,4 +245,123 @@ describe('custom operation readers (abstract checker)', () => {
     expect(Verdict.isUnknown(Abstract.checkTransition(Capped, step))).toBe(true)
     expect(Verdict.isTrue(Abstract.checkTransition(Capped, step, { foreign: impls }))).toBe(true)
   })
+
+  it('gates foreign claim rewrites on bound evidence in verified mode and invalidates on rebind (#648 P0 #3)', () => {
+    // Operation claiming identity 0, with one honest impl and one lying impl (+1).
+    const maybeAdd = Operation.define({
+      id: 'test.maybeAdd',
+      version: 1,
+      args: [Flags, Flags],
+      returns: Flags,
+      nulls: 'strict',
+      claims: { identity: { value: 0, side: 'both' } },
+    })
+    const honestImpls = Operation.implementations(
+      'honest',
+      Operation.implement(maybeAdd, (a, b) => a + b),
+    )
+    const lyingImpls = Operation.implementations(
+      'lying',
+      Operation.implement(maybeAdd, (a, b) => a + b + 1),
+    )
+
+    const expr = maybeAdd($.granted, 0)
+    const eqExpr = Eq.is(expr, $.granted)
+
+    // 1. Conservative verified mode with no evidence: refuses to rewrite -> preserves Call & Unknown, matching lyingImpls eval!
+    const verifiedNoEvidence = {
+      foreign: lyingImpls,
+      rewritePolicy: { mode: 'verified' as const },
+    }
+    const keptResidual = Expr.residualize(expr, {}, verifiedNoEvidence)
+    expect(Node.$is('Call')(keptResidual.node)).toBe(true)
+    expect(Verdict.isUnknown(Expr.judge(eqExpr, {}, verifiedNoEvidence))).toBe(true)
+    expect(
+      Expr.evaluate(
+        keptResidual,
+        { granted: 5, maybe: null, wide: 0, x: 0, y: 0 },
+        verifiedNoEvidence,
+      ),
+    ).toBe(6)
+
+    // 2. Assurance rank check: 'claim' does NOT satisfy default minAssurance ('tested'), and 'tested' does NOT satisfy 'proven'.
+    const claimOnly = Expr.foreignEvidence(maybeAdd, honestImpls, {
+      claims: ['identity'],
+      assurance: 'claim',
+    })
+    const testedEv = Expr.foreignEvidence(maybeAdd, honestImpls, {
+      claims: ['identity'],
+      assurance: 'tested',
+    })
+    expect(
+      Node.$is('Call')(
+        Expr.residualize(
+          expr,
+          {},
+          {
+            foreign: honestImpls,
+            rewritePolicy: { mode: 'verified', evidence: [claimOnly] },
+          },
+        ).node,
+      ),
+    ).toBe(true)
+    expect(
+      Node.$is('Call')(
+        Expr.residualize(
+          expr,
+          {},
+          {
+            foreign: honestImpls,
+            rewritePolicy: { mode: 'verified', minAssurance: 'proven', evidence: [testedEv] },
+          },
+        ).node,
+      ),
+    ).toBe(true)
+
+    // 3. Matching bound evidence at required assurance enables rewrite.
+    const rewritten = Expr.residualize(
+      expr,
+      {},
+      {
+        foreign: honestImpls,
+        rewritePolicy: { mode: 'verified', evidence: [testedEv] },
+      },
+    )
+    expect(Node.$is('Path')(rewritten.node)).toBe(true)
+    expect(
+      Verdict.isTrue(
+        Expr.judge(
+          eqExpr,
+          {},
+          {
+            foreign: honestImpls,
+            rewritePolicy: { mode: 'verified', evidence: [testedEv] },
+          },
+        ),
+      ),
+    ).toBe(true)
+
+    // 4. Rebinding the same op id@version to a different implementation invalidates prior evidence!
+    const afterRebind = Expr.residualize(
+      expr,
+      {},
+      {
+        foreign: lyingImpls,
+        rewritePolicy: { mode: 'verified', evidence: [testedEv] },
+      },
+    )
+    expect(Node.$is('Call')(afterRebind.node)).toBe(true)
+    expect(
+      Verdict.isUnknown(
+        Expr.judge(
+          eqExpr,
+          {},
+          {
+            foreign: lyingImpls,
+            rewritePolicy: { mode: 'verified', evidence: [testedEv] },
+          },
+        ),
+      ),
+    ).toBe(true)
+  })
 })

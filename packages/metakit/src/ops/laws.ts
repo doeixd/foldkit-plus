@@ -15,6 +15,7 @@ import * as Node from '../node.js'
 import { optionInner } from '../path.js'
 import type { Direction, OpProperties } from '../properties.js'
 import { equalsOp, isOp } from './eq.js'
+import type { ForeignImplementation, ForeignImplementations } from './eval.js'
 import { present } from './kind.js'
 import { wellFormed } from './str.js'
 import { EARLIEST_DAY, LATEST_DAY } from './time.js'
@@ -361,17 +362,109 @@ const astWithin = (
   return members.every(member => memberWithin(member, target, checkArg))
 }
 
+/** Assurance level backing a foreign algebraic claim rewrite. */
+export type EvidenceAssurance = 'claim' | 'tested' | 'proven' | 'builtin'
+
+/** Foreign algebraic claim kinds used by `rewriteForeign`. */
+export type ForeignClaimKind = 'identity' | 'absorbing' | 'idempotent'
+
+const ASSURANCE_RANK: Readonly<Record<EvidenceAssurance, number>> = {
+  claim: 0,
+  tested: 1,
+  proven: 2,
+  builtin: 3,
+}
+
+/**
+ * Evidence authorizing algebraic rewrites for a specific foreign operation
+ * (`id@version`) bound to a specific JS implementation function. Rebinding the
+ * operation to a different implementation invalidates this evidence.
+ */
+export interface ForeignRewriteEvidence {
+  readonly op: string
+  readonly implementation: ForeignImplementation
+  readonly claims: ReadonlySet<ForeignClaimKind>
+  readonly assurance: EvidenceAssurance
+}
+
+/**
+ * Trust policy controlling whether `rewriteForeign` applies algebraic rewrites
+ * from a foreign operation's declared `claims`.
+ *
+ * - `mode: 'trusted'` (default when omitted): applies declared `op.claims` when
+ *   an implementation is bound.
+ * - `mode: 'verified'`: applies a claim rewrite only when `evidence` holds a
+ *   matching entry for the exact `(op id@version, bound implementation, claim)`
+ *   at or above `minAssurance` (default `'tested'`). Conservative fallback
+ *   preserves the original call (`Unknown` in `judge`) when evidence is absent,
+ *   insufficient, or invalidated by rebinding.
+ */
+export interface ForeignRewritePolicy {
+  readonly mode: 'trusted' | 'verified'
+  readonly minAssurance?: EvidenceAssurance
+  readonly evidence?: ReadonlyArray<ForeignRewriteEvidence>
+}
+
+/**
+ * Build a `ForeignRewriteEvidence` bound to the exact implementation currently
+ * registered for `op` in `foreign`. Throws if `foreign` does not implement `op`.
+ */
+export const foreignEvidence = (
+  op: { readonly descriptor: { readonly id: string; readonly version: number } },
+  foreign: ForeignImplementations,
+  options: {
+    readonly claims: ReadonlyArray<ForeignClaimKind>
+    readonly assurance: EvidenceAssurance
+  },
+): ForeignRewriteEvidence => {
+  const key = Node.foreignName(op.descriptor)
+  if (!Object.hasOwn(foreign, key)) {
+    throw new Error(`[metakit] foreignEvidence: implementation for "${key}" is not bound`)
+  }
+  return {
+    op: key,
+    implementation: foreign[key]!,
+    claims: new Set(options.claims),
+    assurance: options.assurance,
+  }
+}
+
+/** Whether `policy` permits rewriting `op` using `claim` for `boundImpl`. */
+export const permitsForeignRewrite = (
+  policy: ForeignRewritePolicy | undefined,
+  op: Node.ForeignOp,
+  boundImpl: ForeignImplementation | undefined,
+  claim: ForeignClaimKind,
+): boolean => {
+  if (policy === undefined || policy.mode === 'trusted') return true
+  if (boundImpl === undefined || policy.evidence === undefined) return false
+  const minRank = ASSURANCE_RANK[policy.minAssurance ?? 'tested']
+  const key = Node.foreignName(op)
+  return policy.evidence.some(
+    entry =>
+      entry.op === key &&
+      entry.implementation === boundImpl &&
+      entry.claims.has(claim) &&
+      ASSURANCE_RANK[entry.assurance] >= minRank,
+  )
+}
+
 /**
  * Size-reducing rewrites for a declared custom operation (`ForeignOp`) from
  * its `claims`: `identity`, `absorbing` and `idempotent`. An operand dropped
  * or returned must be statically known to lie within the argument Schema (or
  * null for a strict operation's `identity`/`idempotent`), and for `absorbing`
  * must also be known not to be refused.
+ *
+ * When `policy` has `mode: 'verified'`, each claim rewrite is additionally
+ * gated on matching `ForeignRewriteEvidence` bound to `boundImpl`.
  */
 export const rewriteForeign = <T>(
   view: View<T>,
   op: Node.ForeignOp,
   args: ReadonlyArray<T>,
+  boundImpl?: ForeignImplementation,
+  policy?: ForeignRewritePolicy,
 ): Option.Option<Rewrite<T>> => {
   const { claims, args: argSchemas, checkArgs } = op
   if (claims === undefined || argSchemas === undefined || checkArgs === undefined) {
@@ -399,7 +492,11 @@ export const rewriteForeign = <T>(
 
   const strict = op.nulls === 'strict'
 
-  if (args.length === 1 && claims.idempotent === true) {
+  if (
+    args.length === 1 &&
+    claims.idempotent === true &&
+    permitsForeignRewrite(policy, op, boundImpl, 'idempotent')
+  ) {
     const inner = view.unary(args[0]!)
     if (
       inner !== undefined &&
@@ -414,7 +511,10 @@ export const rewriteForeign = <T>(
     const left = args[0]!
     const right = args[1]!
 
-    if (claims.absorbing !== undefined) {
+    if (
+      claims.absorbing !== undefined &&
+      permitsForeignRewrite(policy, op, boundImpl, 'absorbing')
+    ) {
       const { value, result, side } = claims.absorbing
       const drops = (operand: T, index: number): boolean =>
         view.cannotRefuse(operand) && withinSchema(operand, index, false)
@@ -426,7 +526,7 @@ export const rewriteForeign = <T>(
       }
     }
 
-    if (claims.identity !== undefined) {
+    if (claims.identity !== undefined && permitsForeignRewrite(policy, op, boundImpl, 'identity')) {
       const { value, side } = claims.identity
       if (
         (side === 'left' || side === 'both') &&
@@ -446,6 +546,7 @@ export const rewriteForeign = <T>(
 
     if (
       claims.idempotent === true &&
+      permitsForeignRewrite(policy, op, boundImpl, 'idempotent') &&
       view.same(left, right) &&
       withinSchema(left, 0, strict) &&
       withinSchema(right, 1, strict)
