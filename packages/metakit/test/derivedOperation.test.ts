@@ -101,5 +101,33 @@ describe('Operation.derived & Operation.expandDerived (#648 #7 & #597)', () => {
       AddDerived(AddDerived(x, 1), AddDerived(x, 2)),
     )
     expect(() => Operation.expandDerived(nested, [AddDerived], { maxNodes: 3 })).toThrow(RangeError)
+
+    // Preserves nulls: 'strict' semantics after expandDerived even when Fn body ignores parameter
+    const constFn = Fn.make({ x: Schema.Int }, () => 42)
+    const StrictConst = Operation.derived({
+      id: 'test.strictConst',
+      version: 1,
+      definition: constFn,
+      paramOrder: ['x'] as const,
+      returns: Schema.Int,
+    })
+    const strictImpls = Operation.implementations('strict', StrictConst.implementation)
+    const callNull = Expr.in({ x: Schema.NullOr(Schema.Int) }, ({ x }) => StrictConst(x))
+    const expandedNull = Operation.expandDerived(callNull, [StrictConst])
+    expect(Expr.evaluate(callNull, { x: null }, { foreign: strictImpls })).toBeNull()
+    expect(Expr.evaluate(expandedNull, { x: null })).toBeNull()
+    expect(Expr.evaluate(expandedNull, { x: 7 })).toBe(42)
+
+    // Rejects Fn definitions carrying where/ensures/obligations
+    const constrainedFn = Fn.make({ x: Schema.Int }, ({ x }) => x).where(({ x }) => Ord.gt(x, 0))
+    expect(() =>
+      Operation.derived({
+        id: 'test.constrained',
+        version: 1,
+        definition: constrainedFn,
+        paramOrder: ['x'] as const,
+        returns: Schema.Int,
+      }),
+    ).toThrow(/where\/ensures\/obligations/)
   })
 })

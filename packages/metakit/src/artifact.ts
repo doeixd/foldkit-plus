@@ -609,16 +609,19 @@ const resolveAstSegments = (
     return resolveAstSegments(prop.type, segments.slice(1))
   }
   if (SchemaAST.isUnion(unwrapped)) {
+    const nonNullMembers = unwrapped.types.filter(
+      m => !SchemaAST.isNull(m) && !SchemaAST.isUndefined(m),
+    )
     const hits: Array<SchemaAST.AST> = []
-    for (const member of unwrapped.types) {
-      if (SchemaAST.isNull(member) || SchemaAST.isUndefined(member)) continue
+    for (const member of nonNullMembers) {
       const resolved = resolveAstSegments(member, segments)
       if (Option.isSome(resolved)) hits.push(resolved.value)
     }
     if (hits.length === 0) return Option.none()
-    if (hits.length === 1) return Option.some(hits[0]!)
-    const firstKind = kindOfAst(hits[0]!)
-    return Option.some(hits.every(h => kindOfAst(h) === firstKind) ? hits[0]! : Schema.Unknown.ast)
+    const partialMatch = hits.length < nonNullMembers.length
+    const members: Array<SchemaAST.AST> = partialMatch ? [...hits, Schema.Null.ast] : hits
+    if (members.length === 1) return Option.some(members[0]!)
+    return Option.some(new SchemaAST.Union(members))
   }
   return Option.none()
 }

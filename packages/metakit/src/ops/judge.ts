@@ -36,6 +36,7 @@ import {
 } from './kind.js'
 import {
   nullBesideUnrefused,
+  permitsForeignRewrite,
   rewrite,
   rewriteForeign,
   type ForeignRewritePolicy,
@@ -136,12 +137,16 @@ const openCall = (
   op: Node.AnyOp,
   args: ReadonlyArray<unknown>,
   foreign: ForeignImplementations,
+  rewritePolicy?: ForeignRewritePolicy,
 ): Leftover => {
   const [only] = args
+  const foreignKey = Node.isForeign(op) ? Node.foreignName(op) : undefined
   const unrefused =
     (Node.isForeign(op) &&
+      foreignKey !== undefined &&
       op.claims?.total === true &&
-      Object.hasOwn(foreign, Node.foreignName(op)) &&
+      Object.hasOwn(foreign, foreignKey) &&
+      permitsForeignRewrite(rewritePolicy, op, foreign[foreignKey], 'total') &&
       args.every(arg => view.cannotRefuse(arg))) ||
     (args.length === 2 &&
       view.cannotRefuse(args[0]) &&
@@ -212,15 +217,15 @@ const judge = (
       const known = !judged.some(isLeftover)
       if (Node.isForeign(op)) {
         const key = Node.foreignName(op)
-        if (!Object.hasOwn(foreign, key)) return openCall(op, judged, foreign)
+        if (!Object.hasOwn(foreign, key)) return openCall(op, judged, foreign, rewritePolicy)
         if (known) return applyForeign(op, judged, foreign)
         return Option.match(rewriteForeign(view, op, judged, foreign[key], rewritePolicy), {
-          onNone: () => openCall(op, judged, foreign),
+          onNone: () => openCall(op, judged, foreign, rewritePolicy),
           onSome: made =>
             'value' in made
               ? made.value
               : 'call' in made
-                ? openCall(made.call, [made.operand, made.literal], foreign)
+                ? openCall(made.call, [made.operand, made.literal], foreign, rewritePolicy)
                 : made.operand,
         })
       }

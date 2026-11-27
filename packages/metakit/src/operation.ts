@@ -8,10 +8,12 @@
  * Schemas so every claim's domain is enforced at run time.
  */
 import { Equal, Option, Schema, SchemaAST } from 'effect'
-import type { Fn, ParamSchemas } from './fn.js'
+import type { Fn, ParamSchemas, ReturnCarrier } from './fn.js'
 import * as Node from './node.js'
+import { orOp } from './ops/bool.js'
 import { toNode, wrap, type ExprInput, type NullOf } from './ops/core.js'
 import { evalNode, type ForeignImplementation, type ForeignImplementations } from './ops/eval.js'
+import { isNullOp } from './ops/null.js'
 export { applyForeign } from './ops/eval.js'
 import type { Expr } from './path.js'
 
@@ -647,7 +649,8 @@ export const derived = <
   R extends Schema.Top,
   N extends 'strict' | 'own' = 'strict',
   const C extends Claims<OrderedParamSchemas<P, Order>, R> = {},
-  FR = unknown,
+  FR extends ReturnCarrier<Schema.Schema.Type<R>> | (N extends 'own' ? null : never) =
+    ReturnCarrier<Schema.Schema.Type<R>>,
 >(spec: {
   readonly id: Id & NotCore<Id>
   readonly version: V
@@ -656,7 +659,18 @@ export const derived = <
   readonly returns: R
   readonly nulls?: N
   readonly claims?: C
+  /** Optional foreign implementations needed if `definition.body` calls other foreign/derived ops. */
+  readonly foreign?: ForeignImplementations
 }): DerivedOperation<Id, V, OrderedParamSchemas<P, Order>, R, N, C, P, FR> => {
+  if (
+    spec.definition.whereClauses.length > 0 ||
+    spec.definition.ensuresClauses.length > 0 ||
+    spec.definition.obligations.length > 0
+  ) {
+    throw new Error(
+      `[metakit] Operation.derived(${spec.id}@${spec.version}): definition cannot carry where/ensures/obligations because Operation calls do not enforce Fn preconditions or obligations`,
+    )
+  }
   const expectedKeys = Object.keys(spec.definition.params)
   const seen = new Set<string>()
   for (const name of spec.paramOrder) {
@@ -697,7 +711,7 @@ export const derived = <
     for (let i = 0; i < spec.paramOrder.length; i++) {
       env[spec.paramOrder[i]!] = values[i]
     }
-    const result = evalNode(spec.definition.body.node, env)
+    const result = evalNode(spec.definition.body.node, env, spec.foreign)
     if (Node.isRefusal(result)) throw result
     return result as Schema.Schema.Type<R> | null
   })
@@ -749,6 +763,11 @@ export const expandDerived = <Env, A>(
             `[metakit] Operation.expandDerived: cyclic derived operation expansion detected at "${key}"`,
           )
         }
+        if (expandedArgs.length !== derivedOp.paramOrder.length) {
+          throw new Error(
+            `[metakit] Operation.expandDerived: "${key}" expected ${derivedOp.paramOrder.length} argument(s), got ${expandedArgs.length}`,
+          )
+        }
         const argRecord: Record<string, Expr<never, unknown>> = {}
         for (let i = 0; i < derivedOp.paramOrder.length; i++) {
           argRecord[derivedOp.paramOrder[i]!] = wrap(expandedArgs[i]!)
@@ -756,7 +775,22 @@ export const expandDerived = <Env, A>(
         const inlined = derivedOp.definition(argRecord as never).node
         const nextActive = new Set(active)
         nextActive.add(key)
-        return expandNode(inlined, nextActive)
+        const expandedBody = expandNode(inlined, nextActive)
+        if (derivedOp.descriptor.nulls === 'strict' && expandedArgs.length > 0) {
+          let anyNull: Node.Node = Node.Call({ op: isNullOp, args: [expandedArgs[0]!] })
+          for (let i = 1; i < expandedArgs.length; i++) {
+            anyNull = Node.Call({
+              op: orOp,
+              args: [anyNull, Node.Call({ op: isNullOp, args: [expandedArgs[i]!] })],
+            })
+          }
+          return Node.If({
+            cond: anyNull,
+            then: Node.Lit({ value: null }),
+            otherwise: expandedBody,
+          })
+        }
+        return expandedBody
       },
       If: ({ cond, then: t, otherwise }) =>
         Node.If({

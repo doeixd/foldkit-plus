@@ -365,8 +365,8 @@ const astWithin = (
 /** Assurance level backing a foreign algebraic claim rewrite. */
 export type EvidenceAssurance = 'claim' | 'tested' | 'proven' | 'builtin'
 
-/** Foreign algebraic claim kinds used by `rewriteForeign`. */
-export type ForeignClaimKind = 'identity' | 'absorbing' | 'idempotent'
+/** Foreign algebraic claim kinds gated by `ForeignRewritePolicy`. */
+export type ForeignClaimKind = 'identity' | 'absorbing' | 'idempotent' | 'total'
 
 const ASSURANCE_RANK: Readonly<Record<EvidenceAssurance, number>> = {
   claim: 0,

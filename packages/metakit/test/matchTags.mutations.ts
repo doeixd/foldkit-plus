@@ -32,9 +32,9 @@ export default [
       {
         file: '../src/artifact.ts',
         find: `  if (SchemaAST.isUnion(unwrapped)) {
-    const hits: Array<SchemaAST.AST> = []`,
+    const nonNullMembers = unwrapped.types.filter(`,
         replace: `  if (false && SchemaAST.isUnion(unwrapped)) {
-    const hits: Array<SchemaAST.AST> = []`,
+    const nonNullMembers = unwrapped.types.filter(`,
       },
     ],
     tests,

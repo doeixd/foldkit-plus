@@ -7,8 +7,8 @@ export default [
     edits: [
       {
         file: '../src/fn.ts',
-        find: '  const hygienic = hasCollidingRowsBinder(node, avoided)\n    ? freshenRows(node, nextSafeDepth(avoided))\n    : node',
-        replace: '  const hygienic = node',
+        find: '  if (outerEach !== Node.EACH) avoided.add(outerEach)\n  const hygienic = hasCollidingRowsBinder(node, avoided)\n    ? freshenRows(node, nextSafeDepth(avoided, node))\n    : node',
+        replace: '  if (outerEach !== Node.EACH) avoided.add(outerEach)\n  const hygienic = node',
       },
     ],
     tests: ['packages/metakit/test/fn.test.ts'],

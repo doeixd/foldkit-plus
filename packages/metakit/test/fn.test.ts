@@ -3,7 +3,7 @@
  * `Expr.residualize` / `Expr.judge`, contract error phases, and `Prove.fn`.
  */
 import { Effect, Option, Result, Schema } from 'effect'
-import { Arr, Expr, Num, Path, Verdict } from 'metakit'
+import { Arr, Eq, Expr, Num, Path, Verdict } from 'metakit'
 import * as Fn from 'metakit/fn'
 import * as Inspect from 'metakit/inspect'
 import * as Prove from 'metakit/prove'
@@ -162,5 +162,49 @@ describe('metakit/fn: hygiene, partial evaluation, inspection & contract phases'
     const dbl = Fn.make({ x: Schema.Int }, ({ x }) => Num.add(x, x))
     expect(() => Fn.iterate(dbl, 15, { maxNodes: 200 })).toThrow(RangeError)
     expect(Fn.iterate(dbl, 3, { maxNodes: 200 }).run({ x: 2 })).toBe(16)
+
+    // 4. Nested Rows inside Fn called with user field named `each` must NOT capture inner binder!
+    const sharesScore = Fn.make(
+      { xs: Schema.Array(Item), ys: Schema.Array(Item), min: Schema.Int },
+      ({ xs, ys, min }) =>
+        Arr.any(xs, x =>
+          Arr.any(ys, y => Expr.all(Num.gte(x.score, min), Eq.is(x.score, y.score))),
+        ),
+    )
+    const NestedEnv = Schema.Struct({
+      xs: Schema.Array(Item),
+      ys: Schema.Array(Item),
+      each: Schema.Int,
+    })
+    const $n = Path.from(NestedEnv)
+    const nestedCall = sharesScore({ xs: $n.xs, ys: $n.ys, min: $n.each })
+    expect(
+      Expr.evaluate(nestedCall, {
+        xs: [{ score: 10 }],
+        ys: [{ score: 20 }],
+        each: 5,
+      }),
+    ).toBe(false)
+    expect(
+      Expr.evaluate(nestedCall, {
+        xs: [{ score: 10 }, { score: 20 }],
+        ys: [{ score: 20 }],
+        each: 15,
+      }),
+    ).toBe(true)
+
+    // 5. Fn.partial rejects Opaque body, and Fn.iterate(f, 0) keeps param Schema (not narrower returnSchema)
+    const opaquePair = Fn.make({ a: Schema.Int, b: Schema.Int }, () =>
+      Expr.opaque<{ readonly a: number; readonly b: number }, number>(
+        { name: 'sumOpaque' },
+        env => env.a + env.b,
+      ),
+    )
+    expect(() => opaquePair.partial({ a: 1 })).toThrow(/cannot symbolically substitute Opaque node/)
+
+    const clampZero = Fn.params({ x: Schema.Int })
+      .returns(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)))
+      .body(({ x }) => Expr.when(Num.gte(x, 0), { then: x, else: 0 }))
+    expect(Fn.iterate(clampZero, 0).runChecked({ x: -5 })).toEqual(Result.succeed(-5))
   })
 })

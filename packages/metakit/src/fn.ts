@@ -426,13 +426,46 @@ const hasCollidingRowsBinder = (root: Node.Node, avoided: ReadonlySet<string>): 
   return false
 }
 
-const nextSafeDepth = (avoided: ReadonlySet<string>): number => {
+const collectRowsBinders = (root: Node.Node): ReadonlySet<string> => {
+  const binders = new Set<string>()
+  const stack: Array<Node.Node> = [root]
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    Node.$match(current, {
+      Lit: () => undefined,
+      Path: () => undefined,
+      Call: ({ args }) => {
+        for (const a of args) stack.push(a)
+      },
+      If: ({ cond, then, otherwise }) => {
+        stack.push(cond, then, otherwise)
+      },
+      Match: ({ on, cases, otherwise }) => {
+        stack.push(on)
+        for (const [, b] of cases) stack.push(b)
+        if (Option.isSome(otherwise)) stack.push(otherwise.value)
+      },
+      Opaque: () => undefined,
+      Rows: rows => {
+        binders.add(Node.rowsEach(rows))
+        for (const child of rowsChildren(rows)) stack.push(child)
+      },
+    })
+  }
+  return binders
+}
+
+const nextSafeDepth = (avoided: ReadonlySet<string>, node?: Node.Node): number => {
   let depth = 1
-  for (const name of avoided) {
+  const bump = (name: string): void => {
     if (name.startsWith(`${Node.EACH}#`)) {
       const parsed = Number(name.slice(Node.EACH.length + 1))
       if (Number.isInteger(parsed) && parsed >= depth) depth = parsed + 1
     }
+  }
+  for (const name of avoided) bump(name)
+  if (node !== undefined) {
+    for (const name of collectRowsBinders(node)) bump(name)
   }
   return depth
 }
@@ -485,7 +518,7 @@ const substituteArgs = (
   const avoided = new Set(collectRootSegments(argNodes.values()))
   if (outerEach !== Node.EACH) avoided.add(outerEach)
   const hygienic = hasCollidingRowsBinder(node, avoided)
-    ? freshenRows(node, nextSafeDepth(avoided))
+    ? freshenRows(node, nextSafeDepth(avoided, node))
     : node
   return Node.substitutePaths(hygienic, segments => {
     const head = segments[0]
@@ -810,8 +843,13 @@ export const make = <P extends ParamSchemas, R>(
 const substituteEnsuresParams = (
   node: Node.Node,
   argNodes: ReadonlyMap<string, Node.Node>,
-): Node.Node =>
-  Node.substitutePaths(node, segments => {
+): Node.Node => {
+  if (argNodes.size > 0) assertNoOpaque(node)
+  const avoided = collectRootSegments(argNodes.values())
+  const hygienic = hasCollidingRowsBinder(node, avoided)
+    ? freshenRows(node, nextSafeDepth(avoided, node))
+    : node
+  return Node.substitutePaths(hygienic, segments => {
     if (segments[0] !== 'params') return Option.none()
     const head = segments[1]
     if (head === undefined || !argNodes.has(head)) return Option.none()
@@ -820,12 +858,13 @@ const substituteEnsuresParams = (
       segments.length === 2 ? replacement : projectArg(replacement, segments.slice(2), head),
     )
   })
+}
 
 const mergeParamSchemas = (list: ReadonlyArray<ParamSchemas>): Record<string, SchemaOf> => {
   const merged: Record<string, SchemaOf> = {}
   for (const paramsObj of list) {
     for (const [k, schema] of Object.entries(paramsObj)) {
-      const existing = merged[k]
+      const existing = Object.hasOwn(merged, k) ? merged[k] : undefined
       if (existing === undefined) {
         merged[k] = schema
       } else if (existing !== schema && existing.ast !== schema.ast) {
@@ -1017,8 +1056,9 @@ export const partial = <P extends ParamSchemas, R, const Fixed extends Partial<P
   for (const key of fixedKeys) {
     fixedNodes.set(key, Node.Lit({ value: (fixed as Readonly<Record<string, unknown>>)[key] }))
   }
-  const sub = (node: Node.Node): Node.Node =>
-    Node.substitutePaths(node, segments => {
+  const sub = (node: Node.Node): Node.Node => {
+    if (fixedNodes.size > 0) assertNoOpaque(node)
+    return Node.substitutePaths(node, segments => {
       const head = segments[0]
       if (head === undefined || !fixedNodes.has(head)) return Option.none()
       const replacement = fixedNodes.get(head)!
@@ -1026,6 +1066,7 @@ export const partial = <P extends ParamSchemas, R, const Fixed extends Partial<P
         segments.length === 1 ? replacement : projectArg(replacement, segments.slice(1), head),
       )
     })
+  }
 
   const rem = remainingParams as Remaining
   return buildFn<Remaining, R>({
@@ -1314,7 +1355,7 @@ export const iterate = <K extends string, S extends SchemaOf>(
         Node.Path({ segments: [soleKey], ast: Option.some(f.params[soleKey].ast) }),
       ),
       whereClauses: [],
-      returnSchema: f.returnSchema,
+      returnSchema: Option.some(f.params[soleKey] as unknown as Schema.Codec<S['Type']>),
       ensuresClauses: [],
       obligations: [],
     })

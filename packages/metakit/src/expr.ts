@@ -236,31 +236,49 @@ const taggedVariantsOf = (
 ): {
   readonly variants: ReadonlyMap<string, SchemaAST.Objects>
   readonly tagAst: Option.Option<SchemaAST.AST>
+  readonly nullable: boolean
 } => {
   const variants = new Map<string, SchemaAST.Objects>()
+  let nullable = false
+  let allLiteralTagged = true
   const collect = (node: SchemaAST.AST): void => {
     const inner = Path.optionInner(node)
     if (Option.isSome(inner)) {
+      nullable = true
       collect(inner.value)
       return
     }
-    if (SchemaAST.isNull(node) || SchemaAST.isUndefined(node)) return
+    if (SchemaAST.isNull(node) || SchemaAST.isUndefined(node)) {
+      nullable = true
+      return
+    }
     if (SchemaAST.isUnion(node)) {
       for (const member of node.types) collect(member)
       return
     }
-    if (!SchemaAST.isObjects(node)) return
+    if (!SchemaAST.isObjects(node)) {
+      allLiteralTagged = false
+      return
+    }
     const tagProp = node.propertySignatures.find(p => p.name === '_tag')
-    if (tagProp !== undefined && SchemaAST.isLiteral(tagProp.type)) {
-      if (typeof tagProp.type.literal === 'string') {
-        variants.set(tagProp.type.literal, node)
-      }
+    if (
+      tagProp !== undefined &&
+      SchemaAST.isLiteral(tagProp.type) &&
+      typeof tagProp.type.literal === 'string'
+    ) {
+      variants.set(tagProp.type.literal, node)
+    } else {
+      allLiteralTagged = false
     }
   }
   if (Option.isSome(ast)) collect(ast.value)
+  if (!allLiteralTagged || variants.size === 0) {
+    return { variants: new Map(), tagAst: Option.none(), nullable }
+  }
   const keys = [...variants.keys()]
-  const tagAst = keys.length > 0 ? Option.some(Schema.Literals(keys).ast) : Option.none()
-  return { variants, tagAst }
+  const litSchema = Schema.Literals(keys)
+  const tagAst = Option.some(nullable ? Schema.NullOr(litSchema).ast : litSchema.ast)
+  return { variants, tagAst, nullable }
 }
 
 const checkTagCases = (
@@ -304,7 +322,12 @@ export const matchTagsExhaustive = <
   Env & UnionToIntersection<EnvOfInput<ReturnType<Cases[keyof Cases]>>>,
   ValueOfInput<ReturnType<Cases[keyof Cases]>>
 > => {
-  const { variants, tagAst } = taggedVariantsOf(on.ast)
+  const { variants, tagAst, nullable } = taggedVariantsOf(on.ast)
+  if (nullable) {
+    throw new Error(
+      `[metakit] Expr.matchTagsExhaustive: cannot exhaustively match nullable ${showNode(on.node)}; use Expr.matchTags with a fallback`,
+    )
+  }
   const entries = Object.entries(cases) as ReadonlyArray<
     readonly [string, (variant: PathAccessor<Env, unknown>) => ExprInput<never, unknown>]
   >

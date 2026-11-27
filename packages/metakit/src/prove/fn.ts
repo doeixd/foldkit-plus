@@ -9,7 +9,7 @@ import * as Expr from '../expr.js'
 import type { Fn, ParamSchemas } from '../fn.js'
 import * as Node from '../node.js'
 import { notOp, orOp } from '../ops/bool.js'
-import { isNullOp } from '../ops/null.js'
+import { coalesceOp, isNullOp } from '../ops/null.js'
 import * as Path from '../path.js'
 import type { ProveOptions } from '../prove.js'
 import * as Verdict from '../verdict.js'
@@ -77,7 +77,11 @@ export const proveFn = <P extends ParamSchemas, R>(
         obGoals.push(substituteResult(e.node, obExpr))
       }
       if (Option.isSome(ob.when)) {
-        const guardNode = Node.prefix(ob.when.value.node, ['params'])
+        const rawGuard = Node.prefix(ob.when.value.node, ['params'])
+        const guardNode = Node.Call({
+          op: coalesceOp,
+          args: [rawGuard, Node.Lit({ value: false })],
+        })
         for (const g of obGoals) {
           goals.push(
             Node.If({

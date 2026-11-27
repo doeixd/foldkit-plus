@@ -11,6 +11,7 @@ import * as Path from './path.js'
 import * as Verdict from './verdict.js'
 import type { ForeignImplementations } from './ops/eval.js'
 import { Settled } from './ops/judge.js'
+import type { ForeignRewritePolicy } from './ops/laws.js'
 import { readsOfNode } from './ops/reads.js'
 import { residualizeNode } from './ops/residualize.js'
 
@@ -78,8 +79,9 @@ export const residualSettled = (
   node: Node.Node,
   partialEnv: unknown,
   foreign: ForeignImplementations = {},
+  rewritePolicy?: ForeignRewritePolicy,
 ): Settled => {
-  const residual = residualizeNode(node, partialEnv, foreign)
+  const residual = residualizeNode(node, partialEnv, foreign, rewritePolicy)
   return Node.$is('Lit')(residual)
     ? Settled.Known({ value: residual.value })
     : Settled.Open({ reads: readsOfNode(residual), verdict: openVerdict(residual, foreign) })
@@ -90,8 +92,9 @@ export const residualVerdict = (
   node: Node.Node,
   partialEnv: unknown,
   foreign: ForeignImplementations = {},
+  rewritePolicy?: ForeignRewritePolicy,
 ): Verdict.Verdict<never> => {
-  const residual = residualizeNode(node, partialEnv, foreign)
+  const residual = residualizeNode(node, partialEnv, foreign, rewritePolicy)
   if (!Node.$is('Lit')(residual)) return openVerdict(residual, foreign)
   if (residual.value === true) return Verdict.True(Option.some(Verdict.Proved('concrete')))
   if (!Node.isRefusal(residual.value)) return Verdict.False<never>()
