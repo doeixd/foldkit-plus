@@ -68,7 +68,8 @@
       "metakit/store": ["../metakit/src/store.ts"],
       "metakit/store/check": ["../metakit/src/storeCheck.ts"],
       "metakit/syntax": ["../metakit/src/syntax.ts"],
-      "metakit/temporal": ["../metakit/src/temporal.ts"]
+      "metakit/temporal": ["../metakit/src/temporal.ts"],
+      "metakit/tooling": ["../metakit/src/tooling.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],

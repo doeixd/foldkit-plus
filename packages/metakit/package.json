@@ -142,6 +142,11 @@
       "types": "./dist/temporal.d.ts",
       "import": "./dist/temporal.js"
     },
+    "./tooling": {
+      "foldkit-plus:source": "./src/tooling.ts",
+      "types": "./dist/tooling.d.ts",
+      "import": "./dist/tooling.js"
+    },
     "./sql": {
       "foldkit-plus:source": "./src/sql.ts",
       "types": "./dist/sql.d.ts",

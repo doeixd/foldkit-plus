@@ -423,6 +423,11 @@
       "types": "./dist/metakit/temporal.d.mts",
       "import": "./dist/metakit/temporal.mjs"
     },
+    "./metakit/tooling": {
+      "foldkit-plus:source": "./src/metakit/tooling.ts",
+      "types": "./dist/metakit/tooling.d.mts",
+      "import": "./dist/metakit/tooling.mjs"
+    },
     "./metakit/sql": {
       "foldkit-plus:source": "./src/metakit/sql.ts",
       "types": "./dist/metakit/sql.d.mts",

@@ -169,6 +169,7 @@
       "foldkit-plus/metakit/store/check": ["./src/metakit/store/check.ts"],
       "foldkit-plus/metakit/syntax": ["./src/metakit/syntax.ts"],
       "foldkit-plus/metakit/temporal": ["./src/metakit/temporal.ts"],
+      "foldkit-plus/metakit/tooling": ["./src/metakit/tooling.ts"],
       "foldkit-plus/mirror": ["./src/mirror.ts"],
       "foldkit-plus/mixins": ["./src/mixins.ts"],
       "foldkit-plus/mixins-builder": ["./src/mixins-builder.ts"],
@@ -345,7 +346,8 @@
       "metakit/store": ["../metakit/src/store.ts"],
       "metakit/store/check": ["../metakit/src/storeCheck.ts"],
       "metakit/syntax": ["../metakit/src/syntax.ts"],
-      "metakit/temporal": ["../metakit/src/temporal.ts"]
+      "metakit/temporal": ["../metakit/src/temporal.ts"],
+      "metakit/tooling": ["../metakit/src/tooling.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts", "tsdown.config.ts"],

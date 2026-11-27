@@ -108,7 +108,8 @@
       "metakit/store": ["../../packages/metakit/src/store.ts"],
       "metakit/store/check": ["../../packages/metakit/src/storeCheck.ts"],
       "metakit/syntax": ["../../packages/metakit/src/syntax.ts"],
-      "metakit/temporal": ["../../packages/metakit/src/temporal.ts"]
+      "metakit/temporal": ["../../packages/metakit/src/temporal.ts"],
+      "metakit/tooling": ["../../packages/metakit/src/tooling.ts"]
     }
   },
   "include": [

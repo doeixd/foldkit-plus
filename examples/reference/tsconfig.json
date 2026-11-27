@@ -130,6 +130,7 @@
       "foldkit-plus/metakit/store/check": ["../../packages/plus/src/metakit/store/check.ts"],
       "foldkit-plus/metakit/syntax": ["../../packages/plus/src/metakit/syntax.ts"],
       "foldkit-plus/metakit/temporal": ["../../packages/plus/src/metakit/temporal.ts"],
+      "foldkit-plus/metakit/tooling": ["../../packages/plus/src/metakit/tooling.ts"],
       "foldkit-plus/mirror": ["../../packages/plus/src/mirror.ts"],
       "foldkit-plus/mixins": ["../../packages/plus/src/mixins.ts"],
       "foldkit-plus/mixins-builder": ["../../packages/plus/src/mixins-builder.ts"],
@@ -282,7 +283,8 @@
       "metakit/store": ["../../packages/metakit/src/store.ts"],
       "metakit/store/check": ["../../packages/metakit/src/storeCheck.ts"],
       "metakit/syntax": ["../../packages/metakit/src/syntax.ts"],
-      "metakit/temporal": ["../../packages/metakit/src/temporal.ts"]
+      "metakit/temporal": ["../../packages/metakit/src/temporal.ts"],
+      "metakit/tooling": ["../../packages/metakit/src/tooling.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "e2e/**/*.ts", "vite.config.ts"],
