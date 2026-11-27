@@ -408,6 +408,11 @@
       "types": "./dist/metakit/store/check.d.mts",
       "import": "./dist/metakit/store/check.mjs"
     },
+    "./metakit/syntax": {
+      "foldkit-plus:source": "./src/metakit/syntax.ts",
+      "types": "./dist/metakit/syntax.d.mts",
+      "import": "./dist/metakit/syntax.mjs"
+    },
     "./metakit/pairs": {
       "foldkit-plus:source": "./src/metakit/pairs.ts",
       "types": "./dist/metakit/pairs.d.mts",

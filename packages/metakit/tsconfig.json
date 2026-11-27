@@ -33,6 +33,7 @@
       "metakit/sql": ["./src/sql.ts"],
       "metakit/store": ["./src/store.ts"],
       "metakit/store/check": ["./src/storeCheck.ts"],
+      "metakit/syntax": ["./src/syntax.ts"],
       "metakit/temporal": ["./src/temporal.ts"]
     }
   },

@@ -127,6 +127,11 @@
       "types": "./dist/storeCheck.d.ts",
       "import": "./dist/storeCheck.js"
     },
+    "./syntax": {
+      "foldkit-plus:source": "./src/syntax.ts",
+      "types": "./dist/syntax.d.ts",
+      "import": "./dist/syntax.js"
+    },
     "./pairs": {
       "foldkit-plus:source": "./src/pairs.ts",
       "types": "./dist/pairs.d.ts",

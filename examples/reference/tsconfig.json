@@ -128,6 +128,7 @@
       "foldkit-plus/metakit/sql": ["../../packages/plus/src/metakit/sql.ts"],
       "foldkit-plus/metakit/store": ["../../packages/plus/src/metakit/store.ts"],
       "foldkit-plus/metakit/store/check": ["../../packages/plus/src/metakit/store/check.ts"],
+      "foldkit-plus/metakit/syntax": ["../../packages/plus/src/metakit/syntax.ts"],
       "foldkit-plus/metakit/temporal": ["../../packages/plus/src/metakit/temporal.ts"],
       "foldkit-plus/mirror": ["../../packages/plus/src/mirror.ts"],
       "foldkit-plus/mixins": ["../../packages/plus/src/mixins.ts"],
@@ -280,6 +281,7 @@
       "metakit/sql": ["../../packages/metakit/src/sql.ts"],
       "metakit/store": ["../../packages/metakit/src/store.ts"],
       "metakit/store/check": ["../../packages/metakit/src/storeCheck.ts"],
+      "metakit/syntax": ["../../packages/metakit/src/syntax.ts"],
       "metakit/temporal": ["../../packages/metakit/src/temporal.ts"]
     }
   },

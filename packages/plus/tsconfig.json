@@ -167,6 +167,7 @@
       "foldkit-plus/metakit/sql": ["./src/metakit/sql.ts"],
       "foldkit-plus/metakit/store": ["./src/metakit/store.ts"],
       "foldkit-plus/metakit/store/check": ["./src/metakit/store/check.ts"],
+      "foldkit-plus/metakit/syntax": ["./src/metakit/syntax.ts"],
       "foldkit-plus/metakit/temporal": ["./src/metakit/temporal.ts"],
       "foldkit-plus/mirror": ["./src/mirror.ts"],
       "foldkit-plus/mixins": ["./src/mixins.ts"],
@@ -343,6 +344,7 @@
       "metakit/sql": ["../metakit/src/sql.ts"],
       "metakit/store": ["../metakit/src/store.ts"],
       "metakit/store/check": ["../metakit/src/storeCheck.ts"],
+      "metakit/syntax": ["../metakit/src/syntax.ts"],
       "metakit/temporal": ["../metakit/src/temporal.ts"]
     }
   },
