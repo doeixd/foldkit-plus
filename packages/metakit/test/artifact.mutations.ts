@@ -88,4 +88,45 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'evidenceKey caches across unidentified foreign implementations',
+    edits: [
+      {
+        file: '../src/artifact.ts',
+        find: `        const identity = input.foreignIdentities[key]!
+        if (Option.isNone(identity)) return Effect.succeed(Option.none())`,
+        replace: `        const identity = input.foreignIdentities[key]!
+        if (false && Option.isNone(identity)) return Effect.succeed(Option.none())`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'Language.compose silently overwrites conflicting slots',
+    edits: [
+      {
+        file: '../src/language.ts',
+        find: `          const existingSlot = target[opName]
+          if (existingSlot !== undefined && existingSlot !== op) {`,
+        replace: `          const existingSlot = target[opName]
+          if (false && existingSlot !== undefined && existingSlot !== op) {`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'Language.readiness marks Opaque nodes as supported in SQL',
+    edits: [
+      {
+        file: '../src/language.ts',
+        find: `        Opaque: ({ name }) => {
+          portable = false
+          if (target._tag !== 'js') {`,
+        replace: `        Opaque: ({ name }) => {
+          portable = false
+          if (false && target._tag !== 'js') {`,
+      },
+    ],
+    tests,
+  },
 ]

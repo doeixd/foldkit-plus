@@ -8,7 +8,7 @@
  *   - emit serializable descriptions (`describe()`) for client/server comparison
  *   - collect law obligations (`obligations(tables, options)`)
  */
-import type { Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import * as Node from './node.js'
 import {
   describe as describeOp,
@@ -23,6 +23,7 @@ import {
 } from './operation.js'
 import { lawObligations } from './operationChecks.js'
 import type { ForeignLowerings, SqlDialect } from './operationSql.js'
+import type { Expr } from './path.js'
 import type * as Temporal from './temporal.js'
 
 /** Implementation function type for a single `Operation`. */
@@ -194,3 +195,294 @@ export const make = <
     obligations: (tables, opts) => lawObligations(operations, tables, opts),
   }
 }
+
+// ---------------------------------------------------------------------------
+// Phase B (#645 P1): Composable languages & target readiness checks
+// ---------------------------------------------------------------------------
+
+/** Two composed languages declared conflicting definitions for a family member or operation id. */
+export class LanguageConflictError extends Schema.TaggedError<LanguageConflictError>()(
+  'LanguageConflictError',
+  {
+    location: Schema.String,
+    detail: Schema.String,
+  },
+) {}
+
+type FamilyMap = Readonly<Record<string, Readonly<Record<string, AnyOperation>>>>
+
+/** Merge two family maps, combining operations within shared family names. */
+export type ComposedFamilies<A extends FamilyMap, B extends FamilyMap> = {
+  readonly [K in keyof A | keyof B]: K extends keyof A
+    ? K extends keyof B
+      ? A[K] & B[K]
+      : A[K]
+    : K extends keyof B
+      ? B[K]
+      : never
+}
+
+/**
+ * Compose two `Language`s into one while preserving literal operation IDs and types.
+ * Identical `AnyOperation` references are merged idempotently; conflicting
+ * definitions for the same `family.op` slot or `id@version` fail with
+ * `LanguageConflictError`.
+ */
+export const compose = <A extends FamilyMap, B extends FamilyMap>(
+  a: Language<A>,
+  b: Language<B>,
+): Effect.Effect<Language<ComposedFamilies<A, B>>, LanguageConflictError> =>
+  Effect.suspend(() => {
+    const merged: Record<string, Record<string, AnyOperation>> = {}
+    const byOpKey = new Map<string, { readonly slot: string; readonly op: AnyOperation }>()
+
+    const addLanguage = (families: FamilyMap): LanguageConflictError | undefined => {
+      for (const familyName of Object.keys(families)) {
+        const family = families[familyName]!
+        const target = (merged[familyName] ??= {})
+        for (const opName of Object.keys(family)) {
+          const op = family[opName]!
+          const slot = `${familyName}.${opName}`
+          const existingSlot = target[opName]
+          if (existingSlot !== undefined && existingSlot !== op) {
+            return new LanguageConflictError({
+              location: slot,
+              detail: `slot "${slot}" is defined differently by both languages`,
+            })
+          }
+          const key = Node.foreignName(op.descriptor)
+          const existingKey = byOpKey.get(key)
+          if (existingKey !== undefined && existingKey.op !== op) {
+            return new LanguageConflictError({
+              location: key,
+              detail: `operation "${key}" conflicts between "${existingKey.slot}" and "${slot}"`,
+            })
+          }
+          target[opName] = op
+          byOpKey.set(key, { slot, op })
+        }
+      }
+      return undefined
+    }
+
+    const errA = addLanguage(a.families)
+    if (errA !== undefined) return Effect.fail(errA)
+    const errB = addLanguage(b.families)
+    if (errB !== undefined) return Effect.fail(errB)
+
+    return Effect.succeed(make(merged as ComposedFamilies<A, B>))
+  })
+
+/** Selection map accepted by `Language.restrict`: `true` keeps a whole family, or pick op names. */
+export type FamilySelection<F extends FamilyMap> = {
+  readonly [K in keyof F]?: true | ReadonlyArray<keyof F[K] & string>
+}
+
+export type RestrictedFamilies<F extends FamilyMap, S extends FamilySelection<F>> = {
+  readonly [K in keyof S & keyof F]: S[K] extends true
+    ? F[K]
+    : S[K] extends ReadonlyArray<infer Ops extends keyof F[K] & string>
+      ? Pick<F[K], Ops>
+      : never
+}
+
+/**
+ * Derive a smaller host-specific vocabulary (e.g. a browser-safe subset) from
+ * `language`, preserving exact operation types for the kept families/operations.
+ */
+export const restrict = <F extends FamilyMap, const S extends FamilySelection<F>>(
+  language: Language<F>,
+  selection: S,
+): Language<RestrictedFamilies<F, S>> => {
+  const out: Record<string, Record<string, AnyOperation>> = {}
+  for (const familyName of Object.keys(selection)) {
+    const pick = selection[familyName]
+    if (pick === undefined) continue
+    const family = language.families[familyName]
+    if (family === undefined) continue
+    if (pick === true) {
+      out[familyName] = { ...family }
+    } else {
+      const subset: Record<string, AnyOperation> = {}
+      for (const opName of pick) {
+        const op = family[opName]
+        if (op !== undefined) subset[opName] = op
+      }
+      out[familyName] = subset
+    }
+  }
+  return make(out as RestrictedFamilies<F, S>)
+}
+
+/** Backend target inspected by `Language.readiness`. */
+export type ReadinessTarget =
+  | { readonly _tag: 'portable' }
+  | { readonly _tag: 'js'; readonly foreign?: OperationImplementations }
+  | {
+      readonly _tag: 'sql'
+      readonly dialect: SqlDialect
+      readonly lowerings?: ForeignLowerings
+    }
+  | { readonly _tag: 'z3' }
+
+/** Specific node or capability gap reported by `Language.readiness`. */
+export interface UnsupportedReason {
+  readonly path: string
+  readonly kind: 'opaque' | 'non-portable-literal' | 'missing-foreign' | 'unsupported-node'
+  readonly detail: string
+}
+
+/** Structured capability check result distinguishing portability from target support. */
+export interface ReadinessReport {
+  /** True when the expression lies within the portable fragment (no `Opaque` or non-JSON literals). */
+  readonly portable: boolean
+  /** True when `target` supports every node and foreign operation used by the expression. */
+  readonly supported: boolean
+  readonly requiredCoreOps: ReadonlyArray<Node.CoreOpId>
+  readonly requiredForeignOps: ReadonlyArray<string>
+  readonly unsupportedNodes: ReadonlyArray<UnsupportedReason>
+}
+
+const checkPortableLiteral = (value: unknown): string | undefined => {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') return undefined
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return `non-finite number literal (${String(value)})`
+    if (Object.is(value, -0)) return 'negative zero (-0) literal'
+    return undefined
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const bad = checkPortableLiteral(item)
+      if (bad !== undefined) return bad
+    }
+    return undefined
+  }
+  if (typeof value === 'object') {
+    const proto: unknown = Object.getPrototypeOf(value)
+    if (proto !== Object.prototype && proto !== null) return 'non-plain object literal'
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      const bad = checkPortableLiteral(v)
+      if (bad !== undefined) return bad
+    }
+    return undefined
+  }
+  return `literal of type ${typeof value}`
+}
+
+/**
+ * Inspect `expr` against `target` and report portability, required core/foreign
+ * operations, and every unsupported node/path rather than a bare boolean.
+ */
+export const readiness = (
+  expr: Expr<never, unknown>,
+  target: ReadinessTarget,
+): Effect.Effect<ReadinessReport> =>
+  Effect.sync(() => {
+    const coreOps = new Set<Node.CoreOpId>()
+    const foreignOps = new Set<string>()
+    const unsupported: Array<UnsupportedReason> = []
+    let portable = true
+
+    const checkForeign = (op: Node.ForeignOp, at: string): void => {
+      const key = Node.foreignName(op)
+      foreignOps.add(key)
+      Match.value(target).pipe(
+        Match.tags({
+          portable: () => undefined,
+          js: ({ foreign }) => {
+            if (foreign === undefined || !Object.hasOwn(foreign, key)) {
+              unsupported.push({
+                path: at,
+                kind: 'missing-foreign',
+                detail: `missing JS implementation for "${key}"`,
+              })
+            }
+          },
+          sql: ({ dialect, lowerings }) => {
+            const entry = lowerings?.entries.get(key)
+            const has =
+              entry !== undefined &&
+              (dialect === 'sqlite' ? entry.sqlite !== undefined : entry.postgres !== undefined)
+            if (!has) {
+              unsupported.push({
+                path: at,
+                kind: 'missing-foreign',
+                detail: `missing ${dialect} SQL lowering for "${key}"`,
+              })
+            }
+          },
+          z3: () => {
+            unsupported.push({
+              path: at,
+              kind: 'missing-foreign',
+              detail: `foreign operation "${key}" is uninterpreted in Z3`,
+            })
+          },
+        }),
+        Match.exhaustive,
+      )
+    }
+
+    const visit = (node: Node.Node, at: string): void => {
+      Node.$match(node, {
+        Lit: ({ value }) => {
+          const bad = checkPortableLiteral(value)
+          if (bad !== undefined) {
+            portable = false
+            if (target._tag === 'portable' || target._tag === 'sql' || target._tag === 'z3') {
+              unsupported.push({ path: at, kind: 'non-portable-literal', detail: bad })
+            }
+          }
+        },
+        Path: () => undefined,
+        Call: ({ op, args }) => {
+          if (Node.isForeign(op)) {
+            checkForeign(op, at)
+          } else {
+            coreOps.add(op.id)
+          }
+          args.forEach((arg, i) => visit(arg, `${at}.args[${i}]`))
+        },
+        If: ({ cond, then: t, otherwise }) => {
+          visit(cond, `${at}.cond`)
+          visit(t, `${at}.then`)
+          visit(otherwise, `${at}.otherwise`)
+        },
+        Match: ({ on, cases, otherwise }) => {
+          visit(on, `${at}.on`)
+          cases.forEach(([, branch], i) => visit(branch, `${at}.cases[${i}]`))
+          if (Option.isSome(otherwise)) visit(otherwise.value, `${at}.otherwise`)
+        },
+        Opaque: ({ name }) => {
+          portable = false
+          if (target._tag !== 'js') {
+            unsupported.push({
+              path: at,
+              kind: 'opaque',
+              detail: `opaque node "${name}" is not supported by target "${target._tag}"`,
+            })
+          }
+        },
+        Rows: rows => {
+          Node.RowsOver.$match(rows.over, {
+            List: ({ list }) => visit(list, `${at}.over.list`),
+            Related: ({ of }) => visit(of, `${at}.over.of`),
+          })
+          if (rows.op !== undefined) checkForeign(rows.op, `${at}.op`)
+          if (Option.isSome(rows.where)) visit(rows.where.value, `${at}.where`)
+          if (Option.isSome(rows.value)) visit(rows.value.value, `${at}.value`)
+          rows.set.forEach(([field, v]) => visit(v, `${at}.set.${field}`))
+        },
+      })
+    }
+
+    visit(expr.node, '$')
+
+    return {
+      portable,
+      supported: unsupported.length === 0,
+      requiredCoreOps: [...coreOps].sort(),
+      requiredForeignOps: [...foreignOps].sort(),
+      unsupportedNodes: unsupported,
+    }
+  })

@@ -1044,3 +1044,206 @@ export const decodeForSchema = <S extends Schema.Top, R extends Schema.Top>(
     segments => resolveAstSegments(options.schema.ast, segments),
     options,
   )
+
+// ---------------------------------------------------------------------------
+// Phase B (#645 P1): Canonical encoding, ArtifactFingerprint & EvidenceKey
+// ---------------------------------------------------------------------------
+
+/** Content fingerprint of a canonical portable expression artifact (`sha256:<hex>`). */
+export type ArtifactFingerprint = string & { readonly __brand: 'metakit/ArtifactFingerprint' }
+
+/**
+ * Cache key for reader/verification evidence (`ev:sha256:<hex>`).
+ * Distinct from `ArtifactFingerprint`: includes reader identity/version,
+ * backend profile, schema constraints, foreign implementation identities, and
+ * proof assumptions. Never produced when a required foreign implementation has
+ * no stable identity (`Option.none()`).
+ */
+export type EvidenceKey = string & { readonly __brand: 'metakit/EvidenceKey' }
+
+const canonicalizeLiteral = (value: PortableLiteral): PortableLiteral => {
+  if (value === null || typeof value !== 'object') return value
+  if (Array.isArray(value)) return value.map(canonicalizeLiteral)
+  const record = value as Readonly<Record<string, PortableLiteral>>
+  const out: Record<string, PortableLiteral> = {}
+  for (const key of Object.keys(record).sort()) {
+    out[key] = canonicalizeLiteral(record[key]!)
+  }
+  return out
+}
+
+/**
+ * Deterministic canonical form of a `PortableNode`.
+ *
+ * Alpha-normalizes `Rows` binder names (`$r0`, `$r1`, …) in traversal order
+ * and sorts literal object keys, while strictly preserving evaluation order,
+ * `If`/`Match` branch order, and operator argument order (never reassociates
+ * numeric operations).
+ */
+export const canonicalizeNode = (root: PortableNode): PortableNode => {
+  let nextBinder = 0
+
+  const visit = (node: PortableNode, renames: ReadonlyMap<string, string>): PortableNode =>
+    Match.value(node).pipe(
+      Match.tags({
+        Lit: ({ value }) => ({ _tag: 'Lit' as const, value: canonicalizeLiteral(value) }),
+        Path: ({ segments }) => {
+          if (segments.length === 0) return { _tag: 'Path' as const, segments: [] }
+          const renamed = renames.get(segments[0]!)
+          return {
+            _tag: 'Path' as const,
+            segments: renamed === undefined ? [...segments] : [renamed, ...segments.slice(1)],
+          }
+        },
+        Call: ({ op, args }) => ({
+          _tag: 'Call' as const,
+          op,
+          args: args.map(arg => visit(arg, renames)),
+        }),
+        If: ({ cond, then: t, otherwise }) => ({
+          _tag: 'If' as const,
+          cond: visit(cond, renames),
+          then: visit(t, renames),
+          otherwise: visit(otherwise, renames),
+        }),
+        Match: ({ on, cases, otherwise }) => ({
+          _tag: 'Match' as const,
+          on: visit(on, renames),
+          cases: cases.map(([label, branch]) => [label, visit(branch, renames)] as const),
+          ...(otherwise === undefined ? {} : { otherwise: visit(otherwise, renames) }),
+        }),
+        Rows: rows => {
+          const over: PortableRowsOver = Match.value(rows.over).pipe(
+            Match.tags({
+              List: ({ list }) => ({ _tag: 'List' as const, list: visit(list, renames) }),
+              Related: ({ of, relation, cardinality }) => ({
+                _tag: 'Related' as const,
+                of: visit(of, renames),
+                relation,
+                ...(cardinality === undefined ? {} : { cardinality }),
+              }),
+            }),
+            Match.exhaustive,
+          )
+          const originalBinder = rows.each ?? Node.EACH
+          const canonicalBinder = `$r${nextBinder++}`
+          const innerRenames = new Map(renames)
+          innerRenames.set(originalBinder, canonicalBinder)
+          return {
+            _tag: 'Rows' as const,
+            fold: rows.fold,
+            over,
+            ...(rows.where === undefined ? {} : { where: visit(rows.where, innerRenames) }),
+            ...(rows.value === undefined ? {} : { value: visit(rows.value, innerRenames) }),
+            set: rows.set.map(([field, v]) => [field, visit(v, innerRenames)] as const),
+            ...(rows.op === undefined ? {} : { op: rows.op }),
+            each: canonicalBinder,
+          }
+        },
+      }),
+      Match.exhaustive,
+    )
+
+  return visit(root, new Map())
+}
+
+const stableStringify = (value: unknown): string => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  const record = value as Readonly<Record<string, unknown>>
+  const keys = Object.keys(record)
+    .filter(k => record[k] !== undefined)
+    .sort()
+  return `{${keys.map(k => `${JSON.stringify(k)}:${stableStringify(record[k])}`).join(',')}}`
+}
+
+/** Deterministic JSON encoding of a `PortableArtifactV1` after canonicalization. */
+export const canonicalJson = (artifact: PortableArtifactV1): string => {
+  const canonical: PortableArtifactV1 = {
+    codecVersion: artifact.codecVersion,
+    node: canonicalizeNode(artifact.node),
+    requiredOps: [...artifact.requiredOps].sort((a, b) => {
+      const ka = opRefKey(a)
+      const kb = opRefKey(b)
+      return ka < kb ? -1 : ka > kb ? 1 : 0
+    }),
+  }
+  return stableStringify(canonical)
+}
+
+const sha256Hex = (text: string): Effect.Effect<string> =>
+  Effect.promise(async () => {
+    const bytes = new TextEncoder().encode(text)
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
+    return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')
+  })
+
+const isPortableArtifact = (
+  input: Expr<never, unknown> | PortableArtifactV1,
+): input is PortableArtifactV1 =>
+  typeof input === 'object' && input !== null && 'codecVersion' in input && 'requiredOps' in input
+
+/**
+ * Compute the deterministic `ArtifactFingerprint` (`sha256:<hex>`) of an `Expr`
+ * or an already-encoded `PortableArtifactV1`.
+ *
+ * A fingerprint identifies one canonical portable definition — it is neither
+ * an authorization token nor a proof of correctness.
+ */
+export const fingerprint = (
+  input: Expr<never, unknown> | PortableArtifactV1,
+  options?: EncodeOptions,
+): Effect.Effect<ArtifactFingerprint, UnsupportedNodeError | ArtifactLimitError> =>
+  (isPortableArtifact(input) ? Effect.succeed(input) : encodeExpr(input, options)).pipe(
+    Effect.flatMap(artifact => sha256Hex(canonicalJson(artifact))),
+    Effect.map(hex => `sha256:${hex}` as ArtifactFingerprint),
+  )
+
+/** Inputs that decide whether cached execution/verification evidence may be reused. */
+export interface EvidenceKeyInput {
+  readonly fingerprint: ArtifactFingerprint
+  readonly reader: { readonly id: string; readonly version: string }
+  /** Optional backend profile (e.g. `'postgres'`, `'sqlite'`, `'z3-4.15'`). */
+  readonly profile?: string
+  /** Optional fingerprint of relevant environment/target Schema constraints. */
+  readonly schemaFingerprint?: string
+  /**
+   * Stable identity of each foreign implementation (`id@version -> Option<string>`).
+   * Pass `Option.none()` for any implementation without a reliable identity;
+   * `evidenceKey` then returns `Option.none()` so evidence is never reused
+   * across anonymous closures.
+   */
+  readonly foreignIdentities?: Readonly<Record<string, Option.Option<string>>>
+  /** Proof or execution assumptions (e.g. `{ timeoutMs: 10000 }`). */
+  readonly assumptions?: Readonly<Record<string, string | number | boolean>>
+}
+
+/**
+ * Compute an `EvidenceKey` (`ev:sha256:<hex>`) for caching reader/verifier results.
+ * Returns `Option.none()` if any entry in `foreignIdentities` is `Option.none()`.
+ */
+export const evidenceKey = (input: EvidenceKeyInput): Effect.Effect<Option.Option<EvidenceKey>> =>
+  Effect.suspend(() => {
+    const resolvedForeign: Record<string, string> = {}
+    if (input.foreignIdentities !== undefined) {
+      for (const key of Object.keys(input.foreignIdentities).sort()) {
+        const identity = input.foreignIdentities[key]!
+        if (Option.isNone(identity)) return Effect.succeed(Option.none())
+        resolvedForeign[key] = identity.value
+      }
+    }
+    const payload = stableStringify({
+      v: 1,
+      fingerprint: input.fingerprint,
+      reader: { id: input.reader.id, version: input.reader.version },
+      ...(input.profile === undefined ? {} : { profile: input.profile }),
+      ...(input.schemaFingerprint === undefined
+        ? {}
+        : { schemaFingerprint: input.schemaFingerprint }),
+      foreignIdentities: resolvedForeign,
+      ...(input.assumptions === undefined ? {} : { assumptions: input.assumptions }),
+    })
+    return sha256Hex(payload).pipe(
+      Effect.map(hex => Option.some(`ev:sha256:${hex}` as EvidenceKey)),
+    )
+  })

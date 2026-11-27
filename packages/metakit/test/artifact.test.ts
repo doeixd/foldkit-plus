@@ -415,3 +415,183 @@ describe('metakit/artifact (#645 P0)', () => {
     expect(skuSpec !== undefined && Option.getOrUndefined(skuSpec.title)).toBe('SKU')
   }, 30_000)
 })
+
+describe('metakit/artifact & language (#645 P1)', () => {
+  it('computes deterministic fingerprints that alpha-normalize binders without conflating order', async () => {
+    const Row = Schema.Struct({
+      a: Schema.Int,
+      b: Schema.Int,
+      c: Schema.Int,
+      items: Schema.Array(Schema.Struct({ qty: Schema.Int })),
+    })
+
+    const e1 = Expr.in({ row: Row }, ({ row }) => Num.add(Num.add(row.a, row.b), row.c))
+    const e2 = Expr.in({ row: Row }, ({ row }) => Num.add(row.a, Num.add(row.b, row.c)))
+    const e3 = Expr.in({ row: Row }, ({ row }) => Num.sub(row.a, row.b))
+    const e4 = Expr.in({ row: Row }, ({ row }) => Num.sub(row.b, row.a))
+
+    const [fp1, fp1Again, fp2, fp3, fp4] = await Effect.runPromise(
+      Effect.all([
+        Artifact.fingerprint(e1),
+        Artifact.fingerprint(e1),
+        Artifact.fingerprint(e2),
+        Artifact.fingerprint(e3),
+        Artifact.fingerprint(e4),
+      ]),
+    )
+    expect(fp1).toMatch(/^sha256:[0-9a-f]{64}$/)
+    expect(fp1).toBe(fp1Again)
+    // Never reassociates or reorders numeric ops.
+    expect(fp1).not.toBe(fp2)
+    expect(fp3).not.toBe(fp4)
+
+    // Alpha-equivalent Rows binder names produce the same fingerprint.
+    const a1: Artifact.PortableArtifactV1 = {
+      codecVersion: 1,
+      node: {
+        _tag: 'Rows',
+        fold: 'every',
+        over: { _tag: 'List', list: { _tag: 'Path', segments: ['row', 'items'] } },
+        where: {
+          _tag: 'Call',
+          op: { _tag: 'Core', id: 'ord.gt' },
+          args: [
+            { _tag: 'Path', segments: ['x', 'qty'] },
+            { _tag: 'Lit', value: 0 },
+          ],
+        },
+        set: [],
+        each: 'x',
+      },
+      requiredOps: [{ _tag: 'Core', id: 'ord.gt' }],
+    }
+    const a2: Artifact.PortableArtifactV1 = {
+      codecVersion: 1,
+      node: {
+        _tag: 'Rows',
+        fold: 'every',
+        over: { _tag: 'List', list: { _tag: 'Path', segments: ['row', 'items'] } },
+        where: {
+          _tag: 'Call',
+          op: { _tag: 'Core', id: 'ord.gt' },
+          args: [
+            { _tag: 'Path', segments: ['y', 'qty'] },
+            { _tag: 'Lit', value: 0 },
+          ],
+        },
+        set: [],
+        each: 'y',
+      },
+      requiredOps: [{ _tag: 'Core', id: 'ord.gt' }],
+    }
+    const [fpA1, fpA2] = await Effect.runPromise(
+      Effect.all([Artifact.fingerprint(a1), Artifact.fingerprint(a2)]),
+    )
+    expect(fpA1).toBe(fpA2)
+  })
+
+  it('separates EvidenceKey by reader, profile, foreign identity, and returns none for anonymous closures', async () => {
+    const expr = Expr.in({ actor: Actor }, ({ actor }) => Ord.gte(actor.limit, 0))
+    const fp = await Effect.runPromise(Artifact.fingerprint(expr))
+
+    const kPg = await Effect.runPromise(
+      Artifact.evidenceKey({
+        fingerprint: fp,
+        reader: { id: 'metakit/sql', version: '0.1.0' },
+        profile: 'postgres',
+        foreignIdentities: { 'billing.applyFee@1': Option.some('sql-v1') },
+      }),
+    )
+    const kSqlite = await Effect.runPromise(
+      Artifact.evidenceKey({
+        fingerprint: fp,
+        reader: { id: 'metakit/sql', version: '0.1.0' },
+        profile: 'sqlite',
+        foreignIdentities: { 'billing.applyFee@1': Option.some('sql-v1') },
+      }),
+    )
+    const kUnidentified = await Effect.runPromise(
+      Artifact.evidenceKey({
+        fingerprint: fp,
+        reader: { id: 'metakit/js', version: '0.1.0' },
+        foreignIdentities: { 'billing.applyFee@1': Option.none() },
+      }),
+    )
+
+    expect(Option.isSome(kPg)).toBe(true)
+    expect(Option.isSome(kSqlite)).toBe(true)
+    expect(Option.getOrUndefined(kPg)).not.toBe(Option.getOrUndefined(kSqlite))
+    expect(Option.isNone(kUnidentified)).toBe(true)
+  })
+
+  it('composes and restricts Languages with conflict checks and reports target readiness', async () => {
+    const Discount = Operation.define({
+      id: 'billing.discount',
+      version: 1,
+      args: [Schema.Int, Schema.Int] as const,
+      returns: Schema.Int,
+      nulls: 'strict',
+    })
+    const DiscountLang = Language.make({
+      billing: { discount: Discount },
+    })
+
+    // Compose merges ops inside the shared `billing` family.
+    const Combined = await Effect.runPromise(Language.compose(BillingLang, DiscountLang))
+    expect(Combined.operations).toHaveLength(2)
+    expect(Combined.families.billing.applyFee).toBe(ApplyFee)
+    expect(Combined.families.billing.discount).toBe(Discount)
+
+    // Conflicting definition in same slot fails with LanguageConflictError.
+    const BadFee = Operation.define({
+      id: 'billing.applyFee',
+      version: 2,
+      args: [Schema.Int] as const,
+      returns: Schema.Int,
+      nulls: 'strict',
+    })
+    const ConflictLang = Language.make({ billing: { applyFee: BadFee } })
+    const conflict = await Effect.runPromise(
+      Effect.flip(Language.compose(BillingLang, ConflictLang)),
+    )
+    expect(conflict._tag).toBe('LanguageConflictError')
+
+    // Restrict derives a smaller host vocabulary.
+    const BrowserLang = Language.restrict(Combined, { billing: ['applyFee'] })
+    expect(BrowserLang.operations).toHaveLength(1)
+    expect(BrowserLang.families.billing.applyFee).toBe(ApplyFee)
+
+    // Readiness checks distinguish portable vs target support.
+    const feeExpr = Expr.in({ order: Order }, ({ order }) => Ord.gt(ApplyFee(order.total, 100), 0))
+    const rJsMissing = await Effect.runPromise(Language.readiness(feeExpr, { _tag: 'js' }))
+    expect(rJsMissing.portable).toBe(true)
+    expect(rJsMissing.supported).toBe(false)
+    expect(rJsMissing.requiredForeignOps).toEqual(['billing.applyFee@1'])
+    expect(rJsMissing.unsupportedNodes[0]?.kind).toBe('missing-foreign')
+
+    const rJsReady = await Effect.runPromise(
+      Language.readiness(feeExpr, { _tag: 'js', foreign: billingImpls }),
+    )
+    expect(rJsReady.supported).toBe(true)
+
+    const rSqlReady = await Effect.runPromise(
+      Language.readiness(feeExpr, { _tag: 'sql', dialect: 'postgres', lowerings: billingSql }),
+    )
+    expect(rSqlReady.supported).toBe(true)
+
+    const rZ3 = await Effect.runPromise(Language.readiness(feeExpr, { _tag: 'z3' }))
+    expect(rZ3.portable).toBe(true)
+    expect(rZ3.supported).toBe(false)
+
+    const opaqueExpr = Expr.opaque({ name: 'hostClock' }, () => true)
+    const rOpaqueJs = await Effect.runPromise(Language.readiness(opaqueExpr, { _tag: 'js' }))
+    expect(rOpaqueJs.portable).toBe(false)
+    expect(rOpaqueJs.supported).toBe(true)
+    const rOpaqueSql = await Effect.runPromise(
+      Language.readiness(opaqueExpr, { _tag: 'sql', dialect: 'postgres' }),
+    )
+    expect(rOpaqueSql.portable).toBe(false)
+    expect(rOpaqueSql.supported).toBe(false)
+    expect(rOpaqueSql.unsupportedNodes[0]?.kind).toBe('opaque')
+  })
+})
