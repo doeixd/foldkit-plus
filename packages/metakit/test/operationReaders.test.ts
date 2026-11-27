@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Node, Ord, Path, Transition, Verdict } from '../src/index.js'
+import { Abstract, Bool, Eq, Expr, Node, Ord, Path, Transition, Verdict } from '../src/index.js'
 import * as Operation from '../src/operation.js'
 
 const Flags = Schema.Int.pipe(
@@ -363,5 +363,53 @@ describe('custom operation readers (abstract checker)', () => {
         ),
       ),
     ).toBe(true)
+
+    // 5. claims.total: parity between residualize and judge, gated by verified policy AND argument Schema fit!
+    const totalCheck = Operation.define({
+      id: 'test.isEvenFlag',
+      version: 1,
+      args: [Flags],
+      returns: Schema.Boolean,
+      nulls: 'strict',
+      claims: { total: true },
+    })
+    const totalImpls = Operation.implementations(
+      'total',
+      Operation.implement(totalCheck, x => x % 2 === 0),
+    )
+    const totalEv = Expr.foreignEvidence(totalCheck, totalImpls, {
+      claims: ['total'],
+      assurance: 'tested',
+    })
+
+    // On $.granted (fits Flags): verified WITHOUT 'total' evidence keeps Unknown/Call; WITH 'total' evidence absorbs to False/Lit(false) in BOTH judge and residualize!
+    const onGranted = Bool.and(false, totalCheck($.granted))
+    expect(
+      Verdict.isUnknown(
+        Expr.judge(onGranted, {}, { foreign: totalImpls, rewritePolicy: { mode: 'verified' } }),
+      ),
+    ).toBe(true)
+    expect(
+      Node.$is('Call')(
+        Expr.residualize(
+          onGranted,
+          {},
+          { foreign: totalImpls, rewritePolicy: { mode: 'verified' } },
+        ).node,
+      ),
+    ).toBe(true)
+
+    const verifiedTotalOpts = {
+      foreign: totalImpls,
+      rewritePolicy: { mode: 'verified' as const, evidence: [totalEv] },
+    }
+    expect(Verdict.isFalse(Expr.judge(onGranted, {}, verifiedTotalOpts))).toBe(true)
+    const foldedTotal = Expr.residualize(onGranted, {}, verifiedTotalOpts)
+    expect(Node.$is('Lit')(foldedTotal.node) && foldedTotal.node.value === false).toBe(true)
+
+    // On $.wide (Schema.Number — may be -5 or NaN, which fails Flags checkArgs!): must stay Unknown/Call in BOTH judge and residualize!
+    const onWide = Bool.and(false, totalCheck($.wide))
+    expect(Verdict.isUnknown(Expr.judge(onWide, {}, verifiedTotalOpts))).toBe(true)
+    expect(Node.$is('Call')(Expr.residualize(onWide, {}, verifiedTotalOpts).node)).toBe(true)
   })
 })

@@ -449,6 +449,51 @@ export const permitsForeignRewrite = (
   )
 }
 
+const operandWithinSchema = <T>(
+  view: View<T>,
+  op: Node.ForeignOp,
+  operand: T,
+  index: number,
+  allowNull: boolean,
+): boolean => {
+  const target = op.args?.[index]
+  const check = op.checkArgs?.[index]
+  if (target === undefined || check === undefined) return false
+  const known = view.known(operand)
+  if (Option.isSome(known)) {
+    if (known.value === null) return allowNull
+    return !Node.isRefusal(known.value) && check.is(known.value)
+  }
+  const ast = view.ast === undefined ? Option.none() : view.ast(operand)
+  return Option.exists(ast, source => astWithin(source, target.ast, check.is, allowNull))
+}
+
+/**
+ * Whether an open call to `op` with `args` is guaranteed not to refuse:
+ * requires `op.claims.total === true`, a bound implementation permitted by
+ * `policy` for `'total'`, and every argument unrefused and within its
+ * declared argument Schema (null allowed because `applyForeign` handles null
+ * before checking `checkArgs`).
+ */
+export const foreignCallCannotRefuse = <T>(
+  view: View<T>,
+  op: Node.ForeignOp,
+  args: ReadonlyArray<T>,
+  foreign: ForeignImplementations,
+  policy?: ForeignRewritePolicy,
+): boolean => {
+  if (op.claims?.total !== true) return false
+  const key = Node.foreignName(op)
+  if (!Object.hasOwn(foreign, key)) return false
+  if (!permitsForeignRewrite(policy, op, foreign[key], 'total')) return false
+  if (op.args === undefined || op.checkArgs === undefined || args.length !== op.args.length) {
+    return false
+  }
+  return args.every(
+    (arg, i) => view.cannotRefuse(arg) && operandWithinSchema(view, op, arg, i, true),
+  )
+}
+
 /**
  * Size-reducing rewrites for a declared custom operation (`ForeignOp`) from
  * its `claims`: `identity`, `absorbing` and `idempotent`. An operand dropped

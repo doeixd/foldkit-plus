@@ -18,8 +18,9 @@
 import { Option, Schema, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import { applyForeign, evalNode, ifArm, matchArm, type ForeignImplementations } from './eval.js'
-import { cannotRefuse, isPortableRead, isSafeRead, kindOf } from './kind.js'
+import { callCannotRefuse, cannotRefuse, isPortableRead, isSafeRead, kindOf } from './kind.js'
 import {
+  foreignCallCannotRefuse,
   nullBesideUnrefused,
   rewrite,
   rewriteForeign,
@@ -37,23 +38,40 @@ const astOfNode = (node: Node.Node): Option.Option<SchemaAST.AST> =>
         Option.some(Schema.NullOr(node.op.result).ast)
       : Option.none()
 
-/** A residual as the laws see it. */
-const residual: View<Node.Node> = {
-  known: node => (Node.$is('Lit')(node) ? Option.some(node.value) : Option.none()),
-  kind: kindOf,
-  cannotRefuse,
-  isRead: Node.$is('Path'),
-  isPortableRead,
-  safe: isSafeRead,
-  unary: node =>
-    Node.$is('Call')(node) && node.args.length === 1
-      ? {
-          id: Node.isForeign(node.op) ? Node.foreignName(node.op) : node.op.id,
-          arg: node.args[0]!,
-        }
-      : undefined,
-  same: (left, right) => Node.key(left) === Node.key(right),
-  ast: astOfNode,
+/** A residual as the laws see it (foreign-total aware via `foreign` and `rewritePolicy`). */
+const viewFor = (
+  foreign: ForeignImplementations,
+  rewritePolicy?: ForeignRewritePolicy,
+): View<Node.Node> => {
+  const nodeCannotRefuse = (node: Node.Node): boolean => {
+    if (!Node.$is('Call')(node)) return cannotRefuse(node)
+    if (Node.isForeign(node.op)) {
+      return foreignCallCannotRefuse(residualView, node.op, node.args, foreign, rewritePolicy)
+    }
+    if (cannotRefuse(node)) return true
+    return callCannotRefuse(
+      node.op,
+      node.args.map(arg => [nodeCannotRefuse(arg), kindOf(arg)] as const),
+    )
+  }
+  const residualView: View<Node.Node> = {
+    known: node => (Node.$is('Lit')(node) ? Option.some(node.value) : Option.none()),
+    kind: kindOf,
+    cannotRefuse: nodeCannotRefuse,
+    isRead: Node.$is('Path'),
+    isPortableRead,
+    safe: isSafeRead,
+    unary: node =>
+      Node.$is('Call')(node) && node.args.length === 1
+        ? {
+            id: Node.isForeign(node.op) ? Node.foreignName(node.op) : node.op.id,
+            arg: node.args[0]!,
+          }
+        : undefined,
+    same: (left, right) => Node.key(left) === Node.key(right),
+    ast: astOfNode,
+  }
+  return residualView
 }
 
 /**
@@ -67,30 +85,53 @@ export const residualizeNode = (
   partialEnv: unknown,
   foreign: ForeignImplementations = {},
   rewritePolicy?: ForeignRewritePolicy,
-): Node.Node =>
-  Node.$match(node, {
-    Lit: lit => lit,
-    Path: path =>
-      Option.match(lookupPartial(partialEnv, path.segments, path.ast), {
-        onNone: () => path,
-        onSome: value => Node.Lit({ value }),
-      }),
-    Call: ({ op, args }) => {
-      const nextArgs = args.map(arg => residualizeNode(arg, partialEnv, foreign, rewritePolicy))
-      if (nullBesideUnrefused(residual, op, nextArgs)) return Node.Lit({ value: null })
-      if (Node.isForeign(op)) {
-        const key = Node.foreignName(op)
-        if (!Object.hasOwn(foreign, key)) return Node.Call({ op, args: nextArgs })
+): Node.Node => {
+  const residual = viewFor(foreign, rewritePolicy)
+  const visit = (current: Node.Node, env: unknown): Node.Node =>
+    Node.$match(current, {
+      Lit: lit => lit,
+      Path: path =>
+        Option.match(lookupPartial(env, path.segments, path.ast), {
+          onNone: () => path,
+          onSome: value => Node.Lit({ value }),
+        }),
+      Call: ({ op, args }) => {
+        const nextArgs = args.map(arg => visit(arg, env))
+        if (nullBesideUnrefused(residual, op, nextArgs)) return Node.Lit({ value: null })
+        if (Node.isForeign(op)) {
+          const key = Node.foreignName(op)
+          if (!Object.hasOwn(foreign, key)) return Node.Call({ op, args: nextArgs })
+          if (nextArgs.every(Node.$is('Lit'))) {
+            return Node.Lit({
+              value: applyForeign(
+                op,
+                nextArgs.map(arg => arg.value),
+                foreign,
+              ),
+            })
+          }
+          return Option.match(rewriteForeign(residual, op, nextArgs, foreign[key], rewritePolicy), {
+            onNone: () => Node.Call({ op, args: nextArgs }),
+            onSome: (made): Node.Node =>
+              'value' in made
+                ? Node.Lit({ value: made.value })
+                : 'call' in made
+                  ? Node.Call({
+                      op: made.call,
+                      args: [made.operand, Node.Lit({ value: made.literal })],
+                    })
+                  : made.operand,
+          })
+        }
         if (nextArgs.every(Node.$is('Lit'))) {
           return Node.Lit({
-            value: applyForeign(
+            value: Node.apply(
               op,
               nextArgs.map(arg => arg.value),
-              foreign,
             ),
           })
         }
-        return Option.match(rewriteForeign(residual, op, nextArgs, foreign[key], rewritePolicy), {
+        return Option.match(rewrite(residual, op, nextArgs), {
           onNone: () => Node.Call({ op, args: nextArgs }),
           onSome: (made): Node.Node =>
             'value' in made
@@ -102,89 +143,61 @@ export const residualizeNode = (
                   })
                 : made.operand,
         })
-      }
-      if (nextArgs.every(Node.$is('Lit'))) {
-        return Node.Lit({
-          value: Node.apply(
-            op,
-            nextArgs.map(arg => arg.value),
-          ),
+      },
+      // No `if c then a else a -> a`: a null or refused `c` gives neither.
+      If: branch => {
+        const cond = visit(branch.cond, env)
+        if (Node.$is('Lit')(cond)) {
+          const taken = ifArm(branch, evalNode(cond, undefined))
+          return 'arm' in taken ? visit(taken.arm, env) : Node.Lit({ value: taken.value })
+        }
+        return Node.If({
+          cond,
+          then: visit(branch.then, env),
+          otherwise: visit(branch.otherwise, env),
         })
-      }
-      return Option.match(rewrite(residual, op, nextArgs), {
-        onNone: () => Node.Call({ op, args: nextArgs }),
-        onSome: (made): Node.Node =>
-          'value' in made
-            ? Node.Lit({ value: made.value })
-            : 'call' in made
-              ? Node.Call({
-                  op: made.call,
-                  args: [made.operand, Node.Lit({ value: made.literal })],
-                })
-              : made.operand,
-      })
-    },
-    // No `if c then a else a -> a`: a null or refused `c` gives neither.
-    If: branch => {
-      const cond = residualizeNode(branch.cond, partialEnv, foreign, rewritePolicy)
-      if (Node.$is('Lit')(cond)) {
-        const taken = ifArm(branch, evalNode(cond, undefined))
-        return 'arm' in taken
-          ? residualizeNode(taken.arm, partialEnv, foreign, rewritePolicy)
-          : Node.Lit({ value: taken.value })
-      }
-      return Node.If({
-        cond,
-        then: residualizeNode(branch.then, partialEnv, foreign, rewritePolicy),
-        otherwise: residualizeNode(branch.otherwise, partialEnv, foreign, rewritePolicy),
-      })
-    },
-    Match: match => {
-      const on = residualizeNode(match.on, partialEnv, foreign, rewritePolicy)
-      if (Node.$is('Lit')(on)) {
-        const taken = matchArm(match, evalNode(on, undefined))
-        return 'arm' in taken
-          ? residualizeNode(taken.arm, partialEnv, foreign, rewritePolicy)
-          : Node.Lit({ value: taken.value })
-      }
-      return Node.Match({
-        on,
-        cases: match.cases.map(
-          ([value, arm]) =>
-            [value, residualizeNode(arm, partialEnv, foreign, rewritePolicy)] as const,
+      },
+      Match: match => {
+        const on = visit(match.on, env)
+        if (Node.$is('Lit')(on)) {
+          const taken = matchArm(match, evalNode(on, undefined))
+          return 'arm' in taken ? visit(taken.arm, env) : Node.Lit({ value: taken.value })
+        }
+        return Node.Match({
+          on,
+          cases: match.cases.map(([value, arm]) => [value, visit(arm, env)] as const),
+          otherwise: Option.map(match.otherwise, arm => visit(arm, env)),
+        })
+      },
+      Opaque: opaque => {
+        if (
+          Option.isSome(opaque.reads) &&
+          opaque.reads.value.every(segments =>
+            Option.isSome(lookupPartial(env, segments, Option.none())),
+          )
+        ) {
+          return Node.Lit({ value: opaque.run(env) })
+        }
+        return opaque
+      },
+      Rows: rows =>
+        partialRows(
+          rows,
+          env,
+          {
+            judge: (inner, innerEnv) => visit(inner, innerEnv),
+            known: residual.known,
+            value: value => Node.Lit({ value }),
+            kept: (kept, source, outer) =>
+              Node.mapRows(
+                kept,
+                () => source,
+                body => visit(body, outer),
+              ),
+          },
+          segments => lookupPartial(env, segments, Option.none(), true),
+          foreign,
         ),
-        otherwise: Option.map(match.otherwise, arm =>
-          residualizeNode(arm, partialEnv, foreign, rewritePolicy),
-        ),
-      })
-    },
-    Opaque: opaque => {
-      if (
-        Option.isSome(opaque.reads) &&
-        opaque.reads.value.every(segments =>
-          Option.isSome(lookupPartial(partialEnv, segments, Option.none())),
-        )
-      ) {
-        return Node.Lit({ value: opaque.run(partialEnv) })
-      }
-      return opaque
-    },
-    Rows: rows =>
-      partialRows(
-        rows,
-        partialEnv,
-        {
-          judge: (inner, env) => residualizeNode(inner, env, foreign, rewritePolicy),
-          known: residual.known,
-          value: value => Node.Lit({ value }),
-          kept: (kept, source, outer) =>
-            Node.mapRows(
-              kept,
-              () => source,
-              body => residualizeNode(body, outer, foreign, rewritePolicy),
-            ),
-        },
-        segments => lookupPartial(partialEnv, segments, Option.none(), true),
-        foreign,
-      ),
-  })
+    })
+  return visit(node, partialEnv)
+}

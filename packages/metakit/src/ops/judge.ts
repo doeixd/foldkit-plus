@@ -35,8 +35,8 @@ import {
   safeBoundedSum,
 } from './kind.js'
 import {
+  foreignCallCannotRefuse,
   nullBesideUnrefused,
-  permitsForeignRewrite,
   rewrite,
   rewriteForeign,
   type ForeignRewritePolicy,
@@ -140,14 +140,8 @@ const openCall = (
   rewritePolicy?: ForeignRewritePolicy,
 ): Leftover => {
   const [only] = args
-  const foreignKey = Node.isForeign(op) ? Node.foreignName(op) : undefined
   const unrefused =
-    (Node.isForeign(op) &&
-      foreignKey !== undefined &&
-      op.claims?.total === true &&
-      Object.hasOwn(foreign, foreignKey) &&
-      permitsForeignRewrite(rewritePolicy, op, foreign[foreignKey], 'total') &&
-      args.every(arg => view.cannotRefuse(arg))) ||
+    (Node.isForeign(op) && foreignCallCannotRefuse(view, op, args, foreign, rewritePolicy)) ||
     (args.length === 2 &&
       view.cannotRefuse(args[0]) &&
       view.cannotRefuse(args[1]) &&
