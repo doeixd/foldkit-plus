@@ -231,6 +231,158 @@ export const matchOrElse = <
   )
 }
 
+const taggedVariantsOf = (
+  ast: Option.Option<SchemaAST.AST>,
+): {
+  readonly variants: ReadonlyMap<string, SchemaAST.Objects>
+  readonly tagAst: Option.Option<SchemaAST.AST>
+} => {
+  const variants = new Map<string, SchemaAST.Objects>()
+  const collect = (node: SchemaAST.AST): void => {
+    const inner = Path.optionInner(node)
+    if (Option.isSome(inner)) {
+      collect(inner.value)
+      return
+    }
+    if (SchemaAST.isNull(node) || SchemaAST.isUndefined(node)) return
+    if (SchemaAST.isUnion(node)) {
+      for (const member of node.types) collect(member)
+      return
+    }
+    if (!SchemaAST.isObjects(node)) return
+    const tagProp = node.propertySignatures.find(p => p.name === '_tag')
+    if (tagProp !== undefined && SchemaAST.isLiteral(tagProp.type)) {
+      if (typeof tagProp.type.literal === 'string') {
+        variants.set(tagProp.type.literal, node)
+      }
+    }
+  }
+  if (Option.isSome(ast)) collect(ast.value)
+  const keys = [...variants.keys()]
+  const tagAst = keys.length > 0 ? Option.some(Schema.Literals(keys).ast) : Option.none()
+  return { variants, tagAst }
+}
+
+const checkTagCases = (
+  name: 'matchTagsExhaustive' | 'matchTags',
+  on: Node.PathNode,
+  variants: ReadonlyMap<string, SchemaAST.Objects>,
+  keys: ReadonlyArray<string>,
+  exhaustive: boolean,
+): void => {
+  if (variants.size === 0) return
+  const quote = (values: ReadonlyArray<string>): string =>
+    values.map(value => JSON.stringify(value)).join(', ')
+  const unknownTags = keys.filter(key => !variants.has(key))
+  if (unknownTags.length > 0) {
+    throw new Error(`[metakit] Expr.${name}: ${quote(unknownTags)} is not a tag of ${showNode(on)}`)
+  }
+  const missingTags = exhaustive ? [...variants.keys()].filter(tag => !keys.includes(tag)) : []
+  if (missingTags.length > 0) {
+    throw new Error(`[metakit] Expr.${name}: no case for ${quote(missingTags)} of ${showNode(on)}`)
+  }
+}
+
+/**
+ * Exhaustive tagged-union `Match` over a `Path` to a union of `Schema.TaggedStruct`s.
+ * Each branch receives a narrowed `PathAccessor` for that variant's payload fields
+ * and lowers directly to `Node.Match` over `subject._tag`, so JS eval, `prepare`,
+ * `residualize`, `judge`, `reads`, `Artifact`, and `Fn` all work without a second AST.
+ */
+export const matchTagsExhaustive = <
+  Env,
+  U extends { readonly _tag: string },
+  const Cases extends {
+    readonly [Tag in U['_tag']]: (
+      variant: PathAccessor<Env, Extract<U, { readonly _tag: Tag }>>,
+    ) => ExprInput<never, unknown>
+  },
+>(
+  on: PathType<Env, U>,
+  cases: Cases & { readonly [P in Exclude<keyof Cases, U['_tag']>]: never },
+): ExprType<
+  Env & UnionToIntersection<EnvOfInput<ReturnType<Cases[keyof Cases]>>>,
+  ValueOfInput<ReturnType<Cases[keyof Cases]>>
+> => {
+  const { variants, tagAst } = taggedVariantsOf(on.ast)
+  const entries = Object.entries(cases) as ReadonlyArray<
+    readonly [string, (variant: PathAccessor<Env, unknown>) => ExprInput<never, unknown>]
+  >
+  checkTagCases(
+    'matchTagsExhaustive',
+    on.node,
+    variants,
+    entries.map(([tag]) => tag),
+    true,
+  )
+  const tagNode = Node.Path({ segments: [...on.segments, '_tag'], ast: tagAst })
+  return wrap(
+    Node.Match({
+      on: tagNode,
+      cases: entries.map(([tag, handler]) => {
+        const narrowed = Path.accessor<Env, unknown>(
+          on.segments,
+          Option.fromUndefinedOr(variants.get(tag)),
+        )
+        return [tag, toNode(handler(narrowed))] as const
+      }),
+      otherwise: Option.none(),
+    }),
+  )
+}
+
+/**
+ * Partial tagged-union `Match` with an explicit fallback branch, which handles
+ * `null` and any tag not named in `cases`.
+ */
+export const matchTags = <
+  Env,
+  U extends { readonly _tag: string } | null,
+  const Cases extends {
+    readonly [Tag in Exclude<U, null>['_tag']]?: (
+      variant: PathAccessor<Env, Extract<Exclude<U, null>, { readonly _tag: Tag }>>,
+    ) => ExprInput<never, unknown>
+  },
+  const Fallback extends ExprInput<never, unknown>,
+>(
+  on: PathType<Env, U>,
+  cases: Cases & { readonly [P in Exclude<keyof Cases, Exclude<U, null>['_tag']>]: never },
+  otherwise: Fallback,
+): ExprType<
+  Env &
+    UnionToIntersection<EnvOfInput<ReturnType<Exclude<Cases[keyof Cases], undefined>>>> &
+    EnvOfInput<Fallback>,
+  ValueOfInput<ReturnType<Exclude<Cases[keyof Cases], undefined>>> | ValueOfInput<Fallback>
+> => {
+  const { variants, tagAst } = taggedVariantsOf(on.ast)
+  const entries = Object.entries(cases).filter(
+    ([, handler]) => handler !== undefined,
+  ) as ReadonlyArray<
+    readonly [string, (variant: PathAccessor<Env, unknown>) => ExprInput<never, unknown>]
+  >
+  checkTagCases(
+    'matchTags',
+    on.node,
+    variants,
+    entries.map(([tag]) => tag),
+    false,
+  )
+  const tagNode = Node.Path({ segments: [...on.segments, '_tag'], ast: tagAst })
+  return wrap(
+    Node.Match({
+      on: tagNode,
+      cases: entries.map(([tag, handler]) => {
+        const narrowed = Path.accessor<Env, unknown>(
+          on.segments,
+          Option.fromUndefinedOr(variants.get(tag)),
+        )
+        return [tag, toNode(handler(narrowed))] as const
+      }),
+      otherwise: Option.some(toNode(otherwise)),
+    }),
+  )
+}
+
 /**
  * First-class escape hatch for arbitrary JavaScript logic.
  *

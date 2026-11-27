@@ -601,15 +601,26 @@ const resolveAstSegments = (
   root: SchemaAST.AST,
   segments: ReadonlyArray<string>,
 ): Option.Option<SchemaAST.AST> => {
-  let current: SchemaAST.AST = root
-  for (const segment of segments) {
-    const unwrapped = unwrapNullable(current)
-    if (!SchemaAST.isObjects(unwrapped)) return Option.none()
-    const prop = unwrapped.propertySignatures.find(p => p.name === segment)
+  if (segments.length === 0) return Option.some(root)
+  const unwrapped = unwrapNullable(root)
+  if (SchemaAST.isObjects(unwrapped)) {
+    const prop = unwrapped.propertySignatures.find(p => p.name === segments[0]!)
     if (prop === undefined) return Option.none()
-    current = prop.type
+    return resolveAstSegments(prop.type, segments.slice(1))
   }
-  return Option.some(current)
+  if (SchemaAST.isUnion(unwrapped)) {
+    const hits: Array<SchemaAST.AST> = []
+    for (const member of unwrapped.types) {
+      if (SchemaAST.isNull(member) || SchemaAST.isUndefined(member)) continue
+      const resolved = resolveAstSegments(member, segments)
+      if (Option.isSome(resolved)) hits.push(resolved.value)
+    }
+    if (hits.length === 0) return Option.none()
+    if (hits.length === 1) return Option.some(hits[0]!)
+    const firstKind = kindOfAst(hits[0]!)
+    return Option.some(hits.every(h => kindOfAst(h) === firstKind) ? hits[0]! : Schema.Unknown.ast)
+  }
+  return Option.none()
 }
 
 const arrayElementAst = (ast: SchemaAST.AST): Option.Option<SchemaAST.AST> => {
