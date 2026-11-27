@@ -8,9 +8,10 @@
  * Schemas so every claim's domain is enforced at run time.
  */
 import { Equal, Option, Schema, SchemaAST } from 'effect'
+import type { Fn, ParamSchemas } from './fn.js'
 import * as Node from './node.js'
 import { toNode, wrap, type ExprInput, type NullOf } from './ops/core.js'
-import type { ForeignImplementation, ForeignImplementations } from './ops/eval.js'
+import { evalNode, type ForeignImplementation, type ForeignImplementations } from './ops/eval.js'
 export { applyForeign } from './ops/eval.js'
 import type { Expr } from './path.js'
 
@@ -592,3 +593,191 @@ export const implementations = (
 /** Read the name and entries from an `OperationImplementations` table. */
 export const implementationsMeta = (table: OperationImplementations): ImplementationsMeta =>
   table[IMPLEMENTATIONS_META]
+
+// ---------------------------------------------------------------------------
+// Derived operations (#648 #7 & #597): named Operations backed by a canonical Fn
+// ---------------------------------------------------------------------------
+
+/** Positional argument Schema tuple derived from `P` and `Order`. */
+export type OrderedParamSchemas<
+  P extends ParamSchemas,
+  Order extends ReadonlyArray<keyof P & string>,
+> = {
+  readonly [K in keyof Order]: Order[K] extends keyof P ? P[Order[K]] : never
+}
+
+/**
+ * A named, versioned `Operation` whose canonical meaning is a `Fn` definition.
+ * Preserves operation identity in `Expr` / `Artifact` / `Language`, derives a
+ * canonical JS `implementation` automatically, and can be expanded into core
+ * primitives via `expandDerived` for SQL, Tier 3, and Z3 readers.
+ */
+export interface DerivedOperation<
+  Id extends string,
+  V extends number,
+  Args extends ReadonlyArray<Schema.Top>,
+  R extends Schema.Top,
+  N extends 'strict' | 'own',
+  C extends object,
+  P extends ParamSchemas,
+  FR,
+> extends Operation<Id, V, Args, R, N, C> {
+  readonly definition: Fn<P, FR>
+  readonly paramOrder: ReadonlyArray<keyof P & string>
+  /** Canonical JS implementation derived directly from `definition.body`. */
+  readonly implementation: Implementation<Operation<Id, V, Args, R, N, C>>
+}
+
+/** Any `DerivedOperation`, regardless of its concrete signature. */
+export interface AnyDerivedOperation extends AnyOperation {
+  readonly definition: (args: never) => Expr<never, unknown>
+  readonly paramOrder: ReadonlyArray<string>
+  readonly implementation: Implementation
+}
+
+/**
+ * Define a named, versioned `Operation` backed by a canonical `Fn` body.
+ * Validates that `paramOrder` names every parameter of `definition` once.
+ */
+export const derived = <
+  const Id extends string,
+  const V extends number,
+  const P extends ParamSchemas,
+  const Order extends ReadonlyArray<keyof P & string>,
+  R extends Schema.Top,
+  N extends 'strict' | 'own' = 'strict',
+  const C extends Claims<OrderedParamSchemas<P, Order>, R> = {},
+  FR = unknown,
+>(spec: {
+  readonly id: Id & NotCore<Id>
+  readonly version: V
+  readonly definition: Fn<P, FR>
+  readonly paramOrder: Order
+  readonly returns: R
+  readonly nulls?: N
+  readonly claims?: C
+}): DerivedOperation<Id, V, OrderedParamSchemas<P, Order>, R, N, C, P, FR> => {
+  const expectedKeys = Object.keys(spec.definition.params)
+  const seen = new Set<string>()
+  for (const name of spec.paramOrder) {
+    if (!Object.hasOwn(spec.definition.params, name)) {
+      throw new Error(
+        `[metakit] Operation.derived(${spec.id}@${spec.version}): unknown parameter "${name}" in paramOrder`,
+      )
+    }
+    if (seen.has(name)) {
+      throw new Error(
+        `[metakit] Operation.derived(${spec.id}@${spec.version}): duplicate parameter "${name}" in paramOrder`,
+      )
+    }
+    seen.add(name)
+  }
+  if (seen.size !== expectedKeys.length) {
+    const missing = expectedKeys.filter(k => !seen.has(k))
+    throw new Error(
+      `[metakit] Operation.derived(${spec.id}@${spec.version}): paramOrder is missing parameter(s): ${missing.join(', ')}`,
+    )
+  }
+
+  const orderedSchemas = spec.paramOrder.map(
+    name => spec.definition.params[name]!,
+  ) as unknown as OrderedParamSchemas<P, Order>
+  const nulls = (spec.nulls ?? 'strict') as N
+  const op = define({
+    id: spec.id,
+    version: spec.version,
+    args: orderedSchemas,
+    returns: spec.returns,
+    nulls,
+    ...(spec.claims === undefined ? {} : { claims: spec.claims }),
+  }) as Operation<Id, V, OrderedParamSchemas<P, Order>, R, N, C>
+
+  const implementation = implement(op, (...values) => {
+    const env: Record<string, unknown> = {}
+    for (let i = 0; i < spec.paramOrder.length; i++) {
+      env[spec.paramOrder[i]!] = values[i]
+    }
+    const result = evalNode(spec.definition.body.node, env)
+    if (Node.isRefusal(result)) throw result
+    return result as Schema.Schema.Type<R> | null
+  })
+
+  return Object.assign(op, {
+    definition: spec.definition,
+    paramOrder: [...spec.paramOrder],
+    implementation,
+  })
+}
+
+const DEFAULT_MAX_DERIVED_NODES = 10_000
+
+/**
+ * Symbolically expand calls to any `DerivedOperation` in `ops` using their
+ * canonical `Fn` definitions, so SQL, Tier 3, and Z3 readers can lower and
+ * verify them directly. Detects cyclic expansions and enforces `maxNodes`.
+ */
+export const expandDerived = <Env, A>(
+  expr: Expr<Env, A>,
+  ops: ReadonlyArray<AnyDerivedOperation>,
+  options?: { readonly maxNodes?: number },
+): Expr<Env, A> => {
+  const byKey = new Map<string, AnyDerivedOperation>()
+  for (const op of ops) {
+    byKey.set(Node.foreignName(op.descriptor), op)
+  }
+  if (byKey.size === 0) return expr
+  const maxNodes = options?.maxNodes ?? DEFAULT_MAX_DERIVED_NODES
+  let budget = 0
+
+  const expandNode = (node: Node.Node, active: ReadonlySet<string>): Node.Node => {
+    budget += 1
+    if (budget > maxNodes) {
+      throw new RangeError(`[metakit] Operation.expandDerived exceeded budget of ${maxNodes} nodes`)
+    }
+    return Node.$match(node, {
+      Lit: l => l,
+      Path: p => p,
+      Opaque: o => o,
+      Call: ({ op, args }) => {
+        const expandedArgs = args.map(arg => expandNode(arg, active))
+        if (!Node.isForeign(op)) return Node.Call({ op, args: expandedArgs })
+        const key = Node.foreignName(op)
+        const derivedOp = byKey.get(key)
+        if (derivedOp === undefined) return Node.Call({ op, args: expandedArgs })
+        if (active.has(key)) {
+          throw new Error(
+            `[metakit] Operation.expandDerived: cyclic derived operation expansion detected at "${key}"`,
+          )
+        }
+        const argRecord: Record<string, Expr<never, unknown>> = {}
+        for (let i = 0; i < derivedOp.paramOrder.length; i++) {
+          argRecord[derivedOp.paramOrder[i]!] = wrap(expandedArgs[i]!)
+        }
+        const inlined = derivedOp.definition(argRecord as never).node
+        const nextActive = new Set(active)
+        nextActive.add(key)
+        return expandNode(inlined, nextActive)
+      },
+      If: ({ cond, then: t, otherwise }) =>
+        Node.If({
+          cond: expandNode(cond, active),
+          then: expandNode(t, active),
+          otherwise: expandNode(otherwise, active),
+        }),
+      Match: ({ on, cases, otherwise }) =>
+        Node.Match({
+          on: expandNode(on, active),
+          cases: cases.map(([v, b]) => [v, expandNode(b, active)] as const),
+          otherwise: Option.map(otherwise, b => expandNode(b, active)),
+        }),
+      Rows: rows =>
+        Node.mapRows(
+          rows,
+          source => expandNode(source, active),
+          body => expandNode(body, active),
+        ),
+    })
+  }
+
+  return wrap(expandNode(expr.node, new Set()))
+}
