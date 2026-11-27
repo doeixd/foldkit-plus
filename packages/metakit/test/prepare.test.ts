@@ -130,4 +130,18 @@ describe('Interpreter.prepare (#645 P2)', () => {
     expect(Node.isRefusal(bad)).toBe(true)
     if (Node.isRefusal(bad)) expect(bad.reason).toBe('unmatched')
   })
+
+  it('drops evidenceKey when a required foreign identity is omitted and normalizes Lit(undefined) to null', async () => {
+    const foreignExpr = Expr.in({ acc: Account }, ({ acc }) => Scale(acc.balance, 2))
+    const omittedPlan = await Effect.runPromise(
+      Interpreter.prepare(foreignExpr).pipe(Effect.provide(Interpreter.withForeign(mathImpls))),
+    )
+    expect(Option.isSome(omittedPlan.fingerprint)).toBe(true)
+    expect(Option.isNone(omittedPlan.evidenceKey)).toBe(true)
+
+    const undefExpr = Expr.fromNode(Node.Lit({ value: undefined }))
+    const undefPlan = await Effect.runPromise(Interpreter.prepare(undefExpr))
+    expect(undefPlan.evaluateSync({} as never)).toBeNull()
+    expect(undefPlan.evaluateSync({} as never)).toEqual(evalNode(undefExpr.node, {}))
+  })
 })

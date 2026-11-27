@@ -14,6 +14,7 @@ import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
 import * as Node from './node.js'
 import type { AnyOperation } from './operation.js'
 import { wrap } from './ops/core.js'
+import { loadRows } from './ops/rowsLoad.js'
 import { coreArity, coreOps, isCoreOpId } from './ops/table.js'
 import { format as formatPath, optionInner, type EnvOf, type Expr } from './path.js'
 
@@ -105,7 +106,12 @@ export type PortableLiteral =
   | ReadonlyArray<PortableLiteral>
   | { readonly [key: string]: PortableLiteral }
 
-const FiniteNumber = Schema.Number.check(Schema.isFinite())
+const FiniteNumber = Schema.Number.check(
+  Schema.isFinite(),
+  Schema.makeFilter(n => (!Object.is(n, -0) ? undefined : 'negative zero (-0) is not portable')),
+)
+
+const PositiveVersion = Schema.Int.check(Schema.isGreaterThan(0))
 
 export const PortableLiteral: Schema.Codec<PortableLiteral> = Schema.suspend(() =>
   Schema.Union([
@@ -120,7 +126,7 @@ export const PortableLiteral: Schema.Codec<PortableLiteral> = Schema.suspend(() 
 
 export const PortableOpRef = Schema.Union([
   Schema.TaggedStruct('Core', { id: Schema.String }),
-  Schema.TaggedStruct('Foreign', { id: Schema.String, version: Schema.Int }),
+  Schema.TaggedStruct('Foreign', { id: Schema.String, version: PositiveVersion }),
 ])
 export type PortableOpRef = Schema.Schema.Type<typeof PortableOpRef>
 
@@ -211,7 +217,7 @@ export const PortableNodeSchema: Schema.Codec<PortableNode> = Schema.suspend(() 
       where: Schema.optionalKey(PortableNodeSchema),
       value: Schema.optionalKey(PortableNodeSchema),
       set: Schema.Array(Schema.Tuple([Schema.String, PortableNodeSchema])),
-      op: Schema.optionalKey(Schema.Struct({ id: Schema.String, version: Schema.Int })),
+      op: Schema.optionalKey(Schema.Struct({ id: Schema.String, version: PositiveVersion })),
       each: Schema.optionalKey(Schema.String),
     }),
   ]),
@@ -251,13 +257,28 @@ const makeRegistry = (operations: ReadonlyMap<string, AnyOperation>): OperationR
 /** Registry with no foreign operations (core operators only). */
 export const emptyRegistry: OperationRegistry = makeRegistry(new Map())
 
-const compatibleOps = (a: AnyOperation, b: AnyOperation): boolean =>
-  a === b ||
-  (a.descriptor.id === b.descriptor.id &&
-    a.descriptor.version === b.descriptor.version &&
-    a.descriptor.returns === b.descriptor.returns &&
-    a.descriptor.nulls === b.descriptor.nulls &&
-    a.descriptor.args.length === b.descriptor.args.length)
+const compatibleOps = (a: AnyOperation, b: AnyOperation): boolean => {
+  if (a === b) return true
+  const da = a.descriptor
+  const db = b.descriptor
+  if (
+    da.id !== db.id ||
+    da.version !== db.version ||
+    da.returns !== db.returns ||
+    da.nulls !== db.nulls ||
+    da.args.length !== db.args.length
+  ) {
+    return false
+  }
+  const ca = da.checkArgs ?? []
+  const cb = db.checkArgs ?? []
+  if (ca.length !== cb.length) return false
+  for (let i = 0; i < ca.length; i++) {
+    if (ca[i]!.describe !== cb[i]!.describe) return false
+  }
+  if (da.checkResult?.describe !== db.checkResult?.describe) return false
+  return JSON.stringify(da.claims) === JSON.stringify(db.claims)
+}
 
 /**
  * Build an `OperationRegistry` from `Operation`s and/or `Language`s.
@@ -276,13 +297,16 @@ export const registry = (
       for (const op of ops) {
         const key = Node.foreignName(op.descriptor)
         const existing = map.get(key)
-        if (existing !== undefined && !compatibleOps(existing, op)) {
-          return Effect.fail(
-            new DuplicateOperationError({
-              op: key,
-              detail: `conflicting operation registrations for ${key} (args/returns/nulls differ)`,
-            }),
-          )
+        if (existing !== undefined) {
+          if (!compatibleOps(existing, op)) {
+            return Effect.fail(
+              new DuplicateOperationError({
+                op: key,
+                detail: `conflicting operation registrations for ${key} (signature/schemas/claims differ)`,
+              }),
+            )
+          }
+          continue
         }
         map.set(key, op)
       }
@@ -303,6 +327,54 @@ const isPlainObject = (value: object): boolean => {
   const proto: unknown = Object.getPrototypeOf(value)
   return proto === Object.prototype || proto === null
 }
+
+const setOwn = (
+  target: Record<string, PortableLiteral>,
+  key: string,
+  value: PortableLiteral,
+): void => {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  })
+}
+
+const checkRawBounds = (
+  raw: unknown,
+  limits: ArtifactLimits,
+): Effect.Effect<void, ArtifactLimitError> =>
+  Effect.suspend(() => {
+    let nodes = 0
+    const stack: Array<readonly [value: unknown, depth: number]> = [[raw, 0]]
+    const maxRawDepth = limits.maxDepth * 3 + 8
+    const maxRawValues = limits.maxNodes * 16 + 64
+    while (stack.length > 0) {
+      const [current, depth] = stack.pop()!
+      nodes += 1
+      if (nodes > maxRawValues) {
+        return Effect.fail(
+          new ArtifactLimitError({ kind: 'nodes', limit: limits.maxNodes, actual: nodes }),
+        )
+      }
+      if (depth > maxRawDepth) {
+        return Effect.fail(
+          new ArtifactLimitError({ kind: 'depth', limit: limits.maxDepth, actual: depth }),
+        )
+      }
+      if (current !== null && typeof current === 'object') {
+        if (Array.isArray(current)) {
+          for (let i = 0; i < current.length; i++) stack.push([current[i], depth + 1])
+        } else {
+          for (const key of Object.keys(current)) {
+            stack.push([(current as Record<string, unknown>)[key], depth + 1])
+          }
+        }
+      }
+    }
+    return Effect.void
+  })
 
 const encodeLiteral = (
   value: unknown,
@@ -345,7 +417,7 @@ const encodeLiteral = (
     ).pipe(
       Effect.map(pairs => {
         const out: Record<string, PortableLiteral> = {}
-        for (const [k, v] of pairs) out[k] = v
+        for (const [k, v] of pairs) setOwn(out, k, v)
         return out
       }),
     )
@@ -547,7 +619,15 @@ const arrayElementAst = (ast: SchemaAST.AST): Option.Option<SchemaAST.AST> => {
   return rest !== undefined ? Option.some(rest) : Option.none()
 }
 
-type InferredKind = 'number' | 'boolean' | 'text' | 'array' | 'object' | 'null' | 'unknown'
+type InferredKind =
+  | 'number'
+  | 'boolean'
+  | 'text'
+  | 'array'
+  | 'object'
+  | 'null'
+  | 'mixed'
+  | 'unknown'
 
 const kindOfAst = (ast: SchemaAST.AST): InferredKind => {
   const unwrapped = unwrapNullable(ast)
@@ -572,7 +652,8 @@ const kindOfAst = (ast: SchemaAST.AST): InferredKind => {
 const joinKinds = (a: InferredKind, b: InferredKind): InferredKind => {
   if (a === 'null') return b
   if (b === 'null') return a
-  return a === b ? a : 'unknown'
+  if (a === 'unknown' || b === 'unknown') return 'unknown'
+  return a === b ? a : 'mixed'
 }
 
 const inferNodeKind = (node: Node.Node): InferredKind =>
@@ -640,6 +721,7 @@ const inferNodeKind = (node: Node.Node): InferredKind =>
 const kindCompatible = (actual: InferredKind, expected: SchemaAST.AST): boolean => {
   const expectedKind = kindOfAst(expected)
   if (expectedKind === 'unknown' || actual === 'unknown') return true
+  if (actual === 'mixed') return false
   if (actual === 'null') {
     return (
       SchemaAST.isNull(expected) ||
@@ -720,6 +802,9 @@ const decodeAgainstRoot = <Env, A>(
       )
     }
 
+    const limits = resolveLimits(options.limits)
+    yield* checkRawBounds(raw, limits)
+
     const artifact = yield* Schema.decodeUnknownEffect(PortableArtifactV1)(raw).pipe(
       Effect.mapError(
         err =>
@@ -731,13 +816,13 @@ const decodeAgainstRoot = <Env, A>(
       ),
     )
 
-    const limits = resolveLimits(options.limits)
     const reg = options.registry ?? emptyRegistry
     const coreAllow = toSet(options.allowlist?.core)
     const foreignAllow =
       options.allowlist === undefined
         ? undefined
         : (toSet(options.allowlist.foreign) ?? new Set<string>())
+    const actualOps = new Set<string>()
     let nodeCount = 0
 
     const resolveForeign = (
@@ -826,6 +911,7 @@ const decodeAgainstRoot = <Env, A>(
           },
           Call: ({ op, args }) =>
             Effect.gen(function* () {
+              actualOps.add(opRefKey(op))
               const resolvedOp: Node.AnyOp = yield* Match.value(op).pipe(
                 Match.tags({
                   Core: ({ id }) => {
@@ -901,12 +987,46 @@ const decodeAgainstRoot = <Env, A>(
             }),
           Rows: rows =>
             Effect.gen(function* () {
+              loadRows()
+              if (rows.set.length > 0 && rows.fold !== 'patch') {
+                return yield* Effect.fail(
+                  new ArtifactDecodeError({
+                    phase: 'schema',
+                    path: 'Rows.set',
+                    detail: `Rows.set is only valid for fold "patch", got "${rows.fold}"`,
+                  }),
+                )
+              }
+              if (
+                rows.value === undefined &&
+                (rows.fold === 'sum' ||
+                  rows.fold === 'min' ||
+                  rows.fold === 'max' ||
+                  rows.fold === 'reduce')
+              ) {
+                return yield* Effect.fail(
+                  new ArtifactDecodeError({
+                    phase: 'schema',
+                    path: 'Rows.value',
+                    detail: `Rows with fold "${rows.fold}" requires a value expression`,
+                  }),
+                )
+              }
               let elementAst: Option.Option<SchemaAST.AST> = Option.none()
               const rebuiltOver: Node.RowsOver = yield* Match.value(rows.over).pipe(
                 Match.tags({
                   List: ({ list }) =>
                     rebuild(list, depth + 1, bound).pipe(
                       Effect.flatMap(rebuiltList => {
+                        if (Node.$is('Lit')(rebuiltList) && !Array.isArray(rebuiltList.value)) {
+                          return Effect.fail(
+                            new ArtifactDecodeError({
+                              phase: 'type',
+                              path: 'Rows.over.list',
+                              detail: 'Rows List source literal must be an array',
+                            }),
+                          )
+                        }
                         if (Node.$is('Path')(rebuiltList) && Option.isSome(rebuiltList.ast)) {
                           const elem = arrayElementAst(rebuiltList.ast.value)
                           if (Option.isNone(elem)) {
@@ -949,6 +1069,9 @@ const decodeAgainstRoot = <Env, A>(
                   )
                 }
                 foreignOp = (yield* resolveForeign(rows.op.id, rows.op.version)).descriptor
+                actualOps.add(
+                  opRefKey({ _tag: 'Foreign', id: rows.op.id, version: rows.op.version }),
+                )
               } else if (rows.fold === 'reduce') {
                 return yield* Effect.fail(
                   new ArtifactDecodeError({
@@ -991,6 +1114,16 @@ const decodeAgainstRoot = <Env, A>(
     }
 
     const decodedNode = yield* rebuild(artifact.node, 0, new Map())
+    const declaredOps = new Set(artifact.requiredOps.map(opRefKey))
+    if (declaredOps.size !== actualOps.size || [...actualOps].some(k => !declaredOps.has(k))) {
+      return yield* Effect.fail(
+        new ArtifactDecodeError({
+          phase: 'schema',
+          path: '$.requiredOps',
+          detail: 'artifact.requiredOps does not match the operators invoked in artifact.node',
+        }),
+      )
+    }
     const inferredKind = inferNodeKind(decodedNode)
     if (!kindCompatible(inferredKind, options.result.ast)) {
       return yield* Effect.fail(
@@ -1067,7 +1200,7 @@ const canonicalizeLiteral = (value: PortableLiteral): PortableLiteral => {
   const record = value as Readonly<Record<string, PortableLiteral>>
   const out: Record<string, PortableLiteral> = {}
   for (const key of Object.keys(record).sort()) {
-    out[key] = canonicalizeLiteral(record[key]!)
+    setOwn(out, key, canonicalizeLiteral(record[key]!))
   }
   return out
 }
@@ -1159,14 +1292,14 @@ const stableStringify = (value: unknown): string => {
 
 /** Deterministic JSON encoding of a `PortableArtifactV1` after canonicalization. */
 export const canonicalJson = (artifact: PortableArtifactV1): string => {
+  const uniqueOps = new Map<string, PortableOpRef>()
+  for (const ref of artifact.requiredOps) uniqueOps.set(opRefKey(ref), ref)
   const canonical: PortableArtifactV1 = {
     codecVersion: artifact.codecVersion,
     node: canonicalizeNode(artifact.node),
-    requiredOps: [...artifact.requiredOps].sort((a, b) => {
-      const ka = opRefKey(a)
-      const kb = opRefKey(b)
-      return ka < kb ? -1 : ka > kb ? 1 : 0
-    }),
+    requiredOps: [...uniqueOps.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([, ref]) => ref),
   }
   return stableStringify(canonical)
 }
@@ -1208,6 +1341,12 @@ export interface EvidenceKeyInput {
   /** Optional fingerprint of relevant environment/target Schema constraints. */
   readonly schemaFingerprint?: string
   /**
+   * Foreign operations (`id@version`) required by the expression. When given,
+   * every listed operation must have an `Option.some(...)` identity in
+   * `foreignIdentities`; otherwise `evidenceKey` returns `Option.none()`.
+   */
+  readonly requiredForeignOps?: ReadonlyArray<string>
+  /**
    * Stable identity of each foreign implementation (`id@version -> Option<string>`).
    * Pass `Option.none()` for any implementation without a reliable identity;
    * `evidenceKey` then returns `Option.none()` so evidence is never reused
@@ -1220,11 +1359,20 @@ export interface EvidenceKeyInput {
 
 /**
  * Compute an `EvidenceKey` (`ev:sha256:<hex>`) for caching reader/verifier results.
- * Returns `Option.none()` if any entry in `foreignIdentities` is `Option.none()`.
+ * Returns `Option.none()` if any required foreign op lacks a stable identity or
+ * any entry in `foreignIdentities` is `Option.none()`.
  */
 export const evidenceKey = (input: EvidenceKeyInput): Effect.Effect<Option.Option<EvidenceKey>> =>
   Effect.suspend(() => {
     const resolvedForeign: Record<string, string> = {}
+    if (input.requiredForeignOps !== undefined && input.requiredForeignOps.length > 0) {
+      if (input.foreignIdentities === undefined) return Effect.succeed(Option.none())
+      for (const req of input.requiredForeignOps) {
+        if (!Object.hasOwn(input.foreignIdentities, req)) return Effect.succeed(Option.none())
+        const identity = input.foreignIdentities[req]!
+        if (Option.isNone(identity)) return Effect.succeed(Option.none())
+      }
+    }
     if (input.foreignIdentities !== undefined) {
       for (const key of Object.keys(input.foreignIdentities).sort()) {
         const identity = input.foreignIdentities[key]!

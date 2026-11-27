@@ -54,9 +54,9 @@ export default [
     edits: [
       {
         file: '../src/tooling.ts',
-        find: `      if (sameFp && !readsChanged && !writesChanged && prev.kind === next.kind) {
+        find: `      if (sameFp && !readsChanged && !writesChanged && !depsChanged && prev.kind === next.kind) {
         unchanged.push(id)`,
-        replace: `      if (true || (sameFp && !readsChanged && !writesChanged && prev.kind === next.kind)) {
+        replace: `      if (true || (sameFp && !readsChanged && !writesChanged && !depsChanged && prev.kind === next.kind)) {
         unchanged.push(id)`,
       },
     ],

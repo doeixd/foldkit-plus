@@ -252,7 +252,7 @@ export const compose = <A extends FamilyMap, B extends FamilyMap>(
           }
           const key = Node.foreignName(op.descriptor)
           const existingKey = byOpKey.get(key)
-          if (existingKey !== undefined && existingKey.op !== op) {
+          if (existingKey !== undefined && (existingKey.op !== op || existingKey.slot !== slot)) {
             return new LanguageConflictError({
               location: key,
               detail: `operation "${key}" conflicts between "${existingKey.slot}" and "${slot}"`,
@@ -298,15 +298,21 @@ export const restrict = <F extends FamilyMap, const S extends FamilySelection<F>
   for (const familyName of Object.keys(selection)) {
     const pick = selection[familyName]
     if (pick === undefined) continue
-    const family = language.families[familyName]
-    if (family === undefined) continue
+    if (!Object.hasOwn(language.families, familyName)) {
+      throw new Error(`[metakit/language] restrict: unknown family "${familyName}"`)
+    }
+    const family = language.families[familyName]!
     if (pick === true) {
       out[familyName] = { ...family }
     } else {
       const subset: Record<string, AnyOperation> = {}
       for (const opName of pick) {
-        const op = family[opName]
-        if (op !== undefined) subset[opName] = op
+        if (!Object.hasOwn(family, opName)) {
+          throw new Error(
+            `[metakit/language] restrict: unknown operation "${familyName}.${opName}"`,
+          )
+        }
+        subset[opName] = family[opName]!
       }
       out[familyName] = subset
     }
@@ -369,6 +375,44 @@ const checkPortableLiteral = (value: unknown): string | undefined => {
   return `literal of type ${typeof value}`
 }
 
+const SQL_UNSUPPORTED_OPS = new Set<Node.CoreOpId>([
+  'arr.append',
+  'arr.include',
+  'arr.exclude',
+  'arr.move',
+  'set.union',
+  'set.intersect',
+  'set.difference',
+  'set.subset',
+  'set.disjoint',
+])
+
+const Z3_UNSUPPORTED_OPS = new Set<Node.CoreOpId>([
+  'time.addMonths',
+  'time.startOfMonth',
+  'arr.append',
+  'arr.move',
+])
+
+const SQL_UNSUPPORTED_RELATED_FOLDS = new Set<Node.RowsFold>(['find', 'keep', 'patch'])
+const Z3_SUPPORTED_RELATED_FOLDS = new Set<Node.RowsFold>(['count', 'any', 'every'])
+
+const checkSqlLiteral = (value: unknown): string | undefined => {
+  if (typeof value === 'string' && value.includes('\u0000')) {
+    return 'string literal containing NUL byte (\\u0000) is refused by SQL'
+  }
+  if (typeof value === 'number' && Number.isInteger(value) && !Number.isSafeInteger(value)) {
+    return `integer literal ${value} outside safe range is refused by SQL`
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const bad = checkSqlLiteral(item)
+      if (bad !== undefined) return bad
+    }
+  }
+  return undefined
+}
+
 /**
  * Inspect `expr` against `target` and report portability, required core/foreign
  * operations, and every unsupported node/path rather than a bare boolean.
@@ -423,16 +467,37 @@ export const readiness = (
       )
     }
 
-    const visit = (node: Node.Node, at: string): void => {
+    const visit = (node: Node.Node, at: string, rowsDepth: number): void => {
       Node.$match(node, {
         Lit: ({ value }) => {
           const bad = checkPortableLiteral(value)
           if (bad !== undefined) {
             portable = false
-            if (target._tag === 'portable' || target._tag === 'sql' || target._tag === 'z3') {
-              unsupported.push({ path: at, kind: 'non-portable-literal', detail: bad })
-            }
+            Match.valueTags(target, {
+              js: () => undefined,
+              portable: () => {
+                unsupported.push({ path: at, kind: 'non-portable-literal', detail: bad })
+              },
+              sql: () => {
+                unsupported.push({ path: at, kind: 'non-portable-literal', detail: bad })
+              },
+              z3: () => {
+                unsupported.push({ path: at, kind: 'non-portable-literal', detail: bad })
+              },
+            })
+            return
           }
+          Match.valueTags(target, {
+            js: () => undefined,
+            portable: () => undefined,
+            z3: () => undefined,
+            sql: () => {
+              const sqlBad = checkSqlLiteral(value)
+              if (sqlBad !== undefined) {
+                unsupported.push({ path: at, kind: 'unsupported-node', detail: sqlBad })
+              }
+            },
+          })
         },
         Path: () => undefined,
         Call: ({ op, args }) => {
@@ -440,18 +505,40 @@ export const readiness = (
             checkForeign(op, at)
           } else {
             coreOps.add(op.id)
+            Match.valueTags(target, {
+              js: () => undefined,
+              portable: () => undefined,
+              sql: () => {
+                if (SQL_UNSUPPORTED_OPS.has(op.id)) {
+                  unsupported.push({
+                    path: at,
+                    kind: 'unsupported-node',
+                    detail: `core operator "${op.id}" is not supported by SQL lowering`,
+                  })
+                }
+              },
+              z3: () => {
+                if (Z3_UNSUPPORTED_OPS.has(op.id)) {
+                  unsupported.push({
+                    path: at,
+                    kind: 'unsupported-node',
+                    detail: `core operator "${op.id}" is not supported by Z3 lowering`,
+                  })
+                }
+              },
+            })
           }
-          args.forEach((arg, i) => visit(arg, `${at}.args[${i}]`))
+          args.forEach((arg, i) => visit(arg, `${at}.args[${i}]`, rowsDepth))
         },
         If: ({ cond, then: t, otherwise }) => {
-          visit(cond, `${at}.cond`)
-          visit(t, `${at}.then`)
-          visit(otherwise, `${at}.otherwise`)
+          visit(cond, `${at}.cond`, rowsDepth)
+          visit(t, `${at}.then`, rowsDepth)
+          visit(otherwise, `${at}.otherwise`, rowsDepth)
         },
         Match: ({ on, cases, otherwise }) => {
-          visit(on, `${at}.on`)
-          cases.forEach(([, branch], i) => visit(branch, `${at}.cases[${i}]`))
-          if (Option.isSome(otherwise)) visit(otherwise.value, `${at}.otherwise`)
+          visit(on, `${at}.on`, rowsDepth)
+          cases.forEach(([, branch], i) => visit(branch, `${at}.cases[${i}]`, rowsDepth))
+          if (Option.isSome(otherwise)) visit(otherwise.value, `${at}.otherwise`, rowsDepth)
         },
         Opaque: ({ name }) => {
           portable = false
@@ -465,18 +552,57 @@ export const readiness = (
         },
         Rows: rows => {
           Node.RowsOver.$match(rows.over, {
-            List: ({ list }) => visit(list, `${at}.over.list`),
-            Related: ({ of }) => visit(of, `${at}.over.of`),
+            List: ({ list }) => {
+              if (target._tag === 'sql' || target._tag === 'z3') {
+                unsupported.push({
+                  path: at,
+                  kind: 'unsupported-node',
+                  detail: `Rows over List (fold "${rows.fold}") is not supported by ${target._tag}`,
+                })
+              }
+              visit(list, `${at}.over.list`, rowsDepth)
+            },
+            Related: ({ of }) => {
+              Match.valueTags(target, {
+                js: () => undefined,
+                portable: () => undefined,
+                sql: () => {
+                  if (rowsDepth > 0) {
+                    unsupported.push({
+                      path: at,
+                      kind: 'unsupported-node',
+                      detail: 'nested Rows folds are not supported by SQL lowering',
+                    })
+                  } else if (SQL_UNSUPPORTED_RELATED_FOLDS.has(rows.fold)) {
+                    unsupported.push({
+                      path: at,
+                      kind: 'unsupported-node',
+                      detail: `Rows fold "${rows.fold}" over Related is not supported by SQL lowering`,
+                    })
+                  }
+                },
+                z3: () => {
+                  if (!Z3_SUPPORTED_RELATED_FOLDS.has(rows.fold)) {
+                    unsupported.push({
+                      path: at,
+                      kind: 'unsupported-node',
+                      detail: `Rows fold "${rows.fold}" over Related is not supported by Z3 lowering`,
+                    })
+                  }
+                },
+              })
+              visit(of, `${at}.over.of`, rowsDepth)
+            },
           })
           if (rows.op !== undefined) checkForeign(rows.op, `${at}.op`)
-          if (Option.isSome(rows.where)) visit(rows.where.value, `${at}.where`)
-          if (Option.isSome(rows.value)) visit(rows.value.value, `${at}.value`)
-          rows.set.forEach(([field, v]) => visit(v, `${at}.set.${field}`))
+          if (Option.isSome(rows.where)) visit(rows.where.value, `${at}.where`, rowsDepth + 1)
+          if (Option.isSome(rows.value)) visit(rows.value.value, `${at}.value`, rowsDepth + 1)
+          rows.set.forEach(([field, v]) => visit(v, `${at}.set.${field}`, rowsDepth + 1))
         },
       })
     }
 
-    visit(expr.node, '$')
+    visit(expr.node, '$', 0)
 
     return {
       portable,

@@ -1,6 +1,6 @@
 # MetaKit Core Semantics & Reader Capability Matrix
 
-Every MetaKit expression (`Expr<Env, A>`) is a pure, terminating AST over 44 closed-set core operators (`Node.CoreOpId`), optional versioned foreign operations (`Node.ForeignOp`), conditionals (`If`, `Match`), list/relation folds (`Rows`), and an explicit escape hatch (`Opaque`).
+Every MetaKit expression (`Expr<Env, A>`) is a pure, terminating AST over 50 closed-set core operators (`Node.CoreOpId`), optional versioned foreign operations (`Node.ForeignOp`), conditionals (`If`, `Match`), list/relation folds (`Rows`), and an explicit escape hatch (`Opaque`).
 
 ## 1. Value Domain & Observable Outcomes
 
@@ -38,6 +38,6 @@ Evaluation of a node against an environment produces one of four outcomes:
 ## 3. Portable Artifact Versioning Policy (`metakit/artifact`)
 
 - **Wire version (`CODEC_VERSION = 1`):** Every encoded artifact carries `codecVersion: 1`. Decoders reject unknown versions with `ArtifactDecodeError` (`phase: 'version'`). Additive changes that preserve v1 decoding stay in v1; breaking wire changes bump `CODEC_VERSION` and ship an explicit migration decoder.
-- **Core operators (`Node.CoreOpId`):** Closed set of 44 operators. Existing core operator semantics do not change incompatibly; new behavior gets a new operator ID.
+- **Core operators (`Node.CoreOpId`):** Closed set of 50 operators. Existing core operator semantics do not change incompatibly; new behavior gets a new operator ID.
 - **Foreign operations (`id@version`):** Identified by `(id, version)` where `version` is a positive integer. Breaking signature or behavioral changes must increment `version`. Registries reject conflicting registrations for the same `id@version` (`DuplicateOperationError`).
 - **Untrusted wire inputs:** Always decode with `limits` (default `maxDepth: 64`, `maxNodes: 2048`) and an explicit `allowlist` (e.g. `{ foreign: [] }` for core-only untrusted inputs). `Opaque` nodes and non-JSON-safe literals (`NaN`, `Infinity`, `-0`, functions, symbols, class instances) are always rejected.

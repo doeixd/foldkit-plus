@@ -188,4 +188,34 @@ describe('metakit/syntax (#647 P0/P1)', () => {
     expect(report.cases[0]?.jsReady).toBe(true)
     expect(report.cases[0]?.sqlReady).toEqual({ postgres: true, sqlite: true })
   })
+
+  it('testLanguage handles refusal samples cleanly and grammar validates target states at definition time', async () => {
+    const Cart = Schema.Struct({ subtotal: Schema.Int, bps: Schema.Int })
+    const report = await Effect.runPromise(
+      Syntax.testLanguage({
+        language: PricingLang,
+        foreign: pricingImpls,
+        cases: [
+          Syntax.testCase({
+            name: 'overflow-refusal',
+            env: { cart: Cart },
+            result: Schema.Int,
+            expr: Expr.in({ cart: Cart }, ({ cart }) => Num.add(cart.subtotal, 1)),
+            samples: [
+              { cart: { subtotal: 10, bps: 0 } },
+              { cart: { subtotal: Number.MAX_SAFE_INTEGER, bps: 0 } },
+            ],
+          }),
+        ],
+      }),
+    )
+    expect(report.passed).toBe(true)
+    expect(report.failures).toEqual([])
+
+    expect(() =>
+      Syntax.grammar('Start', {
+        Start: { go: 'MissingState' },
+      } as never),
+    ).toThrow(/unknown state "MissingState"/)
+  })
 })

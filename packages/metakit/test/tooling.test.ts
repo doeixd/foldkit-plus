@@ -113,7 +113,10 @@ describe('metakit/tooling (#646 P0)', () => {
     // Explain & Mermaid
     expect(result.explain.supported).toBe(true)
     expect(result.mermaid).toContain('flowchart TD')
-    expect(result.mermaid).toContain('Account_withdraw --> Account_canWithdraw')
+    expect(result.mermaid).toContain('n0["Account.available (expr)"]')
+    expect(result.mermaid).toContain('n1["Account.canWithdraw (expr)"]')
+    expect(result.mermaid).toContain('n3["Account.withdraw (transition)"]')
+    expect(result.mermaid).toContain('n3 --> n1')
   })
 
   it('rejects duplicate declaration IDs and diagnoses missing deps, cycles, and opaque nodes', async () => {
@@ -189,5 +192,60 @@ describe('metakit/tooling (#646 P0)', () => {
     expect(diff.unchanged).toContain('Account.available')
     expect(diff.affectedDownstream).toEqual(['Account.withdraw'])
     expect(diff.unaffectedCached).toEqual(['Account.available', 'Account.isActive'])
+  })
+
+  it('detects Transition write-RHS changes, avoids Mermaid ID collisions, and emits MK002 only on cycle members', async () => {
+    const withdrawAdd = Transition.make({
+      state: Account,
+      input: Amount,
+      when: ({ state, input }) =>
+        Bool.and(
+          Bool.not(state.frozen),
+          Bool.and(
+            Ord.gt(input.amount, 0),
+            Ord.lte(input.amount, Num.sub(state.balance, state.reserved)),
+          ),
+        ),
+      apply: ({ state, input }) => [
+        Transition.set(state.balance, Num.add(state.balance, input.amount)),
+      ],
+    })
+
+    const before = await Effect.runPromise(
+      Tooling.makeIndex([Tooling.Definition.transition('Account.withdraw', withdraw)]),
+    )
+    const after = await Effect.runPromise(
+      Tooling.makeIndex([Tooling.Definition.transition('Account.withdraw', withdrawAdd)]),
+    )
+    const diff = await Effect.runPromise(Tooling.semanticDiff(before, after))
+    expect(diff.changed.map(c => c.id)).toEqual(['Account.withdraw'])
+    expect(diff.unchanged).toEqual([])
+
+    // Mermaid IDs do not collide for `a.b` vs `a-b` and escape quotes safely.
+    const collisionIndex = await Effect.runPromise(
+      Tooling.makeIndex([
+        Tooling.Definition.expr('a.b', available),
+        Tooling.Definition.expr('a-b', independent, { dependsOn: ['a.b'] }),
+        Tooling.Definition.expr('quote"name', independent),
+      ]),
+    )
+    const mermaid = await Effect.runPromise(collisionIndex.toMermaid())
+    expect(mermaid).toContain('n0["a-b (expr)"]')
+    expect(mermaid).toContain('n1["a.b (expr)"]')
+    expect(mermaid).toContain('n0 --> n1')
+    expect(mermaid).toContain('quote&quot;name')
+
+    // Non-cycle entry pointing into a cycle should not receive MK002.
+    const cycleIndex = await Effect.runPromise(
+      Tooling.makeIndex([
+        Tooling.Definition.expr('Entry', available, { dependsOn: ['Loop.a'] }),
+        Tooling.Definition.expr('Loop.a', available, { dependsOn: ['Loop.b'] }),
+        Tooling.Definition.expr('Loop.b', independent, { dependsOn: ['Loop.a'] }),
+      ]),
+    )
+    const diags = await Effect.runPromise(cycleIndex.diagnostics())
+    const cycleOwners = diags.filter(d => d.code === 'MK002').map(d => d.id)
+    expect(cycleOwners).not.toContain('Entry')
+    expect(cycleOwners).toEqual(['Loop.a', 'Loop.b'])
   })
 })

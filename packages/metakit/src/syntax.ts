@@ -13,7 +13,7 @@
  *   `metakit/artifact` round-trip, fingerprinting, and `Language.readiness`
  *   checks (distinguishing bounded `tested` results from formal proofs).
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Result, Schema } from 'effect'
 import * as Artifact from './artifact.js'
 import * as Expr from './expr.js'
 import * as Language from './language.js'
@@ -220,7 +220,8 @@ export const dualLanguage = <F extends FamilyMap>(
         )
       }
       const op = family[opName]! as AnyOperation & ((...args: ReadonlyArray<unknown>) => unknown)
-      dualFamily[opName] = op.descriptor.args.length >= 2 ? dual(op as never) : op
+      const arity = op.descriptor.args.length
+      dualFamily[opName] = arity === 2 || arity === 3 ? dual(op as never) : op
     }
     out[familyName] = dualFamily
   }
@@ -292,55 +293,81 @@ export const grammar = <
 >(
   initial: Initial,
   spec: Spec,
-): Grammar<States, Initial, Spec> => ({
-  initial,
-  spec,
-  start: context => ({ state: initial, context, steps: [] }),
-  step: (current, transition, update) => {
-    const allowed = spec[current.state]
-    if (!Object.hasOwn(allowed, transition)) {
-      throw new Error(
-        `[metakit/syntax] grammar: transition "${transition}" is not allowed in state "${current.state}"`,
-      )
+): Grammar<States, Initial, Spec> => {
+  if (RESERVED_PROPS.has(initial) || !Object.hasOwn(spec, initial)) {
+    throw new Error(
+      `[metakit/syntax] grammar: initial state "${initial}" is not an own state in spec`,
+    )
+  }
+  for (const stateName of Object.keys(spec)) {
+    if (RESERVED_PROPS.has(stateName)) {
+      throw new Error(`[metakit/syntax] grammar: reserved state name "${stateName}"`)
     }
-    const nextState = allowed[transition]!
-    return {
-      state: nextState,
-      context: update(current.context),
-      steps: [...current.steps, transition],
+    const transitions = spec[stateName as States]
+    for (const transitionName of Object.keys(transitions)) {
+      if (RESERVED_PROPS.has(transitionName)) {
+        throw new Error(
+          `[metakit/syntax] grammar: reserved transition name "${stateName}.${transitionName}"`,
+        )
+      }
+      const target = transitions[transitionName]!
+      if (!Object.hasOwn(spec, target)) {
+        throw new Error(
+          `[metakit/syntax] grammar: transition "${stateName}.${transitionName}" points to unknown state "${target}"`,
+        )
+      }
     }
-  },
-  validate: (steps, requiredTerminal) =>
-    Effect.suspend(() => {
-      let current: States = initial
-      for (let i = 0; i < steps.length; i++) {
-        const transition = steps[i]!
-        const allowed = spec[current]
-        if (!Object.hasOwn(allowed, transition)) {
+  }
+  return {
+    initial,
+    spec,
+    start: context => ({ state: initial, context, steps: [] }),
+    step: (current, transition, update) => {
+      const allowed = Object.hasOwn(spec, current.state) ? spec[current.state] : undefined
+      if (allowed === undefined || !Object.hasOwn(allowed, transition)) {
+        throw new Error(
+          `[metakit/syntax] grammar: transition "${transition}" is not allowed in state "${current.state}"`,
+        )
+      }
+      const nextState = allowed[transition]!
+      return {
+        state: nextState,
+        context: update(current.context),
+        steps: [...current.steps, transition],
+      }
+    },
+    validate: (steps, requiredTerminal) =>
+      Effect.suspend(() => {
+        let current: States = initial
+        for (let i = 0; i < steps.length; i++) {
+          const transition = steps[i]!
+          const allowed = Object.hasOwn(spec, current) ? spec[current] : undefined
+          if (allowed === undefined || !Object.hasOwn(allowed, transition)) {
+            return Effect.fail(
+              new GrammarViolationError({
+                stepIndex: i,
+                state: current,
+                transition,
+                allowed: allowed === undefined ? [] : Object.keys(allowed).sort(),
+              }),
+            )
+          }
+          current = allowed[transition]!
+        }
+        if (requiredTerminal !== undefined && !requiredTerminal.includes(current)) {
           return Effect.fail(
             new GrammarViolationError({
-              stepIndex: i,
+              stepIndex: steps.length,
               state: current,
-              transition,
-              allowed: Object.keys(allowed).sort(),
+              transition: '<end>',
+              allowed: [...requiredTerminal],
             }),
           )
         }
-        current = allowed[transition]!
-      }
-      if (requiredTerminal !== undefined && !requiredTerminal.includes(current)) {
-        return Effect.fail(
-          new GrammarViolationError({
-            stepIndex: steps.length,
-            state: current,
-            transition: '<end>',
-            allowed: [...requiredTerminal],
-          }),
-        )
-      }
-      return Effect.succeed(current)
-    }),
-})
+        return Effect.succeed(current)
+      }),
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 3. Shared DSL TestKit (bounded testing, distinct from formal proof)
@@ -425,11 +452,19 @@ export const testLanguage = <F extends FamilyMap>(options: {
 
       for (let i = 0; i < tc.samples.length; i++) {
         const sample = tc.samples[i] as never
-        const expected = Expr.evaluate(tc.expr, sample, { foreign: options.foreign })
-        const actual = Expr.evaluate(decoded, sample, { foreign: options.foreign })
-        if (!Object.is(expected, actual) && JSON.stringify(expected) !== JSON.stringify(actual)) {
+        const expected = Expr.evalResult(tc.expr, sample, { foreign: options.foreign })
+        const actual = Expr.evalResult(decoded, sample, { foreign: options.foreign })
+        const same =
+          Result.isSuccess(expected) && Result.isSuccess(actual)
+            ? Object.is(expected.success, actual.success) ||
+              JSON.stringify(expected.success) === JSON.stringify(actual.success)
+            : Result.isFailure(expected) && Result.isFailure(actual)
+              ? expected.failure.reason === actual.failure.reason &&
+                expected.failure.at === actual.failure.at
+              : false
+        if (!same) {
           failures.push(
-            `${tc.name} sample[${i}]: decoded evaluation (${String(actual)}) !== reference (${String(expected)})`,
+            `${tc.name} sample[${i}]: decoded evaluation (${JSON.stringify(actual)}) !== reference (${JSON.stringify(expected)})`,
           )
         }
       }

@@ -28,10 +28,10 @@ export default [
     edits: [
       {
         file: '../src/artifact.ts',
-        find: `        if (existing !== undefined && !compatibleOps(existing, op)) {
-          return Effect.fail(`,
-        replace: `        if (false && existing !== undefined && !compatibleOps(existing, op)) {
-          return Effect.fail(`,
+        find: `        if (existing !== undefined) {
+          if (!compatibleOps(existing, op)) {`,
+        replace: `        if (existing !== undefined) {
+          if (false && !compatibleOps(existing, op)) {`,
       },
     ],
     tests,

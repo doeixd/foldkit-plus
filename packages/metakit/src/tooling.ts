@@ -14,6 +14,7 @@ import * as Artifact from './artifact.js'
 import * as Expr from './expr.js'
 import * as Language from './language.js'
 import type * as Node from './node.js'
+import { wrap } from './ops/core.js'
 import { format as formatPath, type Expr as ExprType } from './path.js'
 import type * as Transition from './transition.js'
 
@@ -197,72 +198,174 @@ export class SemanticIndex extends Context.Service<SemanticIndex, SemanticIndexS
 const uniqueSorted = (values: Iterable<string>): ReadonlyArray<string> =>
   [...new Set(values)].sort()
 
+const cmpId = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
+const sha256Hex = (text: string): Effect.Effect<string> =>
+  Effect.promise(async () => {
+    const bytes = new TextEncoder().encode(text)
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
+    return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')
+  })
+
 const readsOfExpr = (expr: ExprType<never, unknown>): ReadonlyArray<string> =>
   Option.match(Expr.reads(expr), {
     onNone: () => ['*'],
     onSome: paths => paths.map(formatPath),
   })
 
-const analyzeEntry = (entry: DefinitionEntry): Effect.Effect<DefinitionInfo> =>
+const entrySubExprs = (
+  entry: DefinitionEntry,
+): ReadonlyArray<{ readonly label: string; readonly expr: ExprType<never, unknown> }> =>
   Match.value(entry).pipe(
     Match.tags({
-      Expr: ({ id, expr, dependsOn, origin, description }) =>
-        Effect.gen(function* () {
-          const ready = yield* Language.readiness(expr, { _tag: 'portable' })
-          const fp: Option.Option<Artifact.ArtifactFingerprint> = ready.portable
-            ? yield* Artifact.fingerprint(expr).pipe(
-                Effect.map(Option.some),
-                Effect.catch(() => Effect.succeed(Option.none())),
-              )
-            : Option.none()
-          const reads = uniqueSorted(readsOfExpr(expr))
-          return {
-            id,
-            kind: 'expr' as const,
-            fingerprint: fp,
-            portable: ready.portable,
-            reads,
-            writes: [],
-            requiredCoreOps: ready.requiredCoreOps,
-            requiredForeignOps: ready.requiredForeignOps,
-            dependsOn: uniqueSorted(dependsOn),
-            origin,
-            description,
+      Expr: ({ expr }) => [{ label: 'expr', expr }],
+      Transition: ({ transition }) => {
+        const list: Array<{ readonly label: string; readonly expr: ExprType<never, unknown> }> = [
+          { label: 'when', expr: transition.when },
+        ]
+        for (const w of transition.writes) {
+          list.push({ label: `write:${formatPath(w.target)}`, expr: w.value })
+        }
+        for (const e of transition.emits) {
+          if (Option.isSome(e.when)) {
+            list.push({ label: `emit:${e.tag}:when`, expr: wrap<never, unknown>(e.when.value) })
           }
-        }),
-      Transition: ({ id, transition, dependsOn, origin, description }) =>
-        Effect.gen(function* () {
-          const guardReady = yield* Language.readiness(transition.when, { _tag: 'portable' })
-          const fp: Option.Option<Artifact.ArtifactFingerprint> = guardReady.portable
-            ? yield* Artifact.fingerprint(transition.when).pipe(
-                Effect.map(Option.some),
-                Effect.catch(() => Effect.succeed(Option.none())),
-              )
-            : Option.none()
-          const reads = uniqueSorted([
-            ...readsOfExpr(transition.when),
-            ...transition.writes.flatMap(w => readsOfExpr(w.value)),
-          ])
-          const writes = uniqueSorted(
-            transition.writes.map(w => formatPath(['state', ...w.target])),
-          )
-          return {
-            id,
-            kind: 'transition' as const,
-            fingerprint: fp,
-            portable: guardReady.portable,
-            reads,
-            writes,
-            requiredCoreOps: guardReady.requiredCoreOps,
-            requiredForeignOps: guardReady.requiredForeignOps,
-            dependsOn: uniqueSorted(dependsOn),
-            origin,
-            description,
+          for (const [field, node] of e.fields) {
+            list.push({ label: `emit:${e.tag}:${field}`, expr: wrap<never, unknown>(node) })
           }
-        }),
+        }
+        if (transition.ensures !== undefined && Option.isSome(transition.ensures)) {
+          list.push({ label: 'ensures', expr: transition.ensures.value })
+        }
+        return list
+      },
     }),
     Match.exhaustive,
   )
+
+const readinessForEntry = (
+  entry: DefinitionEntry,
+  target: Language.ReadinessTarget,
+): Effect.Effect<Language.ReadinessReport> =>
+  Effect.gen(function* () {
+    const subs = entrySubExprs(entry)
+    let portable = true
+    const coreOps = new Set<Node.CoreOpId>()
+    const foreignOps = new Set<string>()
+    const unsupported: Array<Language.UnsupportedReason> = []
+    for (const { label, expr } of subs) {
+      const r = yield* Language.readiness(expr, target)
+      if (!r.portable) portable = false
+      for (const op of r.requiredCoreOps) coreOps.add(op)
+      for (const op of r.requiredForeignOps) foreignOps.add(op)
+      for (const u of r.unsupportedNodes) {
+        unsupported.push({
+          ...u,
+          path: subs.length === 1 ? u.path : `${label}:${u.path}`,
+        })
+      }
+    }
+    return {
+      portable,
+      supported: unsupported.length === 0,
+      requiredCoreOps: [...coreOps].sort(),
+      requiredForeignOps: [...foreignOps].sort(),
+      unsupportedNodes: unsupported,
+    }
+  })
+
+const fingerprintTransition = (
+  transition: Transition.Transition<never, never, unknown, unknown>,
+): Effect.Effect<Option.Option<Artifact.ArtifactFingerprint>> =>
+  Effect.gen(function* () {
+    const whenEncoded = yield* Artifact.encodeExpr(transition.when)
+    const writesEncoded = yield* Effect.forEach(transition.writes, w =>
+      Artifact.encodeExpr(w.value).pipe(
+        Effect.map(art => ({
+          target: w.target,
+          way: w.way._tag,
+          value: Artifact.canonicalJson(art),
+        })),
+      ),
+    )
+    const emitsEncoded = yield* Effect.forEach(transition.emits, e =>
+      Effect.gen(function* () {
+        const whenArt = Option.isSome(e.when)
+          ? Artifact.canonicalJson(yield* Artifact.encodeExpr(wrap<never, unknown>(e.when.value)))
+          : null
+        const fields = yield* Effect.forEach(e.fields, ([field, node]) =>
+          Artifact.encodeExpr(wrap<never, unknown>(node)).pipe(
+            Effect.map(art => [field, Artifact.canonicalJson(art)] as const),
+          ),
+        )
+        return { tag: e.tag, when: whenArt, fields }
+      }),
+    )
+    const ensuresEncoded =
+      transition.ensures !== undefined && Option.isSome(transition.ensures)
+        ? Artifact.canonicalJson(yield* Artifact.encodeExpr(transition.ensures.value))
+        : null
+
+    const canonicalPayload = JSON.stringify({
+      kind: 'transition',
+      codecVersion: Artifact.CODEC_VERSION,
+      when: Artifact.canonicalJson(whenEncoded),
+      writes: writesEncoded,
+      emits: emitsEncoded,
+      ensures: ensuresEncoded,
+    })
+    const hex = yield* sha256Hex(canonicalPayload)
+    return Option.some(`sha256:${hex}` as Artifact.ArtifactFingerprint)
+  }).pipe(Effect.catch(() => Effect.succeed(Option.none())))
+
+const analyzeEntry = (entry: DefinitionEntry): Effect.Effect<DefinitionInfo> =>
+  Effect.gen(function* () {
+    const ready = yield* readinessForEntry(entry, { _tag: 'portable' })
+    const reads = uniqueSorted(entrySubExprs(entry).flatMap(s => readsOfExpr(s.expr)))
+    return yield* Match.value(entry).pipe(
+      Match.tags({
+        Expr: ({ id, expr, dependsOn, origin, description }) =>
+          (ready.portable
+            ? Artifact.fingerprint(expr).pipe(
+                Effect.map(Option.some),
+                Effect.catch(() => Effect.succeed(Option.none())),
+              )
+            : Effect.succeed(Option.none())
+          ).pipe(
+            Effect.map(fp => ({
+              id,
+              kind: 'expr' as const,
+              fingerprint: fp,
+              portable: ready.portable,
+              reads,
+              writes: [],
+              requiredCoreOps: ready.requiredCoreOps,
+              requiredForeignOps: ready.requiredForeignOps,
+              dependsOn: uniqueSorted(dependsOn),
+              origin,
+              description,
+            })),
+          ),
+        Transition: ({ id, transition, dependsOn, origin, description }) =>
+          (ready.portable ? fingerprintTransition(transition) : Effect.succeed(Option.none())).pipe(
+            Effect.map(fp => ({
+              id,
+              kind: 'transition' as const,
+              fingerprint: fp,
+              portable: ready.portable,
+              reads,
+              writes: uniqueSorted(transition.writes.map(w => formatPath(['state', ...w.target]))),
+              requiredCoreOps: ready.requiredCoreOps,
+              requiredForeignOps: ready.requiredForeignOps,
+              dependsOn: uniqueSorted(dependsOn),
+              origin,
+              description,
+            })),
+          ),
+      }),
+      Match.exhaustive,
+    )
+  })
 
 /**
  * Build an in-memory `SemanticIndexService` from explicit `DefinitionEntry`s.
@@ -362,13 +465,13 @@ export const makeIndex = (
     }
 
     return {
-      list: () => Effect.succeed([...infos.values()].sort((a, b) => (a.id < b.id ? -1 : 1))),
+      list: () => Effect.succeed([...infos.values()].sort((a, b) => cmpId(a.id, b.id))),
       definition: requireInfo,
       references: id =>
         requireInfo(id).pipe(
           Effect.map(target => {
             const refs: Array<Reference> = []
-            const targetReads = new Set(target.reads)
+            const targetReads = new Set(target.reads.filter(r => r !== '*'))
             for (const other of infos.values()) {
               if (other.id === id) continue
               if (other.dependsOn.includes(id)) {
@@ -380,7 +483,7 @@ export const makeIndex = (
                 }
               }
               for (const r of other.reads) {
-                if (targetReads.has(r)) {
+                if (r !== '*' && targetReads.has(r)) {
                   refs.push({ from: other.id, kind: 'shared-read', field: r })
                 }
               }
@@ -434,6 +537,7 @@ export const makeIndex = (
             }
             const { cycles } = walkDeps(info.id)
             for (const cycle of cycles) {
+              if (cycle[0] !== info.id) continue
               diags.push({
                 code: 'MK002',
                 severity: 'warning',
@@ -453,14 +557,7 @@ export const makeIndex = (
             }
             if (target !== undefined) {
               const raw = rawById.get(info.id)!
-              const expr = Match.value(raw).pipe(
-                Match.tags({
-                  Expr: ({ expr: e }) => e,
-                  Transition: ({ transition: t }) => t.when,
-                }),
-                Match.exhaustive,
-              )
-              const ready = yield* Language.readiness(expr, target)
+              const ready = yield* readinessForEntry(raw, target)
               for (const u of ready.unsupportedNodes) {
                 diags.push({
                   code: 'MK004',
@@ -478,14 +575,7 @@ export const makeIndex = (
         requireInfo(id).pipe(
           Effect.flatMap(info => {
             const raw = rawById.get(id)!
-            const expr = Match.value(raw).pipe(
-              Match.tags({
-                Expr: ({ expr: e }) => e,
-                Transition: ({ transition: t }) => t.when,
-              }),
-              Match.exhaustive,
-            )
-            return Language.readiness(expr, target).pipe(
+            return readinessForEntry(raw, target).pipe(
               Effect.map(ready => ({
                 id: info.id,
                 kind: info.kind,
@@ -505,14 +595,25 @@ export const makeIndex = (
       toMermaid: () =>
         Effect.sync(() => {
           const lines: Array<string> = ['flowchart TD']
-          const sorted = [...infos.values()].sort((a, b) => (a.id < b.id ? -1 : 1))
-          const nodeKey = (id: string) => id.replace(/[^a-zA-Z0-9_]/g, '_')
+          const sorted = [...infos.values()].sort((a, b) => cmpId(a.id, b.id))
+          const idToKey = new Map<string, string>()
+          let nextIdx = 0
+          const keyOf = (id: string): string => {
+            let key = idToKey.get(id)
+            if (key === undefined) {
+              key = `n${nextIdx++}`
+              idToKey.set(id, key)
+            }
+            return key
+          }
+          const escapeLabel = (text: string): string =>
+            text.replaceAll('"', '&quot;').replaceAll('\n', ' ')
           for (const info of sorted) {
-            lines.push(`  ${nodeKey(info.id)}["${info.id} (${info.kind})"]`)
+            lines.push(`  ${keyOf(info.id)}["${escapeLabel(info.id)} (${info.kind})"]`)
           }
           for (const info of sorted) {
             for (const dep of info.dependsOn) {
-              lines.push(`  ${nodeKey(info.id)} --> ${nodeKey(dep)}`)
+              lines.push(`  ${keyOf(info.id)} --> ${keyOf(dep)}`)
             }
           }
           return lines.join('\n')
@@ -588,7 +689,8 @@ export const semanticDiff = (
         prev.fingerprint.value === next.fingerprint.value
       const readsChanged = !sameList(prev.reads, next.reads)
       const writesChanged = !sameList(prev.writes, next.writes)
-      if (sameFp && !readsChanged && !writesChanged && prev.kind === next.kind) {
+      const depsChanged = !sameList(prev.dependsOn, next.dependsOn)
+      if (sameFp && !readsChanged && !writesChanged && !depsChanged && prev.kind === next.kind) {
         unchanged.push(id)
       } else {
         changed.push({
@@ -612,7 +714,7 @@ export const semanticDiff = (
     return {
       added: added.sort(),
       removed: removed.sort(),
-      changed: changed.sort((a, b) => (a.id < b.id ? -1 : 1)),
+      changed: changed.sort((a, b) => cmpId(a.id, b.id)),
       unchanged: unchanged.sort(),
       affectedDownstream: impactReport.affected,
       unaffectedCached,

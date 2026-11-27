@@ -559,10 +559,10 @@ const compileNode = (
 
   const visit = (node: Node.Node): CompiledFn =>
     Node.$match(node, {
-      Lit:
-        ({ value }): CompiledFn =>
-        () =>
-          value,
+      Lit: ({ value }): CompiledFn => {
+        const resolved = value === undefined ? null : value
+        return () => resolved
+      },
       Path: ({ segments }): CompiledFn => compilePath(segments),
       Call: ({ op, args }): CompiledFn => {
         const argFns = args.map(visit)
@@ -668,6 +668,7 @@ export const prepare = <Env, A>(
           fingerprint: fp.value,
           reader: { id: 'metakit/prepare', version: '1' },
           profile: backend.name,
+          requiredForeignOps: ready.requiredForeignOps,
           ...(options?.schemaFingerprint === undefined
             ? {}
             : { schemaFingerprint: options.schemaFingerprint }),

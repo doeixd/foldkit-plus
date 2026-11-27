@@ -35,8 +35,8 @@ export default [
     edits: [
       {
         file: '../src/syntax.ts',
-        find: `      if (requiredTerminal !== undefined && !requiredTerminal.includes(current)) {`,
-        replace: `      if (false && requiredTerminal !== undefined && !requiredTerminal.includes(current)) {`,
+        find: `        if (requiredTerminal !== undefined && !requiredTerminal.includes(current)) {`,
+        replace: `        if (false && requiredTerminal !== undefined && !requiredTerminal.includes(current)) {`,
       },
     ],
     tests,
@@ -46,10 +46,10 @@ export default [
     edits: [
       {
         file: '../src/syntax.ts',
-        find: `        if (!Object.hasOwn(allowed, transition)) {
-          return Effect.fail(`,
-        replace: `        if (false && !Object.hasOwn(allowed, transition)) {
-          return Effect.fail(`,
+        find: `          if (allowed === undefined || !Object.hasOwn(allowed, transition)) {
+            return Effect.fail(`,
+        replace: `          if (false && (allowed === undefined || !Object.hasOwn(allowed, transition))) {
+            return Effect.fail(`,
       },
     ],
     tests,

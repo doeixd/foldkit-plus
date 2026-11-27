@@ -1,6 +1,6 @@
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Arr, Bool, Eq, Expr, Null, Num, Ord, Sets, Str } from '../src/index.js'
+import { Abstract, Arr, Bool, Eq, Expr, Null, Num, Ord, Sets, Str, Time } from '../src/index.js'
 import * as Artifact from '../src/artifact.js'
 import * as Inspect from '../src/inspect.js'
 import * as Language from '../src/language.js'
@@ -593,5 +593,117 @@ describe('metakit/artifact & language (#645 P1)', () => {
     expect(rOpaqueSql.portable).toBe(false)
     expect(rOpaqueSql.supported).toBe(false)
     expect(rOpaqueSql.unsupportedNodes[0]?.kind).toBe('opaque')
+  })
+
+  it('hardens decode (requiredOps, mixed If, -0, __proto__, compatibleOps) and Language checks (compose, readiness)', async () => {
+    // 1. Forged requiredOps rejected
+    const forged = await Effect.runPromise(
+      Effect.flip(
+        Artifact.decodeForSchema(
+          {
+            codecVersion: 1,
+            node: {
+              _tag: 'Call',
+              op: { _tag: 'Core', id: 'num.add' },
+              args: [
+                { _tag: 'Lit', value: 1 },
+                { _tag: 'Lit', value: 2 },
+              ],
+            },
+            requiredOps: [],
+          },
+          { schema: Actor, result: Schema.Number },
+        ),
+      ),
+    )
+    expect(forged._tag).toBe('ArtifactDecodeError')
+    if (forged._tag === 'ArtifactDecodeError') expect(forged.path).toBe('$.requiredOps')
+
+    // 2. Mixed-kind If rejected against single-kind result Schema
+    const mixedIf = await Effect.runPromise(
+      Effect.flip(
+        Artifact.decodeForSchema(
+          {
+            codecVersion: 1,
+            node: {
+              _tag: 'If',
+              cond: { _tag: 'Lit', value: true },
+              then: { _tag: 'Lit', value: 'hello' },
+              otherwise: { _tag: 'Lit', value: 1 },
+            },
+            requiredOps: [],
+          },
+          { schema: Actor, result: Schema.Boolean },
+        ),
+      ),
+    )
+    expect(mixedIf._tag).toBe('ArtifactDecodeError')
+    if (mixedIf._tag === 'ArtifactDecodeError') expect(mixedIf.phase).toBe('type')
+
+    // 3. -0 rejected on decode
+    const negZero = await Effect.runPromise(
+      Effect.flip(
+        Artifact.decodeForSchema(
+          {
+            codecVersion: 1,
+            node: { _tag: 'Lit', value: -0 },
+            requiredOps: [],
+          },
+          { schema: Actor, result: Schema.Number },
+        ),
+      ),
+    )
+    expect(negZero._tag).toBe('ArtifactDecodeError')
+
+    // 4. __proto__ literal key preserved without mutating prototype
+    const protoExpr = Expr.in({ actor: Actor }, () =>
+      Expr.lit(JSON.parse('{"__proto__":{"polluted":true}}') as Record<string, unknown>),
+    )
+    const encodedProto = await Effect.runPromise(Artifact.encodeExpr(protoExpr))
+    expect(({} as Record<string, unknown>)['polluted']).toBeUndefined()
+    expect(
+      Object.hasOwn((encodedProto.node as { value: Record<string, unknown> }).value, '__proto__'),
+    ).toBe(true)
+
+    // 5. compatibleOps rejects same id@version with same arity but different arg Schema
+    const StringFee = Operation.define({
+      id: 'billing.applyFee',
+      version: 1,
+      args: [Schema.String, Schema.Int] as const,
+      returns: Schema.Int,
+      nulls: 'strict',
+      claims: { total: true },
+    })
+    const dupErr = await Effect.runPromise(Effect.flip(Artifact.registry(ApplyFee, StringFee)))
+    expect(dupErr._tag).toBe('DuplicateOperationError')
+
+    // 6. Language.compose returns LanguageConflictError when same op appears in two different slots
+    const AliasLang = Language.make({ billing: { applyFeeAlias: ApplyFee } })
+    const dupSlot = await Effect.runPromise(Effect.flip(Language.compose(BillingLang, AliasLang)))
+    expect(dupSlot._tag).toBe('LanguageConflictError')
+
+    // 7. Language.readiness reports unsupported-node for SQL set.union / Rows over List and Z3 time.addMonths
+    const setUnionExpr = Expr.in({ tags: Schema.Array(Schema.String) }, ({ tags }) =>
+      Sets.union(tags, ['c']),
+    )
+    const rSqlSet = await Effect.runPromise(
+      Language.readiness(setUnionExpr, { _tag: 'sql', dialect: 'postgres' }),
+    )
+    expect(rSqlSet.supported).toBe(false)
+    expect(rSqlSet.unsupportedNodes.some(u => u.kind === 'unsupported-node')).toBe(true)
+
+    const listRowsExpr = Expr.in({ order: Order }, ({ order }) =>
+      Arr.any(order.items, item => Ord.gt(item.qty, 0)),
+    )
+    const rSqlRows = await Effect.runPromise(
+      Language.readiness(listRowsExpr, { _tag: 'sql', dialect: 'postgres' }),
+    )
+    expect(rSqlRows.supported).toBe(false)
+    expect(rSqlRows.unsupportedNodes.some(u => u.kind === 'unsupported-node')).toBe(true)
+
+    const timeExpr = Expr.in({ d: Schema.Int }, ({ d }) => Time.addMonths(d, 1))
+    const rZ3Time = await Effect.runPromise(Language.readiness(timeExpr, { _tag: 'z3' }))
+    expect(rZ3Time.supported).toBe(false)
+    expect(rZ3Time.unsupportedNodes.some(u => u.kind === 'unsupported-node')).toBe(true)
   })
 })
