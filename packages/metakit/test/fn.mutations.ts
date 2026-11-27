@@ -3,12 +3,12 @@
  */
 export default [
   {
-    name: 'fn: skip hygienic Rows alpha-renaming when called inside outer Arr fold',
+    name: 'fn: skip hygienic Rows alpha-renaming when called inside outer Arr fold or colliding user field',
     edits: [
       {
         file: '../src/fn.ts',
-        find: '  const prepared =\n    outerEach === Node.EACH\n      ? node\n      : freshenRows(node, Number(outerEach.slice(Node.EACH.length + 1)) || 1)',
-        replace: '  const prepared = node',
+        find: '  const hygienic = hasCollidingRowsBinder(node, avoided)\n    ? freshenRows(node, nextSafeDepth(avoided))\n    : node',
+        replace: '  const hygienic = node',
       },
     ],
     tests: ['packages/metakit/test/fn.test.ts'],
@@ -42,6 +42,28 @@ export default [
         file: '../src/prove/fn.ts',
         find: '  const goals: Array<Node.Node> = [definedGoal]',
         replace: '  const goals: Array<Node.Node> = []',
+      },
+    ],
+    tests: ['packages/metakit/test/fn.test.ts'],
+  },
+  {
+    name: 'fn: skip Opaque check in substituteArgs',
+    edits: [
+      {
+        file: '../src/fn.ts',
+        find: '  assertNoOpaque(node)',
+        replace: '  void node',
+      },
+    ],
+    tests: ['packages/metakit/test/fn.test.ts'],
+  },
+  {
+    name: 'fn: skip expansion budget check in Fn.iterate',
+    edits: [
+      {
+        file: '../src/fn.ts',
+        find: '    if (countNodesCapped(acc.body.node, maxNodes) > maxNodes) {',
+        replace: '    if (false && countNodesCapped(acc.body.node, maxNodes) > maxNodes) {',
       },
     ],
     tests: ['packages/metakit/test/fn.test.ts'],

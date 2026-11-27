@@ -327,12 +327,153 @@ const freshenRows = (node: Node.Node, startDepth: number): Node.Node => {
   return visit(node, startDepth)
 }
 
+/** Default AST node occurrence budget for `Fn.iterate` unrolling. */
+export const DEFAULT_MAX_EXPANSION_NODES = 10_000
+
+const rowsChildren = (
+  rows: Extract<Node.Node, { readonly _tag: 'Rows' }>,
+): ReadonlyArray<Node.Node> => [Node.rowsSource(rows.over), ...Node.rowsBody(rows)]
+
+const assertNoOpaque = (root: Node.Node): void => {
+  const stack: Array<Node.Node> = [root]
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    Node.$match(current, {
+      Lit: () => undefined,
+      Path: () => undefined,
+      Call: ({ args }) => {
+        for (const a of args) stack.push(a)
+      },
+      If: ({ cond, then, otherwise }) => {
+        stack.push(cond, then, otherwise)
+      },
+      Match: ({ on, cases, otherwise }) => {
+        stack.push(on)
+        for (const [, b] of cases) stack.push(b)
+        if (Option.isSome(otherwise)) stack.push(otherwise.value)
+      },
+      Opaque: ({ name }) => {
+        throw new Error(
+          `[metakit/fn] cannot symbolically substitute Opaque node "${name}": Opaque functions read their original environment; use fn.run() or fn.runChecked() instead`,
+        )
+      },
+      Rows: rows => {
+        for (const child of rowsChildren(rows)) stack.push(child)
+      },
+    })
+  }
+}
+
+const collectRootSegments = (nodes: Iterable<Node.Node>): ReadonlySet<string> => {
+  const roots = new Set<string>()
+  const stack: Array<Node.Node> = [...nodes]
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    Node.$match(current, {
+      Lit: () => undefined,
+      Path: ({ segments }) => {
+        if (segments[0] !== undefined) roots.add(segments[0])
+      },
+      Call: ({ args }) => {
+        for (const a of args) stack.push(a)
+      },
+      If: ({ cond, then, otherwise }) => {
+        stack.push(cond, then, otherwise)
+      },
+      Match: ({ on, cases, otherwise }) => {
+        stack.push(on)
+        for (const [, b] of cases) stack.push(b)
+        if (Option.isSome(otherwise)) stack.push(otherwise.value)
+      },
+      Opaque: () => undefined,
+      Rows: rows => {
+        roots.add(Node.rowsEach(rows))
+        for (const child of rowsChildren(rows)) stack.push(child)
+      },
+    })
+  }
+  return roots
+}
+
+const hasCollidingRowsBinder = (root: Node.Node, avoided: ReadonlySet<string>): boolean => {
+  if (avoided.size === 0) return false
+  const stack: Array<Node.Node> = [root]
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    let hit = false
+    Node.$match(current, {
+      Lit: () => undefined,
+      Path: () => undefined,
+      Call: ({ args }) => {
+        for (const a of args) stack.push(a)
+      },
+      If: ({ cond, then, otherwise }) => {
+        stack.push(cond, then, otherwise)
+      },
+      Match: ({ on, cases, otherwise }) => {
+        stack.push(on)
+        for (const [, b] of cases) stack.push(b)
+        if (Option.isSome(otherwise)) stack.push(otherwise.value)
+      },
+      Opaque: () => undefined,
+      Rows: rows => {
+        if (avoided.has(Node.rowsEach(rows))) hit = true
+        for (const child of rowsChildren(rows)) stack.push(child)
+      },
+    })
+    if (hit) return true
+  }
+  return false
+}
+
+const nextSafeDepth = (avoided: ReadonlySet<string>): number => {
+  let depth = 1
+  for (const name of avoided) {
+    if (name.startsWith(`${Node.EACH}#`)) {
+      const parsed = Number(name.slice(Node.EACH.length + 1))
+      if (Number.isInteger(parsed) && parsed >= depth) depth = parsed + 1
+    }
+  }
+  return depth
+}
+
+const countNodesCapped = (root: Node.Node, limit: number): number => {
+  let count = 0
+  const stack: Array<Node.Node> = [root]
+  while (stack.length > 0) {
+    count += 1
+    if (count > limit) return count
+    const current = stack.pop()!
+    Node.$match(current, {
+      Lit: () => undefined,
+      Path: () => undefined,
+      Call: ({ args }) => {
+        for (const a of args) stack.push(a)
+      },
+      If: ({ cond, then, otherwise }) => {
+        stack.push(cond, then, otherwise)
+      },
+      Match: ({ on, cases, otherwise }) => {
+        stack.push(on)
+        for (const [, b] of cases) stack.push(b)
+        if (Option.isSome(otherwise)) stack.push(otherwise.value)
+      },
+      Opaque: () => undefined,
+      Rows: rows => {
+        for (const child of rowsChildren(rows)) stack.push(child)
+      },
+    })
+  }
+  return count
+}
+
 /** Substitute concrete/symbolic `args` into `node` over parameter names `paramNames`. */
 const substituteArgs = (
   node: Node.Node,
   paramNames: ReadonlySet<string>,
   args: Readonly<Record<string, unknown>>,
 ): Node.Node => {
+  assertNoOpaque(node)
   const argNodes = new Map<string, Node.Node>()
   for (const name of paramNames) {
     if (!Object.hasOwn(args, name)) {
@@ -341,11 +482,12 @@ const substituteArgs = (
     argNodes.set(name, toNode(args[name]))
   }
   const outerEach = currentEach()
-  const prepared =
-    outerEach === Node.EACH
-      ? node
-      : freshenRows(node, Number(outerEach.slice(Node.EACH.length + 1)) || 1)
-  return Node.substitutePaths(prepared, segments => {
+  const avoided = new Set(collectRootSegments(argNodes.values()))
+  if (outerEach !== Node.EACH) avoided.add(outerEach)
+  const hygienic = hasCollidingRowsBinder(node, avoided)
+    ? freshenRows(node, nextSafeDepth(avoided))
+    : node
+  return Node.substitutePaths(hygienic, segments => {
     const head = segments[0]
     if (head === undefined || !argNodes.has(head)) return Option.none()
     const replacement = argNodes.get(head)!
@@ -1151,10 +1293,12 @@ export const constant = <P extends ParamSchemas, const A>(paramSchemas: P, value
 export const iterate = <K extends string, S extends SchemaOf>(
   f: Fn<Readonly<Record<K, S>>, S['Type']>,
   n: number,
+  options?: { readonly maxNodes?: number },
 ): Fn<Readonly<Record<K, S>>, S['Type']> => {
   if (!Number.isInteger(n) || n < 0) {
     throw new Error(`[metakit/fn] Fn.iterate requires a non-negative integer count, got ${n}`)
   }
+  const maxNodes = options?.maxNodes ?? DEFAULT_MAX_EXPANSION_NODES
   const keys = Object.keys(f.params)
   if (keys.length !== 1) {
     throw new Error(
@@ -1182,6 +1326,11 @@ export const iterate = <K extends string, S extends SchemaOf>(
       f as Fn<Readonly<Record<K, S>>, S['Type']> &
         ([S['Type']] extends [ReturnCarrier<S['Type']>] ? unknown : never),
     )
+    if (countNodesCapped(acc.body.node, maxNodes) > maxNodes) {
+      throw new RangeError(
+        `[metakit/fn] Fn.iterate expansion exceeded budget of ${maxNodes} nodes at step ${i + 1}`,
+      )
+    }
   }
   return acc
 }

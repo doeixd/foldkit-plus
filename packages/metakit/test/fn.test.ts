@@ -123,4 +123,44 @@ describe('metakit/fn: hygiene, partial evaluation, inspection & contract phases'
     const verdict = await Effect.runPromise(Prove.fn(unsafeInc))
     expect(Verdict.isFalse(verdict)).toBe(true)
   })
+
+  it('prevents capture of user fields named `each`, rejects symbolic Opaque substitution, and enforces Fn.iterate expansion budget (#648 #4)', () => {
+    // 1. User field literally named `each` passed into a Fn containing Arr.any must NOT be captured by inner `each`!
+    const Item = Schema.Struct({ score: Schema.Int })
+    const hasAtLeast = Fn.make({ items: Schema.Array(Item), min: Schema.Int }, ({ items, min }) =>
+      Arr.any(items, item => Num.gte(item.score, min)),
+    )
+    const UserEnv = Schema.Struct({
+      items: Schema.Array(Item),
+      each: Schema.Int,
+    })
+    const $u = Path.from(UserEnv)
+    const expr = hasAtLeast({ items: $u.items, min: $u.each })
+    expect(
+      Expr.evaluate(expr, {
+        items: [{ score: 5 }, { score: 20 }],
+        each: 15,
+      }),
+    ).toBe(true)
+    expect(
+      Expr.evaluate(expr, {
+        items: [{ score: 5 }, { score: 10 }],
+        each: 15,
+      }),
+    ).toBe(false)
+
+    // 2. Opaque node inside Fn works via run(), but throws loudly on symbolic substitution
+    const opaqueFn = Fn.make({ x: Schema.Int }, () =>
+      Expr.opaque<{ readonly x: number }, number>({ name: 'hostRandom' }, env => env.x + 1),
+    )
+    expect(opaqueFn.run({ x: 10 })).toBe(11)
+    const Outer = Schema.Struct({ a: Schema.Int })
+    const $o = Path.from(Outer)
+    expect(() => opaqueFn({ x: $o.a })).toThrow(/cannot symbolically substitute Opaque node/)
+
+    // 3. Exponential Fn.iterate (add(x, x)) fails loudly when exceeding expansion node budget
+    const dbl = Fn.make({ x: Schema.Int }, ({ x }) => Num.add(x, x))
+    expect(() => Fn.iterate(dbl, 15, { maxNodes: 200 })).toThrow(RangeError)
+    expect(Fn.iterate(dbl, 3, { maxNodes: 200 }).run({ x: 2 })).toBe(16)
+  })
 })
