@@ -129,6 +129,22 @@ const report = await Effect.runPromise(
 
 If someone removes `Num.lte(input.amount, Num.sub(state.balance, state.reserved))` from `Withdraw`, `report.ok` becomes `false` and `report.format()` prints a state and input that break the rule: the exact `before`, `input`, `after`, the violated rule, and a `Transition.run(...)` call that repeats it. Try it: delete that guard line, run the file again, and compare with the report in [Verify a state machine in CI](./proving-transitions.md).
 
+## 5. Write a generic helper over a Schema
+
+When you write a generic helper that both builds a wrapper Schema (`Schema.Struct`, `Schema.Array`, `Expr.refine`, `Inspect.fieldSpecs`) and decodes it synchronously (`Schema.decodeUnknownSync`), constrain the type parameter to `SchemaOf` (`Schema.Top & Schema.ConstraintDecoder<unknown>`) exported from `metakit`:
+
+```ts
+import { Schema } from 'effect'
+import type { SchemaOf } from 'metakit'
+
+export const decodeTable = <S extends SchemaOf>(row: S, input: unknown) =>
+  Schema.decodeUnknownSync(Schema.Struct({ rows: Schema.Array(row) }))(input)
+```
+
+Using only `Schema.Top` fails on `decodeUnknownSync` (`DecodingServices` is `unknown`, not `never`); using only `Schema.ConstraintDecoder<unknown>` fails on `Schema.Struct` / `Schema.Array` because it lacks `Schema.Top`'s combinators. When your helper only constructs or inspects Schemas (without decoding), `Schema.Top` alone is enough.
+
+If you attach `Schema.annotate({ title, description })` alongside `Expr.refine(...)` and also pass the Schema to Effect's `Schema.toJsonSchemaDocument`, place `.annotate(...)` **before** `Expr.refine(...)` (`metakit/inspect` reads annotations in either order, while Effect's generator reads annotations placed before the refinement).
+
 ## Next
 
 - Model currency-safe money, dates, ordered statuses, and sums: [Model domain types and row aggregates](./domain-types.md).
