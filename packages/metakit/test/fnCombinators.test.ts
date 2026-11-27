@@ -150,4 +150,115 @@ describe('metakit/fn composition & combinators', () => {
     expect(Result.getOrThrow(safe.runChecked({ x: 0 }))).toBe(0)
     expect(Result.getOrThrow(safe.runChecked({ x: 4 }))).toBe(25)
   })
+
+  it('preserves intermediate returnSchema, ensures, and narrower param Schema obligations across compose, map, and Prove.fn (#648 P0)', async () => {
+    const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
+
+    // 1. First fn violates its returnSchema, second fn ignores its input -> compose must still fail & Prove.fn must refute!
+    const badReturn = Fn.params({ x: BoundedInt })
+      .returns(NonNegInt)
+      .body(({ x }) => Num.sub(x, 10))
+    const ignoreInput = Fn.constant({ y: Schema.Int }, 42)
+    const pipeBadRet = Fn.compose(badReturn, ignoreInput)
+
+    const retRes = pipeBadRet.runChecked({ x: 5 })
+    expect(Result.isFailure(retRes)).toBe(true)
+    if (Result.isFailure(retRes)) expect(retRes.failure.phase).toBe('returns')
+    expect(Verdict.isFalse(await Effect.runPromise(Prove.fn(pipeBadRet)))).toBe(true)
+
+    // 2. First fn violates its ensures, second fn ignores its input -> compose must fail & Prove.fn must refute!
+    const badEnsures = Fn.make({ x: BoundedInt }, ({ x }) => x).ensures(({ params, result }) =>
+      Num.gt(result, params.x),
+    )
+    const pipeBadEns = badEnsures.andThen(ignoreInput)
+
+    const ensRes = pipeBadEns.runChecked({ x: 5 })
+    expect(Result.isFailure(ensRes)).toBe(true)
+    if (Result.isFailure(ensRes)) expect(ensRes.failure.phase).toBe('ensures')
+    expect(Verdict.isFalse(await Effect.runPromise(Prove.fn(pipeBadEns)))).toBe(true)
+
+    // 3. Second fn has narrower param Schema (PositiveInt) while first fn can return -1 -> fail with phase: 'params' & refute!
+    const producesNeg = Fn.make({ x: BoundedInt }, ({ x }) => Num.sub(x, 10))
+    const needsPos = Fn.make({ y: PositiveInt }, ({ y }) => y)
+    const pipeBadParam = producesNeg.andThen(needsPos)
+
+    const paramRes = pipeBadParam.runChecked({ x: 5 })
+    expect(Result.isFailure(paramRes)).toBe(true)
+    if (Result.isFailure(paramRes)) expect(paramRes.failure.phase).toBe('params')
+    expect(Verdict.isFalse(await Effect.runPromise(Prove.fn(pipeBadParam)))).toBe(true)
+
+    // 4. map() preserves intermediate return/ensures obligations too!
+    const mappedBad = badReturn.map(() => 99)
+    const mapRes = mappedBad.runChecked({ x: 5 })
+    expect(Result.isFailure(mapRes)).toBe(true)
+    if (Result.isFailure(mapRes)) expect(mapRes.failure.phase).toBe('returns')
+    expect(Verdict.isFalse(await Effect.runPromise(Prove.fn(mappedBad)))).toBe(true)
+  })
+
+  it('handles nullable ifElse condition without triggering untaken branch where/obligations and widens return type with null (#648 P0)', () => {
+    const nullableCond = Fn.make({ flag: Schema.NullOr(Schema.Boolean) }, ({ flag }) => flag)
+    const posOnly = Fn.params({ x: Schema.Int })
+      .where(({ x }) => Num.gt(x, 0))
+      .returns(NonNegInt)
+      .body(({ x }) => x)
+    const negOnly = Fn.params({ x: Schema.Int })
+      .where(({ x }) => Num.lt(x, 0))
+      .returns(NonNegInt)
+      .body(({ x }) => Num.neg(x))
+
+    const branched = Fn.ifElse(nullableCond, posOnly, negOnly)
+
+    // When flag === null, neither branch runs -> returns null cleanly instead of failing `where`!
+    expect(branched.runChecked({ flag: null, x: 0 })).toEqual(Result.succeed(null))
+    expect(branched.runChecked({ flag: true, x: 5 })).toEqual(Result.succeed(5))
+    expect(branched.runChecked({ flag: false, x: -5 })).toEqual(Result.succeed(5))
+    expect(Result.isFailure(branched.runChecked({ flag: true, x: -5 }))).toBe(true)
+    expect(Result.isFailure(branched.runChecked({ flag: false, x: 5 }))).toBe(true)
+
+    // Compile-time check: nullable condition widens output to `number | null`, not `number`.
+    const checkNullable: number | null = branched.run({ flag: null, x: 0 })
+    expect(checkNullable).toBeNull()
+    // @ts-expect-error nullable ifElse result cannot be assigned to non-null number
+    const _mustFailNonNull: number = branched.run({ flag: null, x: 0 })
+    void _mustFailNonNull
+  })
+
+  it('rejects unsound return schemas and incompatible compositions at compile time (#648 P0)', () => {
+    const _typechecks = () => {
+      Fn.params({ x: Schema.Int })
+        .returns(Schema.String)
+        // @ts-expect-error number body is not compatible with Schema.String return
+        .body(({ x }) => x)
+
+      Fn.params({ x: Schema.Int })
+        .returns(Schema.Int)
+        // @ts-expect-error nullable division result cannot silently strip null
+        .body(({ x }) => Num.div(x, 0, { rounding: 'floor', onZero: 'null' }))
+
+      Fn.make({ x: Schema.Int }, ({ x }) => x).returns(
+        // @ts-expect-error cannot cast number Fn to Schema.String
+        Schema.String,
+      )
+
+      Fn.make({ x: Schema.Int }, ({ x }) =>
+        Num.div(x, 0, { rounding: 'floor', onZero: 'null' }),
+      ).returns(
+        // @ts-expect-error cannot strip null from number | null via returns(Schema.Int)
+        Schema.Int,
+      )
+
+      Fn.make({ s: Schema.String }, ({ s }) => s).returns(
+        // @ts-expect-error cannot silently narrow arbitrary string to literal union
+        Schema.Literals(['a', 'b']),
+      )
+
+      const strFn = Fn.make({ x: Schema.Int }, () => 'hello')
+      const intFn = Fn.make({ y: Schema.Int }, ({ y }) => y)
+      // @ts-expect-error cannot compose string-returning Fn into Int-taking Fn
+      Fn.compose(strFn, intFn)
+      // @ts-expect-error cannot chain string-returning Fn into Int-taking Fn via andThen
+      strFn.andThen(intFn)
+    }
+    expect(typeof _typechecks).toBe('function')
+  })
 })

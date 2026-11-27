@@ -52,6 +52,45 @@ export const proveFn = <P extends ParamSchemas, R>(
 
   const goals: Array<Node.Node> = [definedGoal]
   try {
+    for (const ob of fn.obligations) {
+      const obExpr = Node.prefix(ob.expr.node, ['params'])
+      const obGoals: Array<Node.Node> = []
+      const isNullOb = Node.Call({ op: isNullOp, args: [obExpr] })
+      obGoals.push(
+        Node.Call({
+          op: orOp,
+          args: [isNullOb, Node.Call({ op: notOp, args: [isNullOb] })],
+        }),
+      )
+      if (Option.isSome(ob.schema)) {
+        const obSchema = ob.schema.value
+        const obShape = shapeOf([[[], obSchema]])
+        const obInfo = obShape.paths.get('')
+        if (obInfo !== undefined) {
+          obGoals.push(...writtenFits(obInfo, obExpr, shape))
+        }
+        for (const rule of Expr.refinementsOf(obSchema)) {
+          obGoals.push(substituteRoot(rule.node, obExpr))
+        }
+      }
+      for (const e of ob.ensures) {
+        obGoals.push(substituteResult(e.node, obExpr))
+      }
+      if (Option.isSome(ob.when)) {
+        const guardNode = Node.prefix(ob.when.value.node, ['params'])
+        for (const g of obGoals) {
+          goals.push(
+            Node.If({
+              cond: guardNode,
+              then: g,
+              otherwise: Node.Lit({ value: true }),
+            }),
+          )
+        }
+      } else {
+        goals.push(...obGoals)
+      }
+    }
     if (Option.isSome(fn.returnSchema)) {
       const retSchema = fn.returnSchema.value
       const retShape = shapeOf([[[], retSchema]])

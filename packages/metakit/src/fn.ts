@@ -13,6 +13,7 @@ import * as Node from './node.js'
 import { currentEach } from './ops/arr.js'
 import * as Bool from './ops/bool.js'
 import { toNode, wrap, type EnvOfInput, type ExprInput } from './ops/core.js'
+import { coalesceOp } from './ops/null.js'
 import * as Path from './path.js'
 import type { Expr as ExprType, PathAccessor, SchemaOf } from './path.js'
 
@@ -57,6 +58,52 @@ export interface EnsuresPaths<P extends ParamSchemas, R> {
   readonly result: PathAccessor<EnsuresEnv<P, R>, R>
 }
 
+/**
+ * Underlying carrier type accepted when a body or argument feeds a declared
+ * Schema type `R`:
+ * - Rejects disjoint types (`number` vs `string`) and silent `null` stripping
+ *   (`number | null` cannot satisfy `number`).
+ * - Rejects widening arbitrary `string`/`number` into literal unions (`'a' | 'b'`).
+ * - Allows branded primitives (e.g. `Money<'USD'>` = `number & Brand<...>`) to
+ *   accept their underlying primitive carrier (`number`), which `runChecked` and
+ *   `Prove.fn` then validate against the Schema.
+ */
+export type ReturnCarrier<R> = R extends number
+  ? [Exclude<keyof R, keyof number>] extends [never]
+    ? R
+    : number
+  : R extends string
+    ? [Exclude<keyof R, keyof string>] extends [never]
+      ? R
+      : string
+    : R extends boolean
+      ? [Exclude<keyof R, keyof boolean>] extends [never]
+        ? R
+        : boolean
+      : R
+
+/**
+ * Scoped intermediate contract obligation preserved across `Fn` composition
+ * (`compose`, `map`, `not`, `and`, `or`, `ifElse`, `partial`, `contramap`).
+ *
+ * Checked by `fn.runChecked` (evaluating `expr` once when active) and proved
+ * by `Prove.fn` under the path guard `when` (if present).
+ */
+export interface FnObligation<Env> {
+  readonly kind: 'param' | 'return'
+  readonly label: string
+  /** Optional path guard: obligation applies only when `when` evaluates to `true`. */
+  readonly when: Option.Option<ExprType<Env, boolean | null>>
+  /** Intermediate expression whose value is validated. */
+  readonly expr: ExprType<Env, unknown>
+  /** Optional Schema that `expr`'s value must satisfy. */
+  readonly schema: Option.Option<Schema.Codec<unknown>>
+  /** Postconditions over `{ params: Env, result: unknown }` that must hold for `expr`. */
+  readonly ensures: ReadonlyArray<
+    ExprType<{ readonly params: Env; readonly result: unknown }, boolean | null>
+  >
+}
+
 /** Error returned by `fn.runChecked` when a contract boundary fails at runtime. */
 export class FnContractError extends Data.TaggedError('FnContractError')<{
   readonly phase: 'params' | 'where' | 'body' | 'returns' | 'ensures'
@@ -87,12 +134,22 @@ export interface FnSpec<P extends ParamSchemas, R = unknown> extends Pipeable.Pi
     buildEnsures: (env: EnsuresPaths<P, R>) => ExprInput<EnsuresEnv<P, R>, boolean | null>,
   ) => FnSpec<P, R>
   /** Attach the body expression, producing a callable `Fn`. */
-  readonly body: <Out = R>(
+  readonly body: <Out extends (unknown extends R ? unknown : ReturnCarrier<R>)>(
     buildBody: (args: ParamPaths<P>) => ExprInput<ParamValues<P>, Out>,
   ) => Fn<P, unknown extends R ? Out : R>
 }
 
-/** A callable, inspectable, verifiable MetaKit function. */
+/**
+ * A callable, inspectable, verifiable MetaKit function.
+ *
+ * - **Symbolic call (`fn(args)`)**: macro-like AST substitution of `args` into
+ *   `body` (unchecked at the call site; preconditions and obligations are
+ *   available via `fn.precondition(args)` and `fn.obligations`).
+ * - **Checked runtime (`fn.runChecked(args)`)**: validates `params`, `where`,
+ *   all scoped intermediate `obligations`, `body`, `returns`, and `ensures`.
+ * - **Formal verification (`Prove.fn(fn)`)**: proves well-definedness, all
+ *   scoped `obligations`, `returns`, and `ensures` in Z3.
+ */
 export interface Fn<P extends ParamSchemas, R> extends Pipeable.Pipeable {
   readonly _tag: 'Fn'
   readonly params: P
@@ -101,14 +158,18 @@ export interface Fn<P extends ParamSchemas, R> extends Pipeable.Pipeable {
   readonly whereClauses: ReadonlyArray<ExprType<ParamValues<P>, boolean | null>>
   readonly returnSchema: Option.Option<Schema.Codec<R>>
   readonly ensuresClauses: ReadonlyArray<ExprType<EnsuresEnv<P, R>, boolean | null>>
+  /** Scoped intermediate contract obligations preserved across composition. */
+  readonly obligations: ReadonlyArray<FnObligation<ParamValues<P>>>
   /** Symbolic call: substitutes argument expressions into `body`. */
   <Args extends ArgInputs<P>>(args: Args): ExprType<MergedArgEnv<Args>, R>
   /** Add a precondition (`where` clause). Stackable. */
   readonly where: (
     buildWhere: (args: ParamPaths<P>) => ExprInput<ParamValues<P>, boolean | null>,
   ) => Fn<P, R>
-  /** Declare the return Schema (verified by `Prove.fn` and `runChecked`). */
-  readonly returns: <S extends SchemaOf>(schema: S) => Fn<P, S['Type']>
+  /** Declare the return Schema (must be structurally compatible with `R`; verified by `Prove.fn` and `runChecked`). */
+  readonly returns: <S extends SchemaOf>(
+    schema: [R] extends [ReturnCarrier<S['Type']>] ? S : never,
+  ) => Fn<P, S['Type']>
   /** Add a postcondition (`ensures` clause over `{ params, result }`). Stackable. */
   readonly ensures: (
     buildEnsures: (env: EnsuresPaths<P, R>) => ExprInput<EnsuresEnv<P, R>, boolean | null>,
@@ -119,14 +180,15 @@ export interface Fn<P extends ParamSchemas, R> extends Pipeable.Pipeable {
   ) => ExprType<MergedArgEnv<Args>, boolean | null>
   /** Fast direct runtime evaluation over concrete parameter values. */
   readonly run: (args: ParamValues<P>, options?: Expr.ReaderOptions) => R
-  /** Checked runtime evaluation verifying params Schema, `where`, `returns`, and `ensures`. */
+  /** Checked runtime evaluation verifying params Schema, `where`, intermediate `obligations`, `body`, `returns`, and `ensures`. */
   readonly runChecked: (
     args: unknown,
     options?: Expr.ReaderOptions,
   ) => Result.Result<R, FnContractError>
   /** Sequential composition with a single-parameter `Fn`: feeds this function's output into `next`. */
   readonly andThen: <K extends string, S extends SchemaOf, R2>(
-    next: Fn<Readonly<Record<K, S>>, R2>,
+    next: Fn<Readonly<Record<K, S>>, R2> &
+      ([R] extends [ReturnCarrier<S['Type']>] ? unknown : never),
   ) => Fn<P, R2>
   /** Partial application: fix a subset of parameters to concrete literals, returning a `Fn` over the rest. */
   readonly partial: <const Fixed extends Partial<ParamValues<P>>>(
@@ -309,10 +371,15 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
   readonly whereClauses: ReadonlyArray<ExprType<ParamValues<P>, boolean | null>>
   readonly returnSchema: Option.Option<Schema.Codec<R>>
   readonly ensuresClauses: ReadonlyArray<ExprType<EnsuresEnv<P, R>, boolean | null>>
+  readonly obligations: ReadonlyArray<FnObligation<ParamValues<P>>>
 }): Fn<P, R> => {
   const paramNames = new Set(Object.keys(parts.params))
   const decodeParams = Schema.decodeUnknownResult(parts.paramsSchema)
   const checkReturn = Option.map(parts.returnSchema, s => Schema.is(s))
+  const obligationChecks = parts.obligations.map(ob => ({
+    ob,
+    checkSchema: Option.map(ob.schema, s => Schema.is(s)),
+  }))
 
   const callSymbolic = <Args extends ArgInputs<P>>(args: Args): ExprType<MergedArgEnv<Args>, R> =>
     wrap(substituteArgs(parts.body.node, paramNames, args))
@@ -351,6 +418,61 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
         return Result.fail(new FnContractError({ phase: 'where', detail: String(cause), cause }))
       }
     }
+    for (const { ob, checkSchema } of obligationChecks) {
+      if (Option.isSome(ob.when)) {
+        try {
+          if (Expr.evaluate(ob.when.value, paramsVal, options) !== true) continue
+        } catch (cause) {
+          return Result.fail(
+            new FnContractError({
+              phase: 'where',
+              detail: `obligation guard "${ob.label}" failed: ${String(cause)}`,
+              cause,
+            }),
+          )
+        }
+      }
+      let interVal: unknown
+      try {
+        interVal = Expr.evaluate(ob.expr, paramsVal, options)
+      } catch (cause) {
+        return Result.fail(
+          new FnContractError({
+            phase: 'body',
+            detail: `intermediate expression "${ob.label}" refused: ${String(cause)}`,
+            cause,
+          }),
+        )
+      }
+      if (Option.isSome(checkSchema) && !checkSchema.value(interVal)) {
+        return Result.fail(
+          new FnContractError({
+            phase: ob.kind === 'param' ? 'params' : 'returns',
+            detail: `intermediate ${ob.kind} Schema validation failed for "${ob.label}"`,
+          }),
+        )
+      }
+      for (const e of ob.ensures) {
+        try {
+          if (Expr.evaluate(e, { params: paramsVal, result: interVal }, options) !== true) {
+            return Result.fail(
+              new FnContractError({
+                phase: 'ensures',
+                detail: `intermediate postcondition failed for "${ob.label}"`,
+              }),
+            )
+          }
+        } catch (cause) {
+          return Result.fail(
+            new FnContractError({
+              phase: 'ensures',
+              detail: `intermediate postcondition "${ob.label}" failed: ${String(cause)}`,
+              cause,
+            }),
+          )
+        }
+      }
+    }
     let result: R
     try {
       result = Expr.evaluate(parts.body, paramsVal, options)
@@ -387,6 +509,7 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
     whereClauses: parts.whereClauses,
     returnSchema: parts.returnSchema,
     ensuresClauses: parts.ensuresClauses,
+    obligations: parts.obligations,
     where: (buildWhere: (args: ParamPaths<P>) => ExprInput<ParamValues<P>, boolean | null>) =>
       buildFn({
         ...parts,
@@ -395,7 +518,7 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
           wrap<ParamValues<P>, boolean | null>(toNode(buildWhere(paramPathsOf(parts.params)))),
         ],
       }),
-    returns: <S extends SchemaOf>(schema: S) =>
+    returns: <S extends SchemaOf>(schema: [R] extends [ReturnCarrier<S['Type']>] ? S : never) =>
       buildFn<P, S['Type']>({
         params: parts.params,
         paramsSchema: parts.paramsSchema,
@@ -405,6 +528,7 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
         ensuresClauses: parts.ensuresClauses as unknown as ReadonlyArray<
           ExprType<EnsuresEnv<P, S['Type']>, boolean | null>
         >,
+        obligations: parts.obligations,
       }),
     ensures: (
       buildEnsures: (env: EnsuresPaths<P, R>) => ExprInput<EnsuresEnv<P, R>, boolean | null>,
@@ -422,7 +546,8 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
     run,
     runChecked,
     andThen: <K extends string, S extends SchemaOf, R2>(
-      next: Fn<Readonly<Record<K, S>>, R2>,
+      next: Fn<Readonly<Record<K, S>>, R2> &
+        ([R] extends [ReturnCarrier<S['Type']>] ? unknown : never),
     ): Fn<P, R2> => compose(self, next),
     partial: <const Fixed extends Partial<ParamValues<P>>>(
       fixed: Fixed,
@@ -482,7 +607,9 @@ const buildSpec = <P extends ParamSchemas, R>(parts: {
         ),
       ],
     }),
-  body: <Out = R>(buildBody: (args: ParamPaths<P>) => ExprInput<ParamValues<P>, Out>) =>
+  body: <Out extends (unknown extends R ? unknown : ReturnCarrier<R>)>(
+    buildBody: (args: ParamPaths<P>) => ExprInput<ParamValues<P>, Out>,
+  ) =>
     buildFn<P, unknown extends R ? Out : R>({
       params: parts.params,
       paramsSchema: parts.paramsSchema,
@@ -496,6 +623,7 @@ const buildSpec = <P extends ParamSchemas, R>(parts: {
       ensuresClauses: parts.ensuresClauses as unknown as ReadonlyArray<
         ExprType<EnsuresEnv<P, unknown extends R ? Out : R>, boolean | null>
       >,
+      obligations: [],
     }),
   pipe() {
     // eslint-disable-next-line prefer-rest-params
@@ -528,6 +656,7 @@ export const make = <P extends ParamSchemas, R>(
     whereClauses: [],
     returnSchema: Option.none(),
     ensuresClauses: [],
+    obligations: [],
   })
 }
 
@@ -567,6 +696,60 @@ const mergeParamSchemas = (list: ReadonlyArray<ParamSchemas>): Record<string, Sc
   return merged
 }
 
+const selfReturnObligation = <P extends ParamSchemas, R>(
+  f: Fn<P, R>,
+  label: string,
+): ReadonlyArray<FnObligation<ParamValues<P>>> => {
+  if (Option.isNone(f.returnSchema) && f.ensuresClauses.length === 0) return []
+  return [
+    {
+      kind: 'return',
+      label,
+      when: Option.none(),
+      expr: f.body,
+      schema: f.returnSchema as Option.Option<Schema.Codec<unknown>>,
+      ensures: f.ensuresClauses as ReadonlyArray<
+        ExprType<{ readonly params: ParamValues<P>; readonly result: unknown }, boolean | null>
+      >,
+    },
+  ]
+}
+
+const substituteObligation = <EnvFrom, EnvTo>(
+  ob: FnObligation<EnvFrom>,
+  subExpr: (node: Node.Node) => Node.Node,
+  subEnsures: (node: Node.Node) => Node.Node,
+): FnObligation<EnvTo> => ({
+  kind: ob.kind,
+  label: ob.label,
+  when: Option.map(ob.when, w => wrap<EnvTo, boolean | null>(subExpr(w.node))),
+  expr: wrap<EnvTo, unknown>(subExpr(ob.expr.node)),
+  schema: ob.schema,
+  ensures: ob.ensures.map(e =>
+    wrap<{ readonly params: EnvTo; readonly result: unknown }, boolean | null>(subEnsures(e.node)),
+  ),
+})
+
+const guardObligation = <Env>(ob: FnObligation<Env>, guardNode: Node.Node): FnObligation<Env> => ({
+  ...ob,
+  when: Option.some(
+    wrap<Env, boolean | null>(
+      Option.isNone(ob.when)
+        ? guardNode
+        : Node.Call({ op: Bool.andOp, args: [guardNode, ob.when.value.node] }),
+    ),
+  ),
+})
+
+const isTrueGuard = (condNode: Node.Node): Node.Node =>
+  Node.Call({ op: coalesceOp, args: [condNode, Node.Lit({ value: false })] })
+
+const isFalseGuard = (condNode: Node.Node): Node.Node =>
+  Node.Call({
+    op: Bool.notOp,
+    args: [Node.Call({ op: coalesceOp, args: [condNode, Node.Lit({ value: true })] })],
+  })
+
 /**
  * Sequential composition (`g ∘ f`).
  *
@@ -574,12 +757,14 @@ const mergeParamSchemas = (list: ReadonlyArray<ParamSchemas>): Record<string, Sc
  * - Multi-param `g` (`compose(f, g, (out, params) => ({ ... }))`): maps `f`'s
  *   output and original parameters into `g`'s parameter record.
  *
- * Preserves `f`'s `where` clauses, substitutes `g`'s `where` and `ensures`
- * clauses over `f`'s parameters, and keeps `g`'s `returnSchema`.
+ * Preserves `f`'s `where` clauses, records `f`'s return/ensures and `g`'s
+ * parameter Schema checks as scoped intermediate `obligations`, substitutes
+ * `g`'s `where`, `obligations`, and `ensures` over `f`'s parameters, and keeps
+ * `g`'s `returnSchema`.
  */
 export function compose<P extends ParamSchemas, R, K extends string, S extends SchemaOf, R2>(
   f: Fn<P, R>,
-  g: Fn<Readonly<Record<K, S>>, R2>,
+  g: Fn<Readonly<Record<K, S>>, R2> & ([R] extends [ReturnCarrier<S['Type']>] ? unknown : never),
 ): Fn<P, R2>
 export function compose<P extends ParamSchemas, R, P2 extends ParamSchemas, R2>(
   f: Fn<P, R>,
@@ -587,7 +772,7 @@ export function compose<P extends ParamSchemas, R, P2 extends ParamSchemas, R2>(
   mapArgs: (
     out: ExprType<ParamValues<P>, R>,
     params: ParamPaths<P>,
-  ) => { readonly [K in keyof P2]: ExprInput<ParamValues<P>, P2[K]['Type']> },
+  ) => { readonly [K in keyof P2]: ExprInput<ParamValues<P>, ReturnCarrier<P2[K]['Type']>> },
 ): Fn<P, R2>
 export function compose<P extends ParamSchemas, R, P2 extends ParamSchemas, R2>(
   f: Fn<P, R>,
@@ -626,6 +811,21 @@ export function compose<P extends ParamSchemas, R, P2 extends ParamSchemas, R2>(
   const gEnsures = g.ensuresClauses.map(e =>
     wrap<EnsuresEnv<P, R2>, boolean | null>(substituteEnsuresParams(e.node, gArgNodes)),
   )
+  const gParamObligations: Array<FnObligation<ParamValues<P>>> = gParamKeys.map(key => ({
+    kind: 'param',
+    label: `compose.param:${key}`,
+    when: Option.none(),
+    expr: wrap<ParamValues<P>, unknown>(gArgNodes.get(key)!),
+    schema: Option.some(g.params[key]! as unknown as Schema.Codec<unknown>),
+    ensures: [],
+  }))
+  const gObligations = g.obligations.map(ob =>
+    substituteObligation<ParamValues<P2>, ParamValues<P>>(
+      ob,
+      n => substituteArgs(n, gParamSet, gArgs),
+      n => substituteEnsuresParams(n, gArgNodes),
+    ),
+  )
 
   return buildFn({
     params: f.params,
@@ -634,13 +834,19 @@ export function compose<P extends ParamSchemas, R, P2 extends ParamSchemas, R2>(
     whereClauses: [...f.whereClauses, ...gWheres],
     returnSchema: g.returnSchema,
     ensuresClauses: gEnsures,
+    obligations: [
+      ...f.obligations,
+      ...selfReturnObligation(f, 'compose.first'),
+      ...gParamObligations,
+      ...gObligations,
+    ],
   })
 }
 
 /**
  * Partial application: fix a subset of `f`'s parameters to concrete literals,
  * returning a specialized `Fn` over the remaining parameters with `body`,
- * `whereClauses`, and `ensuresClauses` substituted.
+ * `whereClauses`, `obligations`, and `ensuresClauses` substituted.
  */
 export const partial = <P extends ParamSchemas, R, const Fixed extends Partial<ParamValues<P>>>(
   f: Fn<P, R>,
@@ -691,10 +897,15 @@ export const partial = <P extends ParamSchemas, R, const Fixed extends Partial<P
     ensuresClauses: f.ensuresClauses.map(e =>
       wrap<EnsuresEnv<Remaining, R>, boolean | null>(substituteEnsuresParams(e.node, fixedNodes)),
     ),
+    obligations: f.obligations.map(ob =>
+      substituteObligation<ParamValues<P>, ParamValues<Remaining>>(ob, sub, n =>
+        substituteEnsuresParams(n, fixedNodes),
+      ),
+    ),
   })
 }
 
-/** Transform `f`'s output expression while preserving `params` and `whereClauses`. */
+/** Transform `f`'s output expression while preserving `params`, `whereClauses`, and intermediate `obligations`. */
 export const map = <P extends ParamSchemas, R, R2>(
   f: Fn<P, R>,
   transform: (
@@ -709,6 +920,7 @@ export const map = <P extends ParamSchemas, R, R2>(
     whereClauses: f.whereClauses,
     returnSchema: Option.none(),
     ensuresClauses: [],
+    obligations: [...f.obligations, ...selfReturnObligation(f, 'map.input')],
   })
 
 /** Adapt `f` to a new parameter schema `newParams` by mapping inputs through `mapArgs`. */
@@ -716,7 +928,7 @@ export const contramap = <P extends ParamSchemas, R, P2 extends ParamSchemas>(
   f: Fn<P, R>,
   newParams: P2,
   mapArgs: (args: ParamPaths<P2>) => {
-    readonly [K in keyof P]: ExprInput<ParamValues<P2>, P[K]['Type']>
+    readonly [K in keyof P]: ExprInput<ParamValues<P2>, ReturnCarrier<P[K]['Type']>>
   },
 ): Fn<P2, R> => {
   const mapped = mapArgs(paramPathsOf(newParams))
@@ -726,6 +938,14 @@ export const contramap = <P extends ParamSchemas, R, P2 extends ParamSchemas>(
   for (const key of fKeys) {
     argNodes.set(key, toNode((mapped as Readonly<Record<string, unknown>>)[key]))
   }
+  const paramObligations: Array<FnObligation<ParamValues<P2>>> = fKeys.map(key => ({
+    kind: 'param',
+    label: `contramap.param:${key}`,
+    when: Option.none(),
+    expr: wrap<ParamValues<P2>, unknown>(argNodes.get(key)!),
+    schema: Option.some(f.params[key]! as unknown as Schema.Codec<unknown>),
+    ensures: [],
+  }))
   return buildFn({
     params: newParams,
     paramsSchema: Schema.Struct(newParams),
@@ -737,6 +957,16 @@ export const contramap = <P extends ParamSchemas, R, P2 extends ParamSchemas>(
     ensuresClauses: f.ensuresClauses.map(e =>
       wrap<EnsuresEnv<P2, R>, boolean | null>(substituteEnsuresParams(e.node, argNodes)),
     ),
+    obligations: [
+      ...paramObligations,
+      ...f.obligations.map(ob =>
+        substituteObligation<ParamValues<P>, ParamValues<P2>>(
+          ob,
+          n => substituteArgs(n, fKeySet, mapped),
+          n => substituteEnsuresParams(n, argNodes),
+        ),
+      ),
+    ],
   })
 }
 
@@ -753,9 +983,10 @@ export const not = <P extends ParamSchemas, R extends boolean | null>(
     whereClauses: f.whereClauses,
     returnSchema: Option.none(),
     ensuresClauses: [],
+    obligations: [...f.obligations, ...selfReturnObligation(f, 'not.input')],
   })
 
-/** Conjunction (`f && g`) of two boolean predicate `Fn`s, merging their parameters and preconditions. */
+/** Conjunction (`f && g`) of two boolean predicate `Fn`s, merging their parameters, preconditions, and obligations. */
 export const and = <
   P1 extends ParamSchemas,
   P2 extends ParamSchemas,
@@ -778,10 +1009,18 @@ export const and = <
     ],
     returnSchema: Option.none(),
     ensuresClauses: [],
+    obligations: [
+      ...(f.obligations as ReadonlyArray<FnObligation<ParamValues<P1 & P2>>>),
+      ...(selfReturnObligation(f, 'and.left') as ReadonlyArray<FnObligation<ParamValues<P1 & P2>>>),
+      ...(g.obligations as ReadonlyArray<FnObligation<ParamValues<P1 & P2>>>),
+      ...(selfReturnObligation(g, 'and.right') as ReadonlyArray<
+        FnObligation<ParamValues<P1 & P2>>
+      >),
+    ],
   })
 }
 
-/** Disjunction (`f || g`) of two boolean predicate `Fn`s, merging their parameters and preconditions. */
+/** Disjunction (`f || g`) of two boolean predicate `Fn`s, merging their parameters, preconditions, and obligations. */
 export const or = <
   P1 extends ParamSchemas,
   P2 extends ParamSchemas,
@@ -804,6 +1043,12 @@ export const or = <
     ],
     returnSchema: Option.none(),
     ensuresClauses: [],
+    obligations: [
+      ...(f.obligations as ReadonlyArray<FnObligation<ParamValues<P1 & P2>>>),
+      ...(selfReturnObligation(f, 'or.left') as ReadonlyArray<FnObligation<ParamValues<P1 & P2>>>),
+      ...(g.obligations as ReadonlyArray<FnObligation<ParamValues<P1 & P2>>>),
+      ...(selfReturnObligation(g, 'or.right') as ReadonlyArray<FnObligation<ParamValues<P1 & P2>>>),
+    ],
   })
 }
 
@@ -820,8 +1065,11 @@ export const implies = <
   or(not(f), g) as Fn<P1 & P2, boolean | (null extends R1 | R2 ? null : never)>
 
 /**
- * Conditional branching combinator: evaluates `onTrue` when `cond` holds, else
- * `onFalse`. Each branch's preconditions are guarded by `cond` / `!cond`.
+ * Conditional branching combinator: evaluates `onTrue` when `cond` is `true`,
+ * `onFalse` when `cond` is `false`, and `null` when `cond` is `null`.
+ * Each branch's preconditions and obligations are guarded by the exact branch
+ * path condition (`cond === true` / `cond === false`), so `cond === null`
+ * discharges neither branch's contracts.
  */
 export const ifElse = <
   PC extends ParamSchemas,
@@ -834,23 +1082,37 @@ export const ifElse = <
   cond: Fn<PC, RC>,
   onTrue: Fn<PT, RT>,
   onFalse: Fn<PF, RF>,
-): Fn<PC & PT & PF, RT | RF> => {
+): Fn<PC & PT & PF, RT | RF | (null extends RC ? null : never)> => {
   type Merged = PC & PT & PF
   const merged = mergeParamSchemas([cond.params, onTrue.params, onFalse.params]) as Merged
+  const trueGuard = isTrueGuard(cond.body.node)
+  const falseGuard = isFalseGuard(cond.body.node)
   const guardedTrue = onTrue.whereClauses.map(w =>
     wrap<ParamValues<Merged>, boolean | null>(
-      Node.If({ cond: cond.body.node, then: w.node, otherwise: Node.Lit({ value: true }) }),
+      Node.If({ cond: trueGuard, then: w.node, otherwise: Node.Lit({ value: true }) }),
     ),
   )
   const guardedFalse = onFalse.whereClauses.map(w =>
     wrap<ParamValues<Merged>, boolean | null>(
-      Node.If({ cond: cond.body.node, then: Node.Lit({ value: true }), otherwise: w.node }),
+      Node.If({ cond: falseGuard, then: w.node, otherwise: Node.Lit({ value: true }) }),
     ),
   )
+  const trueObligations = [
+    ...(onTrue.obligations as ReadonlyArray<FnObligation<ParamValues<Merged>>>),
+    ...(selfReturnObligation(onTrue, 'ifElse.then') as ReadonlyArray<
+      FnObligation<ParamValues<Merged>>
+    >),
+  ].map(ob => guardObligation(ob, trueGuard))
+  const falseObligations = [
+    ...(onFalse.obligations as ReadonlyArray<FnObligation<ParamValues<Merged>>>),
+    ...(selfReturnObligation(onFalse, 'ifElse.else') as ReadonlyArray<
+      FnObligation<ParamValues<Merged>>
+    >),
+  ].map(ob => guardObligation(ob, falseGuard))
   return buildFn({
     params: merged,
     paramsSchema: Schema.Struct(merged),
-    body: wrap<ParamValues<Merged>, RT | RF>(
+    body: wrap<ParamValues<Merged>, RT | RF | (null extends RC ? null : never)>(
       Node.If({ cond: cond.body.node, then: onTrue.body.node, otherwise: onFalse.body.node }),
     ),
     whereClauses: [
@@ -860,12 +1122,22 @@ export const ifElse = <
     ],
     returnSchema: Option.none(),
     ensuresClauses: [],
+    obligations: [
+      ...(cond.obligations as ReadonlyArray<FnObligation<ParamValues<Merged>>>),
+      ...(selfReturnObligation(cond, 'ifElse.cond') as ReadonlyArray<
+        FnObligation<ParamValues<Merged>>
+      >),
+      ...trueObligations,
+      ...falseObligations,
+    ],
   })
 }
 
 /** Identity `Fn` for a single parameter `{ value: S }`. */
 export const identity = <S extends SchemaOf>(schema: S): Fn<{ readonly value: S }, S['Type']> =>
-  make({ value: schema }, ({ value }) => value).returns(schema)
+  make({ value: schema }, ({ value }) => value).returns(
+    schema as [S['Type']] extends [ReturnCarrier<S['Type']>] ? S : never,
+  )
 
 /** Constant `Fn` ignoring `paramSchemas` and always returning `value`. */
 export const constant = <P extends ParamSchemas, const A>(paramSchemas: P, value: A): Fn<P, A> =>
@@ -900,11 +1172,16 @@ export const iterate = <K extends string, S extends SchemaOf>(
       whereClauses: [],
       returnSchema: f.returnSchema,
       ensuresClauses: [],
+      obligations: [],
     })
   }
   let acc = f
   for (let i = 1; i < n; i++) {
-    acc = compose(acc, f)
+    acc = compose(
+      acc,
+      f as Fn<Readonly<Record<K, S>>, S['Type']> &
+        ([S['Type']] extends [ReturnCarrier<S['Type']>] ? unknown : never),
+    )
   }
   return acc
 }

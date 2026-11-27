@@ -50,4 +50,31 @@ export default [
     ],
     tests: ['packages/metakit/test/fnCombinators.test.ts'],
   },
+  {
+    name: 'compose drops intermediate obligations (first return/ensures + second param schema)',
+    edits: [
+      {
+        file: '../src/fn.ts',
+        find: `    obligations: [
+      ...f.obligations,
+      ...selfReturnObligation(f, 'compose.first'),
+      ...gParamObligations,
+      ...gObligations,
+    ],`,
+        replace: `    obligations: [],`,
+      },
+    ],
+    tests: ['packages/metakit/test/fnCombinators.test.ts'],
+  },
+  {
+    name: 'prove/fn skips intermediate obligations',
+    edits: [
+      {
+        file: '../src/prove/fn.ts',
+        find: '    for (const ob of fn.obligations) {',
+        replace: '    for (const ob of [] as typeof fn.obligations) {',
+      },
+    ],
+    tests: ['packages/metakit/test/fnCombinators.test.ts'],
+  },
 ]
