@@ -8,10 +8,14 @@
  * observers, or foreign-op allowlists once via Effect `Layer`s instead of
  * threading `{ foreign }` options through every call site.
  */
-import { Clock, Context, Effect, Exit, Layer, Result } from 'effect'
+import { Clock, Context, Effect, Exit, Layer, Option, Result } from 'effect'
+import * as Artifact from './artifact.js'
 import * as Expr from './expr.js'
 import type * as Fn from './fn.js'
-import type * as Node from './node.js'
+import * as Language from './language.js'
+import * as Node from './node.js'
+import { applyForeign, evalNode } from './ops/eval.js'
+import { readable } from './path.js'
 import type * as Policy from './policy.js'
 import * as Transition from './transition.js'
 import type * as Verdict from './verdict.js'
@@ -468,3 +472,226 @@ export const allow = <
   env: NoInfer<Policy.PolicyEnv<Row, Principal>>,
 ): Effect.Effect<boolean> =>
   Effect.flatMap(Effect.service(Interpreter), i => i.allow(policy, rule, env))
+
+// ---------------------------------------------------------------------------
+// Phase E (#645 P2): Evidence-gated prepared execution (CSP-safe, no eval())
+// ---------------------------------------------------------------------------
+
+export interface PrepareOptions {
+  /** Stable identities for foreign implementations (`id@version -> Option<string>`). */
+  readonly foreignIdentities?: Readonly<Record<string, Option.Option<string>>>
+  /** Optional fingerprint of relevant environment Schema constraints. */
+  readonly schemaFingerprint?: string
+  /** Execution/proof assumptions bound into `evidenceKey`. */
+  readonly assumptions?: Readonly<Record<string, string | number | boolean>>
+}
+
+export interface PreparedPlan<Env, A> {
+  /** Content fingerprint of the canonical portable expression (`Option.none()` if non-portable). */
+  readonly fingerprint: Option.Option<Artifact.ArtifactFingerprint>
+  /** Cache key for prepared execution (`Option.none()` if non-portable or unidentified foreign impl). */
+  readonly evidenceKey: Option.Option<Artifact.EvidenceKey>
+  readonly portable: boolean
+  /** `'compiled'` when every node was preplanned; `'hybrid'` when `Rows` or `Opaque` delegates to reference eval. */
+  readonly strategy: 'compiled' | 'hybrid'
+  /** Execute the prepared plan, failing with `Node.Refusal` on refusal. */
+  readonly evaluate: (env: Env) => Effect.Effect<A | null, Node.Refusal>
+  /** Synchronous hot-path execution returning a value, `null`, or `Node.Refusal`. */
+  readonly evaluateSync: (env: Env) => A | null | Node.Refusal
+}
+
+type CompiledFn = (env: unknown) => unknown
+
+const readStep = (current: unknown, segment: string): unknown => {
+  const value = readable(current)
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value !== 'object' ||
+    !Object.hasOwn(value, segment)
+  ) {
+    return null
+  }
+  return (value as Record<string, unknown>)[segment]
+}
+
+const finishRead = (value: unknown): unknown => {
+  const out = readable(value)
+  return out === undefined ? null : out
+}
+
+const compilePath = (segments: ReadonlyArray<string>): CompiledFn => {
+  switch (segments.length) {
+    case 0:
+      return env => finishRead(env)
+    case 1: {
+      const s0 = segments[0]!
+      return env => finishRead(readStep(env, s0))
+    }
+    case 2: {
+      const s0 = segments[0]!
+      const s1 = segments[1]!
+      return env => finishRead(readStep(readStep(env, s0), s1))
+    }
+    case 3: {
+      const s0 = segments[0]!
+      const s1 = segments[1]!
+      const s2 = segments[2]!
+      return env => finishRead(readStep(readStep(readStep(env, s0), s1), s2))
+    }
+    default:
+      return env => {
+        let current: unknown = env
+        for (let i = 0; i < segments.length; i++) {
+          current = readStep(current, segments[i]!)
+          if (current === null) return null
+        }
+        return finishRead(current)
+      }
+  }
+}
+
+const compileNode = (
+  root: Node.Node,
+  foreign: Expr.ForeignImplementations,
+): { readonly fn: CompiledFn; readonly hybrid: boolean } => {
+  let hybrid = false
+
+  const visit = (node: Node.Node): CompiledFn =>
+    Node.$match(node, {
+      Lit:
+        ({ value }): CompiledFn =>
+        () =>
+          value,
+      Path: ({ segments }): CompiledFn => compilePath(segments),
+      Call: ({ op, args }): CompiledFn => {
+        const argFns = args.map(visit)
+        if (Node.isForeign(op)) {
+          return (env: unknown) => {
+            const values = new Array<unknown>(argFns.length)
+            for (let i = 0; i < argFns.length; i++) values[i] = argFns[i]!(env)
+            return applyForeign(op, values, foreign)
+          }
+        }
+        if (argFns.length === 1) {
+          const a0 = argFns[0]!
+          return (env: unknown) => Node.apply(op, [a0(env)])
+        }
+        if (argFns.length === 2) {
+          const a0 = argFns[0]!
+          const a1 = argFns[1]!
+          return (env: unknown) => Node.apply(op, [a0(env), a1(env)])
+        }
+        return (env: unknown) => {
+          const values = new Array<unknown>(argFns.length)
+          for (let i = 0; i < argFns.length; i++) values[i] = argFns[i]!(env)
+          return Node.apply(op, values)
+        }
+      },
+      If: ({ cond, then: t, otherwise }): CompiledFn => {
+        const condFn = visit(cond)
+        const thenFn = visit(t)
+        const elseFn = visit(otherwise)
+        return (env: unknown) => {
+          const c = condFn(env)
+          if (c === true) return thenFn(env)
+          if (c === false) return elseFn(env)
+          if (c === null || Node.isRefusal(c)) return c
+          return Node.illTyped('if', 'a boolean', c)
+        }
+      },
+      Match: ({ on, cases, otherwise }): CompiledFn => {
+        const onFn = visit(on)
+        const table = new Map<string, CompiledFn>()
+        for (const [label, branch] of cases) {
+          const key = Node.wellFormed(label)
+          if (!table.has(key)) table.set(key, visit(branch))
+        }
+        const elseFn = Option.isSome(otherwise) ? visit(otherwise.value) : undefined
+        return (env: unknown) => {
+          const target = onFn(env)
+          if (Node.isRefusal(target)) return target
+          const held = Node.textIdentity(target)
+          if (typeof held === 'string') {
+            const hit = table.get(held)
+            if (hit !== undefined) return hit(env)
+          }
+          if (elseFn !== undefined) return elseFn(env)
+          if (target === null) return null
+          return new Node.Refusal({
+            reason: 'unmatched',
+            at: 'match',
+            detail: `no case names ${JSON.stringify(target)}`,
+          })
+        }
+      },
+      Opaque: ({ run }): CompiledFn => {
+        hybrid = true
+        return (env: unknown) => {
+          const out = run(env)
+          return out === undefined ? null : out
+        }
+      },
+      Rows: (rows): CompiledFn => {
+        hybrid = true
+        return (env: unknown) => evalNode(rows, env, foreign)
+      },
+    })
+
+  return { fn: visit(root), hybrid }
+}
+
+/**
+ * Prepare `expr` into a preplanned, CSP-safe closure tree bound to the current
+ * `Interpreter` backend's `foreign` table, with `ArtifactFingerprint` and
+ * `EvidenceKey` metadata.
+ *
+ * Observable behavior (values, `null`, `Refusal`, short-circuiting, numeric
+ * bounds, text normalization) is identical to `Expr.evaluate`.
+ */
+export const prepare = <Env, A>(
+  expr: Expr.Expr<Env, A>,
+  options?: PrepareOptions,
+): Effect.Effect<PreparedPlan<Env, A>> =>
+  Effect.gen(function* () {
+    const backend = yield* Effect.service(Interpreter)
+    const ready = yield* Language.readiness(expr, { _tag: 'portable' })
+    const fp: Option.Option<Artifact.ArtifactFingerprint> = ready.portable
+      ? yield* Artifact.fingerprint(expr).pipe(
+          Effect.map(Option.some),
+          Effect.catch(() => Effect.succeed(Option.none())),
+        )
+      : Option.none()
+
+    const evKey: Option.Option<Artifact.EvidenceKey> = Option.isSome(fp)
+      ? yield* Artifact.evidenceKey({
+          fingerprint: fp.value,
+          reader: { id: 'metakit/prepare', version: '1' },
+          profile: backend.name,
+          ...(options?.schemaFingerprint === undefined
+            ? {}
+            : { schemaFingerprint: options.schemaFingerprint }),
+          ...(options?.foreignIdentities === undefined
+            ? {}
+            : { foreignIdentities: options.foreignIdentities }),
+          ...(options?.assumptions === undefined ? {} : { assumptions: options.assumptions }),
+        })
+      : Option.none()
+
+    const { fn, hybrid } = compileNode(expr.node, backend.foreign)
+    const evaluateSync = (env: Env): A | null | Node.Refusal => fn(env) as A | null | Node.Refusal
+    const evaluate = (env: Env): Effect.Effect<A | null, Node.Refusal> =>
+      Effect.suspend(() => {
+        const out = evaluateSync(env)
+        return Node.isRefusal(out) ? Effect.fail(out) : Effect.succeed(out)
+      })
+
+    return {
+      fingerprint: fp,
+      evidenceKey: evKey,
+      portable: ready.portable,
+      strategy: hybrid ? 'hybrid' : 'compiled',
+      evaluate,
+      evaluateSync,
+    }
+  })
