@@ -2,6 +2,7 @@
 
 **Status:** Third revision, 2026-11-28. Checked against the MetaKit source at `364a88ada` and Reffect `origin/master` at `c3be420`. Ready for Phase A.
 **Issues:** `#598` and `#612` (their 2026-11-27 comments ask for this spike), `#649` §8 (the same adapter, sequenced as its P3), `#645` (portable artifacts), `#597` (per-target refusal).
+**Where this sits:** [`metakit-PLAN.md`](./metakit-PLAN.md) is the whole plan for MetaKit. Phase A here is its workstream W4 and Phase B its W6. That plan adds two ordering rules: write the bundle codec (A3) after its defects K7 and K8 are fixed, and write the corpus (A4) after K1–K6, so the corpus does not record wrong answers.
 
 ---
 
