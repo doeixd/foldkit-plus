@@ -70,7 +70,9 @@ const holdsNoNulText = (ast: SchemaAST.AST): boolean =>
       SchemaAST.isNumber(member) ||
       SchemaAST.isBoolean(member) ||
       SchemaAST.isObjects(member) ||
-      SchemaAST.isArrays(member) ||
+      (SchemaAST.isArrays(member) &&
+        member.elements.every(holdsNoNulText) &&
+        member.rest.every(holdsNoNulText)) ||
       isText(member) ||
       (SchemaAST.isLiteral(member) && !Node.holdsNul([member.literal])),
   )
