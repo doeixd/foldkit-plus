@@ -39,6 +39,58 @@ In Effect UI an update is a function. A function can only be run. In the success
 
 This is a bet, not a result. The honest state of the evidence is below.
 
+### The maintainer's three objections to Effect UI
+
+Stated on 2026-11-28. Each is his judgement; beside it is what the source shows and what the successor does instead.
+
+**1. It is built around components, and that feels outdated.**
+
+In Effect UI the component is the unit of everything at once: it owns a Model, it is where an update re-renders, it is where queries are declared and start, it is what a vocabulary is bound to, and it is what the server saves and the browser adopts. A parent passes props down and hears events back, and "a parent can't send a child a message". So where you draw a component boundary decides what re-renders, when data is fetched, and who may change what.
+
+The maintainer's own note (`#608`) says the opposite: "You don't need components or component boundaries. If you can track which bits of the view relate to which bits of the model you can get fine-grained updates. You can code-split on the Messages."
+
+The successor separates what a component fuses (`#612`):
+
+| Concern | In Effect UI | In the successor |
+|---|---|---|
+| Who wrote this, and what may be reused | Component | **Block**: authorship, ownership, a unit of reuse |
+| Where state lives and changes atomically | Each component's Model | **Machine**: many Blocks, one commit |
+| What re-renders | The changed component | A **binding**: one text node, one attribute, one keyed range |
+| What data is fetched, and when | Each component's queries, on mount | The **Surface's declared reads**, planned for the whole route |
+| What code loads | A lazily loaded component | The **Message** that needs it |
+| What the server sends | Every instance's Model | The slice that reachable transitions read |
+
+A Block is still something to write and reuse; nothing here says reuse is outdated. What goes is the rule that the unit you write is also the unit that renders, fetches and owns state. Moving a piece of UI should not move its state, and splitting a file should not change performance.
+
+One caution for us: components are also how people reason locally. The successor has to keep that, which is what `#643` means by borrowing "callable component ergonomics": a small counter must not require assembling a graph by hand.
+
+**2. Its type-safety holes.**
+
+Found in its source at `82a1750`, not inferred:
+
+- An element is `{ tag: string, props: Record<string, unknown>, … }`: "Property values are `unknown`, so a host decides what a property means."
+- Host-neutral code uses `h.el(tag)`, with untyped payloads.
+- A child written for the wrong target is not caught by the types. It "fails that child" when it mounts.
+- On native, a property name the vocabulary does not list takes `unknown`.
+- A Model is any struct, so a state that should not exist can be written, and an update is trusted to avoid it. This is the hole a public critique drew on 2026-11-27: two booleans, four combinations, one impossible.
+- What a write makes stale is named by hand, by query, entry or tag. Nothing checks the list is complete.
+- Without `exactOptionalPropertyTypes` in a project's configuration, its own documentation says "some component types are inferred too widely".
+
+The successor's answers are structural: states are named variants, so the impossible one has no spelling (plan §5.2); a missing capability is a compile error at the narrowest boundary; what a write affects is computed from its declared footprint; and a defined thing is referred to by typed reference, never by a string (plan rule 22). We have holes of our own to close first, and they are listed: the plan's ledger has a `Fn` whose declared return type nothing enforces, a capability accepted as a raw string, and public API that names things by string.
+
+**3. Routing, data fetching and progressive enhancement feel like afterthoughts.**
+
+What the source shows:
+
+- **Routing** is a flat union of typed routes. There are no nested routes or layouts; a layout is ordinary composition in the root's view. A route cannot say what data it needs. Guards are code in the root's `update`.
+- **Data** belongs to components. A query starts when its component mounts; there is no batching and no route-level or server-level loader. `Router.prefetch` warms a page's queries on link intent and navigation, and its documentation says "Nothing runs on the server"; nor on Back, Forward, reload or first load.
+- **The server** renders once inside a time budget; a fetch that misses it is left to the browser. There is no streaming.
+- **Before the script runs**: typed text survives, but "clicks and submits aren't kept". An instance still loading is inert. We found no way to declare that a form or link must work without script; that was not searched for exhaustively.
+
+Here these are the centre, not the edge, and mostly built: a Surface declares its reads and a route is bound to it, so one declaration feeds the browser, the preload, the server and the resume plan; a form posts its Message to the server and the same `update` answers it with no script at all (`docs/progressive-enhancement.md`, with end-to-end tests); and who may read or write is checked on the server from the same rule the form uses. See "Routing, data and the server".
+
+The design consequence for the successor: routing, declared data, the server and the no-script baseline are part of its first slice, not features added once a client runtime works.
+
 ## Stage 1: MetaKit
 
 **What it is.** `packages/metakit`: pure, inspectable expressions and single-step transitions over Effect Schema, with a reference evaluator and readers that must agree with it or refuse. Around it, a toolkit for defining small typed languages.
