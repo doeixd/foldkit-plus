@@ -349,7 +349,8 @@ const pnpmSteps = (name, project, top, adapters) => {
   const direct = new Set(commands.flatMap(command => command.split(' ')))
   const ours = [...tarballs].filter(([each]) => !direct.has(each))
   if (block[1] === 'yaml') {
-    const tarballLines = ours.map(([each, file]) => `  ${each}: 'file:${file}'`)
+    // YAML reserves `@` at the start of a plain key: a scoped name is quoted.
+    const tarballLines = ours.map(([each, file]) => `  '${each}': 'file:${file}'`)
     const merged = block[2].replace('overrides:\n', `overrides:\n${tarballLines.join('\n')}\n`)
     writeFileSync(target, `${readFileSync(target, 'utf8')}${merged}\n`)
   } else {
