@@ -28,8 +28,8 @@ export default [
     edits: [
       {
         file: '../src/abstract/ops.ts',
-        find: '    assume: (args, state) => {\n      const count = state.varOf(countOf(args[0]!))\n      if (Option.isSome(count)) state.zone.constrainLower(count.value, 1)\n    },',
-        replace: '    assume: () => {},',
+        find: "      state.drop('unsupported', 'arr.has')\n      const count = state.varOf(countOf(args[0]!))\n      if (Option.isSome(count)) state.zone.constrainLower(count.value, 1)\n",
+        replace: "      state.drop('unsupported', 'arr.has')\n",
       },
     ],
     tests,

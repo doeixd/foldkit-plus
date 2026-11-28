@@ -51,6 +51,13 @@ export class AbstractState {
   readonly pendingOrs: Array<readonly [Node.Node, Node.Node]>
   /** Each count of a list's passing elements, with the count of the whole list. */
   readonly counted: Array<readonly [count: Node.Node, bounds: CountBounds]>
+  /**
+   * The assumptions `assume` and `refute` could not read and so left out.
+   * Shared with every clone: a state that knows less admits more, so a
+   * refutation found in it, or in any branch split from it, may lie in a
+   * state a dropped rule excludes (#672).
+   */
+  readonly dropped: Array<{ readonly kind: 'unsupported' | 'opaque'; readonly detail: string }>
   zone: Zone
 
   constructor(
@@ -74,6 +81,7 @@ export class AbstractState {
       this.portableKeys = new Set(from.portableKeys)
       this.pendingOrs = [...from.pendingOrs]
       this.counted = from.counted
+      this.dropped = from.dropped
       this.zone = from.zone.clone()
       return
     }
@@ -90,6 +98,7 @@ export class AbstractState {
     this.portableKeys = new Set()
     this.pendingOrs = []
     this.counted = []
+    this.dropped = []
 
     for (const [key, info] of fields) {
       if (!info.nullable) this.nullFacts.set(key, false)
@@ -446,11 +455,16 @@ export class AbstractState {
         this.markValued(path)
       },
       Call: call => this.settle(call, true),
-      If: () => {},
-      Match: () => {},
-      Opaque: () => {},
-      Rows: () => {},
+      If: () => this.drop('unsupported', 'if'),
+      Match: () => this.drop('unsupported', 'match'),
+      Opaque: ({ name }) => this.drop('opaque', name),
+      Rows: ({ fold }) => this.drop('unsupported', `rows.${fold}`),
     })
+  }
+
+  /** Leave out an assumption this state cannot read, and say so (see `dropped`). */
+  drop(kind: 'unsupported' | 'opaque', detail: string): void {
+    this.dropped.push({ kind, detail })
   }
 
   /** Record that `node` evaluates to false. */
@@ -466,10 +480,10 @@ export class AbstractState {
         this.markValued(path)
       },
       Call: call => this.settle(call, false),
-      If: () => {},
-      Match: () => {},
-      Opaque: () => {},
-      Rows: () => {},
+      If: () => this.drop('unsupported', 'if'),
+      Match: () => this.drop('unsupported', 'match'),
+      Opaque: ({ name }) => this.drop('opaque', name),
+      Rows: ({ fold }) => this.drop('unsupported', `rows.${fold}`),
     })
   }
 
@@ -478,7 +492,7 @@ export class AbstractState {
     Match.valueTags(abstractOf(call.op, this.foreign), {
       Term: () => {},
       // A value of `null.coalesce` that is true says nothing this state holds.
-      Value: () => {},
+      Value: () => this.drop('unsupported', call.op.id),
       Predicate: row => {
         this.markPortable(call)
         if (call.op.nulls === 'strict') this.markOperands(call)

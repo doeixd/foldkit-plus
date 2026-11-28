@@ -110,6 +110,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `@doeixd/metakit`: `Abstract.checkInvariant`, `checkGoal` and `checkTransition` answer `Unknown`, not `False`, when they had to leave out an assumption they cannot read (a list fold, an `If` or `Match`, an opaque term, a text order, a membership, a custom operation): a refutation could otherwise lie in a state the left-out rule excludes. A proof stays a proof (#672).
 - `@doeixd/metakit/interpreter`: a prepared `Match` returns an `unportable` refusal when its subject contains a NUL character, matching reference evaluation.
 - `@doeixd/metakit`: `Node.mapRows` preserves `Related.cardinality`, `Transition.lift` respects `Rows` binders that shadow `state` (or `next`), and `Transition.lift` / `Machine.lift` throw at definition time when lifting along an `Option` field.
 - `@doeixd/metakit` leaves whole struct reads open in `Expr.judge` and `Expr.residualize` when the partial environment omits an optional key.

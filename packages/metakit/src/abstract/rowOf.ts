@@ -31,8 +31,8 @@ const foreignPredicate: PredicateOp = {
       'a foreign operation, which the checker cannot see into',
       Option.some({ kind: 'unsupported', detail: 'a foreign operation' }),
     ),
-  assume: () => {},
-  refute: () => {},
+  assume: (_, state) => state.drop('unsupported', 'a foreign operation'),
+  refute: (_, state) => state.drop('unsupported', 'a foreign operation'),
 }
 
 const foreignValue: ValueOp = { _tag: 'Value', unportable: true, valued: () => false }

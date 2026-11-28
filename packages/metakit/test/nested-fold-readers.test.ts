@@ -154,6 +154,11 @@ describe('nested list folds: Checker (Abstract.checkInvariant)', () => {
     Option.some({ kind: 'unsupported', detail: 'rows.every' }),
   )
 
+  const droppedEvery = Verdict.Unknown(
+    'refuted only without the rule it could not read: rows.every',
+    Option.some({ kind: 'unsupported', detail: 'rows.every' }),
+  )
+
   it('Abstract.checkInvariant leaves the cross-list nested fold Unknown as a goal, naming rows.every', () => {
     expect(Abstract.checkInvariant(BaseCatalog, crossListExpr)).toEqual(expectedUnknown)
     expect(Abstract.checkInvariant(CatalogCrossList, crossListExpr)).toEqual(expectedUnknown)
@@ -164,8 +169,8 @@ describe('nested list folds: Checker (Abstract.checkInvariant)', () => {
     expect(Abstract.checkInvariant(CatalogUnique, uniqueIdExpr)).toEqual(expectedUnknown)
   })
 
-  // Records #672: assume drops a fold rule, so the checker answers as if it were absent and refutes (False) on a Schema the rule makes unsatisfiable.
-  it('Abstract.checkInvariant silently ignores the cross-list nested fold when assumed as a Schema refinement', () => {
+  // A fold rule cannot be read, so the checker drops it and will not refute (False) past it (#672).
+  it('Abstract.checkInvariant answers Unknown, not False, past a cross-list nested fold it dropped', () => {
     const withRule = Abstract.checkInvariant(CatalogCrossList, nonEmptyResearchRequiresEra)
     const withoutRule = Abstract.checkInvariant(BaseCatalog, nonEmptyResearchRequiresEra)
     expect(withRule).toEqual(Verdict.Unknown('intervals overlap', Option.none()))
@@ -178,13 +183,10 @@ describe('nested list folds: Checker (Abstract.checkInvariant)', () => {
         Arr.every(c.research, research => Arr.any(c.eras, era => Eq.is(research.era, era.ordinal))),
       ),
     )
-    expect(Abstract.checkInvariant(ImpossibleCrossList, Expr.lit(false))).toEqual(
-      Verdict.False(Option.none()),
-    )
+    expect(Abstract.checkInvariant(ImpossibleCrossList, Expr.lit(false))).toEqual(droppedEvery)
   })
 
-  // Records #672, as above, for the uniqueness rule.
-  it('Abstract.checkInvariant silently ignores the uniqueness nested fold when assumed as a Schema refinement', () => {
+  it('Abstract.checkInvariant answers Unknown, not False, past a uniqueness nested fold it dropped', () => {
     const atMostOne = Ord.lte(Arr.count($.research), 1)
     const withRule = Abstract.checkInvariant(CatalogUnique, atMostOne)
     const withoutRule = Abstract.checkInvariant(BaseCatalog, atMostOne)
@@ -209,9 +211,7 @@ describe('nested list folds: Checker (Abstract.checkInvariant)', () => {
         ),
       ),
     )
-    expect(Abstract.checkInvariant(ImpossibleUnique, Expr.lit(false))).toEqual(
-      Verdict.False(Option.none()),
-    )
+    expect(Abstract.checkInvariant(ImpossibleUnique, Expr.lit(false))).toEqual(droppedEvery)
   })
 })
 

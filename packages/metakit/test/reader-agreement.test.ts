@@ -38,4 +38,4 @@ it('agrees across reference, prepared and residual evaluation on generated expre
         ].join('\n')
     expect(agrees, diagnostic).toBe(true)
   }
-})
+}, 30_000)

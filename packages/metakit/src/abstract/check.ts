@@ -69,6 +69,21 @@ const afterWrites = (node: Node.Node, writes: ReadonlyArray<Write>): Node.Node =
 const rulesUnder = (schema: Schema.Top, under: ReadonlyArray<string>): ReadonlyArray<Node.Node> =>
   Expr.rulesOf(schema).map(rule => Node.prefix(rule.expr.node, under))
 
+/**
+ * `verdict`, except that a refutation by a state that left out an assumption
+ * is `Unknown`: the counterexample may be one the dropped rule excludes. A
+ * proof stays one, since it holds with fewer assumptions (#672).
+ */
+const unlessDropped = (state: AbstractState, verdict: Verdict.Verdict<never>) => {
+  const [first] = state.dropped
+  return first === undefined || !Verdict.isFalse(verdict)
+    ? verdict
+    : Verdict.Unknown(
+        `refuted only without the rule it could not read: ${first.detail}`,
+        Option.some(first),
+      )
+}
+
 /** Tier 3 synchronous check: does `schema` entail `goal`? */
 export const checkInvariant = <S extends Schema.Top>(
   schema: S,
@@ -81,7 +96,7 @@ export const checkInvariant = <S extends Schema.Top>(
   const target = normalize(goal.node)
   const state = new AbstractState([...invariants, target], fields, undefined, options?.foreign)
   for (const inv of invariants) state.assume(inv)
-  return state.entails(target)
+  return unlessDropped(state, state.entails(target))
 }
 
 /**
@@ -175,7 +190,7 @@ export const checkGoal = <S extends Schema.Top, I, Emit, Sup>(
     ],
     options.foreign,
   )
-  return reachable ? state.entails(postGoals[0]!) : proved('zone')
+  return reachable ? unlessDropped(state, state.entails(postGoals[0]!)) : proved('zone')
 }
 
 /**
@@ -226,11 +241,11 @@ export const checkTransition = <S extends Schema.Top, I, Emit, Sup>(
     } else {
       overall = Verdict.and(overall, state.fits(value, whole))
     }
-    if (Verdict.isFalse(overall)) return overall
+    if (Verdict.isFalse(overall)) return unlessDropped(state, overall)
   }
   for (const goal of postGoals) {
     overall = Verdict.and(overall, state.entails(goal))
     if (Verdict.isFalse(overall)) break
   }
-  return overall
+  return unlessDropped(state, overall)
 }
