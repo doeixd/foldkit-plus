@@ -8,7 +8,7 @@
 import { fileURLToPath } from 'node:url'
 import { type Browser, chromium, type Page } from 'playwright'
 import { createServer, mergeConfig, type ViteDevServer } from 'vite'
-import { afterAll, beforeAll, expect, test } from 'vitest'
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 // Read through Vitest, which resolves the workspace sources (see theme.e2e.ts).
 import config from '../vite.config.js'
 import { showcases } from '../src/gallery/showcases.js'
@@ -63,19 +63,11 @@ const open = async (page: Page, path: string) => {
   )
 }
 
-// Every catalog page: a page added to the gallery is audited without a line here.
-const PAGES = showcases.map(showcase => showcase.slug)
-const PHONE_CONCURRENCY = 4
-
-test('every component page fits a phone with no page error', async () => {
-  const queue = [...PAGES]
-  const failures: Array<{
-    readonly slug: string
-    readonly errors: ReadonlyArray<string>
-    readonly overflow: number
-  }> = []
-  await Promise.all(
-    Array.from({ length: Math.min(PHONE_CONCURRENCY, queue.length) }, async () => {
+// Every catalog page: a page added to the gallery is audited without a line here. One test per page,
+// so a page that hangs fails under its own name instead of running the whole sweep out of time.
+describe.concurrent('every component page fits a phone with no page error', () => {
+  for (const { slug } of showcases) {
+    test(slug, async () => {
       const context = await browser.newContext({
         viewport: { width: 390, height: 844 },
         hasTouch: true,
@@ -83,28 +75,18 @@ test('every component page fits a phone with no page error', async () => {
       })
       try {
         const page = await context.newPage()
-        while (queue.length > 0) {
-          const slug = queue.shift()!
-          const errors: Array<string> = []
-          const onError = (error: Error) => errors.push(String(error))
-          page.on('pageerror', onError)
-          try {
-            await open(page, `/components/${slug}`)
-            // Measured against the layout viewport: a phone zooms out to fit an overflowing page.
-            const audit = await auditPhone(page)
-            if (errors.length > 0 || audit.overflow !== 0)
-              failures.push({ slug, errors, overflow: audit.overflow })
-          } finally {
-            page.off('pageerror', onError)
-          }
-        }
+        const errors: Array<string> = []
+        page.on('pageerror', error => errors.push(String(error)))
+        await open(page, `/components/${slug}`)
+        // Measured against the layout viewport: a phone zooms out to fit an overflowing page.
+        const audit = await auditPhone(page)
+        expect({ errors, overflow: audit.overflow }).toEqual({ errors: [], overflow: 0 })
       } finally {
         await context.close()
       }
-    }),
-  )
-  expect(failures).toEqual([])
-}, 300_000)
+    })
+  }
+})
 
 test('the toolbar has one tab stop and the arrows move along it, skipping the disabled link', async () => {
   const context = await browser.newContext()
