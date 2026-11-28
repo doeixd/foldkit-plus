@@ -56,7 +56,7 @@ The right-hand column is the whole of the newest layer (`#645`–`#648`). It has
 ### 2.2 What is true today that the documents get wrong
 
 - **CI is red.** On `main` the run for the `#610` merge failed in `examples/site/e2e/components.e2e.ts` (a timeout). On `ui-polish` the latest run failed `examples/cloudflare/test/media.test.ts` (500 where 403 was expected); the two before failed a Worker bundle ceiling and a typecheck. None is in MetaKit's own tests.
-- **The package cannot be published under its name.** `metakit` on npm is another project's package. `foldkit-metakit`, `@metakit/*` and `metakit-ts` are unclaimed. See §9.
+- **The package cannot be published under its name.** `metakit` on npm is another project's package. The working name is `@doeixd/metakit` (§9.2), which is free.
 - **The operator count is stated four ways.** There are 50 core operators (`CoreOpId`, `ops/table.ts`). `node.ts` line 3, `index.ts`, the README (twice) and the skill reference say 33; `node.ts` line 15 and `docs/semantics.md` say 50.
 - **The README names `Node.foreign`**, removed in `9a7a0d72f`, and its subpath table omits nine entries.
 - **`metakit-unification-PLAN.md` says phases 4, 6, 7 and 9 are not started; `-HANDOFF.md` says all are done.** The LEDGER records gates that were missed and then counted: the binder ships 54.6 kB against a 20 kB bar and blocks 1,357–1,512 ms against 200 ms (it stayed opt-in, which the plan allowed, but the "done when" was not met); the Todo handler ratio is 1.57 against 1.5.
@@ -343,7 +343,7 @@ Both were checked to exist on this machine (`agy` 1.5.18, `codex-cli` 0.160.0) a
 4. **Close the old plans honestly.** Add a status line to `metakit-unification-PLAN.md`, `-HANDOFF.md`, `metakit-phases-2-6-PLAN.md`, `metakit-next-slice-PLAN.md` and `metakit-fn-PLAN.md`: superseded by this file on 2026-11-28, with the gates that were missed (§2.2) named in the HANDOFF. Fix the "seetest" typo in `metakit-phases-2-6-PLAN.md`, which is an uncommitted stray edit.
 5. **Issue hygiene.** On `#640`, `#641`, `#642`: find the fix in `5a4ec42f4`, and comment with what was chosen (for `#641`: lifted, or refused loudly). On `#638`: test whether SQL, the checker and the prover read a nested fold or refuse it by name, and record which. Reopen any whose acceptance is not met.
 6. **File the defects.** One issue per High and Medium entry of §6, each with the entry's input, linked from this ledger. Low entries go in one tracking issue.
-7. **The name** (§9): decide, then rename in one commit.
+7. **The name:** rename to `@doeixd/metakit` (§9.2) in one commit: the package's `name`, the 16 dependents' `package.json`, every `from 'metakit…'` import, the tsconfig paths, the `packages/plus` wrappers, the documents and the skill. The coordinator runs `pnpm install` for the lockfile. Nothing is published in this step.
 
 *Done when:* CI is green on the branch; a grep for "33" in MetaKit's documents finds nothing; the count test exists; every old plan carries its status line; every High and Medium defect has an issue number in §6.
 
@@ -492,7 +492,7 @@ Everything before this fixes what was known. W10 looks for what was not, across 
 1. **Three independent auditors per dimension**, one from each model family (the coordinating Claude session on the default model, Gemini, Codex), each given the code and the dimension's question, and none given this plan's conclusions or each other's findings. Split the package by area so no auditor holds more than it can read whole.
 2. **Merge and verify.** Each finding is settled by a failing test, a compile error or a probe before it is believed. A finding two families report independently is prioritised; one that cannot be reproduced is struck with the reason.
 3. **Fix** by the recipe in §0, most severe first.
-4. **Audit again** the areas that changed. Stop when a round finds no High and no Medium. After three rounds with High or Medium findings still appearing, stop and ask the maintainer: that pattern means a design problem, not a list of bugs.
+4. **Audit again** the areas that changed. Stop when a round finds no High and no Medium. After three rounds with High or Medium findings still appearing, stop fixing one by one: that pattern means a design problem, not a list of bugs. Record it in §9.3 and decide by §9.1 what to redesign or narrow, then tell the maintainer what was found and decided.
 5. **Record** in `docs/design/metakit-AUDIT.md`: the seed and counts of every generated run, every finding with its fate, every survivor's reason, the before and after of each count, and what was not examined.
 
 *Done when:* the last round finds no High or Medium; the audit document is committed; CI is green. Then, and only then, W8 step 4 (release).
@@ -501,10 +501,25 @@ Everything before this fixes what was known. W10 looks for what was not, across 
 
 ## 9. Decisions
 
-### Made in this plan
+### 9.1 How a decision is made
+
+The maintainer's instruction (2026-11-28): whenever this plan needs a decision, record it, and have Fable (the coordinating Claude session on the default model) research it and decide.
+
+1. **Record it first**, as a row in §9.3 with status *open*: the question in one sentence, where it came up (a step, a defect, a builder's report), and what is blocked on it.
+2. **A builder never decides.** If Gemini or Codex meets a choice the brief did not settle, it stops and reports the choice; it does not pick one and carry on. Say this in every brief.
+3. **Fable researches**: reads the source and the designs in §3.2 (a settled decision is not reopened without new evidence), probes what can be probed, and looks up what the databases, Effect or the upstream project actually do. A decision made from memory of how a library behaves is not researched.
+4. **Fable decides and writes it down** in the same row: the decision, the alternatives rejected and why, the evidence (file and line, a probe's output, a source link), and what would change it. Then the work continues. No list of options is handed back.
+5. **A decision that shapes a published API** also gets a line in the changelog and, where it is large, a design note.
+
+Two things stay with the maintainer, because they cannot be undone or are his to own: anything published or sent outside this repository (an npm publish, a post on another project, a deploy), and anything he has already decided. Those are confirmed with him, not decided for him.
+
+### 9.2 Decided
 
 | Decision | Reason |
 |---|---|
+| **The package is published as `@doeixd/metakit`** (maintainer, 2026-11-28: "might have to be"). The name is free on npm; `metakit` is another project's. Treat it as the working name: the rename is one mechanical commit in W0 step 7, across 16 packages' `package.json` and every `from 'metakit…'` import, and the publish itself waits for W10 and the maintainer's go-ahead | `metakit` is taken; a scope the maintainer owns needs nothing claimed |
+| **`NUL` and `NaN` (K6): follow what Postgres and SQLite do**, then make `semantics.md` say exactly that. W1 step 2 probes both databases for a NUL in a `CASE` label and for null-safe equality over NaN, and records the outputs here before changing code | §3.2: "the meaning SQL has wins" is a settled decision, and K6 is an instance of it |
+| **The successor (`#612`): an Effect UI adapter first; a separate runtime only on measured evidence** | The 2026-11-26 comments on `#612`, `#635`, `#637`, `#643` and `#644` already say so, after upstream declined a second rendering model |
 | Fix before build: W1 and W2 precede any new surface | §3.4: five review rounds, each finding Critical or High items after the feature landed |
 | The corpus is written after the kernel defects are fixed | It freezes answers another repository copies |
 | Checked is the default; trusted is opt-in by name (W2) | A guarantee that must be opted into is lost in composition |
@@ -513,11 +528,19 @@ Everything before this fixes what was known. W10 looks for what was not, across 
 | `syntax.grammar` needs a second consumer or leaves | Rule 4.3 |
 | The older MetaKit plans are closed as history | Their status tables contradict each other |
 
-### The maintainer's
+### 9.3 Register
 
-1. **The package name.** `metakit` is taken on npm. Options: `foldkit-metakit` (matches the `foldkit-*` convention; contradicts "MetaKit must not depend on Foldkit" only in name); `@doeixd/metakit` or an `@metakit/*` scope (keeps the identity; needs the scope claimed); another word. Whichever is chosen, 16 packages' `package.json` and every `from 'metakit…'` import change in one mechanical commit. **Recommendation:** claim the `@metakit` scope if it is free and publish `@metakit/core`, since extraction is the stated end state; otherwise `foldkit-metakit`.
-2. **K6:** make the documents true by screening more, or narrower by saying less. Recommendation in W1 step 2: follow what the databases do.
-3. **How much of `#612` remains the goal** after upstream declined a second rendering model. W7 assumes "an adapter first, a successor only on evidence", which is what the 2026-11-26 comments say.
+Decisions the plan already knows it will need. Each is decided by §9.1 when its workstream reaches it; add rows as questions arise.
+
+| # | Question | Arises in | Status |
+|---|---|---|---|
+| 1 | Is the unchecked form ever the default? (A symbolic `Fn` call carrying its precondition; rewrites requiring evidence.) The plan's leaning is checked by default; the cost on call-site ergonomics and on existing callers is not yet measured | W2 step 2 (T2, T8) | open |
+| 2 | How `Fn` and `Operation.derived` converge: one constructor, or a derived operation that accepts a function with contracts | W3 step 2 | open |
+| 3 | Does `Language` earn its place over a plain object of operations once T6 and T11 are fixed | W3 step 2 | open |
+| 4 | Does `syntax.grammar` stay | W5 step 2 decides by use | open |
+| 5 | Which files split where, and the byte, instantiation and ceremony budgets | W3 steps 5 and 8 | open |
+| 6 | What `T1`'s fix is: leave a checked call unexpanded, or return its refinements beside the expansion | W2 | open |
+| 7 | Whether a builder may commit for single-file steps, after the first delegated steps show how each agent behaves | §8.0, after W0 | open |
 
 ---
 
