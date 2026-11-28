@@ -627,7 +627,9 @@ const evaluateStep = <State, Input, Emit, Supplied>(
  * `state` with `value` at `target`. Where the field holds an `Option`, the
  * value is stored as `Option.some(value)`, and null as `Option.none()`; one
  * that reads as the value already leaves `state` as it was. A write inside
- * an `Option` is refused: it has no field to write until it holds a value.
+ * an `Option` is refused: it has no field to write until it holds a value. A
+ * write under a null or absent parent is refused too, so it never invents a
+ * partial struct.
  */
 const writeAt = <State>(
   state: State,
@@ -645,6 +647,17 @@ const writeAt = <State>(
     return Result.fail(
       new Refused({
         reason: `"${Path.format(target)}" is inside the Option at "${Path.format(target.slice(0, inside + 1))}": write the whole value`,
+      }),
+    )
+  }
+  const missing = target.slice(0, -1).findIndex((_, index) => {
+    const held = Path.get(Path.make<State, unknown>(target.slice(0, index + 1)), state)
+    return Option.isNone(held) || held.value === null || held.value === undefined
+  })
+  if (missing !== -1) {
+    return Result.fail(
+      new Refused({
+        reason: `"${Path.format(target)}" is under "${Path.format(target.slice(0, missing + 1))}", which holds no value: write the whole value`,
       }),
     )
   }

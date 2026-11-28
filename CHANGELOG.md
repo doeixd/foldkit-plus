@@ -105,6 +105,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `@doeixd/metakit`: a transition refuses a write under a field that holds null or is absent, which made a partial struct the state Schema does not admit; write the whole value instead (#652).
 - `@doeixd/metakit`: `Expr.judge` and `residualize` no longer fold `x == x` to true over a list of text that may hold a NUL, which evaluation refuses (#650).
 - `@doeixd/metakit`: `Transition.can` applies the `rewritePolicy` it is given, and `intent` and `affordances` take reader options (custom operations' implementations and the rewrite policy) as an optional last argument (#651).
 - `@doeixd/metakit` docs: `semantics.md` and the `Refusal` doc comment no longer say that no operator absorbs a refusal. `null.coalesce` does not read its fallback where its first operand has a value, and an `any` or `every` fold settles past a refused element, as SQL's `EXISTS` does (#654).
