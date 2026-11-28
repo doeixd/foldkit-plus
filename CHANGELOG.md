@@ -9,6 +9,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Breaking
 
+- `@doeixd/metakit`: `Transition.Refused` carries `why: Transition.Why`, a tagged union of what refused (input, supplied value, unknown message, guard false or null, guard refused with its refusal, a write or emit refused, an unwritable target). `reason` and `message` are read from it, and `new Refused({ reason })` is gone (#653).
 - `@doeixd/metakit`: `Eq.is`, `Eq.isNot` and `Eq.in` refuse NaN, as `Eq.equals` and ordering do, and a `Match` refuses a subject holding a NUL; a `Match` case label holding a NUL throws where it is built (#655).
 - `@doeixd/metakit/artifact`: fingerprints change for rules with a free path whose first segment starts with `$`. `ArtifactLimits` gains `maxStringLength` (65,536 UTF-16 code units by default), `ArtifactLimitError.kind` gains `'string'`, and `encodeExpr` and `fingerprint` can return `ArtifactDecodeError` for calls with the wrong arity.
 - MetaKit is now `@doeixd/metakit`. Replace imports of `metakit` and `metakit/*` with `@doeixd/metakit` and `@doeixd/metakit/*`.
