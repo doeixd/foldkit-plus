@@ -237,6 +237,79 @@ Never in a hash: names, documentation, source positions, test evidence, the Type
 - A server never runs a definition a client sent. It resolves a hash against its own manifest, or refuses.
 - Ordinary evaluation never hashes anything.
 
+### 5.2 Phases: a machine whose states are named
+
+**The problem**, as a public critique of an Effect UI component put it (2026-11-27): a dialog modelled as `{ open: boolean, asking: boolean, … }` has four combinations of which one is impossible; `asking: false` is reset by hand in six handlers; and the one real decision (close, or ask first) is hidden in a ternary inside a handler. MetaKit today answers only the third well. An invariant plus `Prove.machine` *catches* the impossible state but does not make it unrepresentable; the resets are as repetitive as anywhere; and there is no named state, so nothing says "this transition goes from Editing to Confirming" (`#612` mentions "named domain phases" once, with no design).
+
+**The design, in one sentence:** a phase is a variant of a tagged union in the state Schema, a transition names the phases it leaves and the phase it enters, and all of it lowers to guards and writes the kernel already has.
+
+```ts
+// Illustrative; not compiled. Names are settled in §9.3.
+const Dialog = Schema.Struct({
+  saved: Schema.String,
+  phase: Schema.Union([
+    Schema.TaggedStruct('Closed', {}),
+    Schema.TaggedStruct('Editing', { draft: Schema.String }),
+    Schema.TaggedStruct('Confirming', { draft: Schema.String }),
+  ]),
+})
+
+const DialogMachine = Machine.make({
+  state: Dialog,
+  phase: state => state.phase,
+  transitions: ({ from }) => ({
+    Open: from('Closed').to('Editing', ({ state }) => ({ draft: state.saved })),
+    Edit: from('Editing').to('Editing', ({ input }) => ({ draft: input.value })),
+    RequestClose: from('Editing').choose(({ phase, state }) => [
+      { when: Eq.is(phase.draft, state.saved), to: 'Closed' },
+      { otherwise: true, to: 'Confirming', with: { draft: phase.draft } },
+    ]),
+    KeepEditing: from('Confirming').to('Editing', ({ phase }) => ({ draft: phase.draft })),
+    Discard: from('Confirming').to('Closed'),
+    Save: from('Editing', 'Confirming').to('Closed', undefined, ({ phase, state }) => [
+      Transition.set(state.saved, phase.draft),
+    ]),
+  }),
+})
+```
+
+What each part does to the three complaints:
+
+- **The impossible state cannot be written down.** There is no `asking` flag; "asking" is the `Confirming` variant, and a closed dialog has no draft at all.
+- **Nothing is reset by hand.** Entering a phase replaces the whole variant, so the fields of the phase being left are gone. No handler mentions them.
+- **The decision is an edge.** `RequestClose` has two named outcomes with their conditions, as data.
+
+**Why this shape and not another.**
+
+- *Effect Schema stays the type authority (rule 7).* The phases are an ordinary union of `TaggedStruct`s. There is no phase type of MetaKit's own, and a model with no declared phase is still a valid machine.
+- *It is derived, not a new kernel concept (rule 4.3).* `from('Editing')` is the guard conjunct `Eq.is(state.phase._tag, 'Editing')`. `to('Closed')` is a write. So every reader works unchanged: SQL sees a tag column and nullable payload columns, the prover sees an equality fact it already case-splits on, the dependency graph sees the paths written, the Reffect adapter sees a text slot. `Expr.matchTags` already reads such a union.
+- *One message, several outcomes, without relying on order.* `choose` lowers each alternative to its own transition whose guard is its condition **and the negation of every earlier one**, so exactly one can fire. A statechart resolves this by document order; here the alternatives are disjoint by construction, which a reader can rely on. Today a machine holds one transition per message tag, so this is the one change to `Machine`'s shape.
+- *Inside `from('Editing')`, `phase.draft` is typed and never null.* The narrowed accessor is what `matchTags` already hands a branch.
+- *A flat set of phases, on purpose.* Nested states are `Machine.lift` and `Machine.compose`, which exist. "From any of these states" is `from('Editing', 'Confirming')`. History states, parallel regions and entry or exit actions are not built until an example needs one: with whole-variant replacement, the usual reason for an entry action (resetting fields) is gone.
+
+**What it needs that does not exist.**
+
+1. **A write that replaces a struct or variant from field expressions.** Expressions are scalar; nothing builds `{ _tag: 'Confirming', draft: <expr> }`. The kernel's idiom for this already exists in list writes: `Transition.append(list, { id: …, title: input.title })` takes a record of field expressions. The addition is the same for a single value: a `replace` way of writing whose value is a record of field expressions and whose target is a struct or union path. This is a thirteenth way of writing, against a settled "the set is fixed", so it goes through admission: every reader's answer (evaluation builds the value; SQL sets the tag and payload columns and nulls the rest; the prover assigns the fields; the graph records the target; a bundle carries one write value per slot), conformance vectors, and its commute and idempotence properties in `writeProperties`.
+2. **`Machine` accepting several transitions for one message**, produced only by `choose`.
+3. **The phase helpers** (`from`, `to`, `choose`) in `metakit/machine`, built from the public API.
+
+A phase with no payload needs none of item 1: `Schema.Literals(['closed', 'editing', 'confirming'])` and `Transition.set` work today. So phases can ship on a literal field first, and gain payloads when `replace` lands.
+
+**What falls out once edges are data.**
+
+- **A state diagram** generated from the machine, never drawn by hand.
+- **Reachability:** a phase no edge enters; a phase no edge leaves; an edge whose guard the prover shows can never hold.
+- **A phase-by-message table:** for each phase, which messages move it and where, and which are refused. The gaps are visible instead of discovered.
+- **Invariants scoped to a phase.** "A confirming dialog has unsaved changes" is a refinement on the `Confirming` variant's Schema, and `Prove.machine` checks every edge into `Confirming` establishes it.
+- **A database constraint for free:** payload columns are null unless the tag matches.
+- **Affordances per phase**, from the `affordances` that exists.
+
+**Risks to settle by probe before building.**
+
+- Whether TypeScript infers the phase names and each variant's fields through the `({ from }) => …` callback with no annotations. `matchTags` suggests yes; a type test decides.
+- What the reference evaluator does today when a transition writes a field under a union variant that is not the current one (related to K3).
+- What upstream Effect UI ships. The critique ended "not for long", so they may add states themselves. W7 reads their source first; if they ship a state model, the adapter maps a phase machine onto it instead of competing.
+
 Questions this table raises, which W3 answers:
 
 - **`Fn` and `Operation.derived` overlap.** A derived operation adds a named identity and a Schema refusal at the call, but refuses any `Fn` that has a `where`, an `ensures` or obligations. So contracts and identity cannot be had together today.
@@ -481,6 +554,13 @@ This is Phase A of [`598-612-metakit-reffect-adapter-PLAN.md`](./598-612-metakit
 3. **The flagship, non-UI slice** `#645` asks for: a reservation or inventory rule with an invariant, a guarded write and a custom operation; one definition read by evaluation, a SQL lowering, the checker and an agent-readable description, with an explicit list of what each reader does not support.
 4. **A third-party fixture** (`#597`, 2026-11-23): a custom operator declared outside the package, used in a child transition's guard, lifted into a parent, compiled for SQLite first without its lowering (the refusal must name the operator, the target and the transition) and then with it.
 
+5. **Phases** (§5.2), in three stages, each usable alone:
+   1. **Probe** the two open risks: the inference type test, and what a write under a non-current variant does today. Record both in §9.3.
+   2. **Phases over a literal field**: `phase`, `from`, `to` and `choose` in `metakit/machine`, several transitions per message in `Machine`, the generated state diagram, the reachability checks and the phase-by-message table. No kernel change. The example is the dialog of §5.2 with `phase: Schema.Literals([...])` and the draft as an ordinary field.
+   3. **Phases with payloads**: the `replace` way of writing, through admission (§4.3), then the tagged-union form of the same dialog, with the phase-scoped invariant proved and the SQL constraint emitted.
+
+   *Tier:* judgement for the API shape and for `replace`; ordinary for the diagram and tables. *Done when:* the §5.2 dialog compiles with no annotations and no casts; the impossible state is a type error to construct; `Prove.machine` proves the phase-scoped invariant; the diagram and table are generated in a test; every reader either reads `replace` or refuses it by name.
+
 Every place one of these needs a cast, a private import or a repeated signature is a defect in the toolkit, filed and fixed, not worked around in the example.
 
 *Done when:* all four exist under `examples/metakit`, compile without casts, and run in CI; the list of what each exposed is written into the inventory.
@@ -610,6 +690,9 @@ Decisions the plan already knows it will need. Each is decided by §9.1 when its
 | 9 | How a call reaches its derived operation's body for hashing: the descriptor carries the definition, or a table is supplied. Leaning: the descriptor | W4 step C3 | open |
 | 10 | Whether a derived operation still needs a hand-written `version` once it is named by its content. Leaning: keep `id@version` as the name people read and the wire reference; the hash decides sameness | W4 step C3 | open |
 | 11 | Where stored evidence lives for C6: a committed file, the CI cache, or both | W4 step C6 | open |
+| 12 | Phases: the names (`from`/`to`/`choose`, `replace`), and whether the builder is a callback on `Machine.make` or a separate constructor | W5 step 5 | open |
+| 13 | Whether `replace` is a new way of writing or `Transition.set` accepting a record of field expressions when its target is a struct. Leaning: a new way, since its commute and idempotence properties differ from a scalar `set` | W5 step 5, stage 3 | open |
+| 14 | What a phase machine maps to in Effect UI, once upstream's own answer to the same critique is known | W7 step 1 | open |
 
 ---
 
