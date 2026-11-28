@@ -13,10 +13,29 @@
  * `fractionBesideInteger` says whether SQL lowering refuses a node for a
  * fraction beside an integer term, for a reader that must refuse as SQL does.
  */
-export { call, isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
+import { isForeign, type AnyOp } from './node.js'
+import { call as callNode, type ExprInput } from './ops/core.js'
+import { coreArity } from './ops/table.js'
+import type { Expr } from './path.js'
+
+export { isExpr, toNode, wrap, type ExprInput } from './ops/core.js'
 export { evalNode, type ForeignImplementation, type ForeignImplementations } from './ops/eval.js'
 export { fractionBesideInteger } from './ops/integerTerm.js'
 export { judgeNode, settleNode, Settled } from './ops/judge.js'
 export { readsOfNode } from './ops/reads.js'
 export { loadRows } from './ops/rowsLoad.js'
 export { residualizeNode } from './ops/residualize.js'
+
+/** Build a core or foreign call. Throws if a core operator gets the wrong number of arguments. */
+export const call = <Env, A>(
+  op: AnyOp,
+  args: ReadonlyArray<ExprInput<Env, unknown>>,
+): Expr<Env, A> => {
+  if (!isForeign(op)) {
+    const expected = coreArity[op.id]
+    if (args.length !== expected) {
+      throw new Error(`[metakit] ${op.id} expects ${expected} arguments, got ${args.length}`)
+    }
+  }
+  return callNode(op, args)
+}

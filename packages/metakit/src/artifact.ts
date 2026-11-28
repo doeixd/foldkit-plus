@@ -848,7 +848,7 @@ const decodeAgainstRoot = <Env, A>(
       version: number,
     ): Effect.Effect<AnyOperation, UnknownOperationError> => {
       const key = Node.foreignName({ id, version })
-      if (foreignAllow !== undefined && !foreignAllow.has(key)) {
+      if (!Node.isForeignAllowed(key, foreignAllow)) {
         return Effect.fail(
           new UnknownOperationError({
             op: key,

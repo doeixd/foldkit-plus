@@ -234,7 +234,7 @@ const entrySubExprs = (
             list.push({ label: `emit:${e.tag}:${field}`, expr: wrap<never, unknown>(node) })
           }
         }
-        if (transition.ensures !== undefined && Option.isSome(transition.ensures)) {
+        if (Option.isSome(transition.ensures)) {
           list.push({ label: 'ensures', expr: transition.ensures.value })
         }
         return list
@@ -301,10 +301,9 @@ const fingerprintTransition = (
         return { tag: e.tag, when: whenArt, fields }
       }),
     )
-    const ensuresEncoded =
-      transition.ensures !== undefined && Option.isSome(transition.ensures)
-        ? Artifact.canonicalJson(yield* Artifact.encodeExpr(transition.ensures.value))
-        : null
+    const ensuresEncoded = Option.isSome(transition.ensures)
+      ? Artifact.canonicalJson(yield* Artifact.encodeExpr(transition.ensures.value))
+      : null
 
     const canonicalPayload = JSON.stringify({
       kind: 'transition',

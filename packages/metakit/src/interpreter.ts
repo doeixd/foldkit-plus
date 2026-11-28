@@ -138,8 +138,7 @@ const filterForeign = (
   if (allowlist === undefined) return table
   const filtered: Record<string, Expr.ForeignImplementation> = {}
   for (const [key, impl] of Object.entries(table)) {
-    const baseId = key.split('@')[0] ?? key
-    if (allowlist.has(key) || allowlist.has(baseId)) {
+    if (Node.isForeignAllowed(key, allowlist)) {
       filtered[key] = impl
     }
   }
@@ -236,9 +235,9 @@ export const withForeign = (foreign: Expr.ForeignImplementations): Layer.Layer<n
 
 /**
  * Sandbox layer: restricts the current `Interpreter`'s `foreign` implementations
- * (including any caller-supplied `step` options) to only those whose ids appear
- * in `allowedForeignOps`. Any disallowed foreign op is omitted so evaluation
- * refuses it cleanly with `Node.Refusal`.
+ * (including any caller-supplied `step` options) to only those whose exact
+ * `id@version` names appear in `allowedForeignOps`. Any disallowed foreign op
+ * is omitted so evaluation refuses it cleanly with `Node.Refusal`.
  */
 export const withAllowlist = (allowedForeignOps: ReadonlySet<string>): Layer.Layer<never> =>
   Layer.effect(

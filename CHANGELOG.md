@@ -9,6 +9,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Breaking
 
+- `@doeixd/metakit/operation`, `@doeixd/metakit/interpreter`: `Operation.define` throws when an operation id contains `@`, and `Interpreter.withAllowlist` matches exact `id@version` foreign names (matching `@doeixd/metakit/artifact`) instead of matching bare ids before `@`.
+- `@doeixd/metakit`: `Transition.ensures` is now a required `Option.Option` (`Option.none()` when absent) on every transition constructor, and `Transition.lift` carries and rewrites the inner transition's `ensures` postcondition across `state` and `next`.
 - `@doeixd/metakit`: `Transition.Refused` carries `why: Transition.Why`, a tagged union of what refused (input, supplied value, unknown message, guard false or null, guard refused with its refusal, a write or emit refused, an unwritable target). `reason` and `message` are read from it, and `new Refused({ reason })` is gone (#653).
 - `@doeixd/metakit`: `Eq.is`, `Eq.isNot` and `Eq.in` refuse NaN, as `Eq.equals` and ordering do, and a `Match` refuses a subject holding a NUL; a `Match` case label holding a NUL throws where it is built (#655).
 - `@doeixd/metakit/artifact`: fingerprints change for rules with a free path whose first segment starts with `$`. `ArtifactLimits` gains `maxStringLength` (65,536 UTF-16 code units by default), `ArtifactLimitError.kind` gains `'string'`, and `encodeExpr` and `fingerprint` can return `ArtifactDecodeError` for calls with the wrong arity.
@@ -108,6 +110,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `@doeixd/metakit`: `Node.mapRows` preserves `Related.cardinality`, `Transition.lift` respects `Rows` binders that shadow `state` (or `next`), and `Transition.lift` / `Machine.lift` throw at definition time when lifting along an `Option` field.
+- `@doeixd/metakit` leaves whole struct reads open in `Expr.judge` and `Expr.residualize` when the partial environment omits an optional key.
+- `@doeixd/metakit` builds balanced trees for `Expr.all` and `Expr.any`, so expression depth grows logarithmically and refusals still follow term order. Rebuilding expressions with three or more terms can change their artifact fingerprints (#671).
+- `@doeixd/metakit` reads `-0` as `0` when a path returns a number, and arithmetic refuses integer results past the safe range even when an operand is fractional (#671).
+- `@doeixd/metakit` returns an `unmatched` refusal for a `Match` with an unprintable subject. `@doeixd/metakit/build`'s `call` throws at construction if a core operator gets the wrong number of arguments (#671).
 - `@doeixd/metakit/artifact`: encoding and decoding count literal values toward the node limit, enforce the same depth and string limits, and reject calls with the wrong arity. Canonicalization escapes free `$` path heads so they cannot collide with `Rows` binders (#656, #657).
 - `@doeixd/metakit`: a transition refuses a write under a field that holds null or is absent, which made a partial struct the state Schema does not admit; write the whole value instead (#652).
 - `@doeixd/metakit`: `Expr.judge` and `residualize` no longer fold `x == x` to true over a list of text that may hold a NUL, which evaluation refuses (#650).

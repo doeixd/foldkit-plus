@@ -308,6 +308,7 @@ const build = (write: AnyWrite): WriteTransition => {
     when: wrap(joined(Bool.andOp, guard)) as WriteTransition['when'],
     writes,
     emits: [],
+    ensures: Option.none(),
   })
 }
 

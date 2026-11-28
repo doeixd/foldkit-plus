@@ -325,6 +325,11 @@ export const define = <
       `[metakit] Operation.define: "${id}" is under the core prefix "${reserved}"; choose an id outside ${Node.RESERVED_PREFIXES.join(', ')}.`,
     )
   }
+  if (id.includes('@')) {
+    throw new Error(
+      `[metakit] Operation.define: "${id}" contains "@", which separates an operation id from its version; choose an id without "@".`,
+    )
+  }
   if (!Number.isSafeInteger(spec.version) || spec.version < 1) {
     throw new Error(
       `[metakit] Operation.define: the version of "${id}" is ${String(spec.version)}; a version is a positive integer, and a changed meaning takes a new one.`,

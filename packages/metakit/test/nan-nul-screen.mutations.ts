@@ -29,7 +29,7 @@ export default [
     edits: [
       {
         file: '../src/ops/eval.ts',
-        find: "  if (Node.holdsNul([target])) return { value: Node.unportable('match') }\n",
+        find: "  if (matchHoldsNul(target)) return { value: Node.unportable('match') }\n",
         replace: '',
       },
     ],

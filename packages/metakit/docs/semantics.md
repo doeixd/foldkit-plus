@@ -20,6 +20,7 @@ Evaluation of a node against an environment produces one of four outcomes:
 - **Predicates:** a rule or guard holds **only** when it evaluates to `true`. `false`, `null`, and `Refusal` do not hold.
 - **Text normalization:** strings are compared after replacing lone UTF-16 surrogates with `U+FFFD` (`Node.wellFormed`), matching Postgres and SQLite drivers. Text holding `\u0000` is refused (`unportable`) by every equality (`eq.is`, `eq.isNot`, `eq.in`, `eq.equals`, `eq.among`) in any operand or candidate, and by a `Match` in its subject, before null decides: Postgres cannot hold such text and SQLite can. A `Match` case label holding `\u0000` is an error where the expression is built.
 - **Numbers:** integer arithmetic refuses results outside `Number.MIN_SAFE_INTEGER..Number.MAX_SAFE_INTEGER` (`unsafe-integer`). Ordering (`ord.lt`, `ord.lte`, `ord.gt`, `ord.gte`) and every equality (`eq.is`, `eq.isNot`, `eq.in`, `eq.equals`, `eq.among`) refuse `NaN` in any operand or candidate (`non-finite`), before null decides: Postgres holds NaN equal to itself and above every number, and SQLite stores it as NULL.
+  A `-0` read from the environment reads as `0`, as arithmetic results do.
 
 ## 2. Five-Reader Capability & Evidence Matrix
 

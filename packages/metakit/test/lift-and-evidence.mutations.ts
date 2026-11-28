@@ -14,31 +14,9 @@ export default [
     edits: [
       {
         file: '../src/transitionLift.ts',
-        find: `        run: env => {
-          const outer = env as TransitionEnv<unknown, unknown, unknown>
-          const innerState = Path.get(Path.make<unknown, unknown>(outerSegments), outer.state)
-          // No child to run over: null, as a read of it is.
-          return Option.match(innerState, {
-            onNone: () => null,
-            onSome: state => {
-              if (state === null || state === undefined) return null
-              const known = projected.get(outer)
-              if (known !== undefined) return fn(known)
-              const projectedEnv = { ...outer, state }
-              projected.set(outer, projectedEnv)
-              return fn(projectedEnv)
-            },
-          })
-        },`,
-        replace: `        run: env => {
-          const outer = env as TransitionEnv<unknown, unknown, unknown>
-          const innerState = Path.get(Path.make<unknown, unknown>(outerSegments), outer.state)
-          return Option.match(innerState, {
-            onNone: () => null,
-            onSome: state =>
-              state === null || state === undefined ? null : fn({ ...outer, state }),
-          })
-        },`,
+        find: `              const known = projected.get(outer)
+              if (known !== undefined) return fn(known)`,
+        replace: '',
       },
     ],
     tests,

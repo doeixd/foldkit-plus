@@ -5,6 +5,7 @@
  */
 import { Option, SchemaAST } from 'effect'
 import * as Path from '../path.js'
+import { normalizeRead } from './eval.js'
 import { present } from './kind.js'
 
 const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> => {
@@ -16,8 +17,8 @@ const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown
 /**
  * Whether `value` is all of what `ast` describes. A partial environment may
  * hold some of a struct's fields, so a plain object is whole only against a
- * struct Schema whose every required key it holds; with no Schema to compare
- * it to, it may be a part and the read stays unknown.
+ * struct Schema whose every declared key it holds. A missing optional key
+ * still leaves the read open to a completion that supplies it.
  */
 const isWhole = (value: unknown, ast: Option.Option<SchemaAST.AST>): boolean => {
   if (!isPlainObject(value)) return true
@@ -27,9 +28,7 @@ const isWhole = (value: unknown, ast: Option.Option<SchemaAST.AST>): boolean => 
   return structs[0]!.propertySignatures.every(property => {
     if (typeof property.name !== 'string') return false
     const held = Object.hasOwn(value, property.name) ? value[property.name] : undefined
-    return held === undefined
-      ? SchemaAST.isOptional(property.type)
-      : isWhole(held, Option.some(property.type))
+    return held !== undefined && isWhole(held, Option.some(property.type))
   })
 }
 
@@ -58,5 +57,5 @@ export const lookupPartial = (
   }
   current = Path.readable(current)
   if (current === undefined) return Option.none()
-  return raw || isWhole(current, ast) ? Option.some(current) : Option.none()
+  return raw || isWhole(current, ast) ? Option.some(normalizeRead(current)) : Option.none()
 }

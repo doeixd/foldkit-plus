@@ -269,6 +269,15 @@ export const RESERVED_PREFIXES = [
 export const foreignName = (op: Pick<ForeignOp, 'id' | 'version'>): string =>
   `${op.id}@${op.version}`
 
+/**
+ * Whether a foreign operation's `id@version` name is permitted by `allowlist`.
+ * Matches exact `id@version` names; `undefined` permits every operation.
+ */
+export const isForeignAllowed = (
+  name: string,
+  allowlist: ReadonlySet<string> | undefined,
+): boolean => allowlist === undefined || allowlist.has(name)
+
 /** The refusal of a call of an operation the reader holds no implementation of. */
 export const unsupported = (op: ForeignOp, detail = 'no implementation was given'): Refusal =>
   new Refusal({ reason: 'unsupported', at: op.id, detail: `${foreignName(op)}: ${detail}` })
@@ -435,7 +444,12 @@ export const mapRows = (
     fold: rows.fold,
     over: RowsOver.$match(rows.over, {
       List: ({ list }) => RowsOver.List({ list: source(list) }),
-      Related: ({ of, relation }) => RowsOver.Related({ of: source(of), relation }),
+      Related: ({ of, relation, cardinality }) =>
+        RowsOver.Related({
+          of: source(of),
+          relation,
+          ...(cardinality === undefined ? {} : { cardinality }),
+        }),
     }),
     where: Option.map(rows.where, body),
     value: Option.map(rows.value, body),

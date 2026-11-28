@@ -18,6 +18,7 @@ import { evalNode } from './ops/eval.js'
 import { readsOfNode } from './ops/reads.js'
 import * as Path from './path.js'
 import * as Transition from './transition.js'
+import { assertLiftablePath } from './transitionLift.js'
 
 export { affordances, canDispatch, intent, type Intent } from './can.js'
 
@@ -210,6 +211,7 @@ export const lift = <Outer, Child, Transitions extends Readonly<Record<string, u
   path: Path.Path<Outer, Child | null | undefined>,
   machine: Machine<Child, Transitions>,
 ): Lifted<Outer, Transitions> => {
+  assertLiftablePath(path)
   const at = Path.make<Outer, Child>(path.segments, path.ast)
   return {
     transitions: Object.fromEntries(
@@ -520,6 +522,7 @@ const liftEachTransition = <Outer, Child, K extends string>(
     when,
     writes,
     emits,
+    ensures: Option.none(),
   })
 }
 

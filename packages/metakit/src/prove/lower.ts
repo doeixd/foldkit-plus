@@ -328,7 +328,8 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
       return strict('bool', [a!, b!], apply(...aligned(number(a!), number(b!))))
     }
   // IEEE-754 arithmetic shares JavaScript's operand limit. An out-of-range
-  // result is refused when both inputs were integers.
+  // result is refused when it is an integer, whatever the operands were
+  // (`ops/num.ts`): `MAX_SAFE_INTEGER * 1.5` is.
   const arithmetic =
     (apply: (a: ZArith, b: ZArith) => ZArith, applyFp: (a: ZFP, b: ZFP) => ZFP) =>
     ([a, b]: ReadonlyArray<Term>): Term => {
@@ -342,7 +343,7 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
           z3.Or(
             unsafeFp(x),
             unsafeFp(y),
-            z3.And(unsafeFp(result), fpInteger(x), fpInteger(y)),
+            z3.And(unsafeFp(result), fpInteger(result)),
             result.isNaN(),
             result.isInf(),
           ),

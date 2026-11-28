@@ -160,6 +160,7 @@ export const opaque = <
         fields: entry.fields,
         when: entry.when,
       })),
+      ensures: Option.none(),
     },
   )
 }

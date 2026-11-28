@@ -337,7 +337,7 @@ describe('partial evaluation keeps the answer of evaluation', () => {
     const tag = (expr: Expr.Expr<never, unknown>) => expr.node._tag
     expect(tag(Expr.residualize(model.user, part))).toBe('Path')
     expect(tag(Expr.residualize(model.user, { model: whole }))).toBe('Lit')
-    expect(tag(Expr.residualize(model.note, { model: whole }))).toBe('Lit')
+    expect(tag(Expr.residualize(model.note, { model: whole }))).toBe('Path')
     expect(tag(Expr.residualize(model.user.name, part))).toBe('Lit')
     expect(tag(Expr.residualize(model, { model: { user: { name: 'x', age: 3 } } }))).toBe('Path')
 

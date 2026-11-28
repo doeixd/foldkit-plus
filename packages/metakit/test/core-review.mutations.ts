@@ -235,7 +235,7 @@ const transitions = [
     edges,
     'a lifted opaque term runs over a child that is not there',
     '../src/transitionLift.ts',
-    '              if (state === null || state === undefined) return null\n',
+    '              if (projectState && (state === null || state === undefined)) return null\n',
     '',
   ),
   mutation(
@@ -289,7 +289,7 @@ export default [
     nullStrict,
     'an integer past the safe range is returned',
     num,
-    'if (args.every(Number.isSafeInteger) && !Number.isSafeInteger(result)) {',
+    'if (Number.isInteger(result) && !Number.isSafeInteger(result)) {',
     'if (false) {',
   ),
   mutation(
@@ -359,8 +359,8 @@ export default [
     nullStrict,
     'a part of a struct is read as the whole',
     partial,
-    'return raw || isWhole(current, ast) ? Option.some(current) : Option.none()',
-    'return Option.some(current)',
+    'return raw || isWhole(current, ast) ? Option.some(normalizeRead(current)) : Option.none()',
+    'return Option.some(normalizeRead(current))',
   ),
   mutation(
     nullStrict,

@@ -41,9 +41,9 @@ export default [
     edits: [
       {
         file: '../src/artifact.ts',
-        find: `      if (foreignAllow !== undefined && !foreignAllow.has(key)) {
+        find: `      if (!Node.isForeignAllowed(key, foreignAllow)) {
         return Effect.fail(`,
-        replace: `      if (false && foreignAllow !== undefined && !foreignAllow.has(key)) {
+        replace: `      if (false && !Node.isForeignAllowed(key, foreignAllow)) {
         return Effect.fail(`,
       },
     ],

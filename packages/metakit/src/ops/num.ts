@@ -3,9 +3,8 @@
  * and derived helpers (`min`, `max`, `abs`, `clamp`) built over `If` + `Ord`.
  *
  * Null-strict: a null operand gives null, after an operand that is NaN or
- * infinite is refused. An operand past ±(2^53−1) is refused, and so is an
- * integer result past that range, where a double no longer holds every
- * integer and SQL's answer would differ.
+ * infinite is refused. Operands and integer results past ±(2^53−1) are
+ * refused, including integer results computed from fractional operands.
  *
  * `Ord` comparisons (`lt`, `lte`, `gt`, `gte`) are also re-exported here for
  * ergonomic `Num.lte(...)` call sites.
@@ -47,7 +46,7 @@ const arithmetic =
     }
     // Operands within ±(2^53−1) give a finite result: the largest product is about 8e31.
     const result = compute(args[0] as number, args[1] as number)
-    if (args.every(Number.isSafeInteger) && !Number.isSafeInteger(result)) {
+    if (Number.isInteger(result) && !Number.isSafeInteger(result)) {
       return new Node.Refusal({
         reason: 'unsafe-integer',
         at: id,

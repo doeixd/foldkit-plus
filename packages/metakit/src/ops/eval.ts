@@ -10,7 +10,10 @@
 import { Option } from 'effect'
 import * as Node from '../node.js'
 import { readable } from '../path.js'
+import { formatValue } from './format.js'
 import { rowsEvaluation } from './rowsReading.js'
+
+export const normalizeRead = (value: unknown): unknown => (Object.is(value, -0) ? 0 : value)
 
 /** The value at `segments`: null where a step is absent, and an `Option` read as its value or null. */
 const readSegments = (env: unknown, segments: ReadonlyArray<string>): unknown => {
@@ -28,7 +31,25 @@ const readSegments = (env: unknown, segments: ReadonlyArray<string>): unknown =>
     current = (current as Record<string, unknown>)[segment]
   }
   current = readable(current)
-  return current === undefined ? null : current
+  return current === undefined ? null : normalizeRead(current)
+}
+
+/** Keep the NUL screen for arrays whose elements refer back to them. */
+const matchHoldsNul = (target: unknown): boolean => {
+  if (!Array.isArray(target)) return Node.holdsNul([target])
+  const pending: Array<unknown> = [target]
+  const seen = new Set<ReadonlyArray<unknown>>()
+  while (pending.length > 0) {
+    const value = pending.pop()
+    if (!Array.isArray(value)) {
+      if (Node.holdsNul([value])) return true
+      continue
+    }
+    if (seen.has(value)) continue
+    seen.add(value)
+    for (const item of value) pending.push(item)
+  }
+  return false
 }
 
 /**
@@ -41,7 +62,7 @@ export const matchArm = (
   target: unknown,
 ): { readonly arm: Node.Node } | { readonly value: null | Node.Refusal } => {
   if (Node.isRefusal(target)) return { value: target }
-  if (Node.holdsNul([target])) return { value: Node.unportable('match') }
+  if (matchHoldsNul(target)) return { value: Node.unportable('match') }
   const held = Node.textIdentity(target)
   for (const [value, arm] of match.cases) {
     if (held === Node.wellFormed(value)) return { arm }
@@ -52,7 +73,7 @@ export const matchArm = (
     value: new Node.Refusal({
       reason: 'unmatched',
       at: 'match',
-      detail: `no case names ${JSON.stringify(target)}`,
+      detail: `no case names ${formatValue(target)}`,
     }),
   }
 }

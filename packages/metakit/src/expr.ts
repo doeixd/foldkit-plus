@@ -75,25 +75,27 @@ type TupleEnv<Terms extends ReadonlyArray<ExprInput<never, unknown>>> = Terms ex
   ? unknown
   : UnionToIntersection<EnvOfInput<Terms[number]>>
 
-/** `terms` joined left to right by `op`, or `empty` when there are none. */
+/** Balance the tree without changing leaf order, so the first refusal still wins. */
 const joined = (
   op: Node.Op,
   empty: boolean,
   terms: ReadonlyArray<ExprInput<never, boolean | null>>,
 ): Node.Node => {
-  const [first, ...rest] = terms.map(toNode)
-  return first === undefined
-    ? Node.Lit({ value: empty })
-    : rest.reduce((acc, term) => Node.Call({ op, args: [acc, term] }), first)
+  const join = (from: number, until: number): Node.Node => {
+    if (until - from === 1) return toNode(terms[from]!)
+    const middle = from + Math.floor((until - from) / 2)
+    return Node.Call({ op, args: [join(from, middle), join(middle, until)] })
+  }
+  return terms.length === 0 ? Node.Lit({ value: empty }) : join(0, terms.length)
 }
 
-/** Conjunction of any number of boolean expressions (empty = `true`). */
+/** Conjunction in a balanced tree, preserving term order (empty = `true`). */
 export const all = <const Terms extends ReadonlyArray<ExprInput<never, boolean | null>>>(
   ...terms: Terms
 ): ExprType<TupleEnv<Terms>, boolean | NullOf<Terms[number]>> =>
   wrap(joined(Bool.andOp, true, terms))
 
-/** Disjunction of any number of boolean expressions (empty = `false`). */
+/** Disjunction in a balanced tree, preserving term order (empty = `false`). */
 export const any = <const Terms extends ReadonlyArray<ExprInput<never, boolean | null>>>(
   ...terms: Terms
 ): ExprType<TupleEnv<Terms>, boolean | NullOf<Terms[number]>> =>
@@ -649,6 +651,7 @@ export const lift = <Outer, Inner, A>(
  * Evaluate `expr` against a complete environment `env`: its value, null where
  * an operand was null or absent, or the `Node.Refusal` of an integer past
  * ±(2^53−1), a non-finite number, an ill-typed operand or an unmatched case.
+ * A path that reads a number turns `-0` into `0`.
  */
 export const evalResult = <Env, A>(
   expr: ExprType<Env, A>,
@@ -691,7 +694,8 @@ export type PartialEnv<Env> =
 
 /**
  * Partially evaluate `expr` against a partially known environment, returning
- * the simplified residual `Expr`.
+ * the simplified residual `Expr`. A whole struct read stays open until the
+ * environment supplies all declared keys, including optional keys.
  */
 export const residualize = <Env, A>(
   expr: ExprType<Env, A>,
@@ -703,6 +707,7 @@ export const residualize = <Env, A>(
 /**
  * Partially evaluate a boolean `expr` and return its Kleene $K_3$ `Verdict`.
  * A foreign call with no implementation given is `Unknown`.
+ * An omitted optional struct key is unknown in the partial environment.
  */
 export const judge = <Env>(
   expr: ExprType<Env, boolean | null>,

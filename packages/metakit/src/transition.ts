@@ -218,8 +218,8 @@ export interface Transition<State, Input, Emit = never, Supplied = NoSupplied>
   readonly when: ExprType<TransitionEnv<State, Input, Supplied>, boolean | null>
   readonly writes: ReadonlyArray<WriteEquation<State, Input, unknown, Supplied>>
   readonly emits: ReadonlyArray<EmitSpec>
-  /** Optional relational postcondition over `{ state, input, supplied, next }`. */
-  readonly ensures?: Option.Option<
+  /** Relational postcondition over `{ state, input, supplied, next }` (`Option.none()` when absent). */
+  readonly ensures: Option.Option<
     ExprType<TransitionPostEnv<State, Input, Supplied>, boolean | null>
   >
   readonly _emit?: () => Emit
@@ -452,7 +452,7 @@ export const make = <
       for (const [name] of fields) rejectReservedField(name)
       return { tag, fields, when }
     }),
-    ...(Option.isSome(ensuresExpr) ? { ensures: ensuresExpr } : {}),
+    ensures: ensuresExpr,
   })
 }
 
