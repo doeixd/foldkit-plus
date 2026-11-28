@@ -1,6 +1,6 @@
-import { Schema } from 'effect'
+import { Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Eq, Expr, Null, Num, Ord } from '@doeixd/metakit'
+import { Eq, Expr, Null, Num, Ord, Path } from '@doeixd/metakit'
 import * as Conformance from '@doeixd/metakit/conformance'
 
 describe('metakit/conformance (Galois & partial-eval soundness)', () => {
@@ -63,5 +63,20 @@ describe('metakit/conformance (Galois & partial-eval soundness)', () => {
       { samples: 50 },
     )
     expect(r3.ok).toBe(true)
+  })
+
+  it('reports the first environment where the residual gives a different answer', () => {
+    const Env = Schema.Struct({ count: Schema.Literals([2, 3]) })
+    const { count } = Path.forSchema(Env)
+    const otherCount = ({ count }: typeof Env.Type): typeof Env.Type => ({
+      count: count === 2 ? 3 : 2,
+    })
+
+    const report = Conformance.checkResidualizeSoundness(count, Env, otherCount, { samples: 5 })
+    expect(report).toMatchObject({ ok: false, checked: 1 })
+    const mismatch = report.mismatch
+    if (mismatch === undefined) throw new Error('Expected the counterexample')
+    expect(mismatch.full).toEqual(Result.succeed(mismatch.env.count))
+    expect(mismatch.residual).toEqual(Result.succeed(otherCount(mismatch.env).count))
   })
 })

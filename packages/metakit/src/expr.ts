@@ -14,6 +14,7 @@ import * as Node from './node.js'
 import * as Bool from './ops/bool.js'
 import {
   isExpr,
+  literal,
   toNode,
   wrap,
   type EnvOfInput,
@@ -69,7 +70,7 @@ export interface ReaderOptions {
 export const REFINEMENT_ANNOTATION_KEY = 'metakit/expr' as const
 
 /** Construct a constant expression. */
-export const lit = <const A>(value: A): ExprType<unknown, A> => wrap(Node.Lit({ value }))
+export const lit = <const A>(value: A): ExprType<unknown, A> => wrap(literal(value))
 
 type TupleEnv<Terms extends ReadonlyArray<ExprInput<never, unknown>>> = Terms extends readonly []
   ? unknown

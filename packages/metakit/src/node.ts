@@ -76,9 +76,9 @@ export type OpId = CoreOpId
  * foreign operation had no implementation (`unsupported`), or the one given
  * threw (`failed`). A refusal is not a value: it decides before null, and an
  * operator given a refused operand is refused, as a database refuses a
- * statement it cannot run before any operator answers. Only what reads an
- * operand conditionally passes one by: `null.coalesce` reads its fallback
- * only where its first operand is null, `If` and `Match` evaluate only the
+ * statement it cannot run before any operator answers. Only what needs an
+ * operand conditionally passes one by: `null.coalesce` answers its first
+ * operand where it has a value, `If` and `Match` evaluate only the
  * branch taken, and an `any` (`every`) fold is true (false) once one element
  * settles it, as SQL's `EXISTS` is. A predicate that is refused does not hold.
  */

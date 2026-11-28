@@ -9,6 +9,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Breaking
 
+- `@doeixd/metakit`: a literal (`Expr.lit`, or a plain value where an expression is expected) that is a bigint, a symbol or a function, or a list holding one, throws where it is built; no reader can hold one, and the artifact codec already refused it.
 - `@doeixd/metakit/operation`, `@doeixd/metakit/interpreter`: `Operation.define` throws when an operation id contains `@`, and `Interpreter.withAllowlist` matches exact `id@version` foreign names (matching `@doeixd/metakit/artifact`) instead of matching bare ids before `@`.
 - `@doeixd/metakit`: `Transition.ensures` is now a required `Option.Option` (`Option.none()` when absent) on every transition constructor, and `Transition.lift` carries and rewrites the inner transition's `ensures` postcondition across `state` and `next`.
 - `@doeixd/metakit`: `Transition.Refused` carries `why: Transition.Why`, a tagged union of what refused (input, supplied value, unknown message, guard false or null, guard refused with its refusal, a write or emit refused, an unwritable target). `reason` and `message` are read from it, and `new Refused({ reason })` is gone (#653).
@@ -110,6 +111,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `@doeixd/metakit` docs: `semantics.md` says what `null.coalesce` promises (its answer, not that the fallback is never computed) and that `eq.among` against a null list or no candidate answers without screening the value, as SQL does.
 - `@doeixd/metakit`: `Abstract.checkInvariant`, `checkGoal` and `checkTransition` answer `Unknown`, not `False`, when they had to leave out an assumption they cannot read (a list fold, an `If` or `Match`, an opaque term, a text order, a membership, a custom operation): a refutation could otherwise lie in a state the left-out rule excludes. A proof stays a proof (#672).
 - `@doeixd/metakit/interpreter`: a prepared `Match` returns an `unportable` refusal when its subject contains a NUL character, matching reference evaluation.
 - `@doeixd/metakit`: `Node.mapRows` preserves `Related.cardinality`, `Transition.lift` respects `Rows` binders that shadow `state` (or `next`), and `Transition.lift` / `Machine.lift` throw at definition time when lifting along an `Option` field.

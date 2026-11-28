@@ -14,8 +14,8 @@ export const isNullOp: Node.Op<'null.isNull'> = {
 }
 
 /**
- * `a`, or `b` where `a` is null, as SQL's `coalesce`: `b` is not looked at
- * where `a` has a value, so its refusal does not reach the answer.
+ * `a`, or `b` where `a` is null, as SQL's `coalesce`: where `a` has a value
+ * the answer is `a` whatever `b` is, so `b`'s refusal does not reach it.
  */
 export const coalesceOp: Node.Op<'null.coalesce'> = {
   id: 'null.coalesce',
