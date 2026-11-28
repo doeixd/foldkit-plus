@@ -143,13 +143,24 @@ const literalsOf = (on: Node.Node): Option.Option<ReadonlyArray<string>> => {
   return literals.length === 0 ? Option.none() : Option.some(literals)
 }
 
-/** Refuse a case the Schema of `on` cannot hold and, where `exhaustive`, a value with no case. */
+/** Refuse a case label holding a NUL character, which Postgres cannot store. */
+const checkNoNulLabels = (name: string, keys: ReadonlyArray<string>): void => {
+  const bad = keys.find(key => key.includes('\u0000'))
+  if (bad !== undefined) {
+    throw new Error(
+      `[metakit] Expr.${name}: case label ${JSON.stringify(bad)} holds a NUL character, which Postgres cannot store`,
+    )
+  }
+}
+
+/** Refuse a case label holding a NUL, a case the Schema of `on` cannot hold and, where `exhaustive`, a value with no case. */
 const checkCases = (
   name: string,
   on: Node.Node,
   keys: ReadonlyArray<string>,
   exhaustive: boolean,
 ): void => {
+  checkNoNulLabels(name, keys)
   const literals = literalsOf(on)
   if (Option.isNone(literals)) return
   const quote = (values: ReadonlyArray<string>): string =>
@@ -288,6 +299,7 @@ const checkTagCases = (
   keys: ReadonlyArray<string>,
   exhaustive: boolean,
 ): void => {
+  checkNoNulLabels(name, keys)
   if (variants.size === 0) return
   const quote = (values: ReadonlyArray<string>): string =>
     values.map(value => JSON.stringify(value)).join(', ')

@@ -355,10 +355,10 @@ describe('partial evaluation keeps the answer of evaluation', () => {
 describe('list reads that may hold NUL text do not fold', () => {
   const ListRow = Schema.Struct({
     tags: Schema.Array(Schema.String),
-    nums: Schema.Array(Schema.Number),
+    nums: Schema.Array(Schema.Finite),
     texts: Schema.Array(Text.schema),
     pair: Schema.Tuple([Schema.String, Schema.Number]),
-    safePair: Schema.Tuple([Schema.Number, Text.schema]),
+    safePair: Schema.Tuple([Schema.Finite, Text.schema]),
     nested: Schema.Array(Schema.Array(Schema.String)),
     nestedSafe: Schema.Array(Schema.Array(Text.schema)),
   })

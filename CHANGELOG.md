@@ -9,6 +9,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Breaking
 
+- `@doeixd/metakit`: `Eq.is`, `Eq.isNot` and `Eq.in` refuse NaN, as `Eq.equals` and ordering do, and a `Match` refuses a subject holding a NUL; a `Match` case label holding a NUL throws where it is built (#655).
 - `@doeixd/metakit/artifact`: fingerprints change for rules with a free path whose first segment starts with `$`. `ArtifactLimits` gains `maxStringLength` (65,536 UTF-16 code units by default), `ArtifactLimitError.kind` gains `'string'`, and `encodeExpr` and `fingerprint` can return `ArtifactDecodeError` for calls with the wrong arity.
 - MetaKit is now `@doeixd/metakit`. Replace imports of `metakit` and `metakit/*` with `@doeixd/metakit` and `@doeixd/metakit/*`.
 - `@doeixd/metakit/prove`: counterexample reports preserve scalar values, including `null` and `undefined`. The report types `before`, `input`, and `after` as `unknown`. Use the corresponding schemas to narrow `before` and `input`. Check the shape of `after` before reading fields because the state schema rejects it.

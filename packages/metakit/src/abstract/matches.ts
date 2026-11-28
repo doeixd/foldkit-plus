@@ -6,6 +6,7 @@ import { MAX_SPLITS } from './support.js'
 
 /** The arm `value` takes, its text compared as evaluation compares it (`Node.textIdentity`). */
 export const resolveMatchArm = (node: Node.Match, value: unknown): Option.Option<Node.Node> => {
+  if (Node.holdsNul([value])) return Option.none()
   const held = Node.textIdentity(value)
   for (const [k, arm] of node.cases) {
     if (Node.wellFormed(k) === held) return Option.some(arm)

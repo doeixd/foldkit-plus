@@ -1025,9 +1025,14 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
             return literal(null)
           },
         })
-        // A null subject takes no arm, so it reaches `rest`; only a refusal is the answer itself.
+        // A null subject takes no arm, so it reaches `rest`; a refused subject or one holding a NUL refuses before any arm.
         const chosen = arms.reduceRight((acc, [takesArm, arm]) => choose(takesArm, arm, acc), rest)
-        return { ...chosen, refused: z3.Or(target.refused, chosen.refused) }
+        const nul = z3.And(z3.Not(target.refused), z3.Not(target.isNull), nulOf(on))
+        return {
+          ...chosen,
+          isNull: z3.And(chosen.isNull, z3.Not(target.refused), z3.Not(nul)),
+          refused: z3.Or(target.refused, nul, chosen.refused),
+        }
       },
       Opaque: (opaqueNode): Term => {
         const key = Node.key(opaqueNode)

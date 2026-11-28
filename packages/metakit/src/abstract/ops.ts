@@ -429,7 +429,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
         state.markBottom()
         return
       }
-      if (values.some(value => value === null || value === undefined)) return
+      if (values.some(value => value === null || value === undefined || Number.isNaN(value))) return
       state.markValued(needle)
       const numbers = values.filter((value): value is number => typeof value === 'number')
       const id = state.varOf(needle)
@@ -482,6 +482,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     },
     assume: ([needle, candidates], state) => {
       if (!Node.$is('Lit')(candidates!) || !Array.isArray(candidates.value)) return
+      if (candidates.value.some(item => Number.isNaN(item))) return
       const present = candidates.value.filter(item => item !== null && item !== undefined)
       if (present.length === 0) {
         state.markBottom()
@@ -499,6 +500,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     refute: ([needle, candidates], state) => {
       if (!Node.$is('Lit')(candidates!) || !Array.isArray(candidates.value)) return
       if (candidates.value.length === 0) return
+      if (candidates.value.some(item => Number.isNaN(item))) return
       if (candidates.value.some(item => item === null || item === undefined)) state.markBottom()
       else state.markValued(needle!)
     },

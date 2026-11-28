@@ -33,13 +33,15 @@ const readSegments = (env: unknown, segments: ReadonlyArray<string>): unknown =>
 
 /**
  * The branch of `match` that `target` takes: null where there is no fallback
- * and the target is null, a refusal where no case names it.
+ * and the target is null, a refusal where the target is text holding a NUL
+ * or no case names it.
  */
 export const matchArm = (
   match: Node.Match,
   target: unknown,
 ): { readonly arm: Node.Node } | { readonly value: null | Node.Refusal } => {
   if (Node.isRefusal(target)) return { value: target }
+  if (Node.holdsNul([target])) return { value: Node.unportable('match') }
   const held = Node.textIdentity(target)
   for (const [value, arm] of match.cases) {
     if (held === Node.wellFormed(value)) return { arm }

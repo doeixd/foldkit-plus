@@ -71,8 +71,8 @@ export type OpId = CoreOpId
  * Evaluation declined to answer: an integer result left the safe range
  * (`unsafe-integer`), a number was NaN or infinite (`non-finite`), an operand
  * was not of the operator's type (`ill-typed`), a `Match` met a value none
- * of its cases names (`unmatched`), a text or equality operation met text
- * holding a NUL character, which Postgres cannot store (`unportable`), a
+ * of its cases names (`unmatched`), a text, equality or `Match` operation met
+ * text holding a NUL character, which Postgres cannot store (`unportable`), a
  * foreign operation had no implementation (`unsupported`), or the one given
  * threw (`failed`). A refusal is not a value: it decides before null, and an
  * operator given a refused operand is refused, as a database refuses a
@@ -130,7 +130,7 @@ export const holdsNul = (values: ReadonlyArray<unknown>): boolean =>
     Array.isArray(value) ? holdsNul(value) : typeof value === 'string' && value.includes('\u0000'),
   )
 
-/** The refusal of text holding a NUL character, which every text and equality operation gives. */
+/** The refusal of text holding a NUL character, which every text, equality and `Match` operation gives. */
 export const unportable = (at: string): Refusal =>
   new Refusal({
     reason: 'unportable',
@@ -338,7 +338,8 @@ export interface If {
 /**
  * A choice on a value among literal cases. With no `otherwise`, the cases
  * cover every value the Schema of `on` allows and a null `on` gives null;
- * with one, it takes null and every value no case names.
+ * with one, it takes null and every value no case names. A subject holding
+ * a NUL is refused (`unportable`).
  */
 export interface Match {
   readonly _tag: 'Match'

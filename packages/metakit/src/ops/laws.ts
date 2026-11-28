@@ -121,9 +121,9 @@ export const foldLaws: { readonly any: FoldLaws; readonly every: FoldLaws } = {
 /**
  * What a reader shows of an operand it has partly evaluated: the value it is
  * known to hold, and what its residual would be: its kind, whether it cannot
- * be refused (`cannotRefuse`), whether it is a read, a read holding no NUL
- * text (`isPortableRead`), a call of one argument, or the same term as
- * another.
+ * be refused (`cannotRefuse`), whether it is a read, a read holding neither
+ * NUL text nor NaN (`isPortableRead`), a call of one argument, or the same
+ * term as another.
  */
 export interface View<T> {
   readonly known: (operand: T) => Option.Option<unknown>
@@ -289,7 +289,7 @@ export const rewrite = <T>(
     if (Option.isSome(candidates) && (op.id === 'eq.in' || op.id === 'eq.among')) {
       const list = candidates.value
       if (op.id === 'eq.in') {
-        // A refused needle is refused, not false: only a read of no NUL text is known not to be.
+        // A refused needle (NUL text or NaN) is refused, not false: only a portable read is known not to be.
         if (list.length === 0 && view.isPortableRead(left)) return Option.some({ value: false })
         if (list.length === 1) return Option.some({ call: isOp, operand: left, literal: list[0] })
       } else {
