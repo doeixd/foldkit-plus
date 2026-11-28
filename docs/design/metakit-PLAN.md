@@ -159,6 +159,7 @@ Class 6 is the process finding. Features have been landing faster than they are 
 11. **Definition-time mistakes throw; data-dependent failures are typed values.** A wrong argument to a constructor is a programmer error and throws at definition time. A failure that depends on run-time data returns a `Result` (synchronous) or fails an `Effect` (when a service is involved). Do not wrap a pure function in `Effect.sync` to make an API "Effect-native".
 12. **Absence is an Effect `Option`** in MetaKit's own API. `null` is MetaKit's value-level absence inside expressions, by design, and nothing else.
 13. **Programs from users or agents are data, not authority.** Untrusted terms are decoded against limits before anything reads them.
+22. **A thing is named by a string once, where it is defined; everywhere else it is the value that definition returned** (maintainer, 2026-11-28: typed references over magic strings in all places, because inference is better). `phase.Closed`, `msg.Increment`, `model.qty`, the transition value, the operation value: never `'Closed'`, `'Increment'`, `'qty'` or a tag typed `keyof` something. A reference carries its type, so the call site infers the payload, completion lists what exists, a rename is one edit, and a mistake is an error on the line it was made. A string typed by a union of keys is better than `string` and is still not this. Strings remain only at a definition, on the wire, and in a report for people. This widens the `CLAUDE.md` rule on options naming a member (`#251`).
 
 ### 4.3 Admission: what a new thing must show
 
@@ -257,21 +258,63 @@ const Dialog = Schema.Struct({
 const DialogMachine = Machine.make({
   state: Dialog,
   phase: state => state.phase,
-  transitions: ({ from }) => ({
-    Open: from('Closed').to('Editing', ({ state }) => ({ draft: state.saved })),
-    Edit: from('Editing').to('Editing', ({ input }) => ({ draft: input.value })),
-    RequestClose: from('Editing').choose(({ phase, state }) => [
-      { when: Eq.is(phase.draft, state.saved), to: 'Closed' },
-      { otherwise: true, to: 'Confirming', with: { draft: phase.draft } },
+  // `phase` holds one typed reference per variant, derived from the Schema:
+  // phase.Closed, phase.Editing, phase.Confirming. No phase is named by a string here.
+  transitions: ({ from, phase, state }) => ({
+    Open: from(phase.Closed).to(phase.Editing, { draft: state.saved }),
+    Edit: from(phase.Editing).to(phase.Editing, ({ input }) => ({ draft: input.value })),
+    RequestClose: from(phase.Editing).choose(editing => [
+      { when: Eq.is(editing.draft, state.saved), to: phase.Closed },
+      { otherwise: true, to: phase.Confirming, with: { draft: editing.draft } },
     ]),
-    KeepEditing: from('Confirming').to('Editing', ({ phase }) => ({ draft: phase.draft })),
-    Discard: from('Confirming').to('Closed'),
-    Save: from('Editing', 'Confirming').to('Closed', undefined, ({ phase, state }) => [
-      Transition.set(state.saved, phase.draft),
+    KeepEditing: from(phase.Confirming).to(phase.Editing, confirming => ({ draft: confirming.draft })),
+    Discard: from(phase.Confirming).to(phase.Closed),
+    Save: from(phase.Editing, phase.Confirming).to(phase.Closed, undefined, leaving => [
+      Transition.set(state.saved, leaving.draft),
     ]),
   }),
 })
 ```
+
+The string `'Closed'` appears once, where the variant is defined. Everywhere else a phase is the value `phase.Closed` (rule 22). A misspelt phase is then an unknown property at the place it was typed, completion lists the phases, and `to(phase.Editing, …)` can require exactly that variant's fields because the reference carries its type.
+
+**The same design in the vocabulary of `#612`.** The successor RFC already has most of the frame, and this is where phases plug in:
+
+- *What `#612` already gives.* Its transitions are **arms**: `Transition.on(msg.RequestClose).when(…)`, with `update` a list, so one message having several guarded arms is native (today's `Machine` allows one transition per tag). Admission is first-class: a control built with `Slot.action({ invoke: discard.intent() })` derives its enabled state from the arm's guard, and a refused guard is a typed rejection distinct from a no-op. It refers to things by typed reference throughout (`msg.Increment`, `model.qty`, `increment.intent()`). So the third complaint, a decision hidden in an `if`, is answered by the RFC as written.
+- *What `#612` leaves open.* §3 says a transition has "an admission predicate" and §5 says the machine evaluates "one pure synchronous arm", but not which arm when two admit. §10 says only "Named domain phases can produce runnable statecharts", with no design. Its model is any `Schema.Struct` and its writes are `.set(path, expr)`, so the impossible state is caught by an invariant, not excluded, and the resets are as repetitive as in the critique.
+- *What this section adds to it.*
+
+```ts
+// Illustrative; in the shape of the RFC's own §4 sketch.
+const Dialog = Block.define({
+  model: Schema.Struct({ saved: Schema.String, phase: DialogPhase }),
+  messages: { Open: Schema.Void, RequestClose: Schema.Void, Discard: Schema.Void /* … */ },
+}).build(({ model, msg, phase }) => {
+  const open = Transition.on(msg.Open).from(phase.Closed).to(phase.Editing, { draft: model.saved })
+  const closeClean = Transition.on(msg.RequestClose)
+    .from(phase.Editing)
+    .when(editing => Eq.is(editing.draft, model.saved))
+    .to(phase.Closed)
+  const askFirst = Transition.on(msg.RequestClose)
+    .from(phase.Editing)
+    .otherwise()
+    .to(phase.Confirming, editing => ({ draft: editing.draft }))
+  const discard = Transition.on(msg.Discard).from(phase.Confirming).to(phase.Closed)
+
+  return {
+    update: [open, closeClean, askFirst, discard],
+    surface: Surface.define({
+      // Enabled only while confirming, derived from the arm's `from`; nobody writes that condition.
+      discard: Slot.action({ label: 'Discard changes', invoke: discard.intent() }),
+      // A conditional range bound to the phase: mounted in Confirming, gone otherwise.
+      confirm: Slot.when(phase.Confirming, confirming => /* … */),
+    }),
+  }
+})
+```
+
+  Three things the RFC should then say: **arm selection** (arms for one message are tried in declaration order, and an arm fires only if no earlier one admitted, so they are disjoint by construction; `otherwise()` is the arm with no condition of its own); **`from` and `to`** as sugar over an admission conjunct and a `replace` write; and **phases as the structural dependency of §4.1**: a conditional range's read set is the phase tag, so entering `Confirming` mounts one range and patches nothing else.
+- *What the successor gains beyond the critique.* A control knows which phase enables it before anyone clicks. The nested-dismissal behaviour of §4 (Escape closes the innermost eligible owner) gets its eligibility from the phase: a dialog in `Closed` is not eligible. The SSR planner of §7 can reason about reachability by phase: a closed dialog's confirm template and its draft need not ship until an arm into `Confirming` is reachable.
 
 What each part does to the three complaints:
 
@@ -282,10 +325,10 @@ What each part does to the three complaints:
 **Why this shape and not another.**
 
 - *Effect Schema stays the type authority (rule 7).* The phases are an ordinary union of `TaggedStruct`s. There is no phase type of MetaKit's own, and a model with no declared phase is still a valid machine.
-- *It is derived, not a new kernel concept (rule 4.3).* `from('Editing')` is the guard conjunct `Eq.is(state.phase._tag, 'Editing')`. `to('Closed')` is a write. So every reader works unchanged: SQL sees a tag column and nullable payload columns, the prover sees an equality fact it already case-splits on, the dependency graph sees the paths written, the Reffect adapter sees a text slot. `Expr.matchTags` already reads such a union.
+- *It is derived, not a new kernel concept (rule 4.3).* `from(phase.Editing)` is the guard conjunct `Eq.is(state.phase._tag, 'Editing')`, with the tag string supplied by the reference. `to(phase.Closed)` is a write. So every reader works unchanged: SQL sees a tag column and nullable payload columns, the prover sees an equality fact it already case-splits on, the dependency graph sees the paths written, the Reffect adapter sees a text slot. `Expr.matchTags` already reads such a union.
 - *One message, several outcomes, without relying on order.* `choose` lowers each alternative to its own transition whose guard is its condition **and the negation of every earlier one**, so exactly one can fire. A statechart resolves this by document order; here the alternatives are disjoint by construction, which a reader can rely on. Today a machine holds one transition per message tag, so this is the one change to `Machine`'s shape.
-- *Inside `from('Editing')`, `phase.draft` is typed and never null.* The narrowed accessor is what `matchTags` already hands a branch.
-- *A flat set of phases, on purpose.* Nested states are `Machine.lift` and `Machine.compose`, which exist. "From any of these states" is `from('Editing', 'Confirming')`. History states, parallel regions and entry or exit actions are not built until an example needs one: with whole-variant replacement, the usual reason for an entry action (resetting fields) is gone.
+- *Inside `from(phase.Editing)`, the variant's `draft` is typed and never null.* The narrowed accessor is what `matchTags` already hands a branch.
+- *A flat set of phases, on purpose.* Nested states are `Machine.lift` and `Machine.compose`, which exist. "From any of these states" is `from(phase.Editing, phase.Confirming)`. History states, parallel regions and entry or exit actions are not built until an example needs one: with whole-variant replacement, the usual reason for an entry action (resetting fields) is gone.
 
 **What it needs that does not exist.**
 
@@ -367,6 +410,7 @@ Severity: **High** a wrong answer, a lost guarantee or an unsound type; **Medium
 | T14 | Low | Reported | Sibling signatures disagree: `define` requires `nulls`, `derived` defaults it; operations take positional arguments, functions a named record, and `derived` needs `paramOrder` to bridge; `derived` requires `returns` even when the function declares it; `compose` fails in an Effect while `make` and `restrict` throw; `readiness` wraps a pure function in `Effect.sync`; `grammar.step` throws while `grammar.validate` fails in an Effect. | W3, by rule 11. |
 | T15 | Low | Probe | `tooling` indexes expressions and transitions only (not a function, an operation or a language); `dependsOn` is hand-written strings; a transition's writes are formatted `state.x` while an expression's reads are probably `x`, so `writes-read-field` may never match. Probe: index a rule over `balance` and a transition that writes it, and ask for the rule's references. | W6. |
 | T16 | Low | Read | `semanticDiff` matches definitions by name (`tooling.ts:661`), so a rename is reported as one removed and one added, and everything downstream is invalidated. Its transitive dependencies are the hand-written `dependsOn` strings of T15. | Match by hash first, then by name; derive references from the definitions (W4 step C5). |
+| T17 | Low | Read | Public API refers to defined things by string (rule 22). `Machine.intent(machine, tag)` takes a tag (`can.ts:72`); `Prove.machine`'s `pin` and `allowUnknown` take tags (`prove/machine.ts:80`); `Language.implement(name, …)` names a table by string (`language.ts:70`); `tooling`'s `dependsOn` is a list of ids. Most are typed by `keyof`, which catches a typo but gives no payload inference and no single place to rename. | W3 step 9: each takes the value (the transition, the definition) or is derived. |
 | T-ceremony | — | Not compiled | The smallest three-operation integer language with one function and one evaluation is five imports and nine statements, no casts. Lines that exist only because the API demands them: `version: 1` and `nulls: 'strict'` three times each; the family level in both `make` and `implement`; the table name `'js'`; `{ foreign: js }` on every evaluation; `Language.make` itself, since `Operation.implementations` would do. | W3 and W5 measure this and set a budget. |
 
 ### 6.3 Package and documents
@@ -506,6 +550,7 @@ Both were checked to exist on this machine (`agy` 1.5.18, `codex-cli` 0.160.0) a
 6. **Remove process-wide state** (P12) or state exactly why each piece is safe across two copies of the package.
 7. **Strip phase and issue labels from published doc comments** (P10).
 8. **Set budgets from measurements**: bytes per entry, type instantiations on a representative file, and the ceremony count of the smallest language.
+9. **References, not strings** (rule 22, T17). Sweep every public signature for a parameter or option that names a previously defined thing by string, and for each: take the value instead, or derive it. `machine.transitions.Withdraw` (or the transition value itself) replaces `'Withdraw'` in `intent`, `pin` and `allowUnknown`; an implementations table is a value, not a name; a definition's dependencies come from what it refers to. Add the count of remaining string-named members to the inventory, with the reason for each that stays. Each change gets a type test showing the payload inferred from the reference and the misspelling rejected at its line.
 
 Breaking changes are acceptable here (the package is 0.x and unpublished), each with a changelog line and a migration note. Deprecate nothing; remove.
 
@@ -693,6 +738,8 @@ Decisions the plan already knows it will need. Each is decided by §9.1 when its
 | 12 | Phases: the names (`from`/`to`/`choose`, `replace`), and whether the builder is a callback on `Machine.make` or a separate constructor | W5 step 5 | open |
 | 13 | Whether `replace` is a new way of writing or `Transition.set` accepting a record of field expressions when its target is a struct. Leaning: a new way, since its commute and idempotence properties differ from a scalar `set` | W5 step 5, stage 3 | open |
 | 14 | What a phase machine maps to in Effect UI, once upstream's own answer to the same critique is known | W7 step 1 | open |
+| 15 | Where a variant's typed reference comes from: an accessor derived from the phase path (`phase.Closed`), or the variant's own Schema value passed as the reference. Leaning: the derived accessor, as `msg.Increment` is in `#612`; one way, not both | W5 step 5 | open |
+| 16 | Arm selection in `#612`: declaration order with each arm excluding its predecessors (disjoint by construction), or unordered arms whose disjointness the prover must show. Leaning: the first, with the prover reporting an arm that can never fire | W5 step 5, W7 | open |
 
 ---
 
