@@ -71,6 +71,8 @@ The successor needs four things from MetaKit that are not finished: named phases
 | Resumability | The first interaction runs without re-rendering the page or shipping the whole Model | `packages/ssr`: a binder, a live set, static pruning, a manifest, script cut by message | Built, opt-in, and **short of its own gates**: 54.6 kB of script before the first press against a 20 kB bar, and 1.4 to 1.5 s of blocking against 200 ms |
 | Incremental view maintenance | A derived value is updated from a change, under a stated law, with a fallback to recomputing | `packages/remote/src/maintained/` for Remote; aggregates with deltas in `metakit/aggregates` | Works for Remote placement (17 comparisons where there were 100,000). Not general, not on the client view path |
 | Sync | Optimistic and offline writes that reconcile, with typed outcomes | `packages/sync`, `packages/durable`, stores with declared capabilities | In use in examples; conflict policies per operation are designed in `#612` §8 |
+| Routing, data and the server | Reads declared, planned and batched; mutations that return the fresh data in the same round trip; predictions derived from the write; streaming; branches and rollback | `packages/remote` and its server, `site`, `mirror`, `ssr`, `guard`, `sync` | Most is built and measured. Server reads are not yet parallel, streaming and branching are not built. See "Routing, data and the server" |
+| Several renderers | One view on the web, the server, a terminal, native and a headless test, with a missing ability a compile error | UI capability tokens in `mixins`; a Surface whose renderer requirements are in its type (`packages/successor`); a conformance suite across three drawers | One DOM renderer exists. The vocabulary and lowering design (`#637`) is unbuilt. See "Rendering on more than one target" |
 | Great TypeScript | Call sites infer with no annotations; a mistake is an error on its own line; things are referred to by typed reference, never by a magic string | The rules in the plan (§4, rule 22) | Existing API breaks the reference rule in several places (plan ledger, T17) |
 
 ### Performance: fine-grained, end to end
@@ -108,7 +110,116 @@ The decisions of 2026-11-10 (park `#376`, close `#433`'s client half) are reopen
 
 `#587` is a fix available today on the current runtime: a Surface's renderer runs on every render although its projection already declares the paths it reads.
 
+### Rendering on more than one target
+
+The aim (maintainer, 2026-11-28): a foundation for several renderers that is more strongly typed and more flexible than Effect UI's. The comparison below is from Effect UI's source at commit `82a1750` (2026-11-28) and from our own designs and code.
+
+**How Effect UI does it.** It is real and shipped: a browser host, a terminal host (OpenTUI) and a native host (React Native's Fabric, without React).
+
+- A view is a tree of nodes. An element is `{ tag: string, attrs, props: Record<string, unknown>, handlers, children }`; "a host decides what a property means".
+- A **vocabulary** is one target's set of typed element builders: `Html`, `OpenTui`, `Native`. Each has its own tags, its own style type and its own event payloads. There is no portable element set.
+- A component is bound to one vocabulary where it is defined (`Html.component`, `OpenTui.component`). Only a component written with the untyped `h.el(tag)` is host-neutral.
+- A target implements one public `Host<Node>` interface (`createElement`, `setProp`, `insertBefore`, `setEvents`, …) under a shared renderer, so "switching target is a Layer swap". Events reach components as plain data, never a host event object.
+- Mounting a root on the wrong host is a type error. A nested child of the wrong vocabulary fails when it mounts, at run time, and shows its fallback.
+- In practice a second target means a second view. Its own two snake examples each define their own Model, messages and Commands and share only the domain modules. The component kit is typed against HTML; the native package has a separate kit.
+- There is no notion of a capability: nothing lets a component say "I need something focusable that takes text" and a host say "I provide that". Each host exposes its own imperative service (`focus`, `measure`, `scrollTo`, …) and the three differ in shape.
+- Server rendering and hydration exist for HTML only.
+
+Its strengths are worth keeping: one small public host contract, plain-data events, a type-level check at the root, and pure `Story` and `Scene` tests that need no host.
+
+**What we have.** One design that goes further, and pieces of it built.
+
+| Piece | State |
+|---|---|
+| A **capability** as a typed token a slot provides and a behavior requires (`packages/mixins/src/capability.ts`: `Base`, `Interactive`, `Focusable`, `TextInput`, …), checked in the types and when a behavior is defined, with named diagnostics | Built. Identity is a name string in a process-wide map; a requirement names one capability; a raw string is accepted where a token is meant (`#634` §2 to §6 open) |
+| **Platform requirements** on a slot (`keyboard`, `pointer`, `clipboard`) | Declared, and checked by nothing |
+| A **Surface whose renderer requirements are in its type**: `packages/successor/src/surface.ts` gives each kind of slot its own service (`Text`, `Checkbox`, `Action`, `TextInput`, `KeyedList`), and running a Surface without one is a compile error (`todoSurface.test-d.ts`) | Built, for the DOM only, in a private 1,500-line package |
+| A **conformance suite** holding three drawers (the runtime, the headless Scene, the server string renderer) to the same markup, Messages and mount lifecycle | Built, 12 cases |
+| A host-independent core split from its DOM host, in rich text | Built |
+| **Capability-defined vocabularies and lowerings** (`#637`) | Designed only |
+| `Platform.define`, a renderer and host as services, native targets (`#148`, `#149`, `#376`) | Designed; parked on 2026-11-10 until a second platform has a user |
+
+**The design on record is `#637`.** A view is written against a vocabulary of semantic terms, and reaches a host through pure translations:
+
+```text
+Block / Machine / commit            unchanged by the rendering target
+Surface                             slots, semantic intents, bindings
+View vocabulary                     typed terms, each requiring capabilities
+zero or more lowerings              pure: Semantic → Primitive → HTML, or Semantic → Terminal
+target plan                         identities, binding targets, event routes
+scoped host interpreter             mount, patch, input, dispose
+```
+
+- A **capability** carries properties, events and laws: `Activatable` extends `Disableable`, has an `activate` event, and the law that a disabled control does not activate.
+- A **tag** (`Action`, `Field`, `Choice`) names the capabilities it has and its typed properties and children. A **vocabulary** is a set of tags and can be extended.
+- A **lowering** is a pure function from one vocabulary to another. A `Field` becomes a label, an input and an error message on the web, and one prompt in a terminal. A design system is a lowering, not a component library.
+- A **renderer** is the effectful host. Requirements flow up from what a view uses; implementations flow down from where it is mounted.
+
+**Where this can be better than Effect UI, and why each is a consequence of the design rather than a hope.**
+
+1. **One view, several targets.** A view written in a semantic vocabulary renders wherever a lowering reaches. In Effect UI a second target is a second view.
+2. **A missing ability is a compile error, at the narrowest place.** A behavior cannot attach to a tag without the capability it needs, and a host that lacks one fails the build for that host. In Effect UI the check is one coarse fact (which vocabulary) at the root, and a nested mismatch is found at run time.
+3. **One kit.** Headless components are written against capabilities, so the same listbox serves the web and a terminal. Effect UI's kit is HTML's.
+4. **Fine-grained on every host.** A lowering carries each binding through, with its source identity, so one changed field patches one target after two translations (`#637` step 4). Effect UI shares a virtual-DOM renderer across hosts.
+5. **Overrides from outside.** A parent replaces how a child's `Field` is drawn for a subtree, without the child knowing, and the override survives lazy and keyed mounts.
+6. **Hosts held to the same behaviour.** Conformance compares Messages and Model traces across hosts, with laws per capability, not bytes of HTML.
+7. **Four questions kept apart**: is the term in the language, does the element have the capability, does the host provide the service, is this user allowed. A visible button is never authority to act.
+
+**What is against us, plainly.**
+
+- Effect UI has three working hosts. We have one DOM renderer and a design.
+- A portable vocabulary can become the least every target can do. `#637` answers this on paper: the portable profile is opt-in, a target's own elements stay first-class, and using one adds an explicit requirement. It has to be shown in code.
+- "Capability" means four unrelated things in this repository today: a UI token (`mixins`), a code-carrying declaration for tree shaking (`#378`), a child update helper (`#495`), and an agent-exposed Message. They need four names before anything is built on the word.
+- Ten pairs of overlapping concepts are unreconciled, among them: the built UI token against `#637`'s richer capability; slot platform requirements against `Platform.define`; a process-wide capability map against scoped registries; one service per slot kind (built) against one service per vocabulary (designed); and three different designs for a host escape hatch.
+- The built token accepts a raw string for a capability and is found by name in a global map. Both break the rule that a defined thing is referred to by typed reference, and a global registry is something MetaKit's rules forbid.
+
+**Order for this part of stage 2** (it is `#637`'s six steps, with the reversal noted): a descriptor and builder for four tags with negative type tests; `Semantic → Primitive → HTML` plus a headless interpreter and a terminal text plan, with one unchanged Block scripted identically on each; an outside-in override; the binding plan through two lowerings; host isolation and tree shaking measured; and only then a second interactive host. `#637`'s comment of 2026-11-26 made Effect UI's vocabulary the first lowering target; under this direction the first target is the successor's own DOM host.
+
+### Routing, data and the server
+
+The aim (maintainer, 2026-11-28): a better story than Effect UI for routing, data fetching, server data, mutations and server rendering, because of MetaKit and what Foldkit Plus already has: parallel data fetching, single-flight mutations, asynchronous streaming server rendering, optimistic updates, branching and rollback.
+
+Most of this is not a plan. It is built, measured and in use here, on top of a runtime we did not own. The table is from Effect UI's source at commit `82a1750` and from this repository's code and records. "Built" names what exists today; it does not say the successor has it yet.
+
+| | Effect UI | Foldkit Plus today | What MetaKit and an own runtime add |
+|---|---|---|---|
+| **Saying what data a screen needs** | Each component lists its queries; a query's fetcher is a function you write | A Surface declares a selection of fields and relations. The read is planned from it: diffed against a normalised store, and only what is missing is fetched | The reads of a whole route are known without rendering it |
+| **Route loaders** | None. `Router.prefetch` warms a page's queries on link intent and navigation; nothing runs on the server, on Back, or on first load | None, by decision ("a route that fetches would make the Site an async runtime with its own cache beside Remote's"). One declaration feeds the client wiring, the preload, the server's read and the resume plan | The same, with no second cache |
+| **Parallel fetching** | A query starts when its component mounts, so a child drawn only after its parent's data arrives fetches later. No batching: one request per query | One plan is one batched request: 556 rows in one POST, 2,500 in three. Identical in-flight reads are joined. A relation being read rides the same request | On the server, `Data.satisfy` still reads a page's queries one after another, and a read that depends on another's answer costs another pass, up to eight. `metakit/graph`'s readiness check knows which reads are independent and what each dependent read waits for, so independent reads can run at once and a dependent one the moment its input arrives (`#606`, designed) |
+| **Single-flight mutations** | A Command names what it invalidates by hand (a query, an entry, a tag). It can store its own result into named entries; everything else refetches after | Built: a write's request says what the screen shows, and its response carries those fields re-read, plus the first page of up to eight lists the write moves. Measured: posting went from 2 requests to 1, archiving from 3 to 1. There are no hand-written invalidation keys: what a write affects is computed | Today that is computed from the changes seen in the answer. The stronger form exists and is unused: `reaches(write, query)` decides from a write's declared footprint and a query's declared dependencies. With it the server knows before it writes exactly which reads to carry back, with no cap of eight |
+| **Optimistic updates** | A hand-written patch function per query, held while the Command runs and dropped on failure | Derived: the prediction comes from the declared write. Pending writes are layers over the server's data, recomputed rather than undone, so they rebase for free. A rejected write is a dropped layer. Held to eight temporal laws over 42 cases | The same transition is the prediction and the real change, so the two cannot drift apart |
+| **Live data and derived results** | Stream queries and refetch intervals | Live streams with cursors; a count, sum, filter or sorted list maintained from a change instead of refetched (placement in 100,000 rows: 17 comparisons) | The laws that say when a derived value may be updated in place are MetaKit's |
+| **Offline and sync** | Cached reads survive a reload. No offline write queue | A durable outbox; replicated documents with a journal; typed refusals; old operations upcast across versions | Whether two edits commute is decided from their declarations; an undecided pair is owed a test |
+| **Rollback, replay, branching** | History restore on Back and Forward; a devtools slider over the message log. No undo, no branches | Rollback is dropping a layer. Recorded Messages replay. `packages/successor` has an event-sourced machine with journals (memory and SQLite), replay, and atomic commits across streams, tested under a competing write and a lost acknowledgement. **Not built:** forking state, speculative branches, copy-on-write, general undo | Designed in `#636` and `#612` §6: a branch refers to an immutable checkpoint, runs transitions with commands suppressed, and is promoted by submitting its intents to the current authority |
+| **Server rendering** | One render with a time budget (500 ms by default); a fetch that misses it is left for the browser. State is a JSON script. No streaming | Server reads run in-process as the principal; a page is refused rather than half-restored; a rendered page is cached only when provably the same for every visitor; forms and links work before or without script. Three renders and a re-parse per request, forced by upstream | A runtime of our own renders once and never re-parses its own output |
+| **Streaming** | None | **Not built, and once declined.** A probe on 2026-11-10 moved first paint by 6 ms against a 50 ms bar, and out-of-order streaming was rejected because a page without script would arrive incomplete (`#427`) | See below |
+| **Hand-off to the browser** | Hydration: every instance adopts its Model and re-runs. A lazily loaded page is replaced by its fallback and then drawn again. Clicks and submits before hydration are lost | Resume: typing before boot is kept with its caret; presses are answered from markers before the runtime loads; script is cut by Message. Built, opt-in, and short of its gates | Covered under "Performance" and "Resumability" above |
+| **Who may see and do what** | No primitive. Guards are code in the root's `update`; a server Layer's services are shared by every request unless you write your own handler | Reads and writes are checked on the server; a row rule becomes SQL; a hidden field is withheld without revealing why; the client's own check is "a UI shortcut, not enforcement" | A rule is one expression read by the database, the server and the form |
+| **Routing** | A flat union of typed routes with Schemas for parameters and search, one parser and printer that agree, and navigation as Commands. No nested routes or layouts | Upstream Foldkit's router, now frozen; a Site tree as data with nested layouts; URL state kept in step with the Model; code split per route | The successor needs its own router. Effect UI's Schema-typed route union is the part to learn from; ours adds the tree, layouts and declared data |
+
+**Why MetaKit is the reason and not a slogan.** Each row's right-hand column follows from one fact: a read, a write and a rule are data, so their footprints are known before anything runs.
+
+- A write's footprint against a read's dependencies gives the affected set. That is what makes a mutation single-flight without hand-written keys.
+- A read's inputs give the dependency order. That is what makes fetching parallel without a waterfall and without loaders.
+- A transition applied to a copy gives a prediction, a speculative branch, or a replay, with the same answer each time.
+- A fold's laws say whether a derived value can be updated from a change.
+- The same rule is the SQL check, the server's refusal and the disabled button.
+
+**Streaming, honestly.** The earlier decision was made under three constraints that a runtime of our own does not have: upstream's renderer returns one string, the page is re-parsed whole, and hydration needs a whole root. With bindings anchored in the HTML and a page that resumes instead of hydrating, a slow region is a binding target that is filled when its data arrives, in any order, with no re-render. That is the case for reopening it. Two things from the old decision stand: a page that declares a no-script fallback must still arrive complete and in order, and nothing is built on the claim until a page with a slow read below its first screen has been measured (the probe planned as "C4" was never run).
+
+**What is weaker than the claim, today.**
+
+- Server reads for one page are not yet parallel: queries in a pass are awaited one by one, and dependent reads take a pass each.
+- The single-flight answer is bounded (eight lists, first page only), runs after the commit rather than inside the transaction, and falls back to a refetch if the re-read fails.
+- Affected reads are computed from observed changes, not yet from declared footprints. A write settled in another tab invalidates every connection.
+- A Remote projection declares no dependencies (`#588`), so regions over Remote data are re-read on every render.
+- Forking, branches and undo are designs.
+- Streaming does not exist.
+- All of it sits on upstream Foldkit. None of it is in the successor yet.
+
 **What is not yet known, and decides whether the bet pays.**
+
+
 
 - How much faster end-to-end fine-grained updates are than an idiomatic Effect UI page on a production-shaped fixture. The mechanism is sound and the earlier numbers say where to aim; nothing has been measured against Effect UI.
 - Whether resumption can meet its bars at all on a real page, given how far the first attempt missed.
@@ -165,6 +276,8 @@ Decisions for this direction are made the way the MetaKit plan records (its §9.
 
 - The maintainer's statement of direction, 2026-11-28.
 - Upstream state from the GitHub API that day: `foldkit/foldkit`'s last commits; `Effect-TS/ui`'s creation date, packages and recent commits; and Effect UI's `LLMS.md`, read in part (its opening, "Changing the Model", "Code splitting", and its lines on hydration). Its source was **not** read. The comparison table's Effect UI column also draws on the source reading recorded in `#643` at commit `193d2fb`, which was not repeated here.
+- Effect UI's source at commit `82a1750` (2026-11-28), read by two research agents for the multi-renderer and the routing and data sections: `View.ts`, `Renderer.ts`, `Component.ts`, `Route.ts`, `Router.ts`, `Query.ts`, `Command.ts`, the HTML server and hydration modules, and the terminal and native packages, each in part, with line references. One claim is an inference from its code and not stated by its documentation: that a child's query starts after its parent's when the parent draws the child only once its own data has arrived.
+- This repository's capabilities, renderer-independence, routing, server-rendering and data designs and code, read by three more agents: the design notes for `#212`, `#227`, `#232`, `#244`, `#245`, `#260`, `#261`, `#264`, `#270`, `#378`, `#384`, `#427`, `#472`, `#480`, `#481`, `#495`, the sync and upcasting notes, `docs/remote.md`, `docs/declared-writes.md`, `docs/mirror.md`, and issues `#148`, `#149`, `#580`, `#606`, `#629`, `#634`, `#636`, `#637`. Two findings rest on reading code rather than on a document: that server queries within one pass are awaited in sequence, and that no fork or branch API exists.
 - The rendering history: issues `#376`, `#384`, `#432`, `#433`, `#436`, `#587` and `#608` read whole, body and comments. `#581` (application-wide semantic propagation) and the design note `docs/design/376-433-148-149-renderer-DESIGN.md` were not read beyond the note's status line; the successor plan must read both.
 - The repository: package counts and import counts by `grep`; `packages/successor` by its file list and headers; the gates and measurements from `docs/design/metakit-unification-LEDGER.md`.
 - Nothing was run or benchmarked for this page.
