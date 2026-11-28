@@ -396,6 +396,9 @@ Issues: every High and Medium entry that is Read or Reported has its issue besid
 | K19 (#672) | High | Probed | `Abstract.checkInvariant` refutes while ignoring a Schema rule that holds a list fold: `AbstractState.assume` drops a `Rows` hypothesis (`abstract/state.ts`, near 452), yet the checker still answers False. A non-empty list whose items are all `< 0` and all `> 0` gives False for `Expr.lit(false)`; the same contradiction without a fold gives True. Found by W0 step 5; recorded in `test/nested-fold-readers.test.ts`. | Downgrade False to `Unknown` naming the unread hypothesis; read bounded folds where the domain can. |
 | K20 (#674) | Medium | Read | SQL returns an integer result past ±(2^53−1) of arithmetic over a `Schema.Finite` term, where evaluation and the prover refuse it since K11; `Num.mul` is unguarded in SQL for integer fields too (`docs/domain-types.md`). | `NULL` where the result is an integer past the safe range, per dialect, or refuse such a term by name; a parity row on PGlite and SQLite. |
 | K21 (#675) | Medium | Read | A value evaluation refuses becomes `NULL` in SQL; right in a `WHERE`/`CHECK`, wrong in a write: `toUpdate` and remote-drizzle computed assignments store `NULL` into a nullable column where `Transition.step` refuses the step (a `NOT NULL` column errors). Existed for integer columns before K20. | A write must not happen where evaluation refuses its value: a `WHERE` that the guarded value is not null (zero rows updated), or refuse to lower such an assignment to a nullable column. W6. |
+| K22 (#676) | Medium | Probed | The prepared interpreter missed two W1 fixes: it returns `-0` where evaluation reads `0` (K11), and its `Match` throws on a BigInt subject where evaluation answers `unmatched` (K13). | Share `normalizeRead` and the safe formatter with the prepared plan; add both to the agreement generator. W2. |
+| K23 (#677) | Medium | Probed | `judge` counts a partial `Schema.Record` read as whole (K9 reads declared keys; a Record declares none): `Eq.is(a, b)` over two Records is `True` from `{ a: { x: 1 }, b: { x: 1 } }`, `false` once `a.y = 2`. | A plain object read against an index-signature Schema is never whole from a partial environment. W2. |
+| K24 (#678) | Medium | Probed | SQL answers where evaluation refuses: an operand past the safe range (`clampSafe` guards results only), NUL text in a SQLite column, NaN in a Postgres column (literals are screened, column values are not). | Guard operands; guard or refuse a comparison over a column whose Schema admits NUL or NaN. W2 or W6. |
 
 ### 6.2 Toolkit
 
@@ -530,6 +533,27 @@ Both were checked to exist on this machine (`agy` 1.5.18, `codex-cli` 0.160.0) a
 6. **Jev on the three files it skipped**, by splitting the review per file with `--include` (the memory note on Jev's limits), or after W3 splits them.
 
 *Done when:* every K entry is fixed or struck as not real, each with a killed mutation; the generated agreement test runs in CI; the `semantics.md` test exists; an independent review of the diff finds no High.
+
+*Status (2026-11-28).* Every K entry it names was real, and each is fixed with a test that failed first and a killed mutation. Who built each (§8.0):
+
+| Entry | Built by | Commit |
+|---|---|---|
+| K1 | Gemini | `dc269bb6e` |
+| K2 | Codex | `9a1a23b98` |
+| K3 | Gemini | `ed7ae2f2f` |
+| K4 | Codex (finished by the coordinator) | `b9ff762a4` |
+| K5 | coordinator | `a00e0ab72` |
+| K6 | Gemini (finished by the coordinator) | `84c3326c9` |
+| K7, K8 | Codex | `9344cb2e4` |
+| K9–K11, K13 | Codex (K11's prover gap by the coordinator) | `a22d54725` |
+| K12, K14, K15 | Gemini | `a22d54725` |
+| K19 | Gemini's test, the coordinator's fix | `5be76101b` |
+| K20 | Gemini | `3043ede5d` |
+
+- **Steps 2–6.** Step 2 is decided in §9.3, decision 19. Step 3 is `semantics-claims.test.ts` (Codex); it found three mismatches, settled in `4100aa98e`. Step 4 is `reader-agreement.test.ts` (Codex); it found the prepared `Match`'s missing NUL screen. Step 5, `conformance.mutations.ts`, is by Codex. For step 6, Jev approved `abstract/check.ts`, `conformance.ts` and `prove.ts` in full.
+- **The independent review** (Codex) found four Highs, all in the checker, fixed in `d45fdc4f7`. It also found K22–K24 (Medium, for W2) and four Lows (#671).
+- **On the way:** W1 surfaced K21 (writes) for W6.
+- **Builders.** Both builders delivered working fixes with honest reports. Twice a run was stopped for memory while two ran side by side, which is now not done. Gemini went past its brief usefully: the K19 cases beyond list folds, and the K20 proof that no fractional double passes 2^53. Codex reproduced every defect first and flagged out-of-scope gaps instead of reaching for them.
 
 ### W2. Toolkit soundness
 
