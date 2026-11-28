@@ -103,7 +103,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // adopted metakit/machine (`src/client/machine.ts`, bringing metakit/machine and metakit/transition
 // into the SSR Worker, 96.1 kB raw total for metakit) plus SSR/remote-server Effect integration
 // (`ManagedRuntime`, `Clock`, `withSpan`). Ceiling: reading plus ~1,500, rounded up.
-const CEILING = 3_395_000
+// +1,000 on 2026-11-27 (3,395,203 measured): metakit #648 P0 #3 evidence-gated foreign rewrites
+// (`permitsForeignRewrite`, `foreignCallCannotRefuse`) and `claims.total` parity/soundness in
+// `ops/laws.ts` and `ops/residualize.ts`. Ceiling: reading plus ~800, rounded up.
+const CEILING = 3_396_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

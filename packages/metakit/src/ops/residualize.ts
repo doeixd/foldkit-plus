@@ -38,39 +38,39 @@ const astOfNode = (node: Node.Node): Option.Option<SchemaAST.AST> =>
         Option.some(Schema.NullOr(node.op.result).ast)
       : Option.none()
 
-/** A residual as the laws see it (foreign-total aware via `foreign` and `rewritePolicy`). */
+const baseView: View<Node.Node> = {
+  known: node => (Node.$is('Lit')(node) ? Option.some(node.value) : Option.none()),
+  kind: kindOf,
+  cannotRefuse,
+  isRead: Node.$is('Path'),
+  isPortableRead,
+  safe: isSafeRead,
+  unary: node =>
+    Node.$is('Call')(node) && node.args.length === 1
+      ? {
+          id: Node.isForeign(node.op) ? Node.foreignName(node.op) : node.op.id,
+          arg: node.args[0]!,
+        }
+      : undefined,
+  same: (left, right) => Node.key(left) === Node.key(right),
+  ast: astOfNode,
+}
+
 const viewFor = (
   foreign: ForeignImplementations,
   rewritePolicy?: ForeignRewritePolicy,
 ): View<Node.Node> => {
-  const nodeCannotRefuse = (node: Node.Node): boolean => {
-    if (!Node.$is('Call')(node)) return cannotRefuse(node)
-    if (Node.isForeign(node.op)) {
-      return foreignCallCannotRefuse(residualView, node.op, node.args, foreign, rewritePolicy)
-    }
-    if (cannotRefuse(node)) return true
-    return callCannotRefuse(
-      node.op,
-      node.args.map(arg => [nodeCannotRefuse(arg), kindOf(arg)] as const),
-    )
-  }
-  const residualView: View<Node.Node> = {
-    known: node => (Node.$is('Lit')(node) ? Option.some(node.value) : Option.none()),
-    kind: kindOf,
-    cannotRefuse: nodeCannotRefuse,
-    isRead: Node.$is('Path'),
-    isPortableRead,
-    safe: isSafeRead,
-    unary: node =>
-      Node.$is('Call')(node) && node.args.length === 1
-        ? {
-            id: Node.isForeign(node.op) ? Node.foreignName(node.op) : node.op.id,
-            arg: node.args[0]!,
-          }
-        : undefined,
-    same: (left, right) => Node.key(left) === Node.key(right),
-    ast: astOfNode,
-  }
+  const nodeCannotRefuse = (node: Node.Node): boolean =>
+    !Node.$is('Call')(node)
+      ? cannotRefuse(node)
+      : Node.isForeign(node.op)
+        ? foreignCallCannotRefuse(residualView, node.op, node.args, foreign, rewritePolicy)
+        : cannotRefuse(node) ||
+          callCannotRefuse(
+            node.op,
+            node.args.map(arg => [nodeCannotRefuse(arg), kindOf(arg)] as const),
+          )
+  const residualView: View<Node.Node> = { ...baseView, cannotRefuse: nodeCannotRefuse }
   return residualView
 }
 

@@ -301,6 +301,49 @@ const checkTagCases = (
   }
 }
 
+const buildTagMatch = <Env>(
+  name: 'matchTagsExhaustive' | 'matchTags',
+  on: PathType<Env, unknown>,
+  cases: Readonly<
+    Record<string, ((variant: PathAccessor<Env, unknown>) => ExprInput<never, unknown>) | undefined>
+  >,
+  otherwise: Option.Option<ExprInput<never, unknown>>,
+): Node.Node => {
+  const { variants, tagAst, nullable } = taggedVariantsOf(on.ast)
+  const exhaustive = Option.isNone(otherwise)
+  if (exhaustive && nullable) {
+    throw new Error(
+      `[metakit] Expr.${name}: cannot exhaustively match nullable ${showNode(on.node)}`,
+    )
+  }
+  const entries = Object.entries(cases).filter(
+    (
+      entry,
+    ): entry is [string, (variant: PathAccessor<Env, unknown>) => ExprInput<never, unknown>] =>
+      entry[1] !== undefined,
+  )
+  checkTagCases(
+    name,
+    on.node,
+    variants,
+    entries.map(([tag]) => tag),
+    exhaustive,
+  )
+  const tagNode = Node.Path({ segments: [...on.segments, '_tag'], ast: tagAst })
+  return Node.Match({
+    on: tagNode,
+    cases: entries.map(([tag, handler]) => [
+      tag,
+      toNode(
+        handler(
+          Path.accessor<Env, unknown>(on.segments, Option.fromUndefinedOr(variants.get(tag))),
+        ),
+      ),
+    ]),
+    otherwise: Option.map(otherwise, toNode),
+  })
+}
+
 /**
  * Exhaustive tagged-union `Match` over a `Path` to a union of `Schema.TaggedStruct`s.
  * Each branch receives a narrowed `PathAccessor` for that variant's payload fields
@@ -321,38 +364,7 @@ export const matchTagsExhaustive = <
 ): ExprType<
   Env & UnionToIntersection<EnvOfInput<ReturnType<Cases[keyof Cases]>>>,
   ValueOfInput<ReturnType<Cases[keyof Cases]>>
-> => {
-  const { variants, tagAst, nullable } = taggedVariantsOf(on.ast)
-  if (nullable) {
-    throw new Error(
-      `[metakit] Expr.matchTagsExhaustive: cannot exhaustively match nullable ${showNode(on.node)}; use Expr.matchTags with a fallback`,
-    )
-  }
-  const entries = Object.entries(cases) as ReadonlyArray<
-    readonly [string, (variant: PathAccessor<Env, unknown>) => ExprInput<never, unknown>]
-  >
-  checkTagCases(
-    'matchTagsExhaustive',
-    on.node,
-    variants,
-    entries.map(([tag]) => tag),
-    true,
-  )
-  const tagNode = Node.Path({ segments: [...on.segments, '_tag'], ast: tagAst })
-  return wrap(
-    Node.Match({
-      on: tagNode,
-      cases: entries.map(([tag, handler]) => {
-        const narrowed = Path.accessor<Env, unknown>(
-          on.segments,
-          Option.fromUndefinedOr(variants.get(tag)),
-        )
-        return [tag, toNode(handler(narrowed))] as const
-      }),
-      otherwise: Option.none(),
-    }),
-  )
-}
+> => wrap(buildTagMatch('matchTagsExhaustive', on, cases as never, Option.none()))
 
 /**
  * Partial tagged-union `Match` with an explicit fallback branch, which handles
@@ -376,35 +388,7 @@ export const matchTags = <
     UnionToIntersection<EnvOfInput<ReturnType<Exclude<Cases[keyof Cases], undefined>>>> &
     EnvOfInput<Fallback>,
   ValueOfInput<ReturnType<Exclude<Cases[keyof Cases], undefined>>> | ValueOfInput<Fallback>
-> => {
-  const { variants, tagAst } = taggedVariantsOf(on.ast)
-  const entries = Object.entries(cases).filter(
-    ([, handler]) => handler !== undefined,
-  ) as ReadonlyArray<
-    readonly [string, (variant: PathAccessor<Env, unknown>) => ExprInput<never, unknown>]
-  >
-  checkTagCases(
-    'matchTags',
-    on.node,
-    variants,
-    entries.map(([tag]) => tag),
-    false,
-  )
-  const tagNode = Node.Path({ segments: [...on.segments, '_tag'], ast: tagAst })
-  return wrap(
-    Node.Match({
-      on: tagNode,
-      cases: entries.map(([tag, handler]) => {
-        const narrowed = Path.accessor<Env, unknown>(
-          on.segments,
-          Option.fromUndefinedOr(variants.get(tag)),
-        )
-        return [tag, toNode(handler(narrowed))] as const
-      }),
-      otherwise: Option.some(toNode(otherwise)),
-    }),
-  )
-}
+> => wrap(buildTagMatch('matchTags', on, cases as never, Option.some(otherwise)))
 
 /**
  * First-class escape hatch for arbitrary JavaScript logic.

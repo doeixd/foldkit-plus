@@ -522,18 +522,8 @@ export const rewriteForeign = <T>(
       value => Object.is(value, expected) || (value === 0 && expected === 0),
     )
 
-  const withinSchema = (operand: T, index: number, allowNull: boolean): boolean => {
-    const target = argSchemas[index]
-    const check = checkArgs[index]
-    if (target === undefined || check === undefined) return false
-    const known = view.known(operand)
-    if (Option.isSome(known)) {
-      if (known.value === null) return allowNull
-      return !Node.isRefusal(known.value) && check.is(known.value)
-    }
-    const ast = view.ast === undefined ? Option.none() : view.ast(operand)
-    return Option.exists(ast, source => astWithin(source, target.ast, check.is, allowNull))
-  }
+  const withinSchema = (operand: T, index: number, allowNull: boolean): boolean =>
+    operandWithinSchema(view, op, operand, index, allowNull)
 
   const strict = op.nulls === 'strict'
 
