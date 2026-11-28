@@ -91,8 +91,8 @@ export interface Machine<State, Transitions extends Readonly<Record<string, unkn
   readonly transitions: Transitions
   /**
    * Dispatch a tagged message `{ _tag, input }` against `state`: the next
-   * state and the records the step emits, or `Result.fail(Refused)` where
-   * the transition's guard is not true. A no-op keeps `state`'s identity.
+   * state and the records the step emits, or `Result.fail(Refused)` if the
+   * message is unknown or the transition refuses. A no-op keeps `state`'s identity.
    * `options.foreign` holds the implementations of the foreign operations
    * the transitions call.
    */
@@ -156,7 +156,9 @@ export const make = <
   const dispatch: Machine<State, Transitions>['dispatch'] = (state, message, options) =>
     Option.match(transitionOf(message._tag), {
       onNone: () =>
-        Result.fail(new Transition.Refused({ reason: `unknown message "${message._tag}"` })),
+        Result.fail(
+          new Transition.Refused({ why: Transition.Why.UnknownMessage({ tag: message._tag }) }),
+        ),
       onSome: tr =>
         Transition.step(
           tr,
@@ -489,11 +491,15 @@ const liftEachTransition = <Outer, Child, K extends string>(
                       }
                       const stepped = Transition.step(transition, item, outer.input, outer.supplied)
                       if (Result.isFailure(stepped)) {
-                        return new Node.Refusal({
-                          reason: 'failed',
-                          at: 'Machine.each',
-                          detail: stepped.failure.reason,
-                        })
+                        // Expression readers propagate a Node.Refusal. The step recovers its child failure.
+                        return Object.assign(
+                          new Node.Refusal({
+                            reason: 'failed',
+                            at: 'Machine.each',
+                            detail: stepped.failure.reason,
+                          }),
+                          { cause: stepped.failure },
+                        )
                       }
                       if (stepped.success.state !== item) changed = true
                       next.push(stepped.success.state)

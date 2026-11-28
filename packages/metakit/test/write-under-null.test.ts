@@ -39,60 +39,36 @@ const SetDeep = Transition.make({
   apply: ({ state, input }) => [Transition.set(state.a.b.c, input.c)],
 })
 
+const unwritable = (target: ReadonlyArray<string>, detail: string) =>
+  Result.fail(new Transition.Refused({ why: Transition.Why.Unwritable({ target, detail }) }))
+
+const missing = (parent: string) =>
+  `is under "${parent}", which holds no value: write the whole value`
+
 describe('Transition.run writing under a null or absent parent', () => {
   it('refuses writing a field under a null parent', () => {
     const result = Transition.run(RenameNullable, { profile: null }, { name: 'x' })
-    expect(result).toEqual(
-      Result.fail(
-        new Transition.Refused({
-          reason: '"profile.name" is under "profile", which holds no value: write the whole value',
-        }),
-      ),
-    )
+    expect(result).toEqual(unwritable(['profile', 'name'], missing('profile')))
   })
 
   it('refuses writing a field under an absent optionalKey parent', () => {
     const result = Transition.run(RenameOptionalKey, {}, { name: 'x' })
-    expect(result).toEqual(
-      Result.fail(
-        new Transition.Refused({
-          reason: '"profile.name" is under "profile", which holds no value: write the whole value',
-        }),
-      ),
-    )
+    expect(result).toEqual(unwritable(['profile', 'name'], missing('profile')))
   })
 
   it('refuses writing a field under an undefined optional parent', () => {
     const result = Transition.run(RenameOptional, { profile: undefined }, { name: 'x' })
-    expect(result).toEqual(
-      Result.fail(
-        new Transition.Refused({
-          reason: '"profile.name" is under "profile", which holds no value: write the whole value',
-        }),
-      ),
-    )
+    expect(result).toEqual(unwritable(['profile', 'name'], missing('profile')))
   })
 
   it('refuses a two-level write when the inner parent is null, naming that prefix', () => {
     const result = Transition.run(SetDeep, { a: { b: null } }, { c: 1 })
-    expect(result).toEqual(
-      Result.fail(
-        new Transition.Refused({
-          reason: '"a.b.c" is under "a.b", which holds no value: write the whole value',
-        }),
-      ),
-    )
+    expect(result).toEqual(unwritable(['a', 'b', 'c'], missing('a.b')))
   })
 
   it('refuses a two-level write when the outer parent is null, naming the outer prefix', () => {
     const result = Transition.run(SetDeep, { a: null }, { c: 1 })
-    expect(result).toEqual(
-      Result.fail(
-        new Transition.Refused({
-          reason: '"a.b.c" is under "a", which holds no value: write the whole value',
-        }),
-      ),
-    )
+    expect(result).toEqual(unwritable(['a', 'b', 'c'], missing('a')))
   })
 
   it('keeps the Option refusal message for a nested path inside an Option', () => {
@@ -106,11 +82,7 @@ describe('Transition.run writing under a null or absent parent', () => {
     })
     const result = Transition.run(SetInOption, { a: Option.none() }, { c: 1 })
     expect(result).toEqual(
-      Result.fail(
-        new Transition.Refused({
-          reason: '"a.b.c" is inside the Option at "a": write the whole value',
-        }),
-      ),
+      unwritable(['a', 'b', 'c'], 'is inside the Option at "a": write the whole value'),
     )
   })
 
