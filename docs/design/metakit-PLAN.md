@@ -26,7 +26,7 @@ The issues describe four end states. They are layered, and each rests on the one
 
 1. **One rule, many readers.** Evaluation, partial evaluation, SQL, an interval checker, a solver, forms, JSON Schema. Each reader gives the reference evaluator's answer or refuses by name. (`#598`, `#645`, `packages/metakit/docs/why-metakit.md`.)
 2. **A toolkit for small typed languages.** A language author states the terms, the operations, what they mean and what is known about them, and inherits evaluation, analysis and tooling. (`#647`, `#649`.)
-3. **A portable semantic contract.** A definition can leave the process as versioned data, be fingerprinted, and be run by another implementation (SQL, native Rust through Reffect) to the extent that target's semantics justify. (`#645`, `#649` §8.)
+3. **A portable semantic contract.** A definition can leave the process as versioned data, be fingerprinted, and be run by another implementation (SQL, native Rust through Reffect) to the extent that target's semantics justify. A definition is named by a hash of its content, so a rename costs nothing, an unchanged definition is never re-proved or recompiled, and a change marks exactly what depends on it (§5.1). (`#579`, `#645`, `#649` §8.)
 4. **The base of a Foldkit successor.** Transitions, machines, dependency graphs and resumable rendering built on the single-step core. (`#612`, `#635`, `#637`, `#643`, `#644`.)
 
 The issues pull in two directions on what MetaKit is: "a tiny, decidable calculus, not a general-purpose language workbench" (`#597`, `#598`, 2026-11-20) and "an elegant, general toolkit for crafting TypeScript DSLs" (`#647`, `#649`, 2026-11-27). This plan resolves it by layering, not by choosing:
@@ -112,6 +112,8 @@ These were argued and settled; do not reopen them without new evidence.
 - **Checks, the prover, SQL lowering and conformance never reach a page.** An opt-in feature has its own subpath and costs a page that does not use it zero bytes.
 - **"Measurements order the work and set defaults; they do not cancel it."**
 
+One settled decision is reopened here, with the new evidence that requires it. The unification plan's decision 10 put fingerprints (`#579`) outside its scope. Since then `#645` landed expression fingerprints and evidence keys, the adapter needs a bundle fingerprint, and three implementations were about to exist with none covering types (K16–K18). §5.1 and W4 steps C1–C7 bring the fingerprint half of `#579` into this plan; its Block-composition and graph-query halves stay out.
+
 ### 3.3 Decisions reversed, and the pattern
 
 - "No `Fn`, no `Num`" (11-10) → both built (11-12, 11-26).
@@ -194,6 +196,47 @@ Before adding an operator, a node kind, an export or an entry point, write down:
 | **Standard library** (derived from the kernel's public API) | Domain Schemas, aggregates, relations, machines, policies, functions, custom and derived operations, languages, stores | `/domain`, `/aggregates`, `/relation`, `/machine`, `/policy`, `/fn`, `/operation`, `/language`, `/store`, `/pairs`, `/temporal`, `/graph`, `/graph/match`, `/graph/prune`, `/graph/readiness`, `/inspect` |
 | **Adapters and tooling** (optional, never on a page unless asked) | SQL, Drizzle, the solver, conformance, the portable codec, the interpreter service, authoring helpers, the semantic index | `/sql`, `/drizzle`, `/aggregates/sql`, `/operation/sql`, `/prove`, `/conformance`, `/store/check`, `/artifact`, `/interpreter`, `/syntax`, `/tooling` |
 
+### 5.1 Identity: a definition is named by its content
+
+`#579` states the aim: "Unison-like benefits within the declarative TypeScript subset: change-impact analysis, incremental verification, deterministic compiled-plan caching, exact semantic versioning of durable operations, and eventually portable definition resolution, without a new programming language". Unison names a definition by a hash of its syntax tree, so a rename changes nothing, an unchanged definition never needs re-testing, and code can be sent to another machine by hash. MetaKit can have that for what is written as MetaKit data, and for nothing else: TypeScript closures and Effect programs cannot be hashed.
+
+A definition has three identities. They answer different questions and must never stand in for one another.
+
+| Identity | What it is | Changes when | Used for |
+|---|---|---|---|
+| **Name** | A logical id a person chose (`DeclarationId`, an operation's `id@version`, a transition's tag) | Someone renames it | Finding it; reading a report. A name is metadata and is never hashed |
+| **Definition hash** | A hash of the definition's canonical form, the types it reads, and the hashes of the definitions it refers to | Its meaning could change | Deciding whether two definitions are the same one; keying anything derived from the definition alone |
+| **Evidence key** | The definition hash plus who checked it and under what: the reader and its version, each implementation's identity, the assumptions | Any of those change | Reusing a proof, a test result, a compiled plan. Exists today as `Artifact.evidenceKey` |
+
+A definition hash has two strengths, as `#579` asks:
+
+- The **executable hash** covers what a reader runs: an expression's tree; a transition's guard, writes and emits; a function's parameters and body.
+- The **contract hash** covers the executable hash plus what is claimed about it: a transition's `ensures`, a function's `where`, `returns` and `ensures`, an operation's declared claims.
+
+A compiled SQL statement or native artifact is keyed by the executable hash, so adding a postcondition does not recompile anything. A proof is keyed by the contract hash, so adding a postcondition does invalidate it.
+
+**What goes into a hash**, in a canonical form whose rules are written down and versioned:
+
+1. **A domain tag**: the kind and the canonical format's version (`metakit/expr@1`, `metakit/transition@1`, `metakit/operation@1`, `metakit/fn@1`, `metakit/machine@1`), so a transition and an expression can never collide and a change of rules cannot be mistaken for an unchanged definition.
+2. **The term**, in evaluation order, with local binders renamed. No reassociation, no reordering of commutative operands: two trees that mean the same thing but are written differently have different hashes. That is deliberate (`#579`: "do not attempt to prove algebraic equivalence").
+3. **The interface**: every path the definition reads, with its kind, nullability and admitted literals (the slots of §6.1 of the adapter plan). Without this, one tree over an integer field and the same tree over a text field share a hash.
+4. **References, by hash.** A call to a derived operation contributes that operation's hash, which covers its parameters, result, null rule and body. So changing a body changes every definition that calls it, with no version to remember to bump. A machine's hash is the hashes of its transitions.
+5. **Opaque leaves, by name.** A primitive custom operation is implemented by a JavaScript function and has no content to hash. It contributes its `id@version`, and the definition is marked as depending on a named leaf. Its implementation's identity belongs in the evidence key, where it already is. `id@version` is a compatibility assertion by its author, not a proof that two implementations agree.
+
+Never in a hash: names, documentation, source positions, test evidence, the TypeScript variable a definition was assigned to.
+
+**What a hash is not.** Not an authorization token, not a proof of correctness, not a result-cache key (a result also depends on the data, the principal and freshness), and not Remote's `QueryRef.identity` (a query's name plus its input, which stays as it is).
+
+**The manifest.** A build can emit one deterministic file: every definition's hash, kind, references and canonical form, and a separate table from names to hashes. Comparing two manifests then says exactly what happened: *renamed* (same hash, new name), *changed*, *added*, *removed*, and *affected* (everything whose hash changed because something it refers to did). Nothing at run time needs the manifest; it is for tooling and build comparison.
+
+**What stays out**, so this does not grow into a second system:
+
+- No codebase-as-database, no hash-addressed imports, no structural editor. TypeScript files stay the source.
+- No hashing of closures, `Opaque` nodes or Effect programs. A definition holding one has no hash, and says why.
+- Renaming a Schema field changes the hash. That is a real change against stored data; Entity versions and upcasters own it.
+- A server never runs a definition a client sent. It resolves a hash against its own manifest, or refuses.
+- Ordinary evaluation never hashes anything.
+
 Questions this table raises, which W3 answers:
 
 - **`Fn` and `Operation.derived` overlap.** A derived operation adds a named identity and a Schema refusal at the call, but refuses any `Fn` that has a `where`, an `ensures` or obligations. So contracts and identity cannot be had together today.
@@ -227,6 +270,9 @@ Severity: **High** a wrong answer, a lost guarantee or an unsound type; **Medium
 | K13 | Low | Reported | Evaluation can throw or leave the four outcomes: `matchArm` formats its refusal with `JSON.stringify(target)`, which throws on a BigInt or a cycle; `coalesce` built with fewer than two arguments returns `undefined`. | A safe formatter; an arity check in `build.call`. |
 | K14 | Low | Reported | Tree rewrites lose information: `Node.mapRows` drops `Related.cardinality`, so the solver loses its `total = 1` fact after a lift (sound, weaker); `rewriteStatePrefix` ignores `Rows` binders, so a binder named `state` is re-rooted; a lift along an `Option`-held child can never apply a write and says so only at run time. | Carry `cardinality`; respect binders; refuse the lift at definition time. |
 | K15 | Low | Read | `Transition.lift` drops `ensures` silently. `ensures` is stored as an `Option` in an optional field (two absences). | Lift it or refuse; one absence. |
+| K16 | Medium | Read | A fingerprint does not cover what the definition reads. `PortableArtifactV1` is the tree and its operator list, so one tree over `Schema.Int` and over `Schema.String` share a hash. `EvidenceKeyInput.schemaFingerprint` exists for this, is optional, and nothing in `src` computes one. | §5.1 item 3; W4 step C2. |
+| K17 | Medium | Read | A derived operation's body is not in the hash of what calls it: a call encodes as `{ id, version }` only (`artifact.ts`, `encodeExpr`). Change a body without bumping `version` and every caller keeps its fingerprint, so evidence is reused for a different meaning. | §5.1 item 4; W4 step C3. |
+| K18 | Medium | Read | There are two fingerprint implementations and the adapter plan was about to add a third. `tooling.ts` has a private `fingerprintTransition` that hashes a hand-built payload with plain `JSON.stringify`, brands the result as an expression's `ArtifactFingerprint`, copies `sha256Hex`, and turns **every** error into "no fingerprint" (`Effect.catch(() => none)`), so a limit error reads as "not portable". Expression fingerprints carry no domain tag. | One hashing module with domain tags; `tooling` calls it; W4 step C1. |
 
 ### 6.2 Toolkit
 
@@ -247,6 +293,7 @@ Severity: **High** a wrong answer, a lost guarantee or an unsound type; **Medium
 | T13 | Low | Reported | `Interpreter.runFn` skips `where`, `returns` and `ensures` unless `{ checked: true }`. | Check by default. |
 | T14 | Low | Reported | Sibling signatures disagree: `define` requires `nulls`, `derived` defaults it; operations take positional arguments, functions a named record, and `derived` needs `paramOrder` to bridge; `derived` requires `returns` even when the function declares it; `compose` fails in an Effect while `make` and `restrict` throw; `readiness` wraps a pure function in `Effect.sync`; `grammar.step` throws while `grammar.validate` fails in an Effect. | W3, by rule 11. |
 | T15 | Low | Probe | `tooling` indexes expressions and transitions only (not a function, an operation or a language); `dependsOn` is hand-written strings; a transition's writes are formatted `state.x` while an expression's reads are probably `x`, so `writes-read-field` may never match. Probe: index a rule over `balance` and a transition that writes it, and ask for the rule's references. | W6. |
+| T16 | Low | Read | `semanticDiff` matches definitions by name (`tooling.ts:661`), so a rename is reported as one removed and one added, and everything downstream is invalidated. Its transitive dependencies are the hand-written `dependsOn` strings of T15. | Match by hash first, then by name; derive references from the definitions (W4 step C5). |
 | T-ceremony | — | Not compiled | The smallest three-operation integer language with one function and one evaluation is five imports and nine statements, no casts. Lines that exist only because the API demands them: `version: 1` and `nulls: 'strict'` three times each; the family level in both `make` and `implement`; the table name `'js'`; `{ foreign: js }` on every evaluation; `Language.make` itself, since `Operation.implementations` would do. | W3 and W5 measure this and set a budget. |
 
 ### 6.3 Package and documents
@@ -403,7 +450,25 @@ This is Phase A of [`598-612-metakit-reffect-adapter-PLAN.md`](./598-612-metakit
 - **A4** (the corpus) reuses W1's generator, and is written **after** K1–K6, so it records correct answers.
 - **A5** (replay through the SQL reader) is the third leg `#649` §8 asks for.
 
-*Done when:* that plan's Phase A exit.
+**Content-addressed definitions** (§5.1; `#579` WP3–WP5, `#645` P1) are built in the same workstream, because a bundle's fingerprint and a definition's hash must be one thing. Steps C1–C3 come before A3; C4–C7 after A4. *Tier:* judgement for C1–C3 (they fix a format that stored hashes will depend on); ordinary for the rest.
+
+- **C1. One hashing module.** After K8 is fixed. A single place that takes a kind, a canonical payload and the format version, and returns the hash. It owns the canonical JSON rules, the domain tags and `sha256Hex`. `Artifact.fingerprint`, `tooling`'s transition fingerprint (deleted in favour of this) and the bundle fingerprint all call it. An error is an error: only "holds an `Opaque` or an unhashable leaf" yields "no hash", as a typed reason, never a caught exception (K18). Write the canonical rules into `packages/metakit/docs/semantics.md`, since a consumer outside this repository must be able to recompute a hash.
+- **C2. Schema identity.** Effect 4.1 ships `SchemaRepresentation`, a stable, serializable representation of a Schema (`node_modules/effect/src/SchemaRepresentation.ts`, with `toJson`), in which a check carries a persistence identity `{ id, payload }`. **Probe it before writing anything**: does it give equal JSON for two structurally equal Schemas built separately; what does it emit for `Schema.Int`, `NullOr`, optional keys, a tagged union, `Money`, `Text.schema`, and a filter with no identity. Then: the interface of §5.1 item 3 is derived from it, MetaKit's own checks (the no-NUL check, the domain annotations) carry a representation identity so they are portable, and a Schema holding a check or transformation with no identity makes the definition unhashable with a reason naming the field. Do not write a second Schema serializer if the probe shows Effect's suffices; if it does not, record what is missing in §9.3 and decide there.
+- **C3. References by hash.** A derived operation gets a definition hash over its parameter and result interfaces, its null rule and its body. A definition that calls it includes that hash (K17). This needs the body to be reachable from the call: today the node holds only the operator's descriptor. Decide in §9.3 whether the descriptor carries a reference to its definition or the hash is computed against a supplied table; the first cannot give two answers for one expression, which is the reason to prefer it. Cycles are refused (derived expansion already detects them). A primitive operation stays a named leaf.
+- **C4. Executable and contract hashes** for a transition, a function and a machine, as §5.1 defines them. The bundle of A3 carries the executable hash; `ensures` and claims enter only the contract hash.
+- **C5. The manifest and its diff.** A deterministic manifest from a set of named definitions, and a comparison of two manifests reporting renamed, changed, added, removed and affected. `semanticDiff` becomes this comparison: it matches by hash first (T16) and takes references from the definitions instead of hand-written `dependsOn` (T15).
+- **C6. Two consumers**, which rule 4.3 requires before this counts as built:
+  1. **Proofs that do not rerun.** `Prove.machine` and `Prove.fn` results stored under the evidence key (contract hash, solver identity and version, timeout). A CI run proves only what changed and what is affected by it. A stored "proved" is reused only on an exact key match; a stored "unknown" or timeout is never reused as a pass. Measure the solver time saved on `examples/metakit`.
+  2. **Compiled output that does not rebuild.** SQL text per dialect, prepared plans, and the Reffect native artifact (adapter plan D9) keyed by executable hash plus the compiler's identity.
+- **C7. Golden hashes.** A committed fixture of a few dozen definitions with their expected hashes, and a test that recomputes them. Any unintended change to the canonical form fails this test. An intended one bumps the format version in the domain tag, which changes every hash at once and visibly, instead of silently reusing stale evidence.
+
+**Later consumers**, each needing its own design note and a named user before it is built:
+
+- **Durable and Sync compatibility:** a journalled operation records the executable hash of the transition it was authored against; on replay a mismatch is a typed refusal or an upcaster, never a silent run of different code. A hash does not replay old semantics by itself: that needs the old definition or a migration (`#579`).
+- **Resume across deploys:** a resume envelope carries the machine's hash, so a client holding an older build's envelope takes over in full instead of resuming against changed transitions. Finer than a build id (`210-build-id-DESIGN.md`). Belongs to W7.
+- **Definitions by reference on the wire:** a client names a definition by hash and the server resolves it against its own manifest.
+
+*Done when:* that plan's Phase A exit; and for content addressing: one hashing module with no second implementation left; the golden-hash test in CI; a rename of a definition shown as a rename by the manifest diff; a body change to a derived operation changing the hash of every caller in a test; both consumers of C6 running on `examples/metakit` with the time or work saved recorded.
 
 ### W5. Two small languages and the flagship slice
 
@@ -541,6 +606,10 @@ Decisions the plan already knows it will need. Each is decided by §9.1 when its
 | 5 | Which files split where, and the byte, instantiation and ceremony budgets | W3 steps 5 and 8 | open |
 | 6 | What `T1`'s fix is: leave a checked call unexpanded, or return its refinements beside the expansion | W2 | open |
 | 7 | Whether a builder may commit for single-file steps, after the first delegated steps show how each agent behaves | §8.0, after W0 | open |
+| 8 | Is Effect's `SchemaRepresentation` enough to be a Schema's identity, or what must MetaKit add | W4 step C2, after its probe | open |
+| 9 | How a call reaches its derived operation's body for hashing: the descriptor carries the definition, or a table is supplied. Leaning: the descriptor | W4 step C3 | open |
+| 10 | Whether a derived operation still needs a hand-written `version` once it is named by its content. Leaning: keep `id@version` as the name people read and the wire reference; the hash decides sameness | W4 step C3 | open |
+| 11 | Where stored evidence lives for C6: a committed file, the CI cache, or both | W4 step C6 | open |
 
 ---
 
@@ -550,6 +619,7 @@ Decisions the plan already knows it will need. Each is decided by §9.1 when its
 |---|---|
 | `#648` | W1 and W2 done; its #6 (control flow versus logical operations) is K5 and K6 plus the `semantics.md` test; #8 is W3 and W4's profile; #9 is K7 and W4 |
 | `#645` | W4 (codec fixes, bundles, corpus), W5 step 3 (the slice), W6 step 1 (benchmarks), W8 step 1 (documentation) |
+| `#579` | Its WP3 (fingerprints), WP4's `diff` and WP5 (a manifest and one real consumer) are W4 steps C1–C7. WP1, WP2 and the rest of WP4 (shared facts, Block composition, graph queries) are not in this plan |
 | `#647` | W3 (alignment, `grammar`'s fate) and W5 (the test languages) |
 | `#646` | W9 |
 | `#649` | W3 (P0, P1), W4 and W8 step 2 (P2), W6 (P3), W5 and W8 (P4) |

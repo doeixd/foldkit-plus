@@ -406,7 +406,7 @@ Kinds are **not** checked here: `readiness` sees no root Schema. A3 checks slot 
   5. For a `Schema.Literals` of strings, fill `literals`. A `_tag` slot's literals are the union's tags.
   6. Sort the slots; encode the nodes; for writes, record the target's kind and nullability the same way and refuse a `way` other than `set` or `add`.
 - `PortableBundleV1` as an Effect `Schema` (a union of the two shapes), so a consumer inside this repository can decode one. No function rebuilds a live `Transition` from a bundle: nothing needs it.
-- `fingerprintBundle(bundle)`, canonical JSON then SHA-256, as `fingerprint` does.
+- `fingerprintBundle(bundle)`: the bundle's **executable hash**, computed by the one hashing module of `metakit-PLAN.md` W4 step C1 (domain tag, canonical JSON, SHA-256), with the interface from step C2 and derived operations referenced by hash from step C3. Do not write a separate hashing routine here; `tooling.ts` already has a private second one, which C1 removes.
 
 **Tests** (new file `packages/metakit/test/bundle.test.ts`):
 - The five `CounterAccount` bundles (§7) encode; a snapshot of each slot list written out by hand in the test, not generated.
