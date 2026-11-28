@@ -171,29 +171,43 @@ const numeric =
 const PAST_SAFE = String(Number.MAX_SAFE_INTEGER + 1)
 
 /**
- * `+`, `-` or `*` over integers as evaluation gives it: NULL where the result
- * leaves ±(2^53−1), which SQL would return as a float (SQLite) or a bigint past
- * the range (Postgres, which raises on an overflow of its own integer sum or
- * product, an `int4` one well inside the range, so the result is formed as
- * `numeric`). The result is clamped to ±2^53 and that value made NULL, so the
- * operation is written once; a NULL result clamps to -2^53 on Postgres
- * (`GREATEST` ignores NULL) and is NULL again. Only a result with an integer
- * term the row decides is guarded: results of request values are folded and
- * refused before SQL is written.
+ * Clamp a numeric expression to ±2^53 and turn those stops into NULL, writing
+ * the expression once. Every finite IEEE 754 double past ±(2^53−1) is an
+ * integer that evaluation refuses (`unsafe-integer`). On Postgres a NULL
+ * result clamps to -2^53 (`GREATEST` ignores NULL) and becomes NULL again.
+ */
+const clampSafe = (dialect: SqlDialect, expr: Sql): Sql =>
+  dialect === 'postgres'
+    ? q`NULLIF(NULLIF(LEAST(GREATEST(${expr}, -${PAST_SAFE}), ${PAST_SAFE}), ${PAST_SAFE}), -${PAST_SAFE})`
+    : q`NULLIF(NULLIF(max(min(${expr}, ${PAST_SAFE}), -${PAST_SAFE}), ${PAST_SAFE}), -${PAST_SAFE})`
+
+/**
+ * `+`, `-` or `*` as evaluation gives it: NULL where a row-dependent result
+ * leaves ±(2^53−1). When every operand is an integer term or integer literal
+ * (at least one a term), Postgres forms the result as `numeric` so `int4`/`int8`
+ * arithmetic cannot raise on overflow, then casts back to `bigint`. Non-integer
+ * terms (`Schema.Finite`, etc.) stay in their own type and still clamp to NULL
+ * past ±(2^53−1), while refusing a fraction literal beside an integer column.
+ * Literal-only arithmetic is folded and refused before SQL is written.
  */
 const exact =
   (operator: '+' | '-' | '*'): SqlLowerer =>
   (args, ctx) => {
     const left = args[0]!
     const right = args[1]!
-    const integers = [left, right].every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))
-    if (!integers || !(isIntegerTerm(left) || isIntegerTerm(right))) {
+    if (Node.$is('Lit')(left) && Node.$is('Lit')(right)) {
       return numeric(() => operator)(args, ctx)
     }
-    return both(args, ctx, (l, r) =>
-      ctx.dialect === 'postgres'
-        ? q`CAST(NULLIF(NULLIF(LEAST(GREATEST((CAST(${l} AS numeric) ${operator} ${r}), -${PAST_SAFE}), ${PAST_SAFE}), ${PAST_SAFE}), -${PAST_SAFE}) AS bigint)`
-        : q`NULLIF(NULLIF(max(min((${l} ${operator} ${r}), ${PAST_SAFE}), -${PAST_SAFE}), ${PAST_SAFE}), -${PAST_SAFE})`,
+    const integers = [left, right].every(arg => isIntegerTerm(arg) || isIntegerLiteral(arg))
+    if (integers) {
+      return both(args, ctx, (l, r) =>
+        ctx.dialect === 'postgres'
+          ? q`CAST(${clampSafe('postgres', q`(CAST(${l} AS numeric) ${operator} ${r})`)} AS bigint)`
+          : clampSafe('sqlite', q`(${l} ${operator} ${r})`),
+      )
+    }
+    return Result.flatMap(noFractionBesideInteger(left, right), () =>
+      both(args, ctx, (l, r) => clampSafe(ctx.dialect, q`(${l} ${operator} ${r})`)),
     )
   }
 
