@@ -110,6 +110,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `@doeixd/metakit/interpreter`: a prepared `Match` returns an `unportable` refusal when its subject contains a NUL character, matching reference evaluation.
 - `@doeixd/metakit`: `Node.mapRows` preserves `Related.cardinality`, `Transition.lift` respects `Rows` binders that shadow `state` (or `next`), and `Transition.lift` / `Machine.lift` throw at definition time when lifting along an `Option` field.
 - `@doeixd/metakit` leaves whole struct reads open in `Expr.judge` and `Expr.residualize` when the partial environment omits an optional key.
 - `@doeixd/metakit` builds balanced trees for `Expr.all` and `Expr.any`, so expression depth grows logarithmically and refusals still follow term order. Rebuilding expressions with three or more terms can change their artifact fingerprints (#671).

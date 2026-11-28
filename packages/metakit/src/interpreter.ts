@@ -14,7 +14,7 @@ import * as Expr from './expr.js'
 import type * as Fn from './fn.js'
 import * as Language from './language.js'
 import * as Node from './node.js'
-import { applyForeign, evalNode } from './ops/eval.js'
+import { applyForeign, evalNode, matchArm } from './ops/eval.js'
 import { readable } from './path.js'
 import type * as Policy from './policy.js'
 import * as Transition from './transition.js'
@@ -599,7 +599,8 @@ const compileNode = (
           return Node.illTyped('if', 'a boolean', c)
         }
       },
-      Match: ({ on, cases, otherwise }): CompiledFn => {
+      Match: (match): CompiledFn => {
+        const { on, cases, otherwise } = match
         const onFn = visit(on)
         const table = new Map<string, CompiledFn>()
         for (const [label, branch] of cases) {
@@ -610,6 +611,10 @@ const compileNode = (
         return (env: unknown) => {
           const target = onFn(env)
           if (Node.isRefusal(target)) return target
+          if (Array.isArray(target) || (typeof target === 'string' && target.includes('\u0000'))) {
+            const taken = matchArm(match, target)
+            if ('value' in taken) return taken.value
+          }
           const held = Node.textIdentity(target)
           if (typeof held === 'string') {
             const hit = table.get(held)
