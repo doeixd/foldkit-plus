@@ -106,6 +106,7 @@ version changed; `pnpm` skips versions already in the registry.
 ### Fixed
 
 - `@doeixd/metakit`: `Expr.judge` and `residualize` no longer fold `x == x` to true over a list of text that may hold a NUL, which evaluation refuses (#650).
+- `@doeixd/metakit` docs: `semantics.md` and the `Refusal` doc comment no longer say that no operator absorbs a refusal. `null.coalesce` does not read its fallback where its first operand has a value, and an `any` or `every` fold settles past a refused element, as SQL's `EXISTS` does (#654).
 - `@doeixd/metakit/conformance` requires at least one sampled comparison that returns values on both sides before `checkOperation` accepts an idempotence, commutativity, or associativity claim.
 - `@doeixd/metakit` and `foldkit-entity` run custom operators whose argument schemas accept a mix of numbers, booleans, or text. Pages that use only built-in operators can drop the custom-operation constructor.
 - `@doeixd/metakit/prove`: Float64 arithmetic checks the same safe integer bounds as transition evaluation. An oversized operand can no longer disappear in a proof of multiplication by zero.
