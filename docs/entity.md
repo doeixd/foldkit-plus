@@ -281,7 +281,7 @@ The client creates a `Remote` instance over the exact same `Product`, `ForSale`,
 
 ```ts
 import { Optic } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { Remote } from 'foldkit-remote'
 import { ModelRef } from 'foldkit-surface'
 

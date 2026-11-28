@@ -23,8 +23,8 @@ import {
   type ReaderNode,
   type RowToModelLink,
   type WriterNode,
-} from 'metakit/graph'
-import { covers as pathCovers } from 'metakit/graph/match'
+} from '@doeixd/metakit/graph'
+import { covers as pathCovers } from '@doeixd/metakit/graph/match'
 import type { Contract, Finding, Module } from './index.js'
 import { labelOf, pathText, tableCell } from './text.js'
 
@@ -107,7 +107,7 @@ export interface ContractLaws {
   readonly entities?: ReadonlyArray<LawEntry> | undefined
 }
 
-/** A `metakit/machine` Machine (or any footprint table) contributed to the unified graph. */
+/** A `@doeixd/metakit/machine` Machine (or any footprint table) contributed to the unified graph. */
 export interface GraphMachine {
   readonly footprints: Readonly<
     Record<
@@ -133,7 +133,7 @@ export type GraphReaderId<SurfaceName extends string = string> =
 
 /** An application's graph: every contract's facts, its closed Surfaces, the evidence admitted, and the unified dependency graph. */
 export interface Graph<W extends string = string, R extends string = string> extends GraphFacts {
-  /** The unified `metakit/graph` dependency graph over contracts, laws, surfaces, and machine transitions. */
+  /** The unified `@doeixd/metakit/graph` dependency graph over contracts, laws, surfaces, and machine transitions. */
   readonly dependencies: DependencyGraph<W, R>
 }
 
@@ -147,7 +147,7 @@ export interface GraphOptions {
    */
   readonly evidence?: ReadonlyArray<Evidence> | undefined
   /**
-   * The application's `metakit/machine` Machine. Its transitions are added to
+   * The application's `@doeixd/metakit/machine` Machine. Its transitions are added to
    * `graph.dependencies` as `message:<tag>` writers so every surface, law, and
    * store slice they reach is queryable in one place.
    */

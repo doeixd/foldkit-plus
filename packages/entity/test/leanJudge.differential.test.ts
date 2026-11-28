@@ -2,7 +2,7 @@
  * Every judgement entity's tests make in memory, answered twice: by
  * metakit's lean judge (`settleNode`, what `judgeRun.ts` runs on a page) and
  * by the expression partial evaluation leaves (`residualizeNode`, through
- * `residualSettled` of `metakit/conformance`). The two must agree on
+ * `residualSettled` of `@doeixd/metakit/conformance`). The two must agree on
  * every call: value, verdict, reason and reads.
  *
  * `settleNode` is wrapped for this file only, and the files below are
@@ -15,9 +15,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 const record = vi.hoisted(() => ({ calls: 0, mismatches: [] as Array<string> }))
 
-vi.mock('metakit/build', async original => {
-  const real = await original<typeof import('metakit/build')>()
-  const { residualSettled } = await import('metakit/conformance')
+vi.mock('@doeixd/metakit/build', async original => {
+  const real = await original<typeof import('@doeixd/metakit/build')>()
+  const { residualSettled } = await import('@doeixd/metakit/conformance')
   return {
     ...real,
     settleNode: (...args: Parameters<typeof real.settleNode>) => {

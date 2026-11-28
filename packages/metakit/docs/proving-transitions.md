@@ -6,15 +6,15 @@ A state machine here is a set of named transitions over one Effect `Schema`: eac
 
 ## Pin critical transitions and allow opaque ones explicitly
 
-Install `metakit` and `effect`, and `z3-solver` as a dev dependency: the opaque transition below cannot be proved by the built-in checks, so this example needs the solver (see "`Prove.*` fails with `SolverUnavailableError`"). Run the file as an ES module, since it uses top-level `await`, or put the call inside a test.
+Install `@doeixd/metakit` and `effect`, and `z3-solver` as a dev dependency: the opaque transition below cannot be proved by the built-in checks, so this example needs the solver (see "`Prove.*` fails with `SolverUnavailableError`"). Run the file as an ES module, since it uses top-level `await`, or put the call inside a test.
 
 Pass `pin` and `allowUnknown` to `Prove.machine`. Both keys are checked against the machine's transition names at compile time, so a typo fails typechecking.
 
 ```ts
 import { Effect, Schema } from 'effect'
-import { Eq, Expr, Num, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Eq, Expr, Num, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 
 const Account = Schema.Struct({
   balance: Schema.Int,
@@ -86,11 +86,11 @@ The checkers treat every number as ordered: `x <= 0` is what is left when `x > 0
 
 ## A rule over text stays `undecided`
 
-Postgres cannot store text holding a NUL character (U+0000), so evaluation refuses every text operation and equality that meets one, before it looks at a null, and `and` or `or` do not let their other side decide past a refusal. Plain `Schema.String` accepts a NUL, so a rule that reads such a field may be refused and the checkers leave it `undecided`. Declare the field `Text.schema` from `metakit/domain`, which refuses a NUL where it is decoded:
+Postgres cannot store text holding a NUL character (U+0000), so evaluation refuses every text operation and equality that meets one, before it looks at a null, and `and` or `or` do not let their other side decide past a refusal. Plain `Schema.String` accepts a NUL, so a rule that reads such a field may be refused and the checkers leave it `undecided`. Declare the field `Text.schema` from `@doeixd/metakit/domain`, which refuses a NUL where it is decoded:
 
 ```ts
 import { Schema } from 'effect'
-import { Text } from 'metakit/domain'
+import { Text } from '@doeixd/metakit/domain'
 
 const Owned = Schema.Struct({ owner: Text.schema, balance: Schema.Int })
 ```
@@ -99,7 +99,7 @@ A rule over `Owned`'s `owner` can then be proved, and partial evaluation answers
 
 ## A transition is `refuted` by a null, or by a number past 2^53 − 1
 
-The solver reads a rule as `Expr.eval` does. A field that may be null (`Schema.NullOr`, `Schema.optionalKey`, a field under a nullable parent) makes every comparison of it null, and a rule holds only where it is true: say what a null means with `Expr.any(Null.isNull(x), …)` (`Null` is imported from `metakit` like `Num`). An integer result outside ±(2^53 − 1) is refused by evaluation, so a rule over unbounded integers that adds or multiplies them is refuted at the edge: bound the fields.
+The solver reads a rule as `Expr.eval` does. A field that may be null (`Schema.NullOr`, `Schema.optionalKey`, a field under a nullable parent) makes every comparison of it null, and a rule holds only where it is true: say what a null means with `Expr.any(Null.isNull(x), …)` (`Null` is imported from `@doeixd/metakit` like `Num`). An integer result outside ±(2^53 − 1) is refused by evaluation, so a rule over unbounded integers that adds or multiplies them is refuted at the edge: bound the fields.
 
 A transition that writes a whole struct is checked against the rules that read its fields, and a written value is held to the bounds its field declares, also inside `Schema.NullOr`.
 

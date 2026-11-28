@@ -1,8 +1,8 @@
 import { Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Expr } from 'metakit'
-import { CalendarDay, Decimal, Money } from 'metakit/domain'
-import * as Sql from 'metakit/sql'
+import { Expr } from '@doeixd/metakit'
+import { CalendarDay, Decimal, Money } from '@doeixd/metakit/domain'
+import * as Sql from '@doeixd/metakit/sql'
 
 /** A small seeded generator (mulberry32), so a failing case reproduces. */
 const seeded = (seed: number) => {

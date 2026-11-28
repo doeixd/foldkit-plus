@@ -1,5 +1,5 @@
 /**
- * What `metakit/sql` and `metakit/drizzle` lower whole: a Schema's rules as
+ * What `@doeixd/metakit/sql` and `@doeixd/metakit/drizzle` lower whole: a Schema's rules as
  * one condition, a predicate as a `WHERE`, and a transition for one input as
  * the columns it sets and its guard.
  */

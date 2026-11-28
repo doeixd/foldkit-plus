@@ -4,7 +4,7 @@
  */
 import { Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Bool, Expr, Num, Str, Transition, Verdict } from 'metakit'
+import { Bool, Expr, Num, Str, Transition, Verdict } from '@doeixd/metakit'
 
 const Todo = Schema.Struct({
   id: Schema.String,

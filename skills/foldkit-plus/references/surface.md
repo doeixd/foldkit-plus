@@ -357,7 +357,7 @@ re-exported by Surface.
 
 **Draw a Surface only when a Message writes what it reads.** Import
 `Writes` and `WritesCheck` from `foldkit-surface/writes` (a subpath: it brings
-`metakit`). Declare one `metakit` Transition per Message tag, each naming the
+`@doeixd/metakit`). Declare one `@doeixd/metakit` Transition per Message tag, each naming the
 Model paths it sets; `Writes.of(App, machine)` joins them to the paths a
 Surface's projection reads.
 
@@ -372,8 +372,8 @@ declare global {
 ```ts
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Num, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Num, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { Surface, type Renderer } from 'foldkit-surface'
 import { Writes, WritesCheck } from 'foldkit-surface/writes'
 

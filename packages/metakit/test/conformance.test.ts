@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Eq, Expr, Null, Num, Ord } from 'metakit'
-import * as Conformance from 'metakit/conformance'
+import { Eq, Expr, Null, Num, Ord } from '@doeixd/metakit'
+import * as Conformance from '@doeixd/metakit/conformance'
 
 describe('metakit/conformance (Galois & partial-eval soundness)', () => {
   const reports = Conformance.checkAllOps()

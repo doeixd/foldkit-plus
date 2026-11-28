@@ -9,12 +9,12 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Effect, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Node, Num, Ord, Path, Verdict } from 'metakit'
-import { call } from 'metakit/build'
-import * as Drizzle from 'metakit/drizzle'
+import { Abstract, Eq, Expr, Node, Num, Ord, Path, Verdict } from '@doeixd/metakit'
+import { call } from '@doeixd/metakit/build'
+import * as Drizzle from '@doeixd/metakit/drizzle'
 import * as Operation from '../src/operation.js'
-import * as Prove from 'metakit/prove'
-import * as Sql from 'metakit/sql'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Row = Schema.Struct({ id: Schema.String, n: Schema.NullOr(Schema.Int), s: Schema.String })
 type Row = typeof Row.Type

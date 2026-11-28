@@ -1,7 +1,7 @@
 import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { Entity as DomainEntity, Expr, Order, Query as Relational } from 'foldkit-entity'
 import type { OrderTerm } from 'foldkit-entity'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,

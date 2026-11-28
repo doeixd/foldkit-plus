@@ -1,6 +1,6 @@
 # Upgrading across the MetaKit unification (Phases 1–4)
 
-This guide lists every breaking change from unifying expressions, laws, operators, aggregates, and SSR resumption onto `metakit`, ordered by what breaks first when you upgrade.
+This guide lists every breaking change from unifying expressions, laws, operators, aggregates, and SSR resumption onto `@doeixd/metakit`, ordered by what breaks first when you upgrade.
 
 ## 1. `foldkit-entity`: `Laws` moved to `foldkit-entity/laws`
 
@@ -37,7 +37,7 @@ const table = Operators.implement(op, (a, b) => a | b)
 **After:**
 ```ts
 import { Schema } from 'effect'
-import * as Operation from 'metakit/operation'
+import * as Operation from '@doeixd/metakit/operation'
 const Flags = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 2147483647 }))
 const flagsOr = Operation.define({
   id: 'flags.or',
@@ -50,7 +50,7 @@ const flagsOr = Operation.define({
 const table = Operation.implementations('app', Operation.implement(flagsOr, (a, b) => a | b))
 ```
 
-**Why:** Custom operations and their algebraic claims now live in one place (`metakit/operation`), checked by `checkOperation` from `metakit/conformance` instead of unverified `Evidence.Proven` tags. `Distributes` and `PreservesCollation` were removed because no reader acted on them; `Law.Inverse` (unary) became binary `claims.invertible`.
+**Why:** Custom operations and their algebraic claims now live in one place (`@doeixd/metakit/operation`), checked by `checkOperation` from `@doeixd/metakit/conformance` instead of unverified `Evidence.Proven` tags. `Distributes` and `PreservesCollation` were removed because no reader acted on them; `Law.Inverse` (unary) became binary `claims.invertible`.
 
 ## 3. `foldkit-remote/aggregate` moved to `foldkit-remote/maintained`
 

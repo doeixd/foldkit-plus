@@ -8,7 +8,7 @@
 import { Schema } from 'effect'
 import { DOMAIN_ANNOTATION_KEY } from './annotation.js'
 
-/** `Schema.String` refusing text that holds a NUL, with `metakit/domain` metadata `{ kind: 'text' }`. */
+/** `Schema.String` refusing text that holds a NUL, with `@doeixd/metakit/domain` metadata `{ kind: 'text' }`. */
 export const schema: Schema.String = Schema.String.check(
   Schema.makeFilter<string>(
     text => (text.includes('\u0000') ? 'text holding a NUL character' : undefined),

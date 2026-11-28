@@ -8,7 +8,7 @@
  * the one that happened to arrive last.
  */
 import { Effect, Option, Schema } from 'effect'
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 import {
   defineSync,
   documentId,

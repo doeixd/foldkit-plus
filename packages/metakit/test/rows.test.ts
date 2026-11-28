@@ -19,9 +19,9 @@ import {
   Str,
   Transition,
   Verdict,
-} from 'metakit'
-import * as Relation from 'metakit/relation'
-import * as Sql from 'metakit/sql'
+} from '@doeixd/metakit'
+import * as Relation from '@doeixd/metakit/relation'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Item = Schema.Struct({
   id: Schema.String,

@@ -1,5 +1,5 @@
 /**
- * `metakit/pairs` and the registry in `metakit/temporal`, each broken in turn:
+ * `@doeixd/metakit/pairs` and the registry in `@doeixd/metakit/temporal`, each broken in turn:
  *   `pnpm mutate packages/metakit/test/pairs.mutations.ts`
  *
  * The two that declare a way of writing commutative are the hazard the plan

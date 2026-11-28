@@ -5,7 +5,7 @@
  */
 import { Effect, Exit, Option, Schema, Scope } from 'effect'
 import { IDBFactory } from 'fake-indexeddb'
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { indexedDb, type Storage } from '../src/index.js'
 
 type Writer = 'A' | 'B'

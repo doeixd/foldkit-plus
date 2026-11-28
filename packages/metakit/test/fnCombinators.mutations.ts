@@ -1,5 +1,5 @@
 /**
- * Mutation specification for `metakit/fn` combinators.
+ * Mutation specification for `@doeixd/metakit/fn` combinators.
  * Run with: `pnpm mutate packages/metakit/test/fnCombinators.mutations.ts`
  */
 export default [

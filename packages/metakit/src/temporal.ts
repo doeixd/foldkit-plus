@@ -1,12 +1,12 @@
 /**
- * What a single-step proof cannot cover (`metakit/temporal`).
+ * What a single-step proof cannot cover (`@doeixd/metakit/temporal`).
  *
  * `Prove.transition` shows one step keeps a rule, from any valid state. Two
  * things lie outside it:
  *
  * 1. **What the store must do.** A rule holds across concurrent writers only
  *    if the store runs them as the proof assumes. `requirements` reads which
- *    capability each declared rule needs, and `metakit/store`'s `mount` throws
+ *    capability each declared rule needs, and `@doeixd/metakit/store`'s `mount` throws
  *    where a store that cannot give one is asked to hold the rule.
  * 2. **What the order of events must not change.** Two transitions that touch
  *    the same state can be answered in either order. `obligations` names each
@@ -541,7 +541,7 @@ export const walkAsync = async <World, Name extends string>(
 /**
  * A walk run for one obligation, and what it found. `answer` is set only by a
  * walk that was asked what the order does rather than to show it never
- * matters (`metakit/pairs`): its `Broken` result is the answer, an order that
+ * matters (`@doeixd/metakit/pairs`): its `Broken` result is the answer, an order that
  * gives another state, and the obligation is discharged by it.
  */
 export interface Discharge<Name extends string = string> {

@@ -1,7 +1,7 @@
 /**
- * `metakit/aggregates/sql`: compile a `metakit/aggregates` aggregate to one SQL
+ * `@doeixd/metakit/aggregates/sql`: compile a `@doeixd/metakit/aggregates` aggregate to one SQL
  * aggregate expression for Postgres or SQLite. Kept apart from
- * `metakit/aggregates` so a page that
+ * `@doeixd/metakit/aggregates` so a page that
  * evaluates aggregates carries no SQL lowering.
  *
  * - `sum` accumulates integers exactly and returns SQL NULL when the final

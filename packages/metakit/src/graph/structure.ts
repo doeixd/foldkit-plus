@@ -1,5 +1,5 @@
 /**
- * Unified dependency graph structure (`metakit/graph`).
+ * Unified dependency graph structure (`@doeixd/metakit/graph`).
  *
  * One indexed graph built once at definition time over:
  *   - Unified `PathAddress`es (Model paths and stored-row entity fields, joined

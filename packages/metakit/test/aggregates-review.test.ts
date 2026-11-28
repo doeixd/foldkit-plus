@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
 import { Option, Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Eq, Expr, Num } from 'metakit'
-import * as Rows from 'metakit/aggregates'
-import * as RowsSql from 'metakit/aggregates/sql'
-import { Decimal, Money } from 'metakit/domain'
+import { Eq, Expr, Num } from '@doeixd/metakit'
+import * as Rows from '@doeixd/metakit/aggregates'
+import * as RowsSql from '@doeixd/metakit/aggregates/sql'
+import { Decimal, Money } from '@doeixd/metakit/domain'
 
 const Entry = Schema.Struct({
   id: Schema.String,

@@ -1,5 +1,5 @@
 /**
- * Domain languages (`metakit/language`, Phase 9 Bout 9.1).
+ * Domain languages (`@doeixd/metakit/language`, Phase 9 Bout 9.1).
  *
  * Groups typed custom operations into named families so an application can:
  *   - construct expressions with `language.families.<family>.<op>(...)`

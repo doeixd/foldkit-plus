@@ -2,11 +2,11 @@ import { PGlite } from '@electric-sql/pglite'
 import { Option, Result } from 'effect'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Expr, Node, Ord, Path, Transition, Verdict } from 'metakit'
-import * as Conformance from 'metakit/conformance'
-import * as Operation from 'metakit/operation'
-import * as Sql from 'metakit/sql'
-import * as Temporal from 'metakit/temporal'
+import { Abstract, Expr, Node, Ord, Path, Transition, Verdict } from '@doeixd/metakit'
+import * as Conformance from '@doeixd/metakit/conformance'
+import * as Operation from '@doeixd/metakit/operation'
+import * as Sql from '@doeixd/metakit/sql'
+import * as Temporal from '@doeixd/metakit/temporal'
 import {
   effectivePermissions,
   Flags,

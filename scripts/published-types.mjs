@@ -25,7 +25,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { availableParallelism } from 'node:os'
-import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -58,7 +58,7 @@ for (const dir of manifests.keys()) {
   for (const file of walk(dist).filter(path => /\.d\.m?ts$/.test(path))) {
     const text = readFileSync(file, 'utf8')
     for (const [, name, subpath = ''] of text.matchAll(
-      /(?:from |import\()["'](foldkit-[a-z-]+)(\/[^"']+)?["']/g,
+      /(?:from |import\()["']((?:@[^/"']+\/)?[^/"']+)(\/[^"']+)?["']/g,
     )) {
       const known = exported.get(name)
       if (known !== undefined && !known.has(name + subpath))
@@ -95,9 +95,10 @@ const consume = dir =>
       }))
     const probe = join(packagesDir, dir, 'node_modules', '.published-types')
     rmSync(probe, { recursive: true, force: true })
-    mkdirSync(join(probe, 'node_modules'), { recursive: true })
+    const link = join(probe, 'node_modules', pkg.name)
+    mkdirSync(dirname(link), { recursive: true })
     // A junction needs no privilege on Windows; elsewhere the type is ignored.
-    symlinkSync(join(packagesDir, dir), join(probe, 'node_modules', pkg.name), 'junction')
+    symlinkSync(join(packagesDir, dir), link, 'junction')
     // A subpath whose declarations are ambient (`foldkit-media/client`, the
     // type of a `?image` import) is no module: a consumer names it in `types`,
     // which a reference directive does the same as. TypeScript ignores a

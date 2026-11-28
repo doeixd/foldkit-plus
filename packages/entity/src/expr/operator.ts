@@ -5,8 +5,8 @@
  * map, for `Expr.show`, `Query.operators` and a write's wire form.
  */
 import { Option, Schema, SchemaAST } from 'effect'
-import { Node } from 'metakit'
-import * as Operation from 'metakit/operation'
+import { Node } from '@doeixd/metakit'
+import * as Operation from '@doeixd/metakit/operation'
 import type { Collation } from '../collation.js'
 import { readKeys } from './dependencies.js'
 import {
@@ -65,7 +65,7 @@ export interface OperatorDescriptor {
    * `Text.startsWith` does). `none`: it carries none.
    */
   readonly collation: 'none' | 'operands' | 'required'
-  /** Algebraic claims every implementation keeps (`metakit/operation`), checked by `checkOperation`. */
+  /** Algebraic claims every implementation keeps (`@doeixd/metakit/operation`), checked by `checkOperation`. */
   readonly claims: Node.ForeignClaims
 }
 
@@ -483,7 +483,7 @@ export const operator = <const In extends ReadonlyArray<Schema.Top>, Out extends
         readonly definedAs?: undefined
         readonly nulls?: OperatorDescriptor['nulls'] | undefined
         readonly collation?: OperatorDescriptor['collation'] | undefined
-        /** Algebraic claims every implementation keeps (`metakit/operation`), checked by `checkOperation`. */
+        /** Algebraic claims every implementation keeps (`@doeixd/metakit/operation`), checked by `checkOperation`. */
         readonly claims?: Node.ForeignClaims | undefined
       }
   ),

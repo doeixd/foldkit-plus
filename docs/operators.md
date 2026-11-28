@@ -12,7 +12,7 @@ The same operator declaration can reach server SQL, client filtering, guards, in
 | Defined operator (`definedAs`) | `foldkit-entity` | Meaning expanded to core `Expr` nodes |
 | In-memory table (`Operators`) | `foldkit-entity` | JS implementation for client, guards, invariants |
 | SQL table (`DrizzleOperators`) | `foldkit-remote-drizzle` | Drizzle SQL compilation matching memory |
-| Claim checks (`checkOperation`) | `metakit/conformance` | A report of the cases each implementation passed or failed |
+| Claim checks (`checkOperation`) | `@doeixd/metakit/conformance` | A report of the cases each implementation passed or failed |
 
 Operator tables are passed explicitly as values (`evaluate`, `Remote.make`, `bind`, policies) rather than registered globally. If a client lacks an operator the server uses, it refuses by name instead of guessing.
 
@@ -162,12 +162,12 @@ Because client and server share operator tables, `matching(store, Query, input, 
 
 ## Test a primitive operator's claims
 
-A claim states a property you expect each implementation to keep. For example, a commutative operator gives the same result when you swap its two inputs. Use `Operation.define` from `metakit/operation` to declare claims beside the argument and result schemas. Use `checkOperation` from `metakit/conformance` to test an implementation against those claims.
+A claim states a property you expect each implementation to keep. For example, a commutative operator gives the same result when you swap its two inputs. Use `Operation.define` from `@doeixd/metakit/operation` to declare claims beside the argument and result schemas. Use `checkOperation` from `@doeixd/metakit/conformance` to test an implementation against those claims.
 
 ```ts standalone
 import { Schema } from 'effect'
-import { checkOperation } from 'metakit/conformance'
-import * as Operation from 'metakit/operation'
+import { checkOperation } from '@doeixd/metakit/conformance'
+import * as Operation from '@doeixd/metakit/operation'
 
 const either = Operation.define({
   id: 'acme.either',

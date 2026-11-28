@@ -14,8 +14,8 @@
  * Entity having a field does not mean anyone may set it.
  */
 import { Data, Effect, Match, Option, Schema, SchemaAST } from 'effect'
-import { Node, Num, Str } from 'metakit'
-import { evalNode } from 'metakit/build'
+import { Node, Num, Str } from '@doeixd/metakit'
+import { evalNode } from '@doeixd/metakit/build'
 import type {
   AnyEntity,
   EntityMember,

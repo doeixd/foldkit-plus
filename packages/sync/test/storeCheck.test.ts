@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 import { IDBFactory } from 'fake-indexeddb'
-import { checkStore, type StoreAdapter, type StoreRow } from 'metakit/store/check'
+import { checkStore, type StoreAdapter, type StoreRow } from '@doeixd/metakit/store/check'
 import { describe, expect, it } from 'vitest'
 import { indexedDb, type Storage } from '../src/index.js'
 

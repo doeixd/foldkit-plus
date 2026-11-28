@@ -48,7 +48,7 @@ import type {
   SurfaceFamily,
   SurfaceSource,
 } from 'foldkit-surface'
-import { covers, minimizePaths } from 'metakit/graph/match'
+import { covers, minimizePaths } from '@doeixd/metakit/graph/match'
 import { withContext, type Binding, type Region, type UnnamedHandler } from './context.js'
 import { cachedPageDiffers, handlerUnnamed, pageFailed, reportingTo } from './diagnostics.js'
 import {

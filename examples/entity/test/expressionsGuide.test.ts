@@ -1,7 +1,7 @@
 // @vitest-environment node
 /** `docs/expressions.md`'s snippets, run: what the guide says each answers. */
 import { Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import {
   Collation,
   ContextMissingError,

@@ -5,7 +5,7 @@
  * is read as text that cannot hold a NUL.
  */
 import { Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,

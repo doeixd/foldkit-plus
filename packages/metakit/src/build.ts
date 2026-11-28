@@ -1,5 +1,5 @@
 /**
- * The kernel's functions over nodes (`metakit/build`), for a language written
+ * The kernel's functions over nodes (`@doeixd/metakit/build`), for a language written
  * on metakit that builds its own constructors: `foldkit-entity`'s `Expr`
  * builds metakit nodes through these.
  *

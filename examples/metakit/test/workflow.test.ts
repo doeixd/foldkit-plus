@@ -1,10 +1,10 @@
 import { Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Eq, Expr, Path, Verdict } from 'metakit'
-import * as Graph from 'metakit/graph'
-import * as Inspect from 'metakit/inspect'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Eq, Expr, Path, Verdict } from '@doeixd/metakit'
+import * as Graph from '@doeixd/metakit/graph'
+import * as Inspect from '@doeixd/metakit/inspect'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 import { DocumentMachine, DocumentPolicy, DocumentRow } from '../src/workflow/index.js'
 
 const sampleDoc: DocumentRow = {

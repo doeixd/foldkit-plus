@@ -15,7 +15,7 @@ import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-co
 import { SQLiteDialect, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { Collation, Entity, Expr, Operators, Write } from 'foldkit-entity'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'

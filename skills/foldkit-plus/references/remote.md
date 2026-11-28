@@ -736,7 +736,7 @@ seconds, `0` never) of its Effect clock, else its own clock, reporting `ClockSke
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and
 invariants: [entity.md](entity.md).
 
-`Data.can(model, M, partialInput)` reads what the Model holds and answers a metakit `Verdict` (`Verdict.match` from `metakit`): `True`;
+`Data.can(model, M, partialInput)` reads what the Model holds and answers a metakit `Verdict` (`Verdict.match` from `@doeixd/metakit`): `True`;
 `False` whose witness is the `CanRefusal` (`Forbidden { reason }`, `Unmet`, `Invalid { entity, rule, message, path }`,
 the server's order); or `Unknown` (row, field, `may` member or input key missing; an
 increment or computed field not worked out), its reasons joined by `; `. A hint: `Data.mutate` still asks the server.
@@ -1476,7 +1476,7 @@ guard's rule that reads another row, which `GuardServer.writer` hands it as `req
 written, the row read back says why, in this order: gone, `Forbidden` (a `requires` it fails),
 `Conflict`, `Unmet`, `Invalid`.
 Every writer says how its database runs concurrent writes (`EntityWriter.store`, required, a
-`StoreCapabilities` from `metakit/store`): `writer(binding)` says serializable over SQLite and
+`StoreCapabilities` from `@doeixd/metakit/store`): `writer(binding)` says serializable over SQLite and
 read-committed over Postgres, `writer(binding, { isolation: 'serializable' })` says a Postgres set
 to run so, and `RemoteServer.memoryWriter` says serializable. `isolates` says how far that reaches:
 `'statement'` over SQLite, since a SQLite table may be D1's, which shares no transaction between a
@@ -1686,7 +1686,7 @@ Met in applications on this stack: what failed, and what to do instead.
 
 `Maintained.value(Data, model, over, definition, { where, input })` from
 `foldkit-remote/maintained` updates a value from the rows that changed. Pass
-a `metakit/aggregates` definition for a sum, count, minimum, maximum, `every`
+a `@doeixd/metakit/aggregates` definition for a sum, count, minimum, maximum, `every`
 or `any`. Pass `Maintained.list` to keep the rows in the connection's order.
 The optional `where` query picks which rows count. The result is
 `{ value, complete }`, with `filtered`'s completeness rules. With 120 rows
@@ -1714,7 +1714,7 @@ declare const model: typeof Model.Type
 
 ```ts
 import { Schema } from 'effect'
-import * as Rows from 'metakit/aggregates'
+import * as Rows from '@doeixd/metakit/aggregates'
 import { Maintained } from 'foldkit-remote/maintained'
 
 // Once, at module level: the kept value belongs to this aggregate value.

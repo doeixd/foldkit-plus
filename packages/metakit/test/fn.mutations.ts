@@ -1,5 +1,5 @@
 /**
- * Mutation specification for `metakit/fn` (`packages/metakit/src/fn.ts` & `src/prove/fn.ts`).
+ * Mutation specification for `@doeixd/metakit/fn` (`packages/metakit/src/fn.ts` & `src/prove/fn.ts`).
  */
 export default [
   {

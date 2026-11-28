@@ -7,8 +7,8 @@
  * thrown as a `QueryEvaluateError` carrying it.
  */
 import { Option } from 'effect'
-import { Node, Verdict } from 'metakit'
-import { Settled, settleNode, type ForeignImplementations } from 'metakit/build'
+import { Node, Verdict } from '@doeixd/metakit'
+import { Settled, settleNode, type ForeignImplementations } from '@doeixd/metakit/build'
 import { now, viewer, type ExprContext } from './context.js'
 import { envOf } from './environment.js'
 import { dependenciesOf } from './expr/dependencies.js'

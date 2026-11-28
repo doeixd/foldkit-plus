@@ -16,7 +16,7 @@ export default defineConfig({
       /^\.\.?\//,
       'effect',
       /^foldkit(\/.*)?$/,
-      /^metakit(\/.*)?$/,
+      /^@doeixd\/metakit(\/.*)?$/,
       'foldkit-entity',
       'foldkit-metadata',
     ],

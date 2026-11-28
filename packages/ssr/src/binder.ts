@@ -5,8 +5,8 @@
  * `SSR.hydrate` once the runtime wakes.
  */
 import { Option, Result, Schema } from 'effect'
-import { type Expr, Transition } from 'metakit'
-import { covers } from 'metakit/graph/match'
+import { type Expr, Transition } from '@doeixd/metakit'
+import { covers } from '@doeixd/metakit/graph/match'
 import { ANCHOR_ATTRIBUTE, type Bindings, type BindingValue } from './binding.js'
 export { ANCHOR_ATTRIBUTE, Binding, type Bindings, type BindingValue } from './binding.js'
 import { offerBinder } from './handoff.js'

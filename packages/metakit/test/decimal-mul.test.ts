@@ -6,11 +6,11 @@
  */
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Node, Num, Ord, Path, Verdict, opProperties } from 'metakit'
-import * as Rows from 'metakit/aggregates'
-import { Decimal, Money } from 'metakit/domain'
-import * as Prove from 'metakit/prove'
-import * as Sql from 'metakit/sql'
+import { Abstract, Eq, Expr, Node, Num, Ord, Path, Verdict, opProperties } from '@doeixd/metakit'
+import * as Rows from '@doeixd/metakit/aggregates'
+import { Decimal, Money } from '@doeixd/metakit/domain'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Sql from '@doeixd/metakit/sql'
 
 const MAX = Number.MAX_SAFE_INTEGER
 const MAX_BIG = BigInt(MAX)

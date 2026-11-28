@@ -2,7 +2,7 @@
  * What a conjunction fixes by field (`Judge.pins`): how a holder knows it
  * holds every row an exists' filter counts.
  */
-import { Bool, Eq, Node } from 'metakit'
+import { Bool, Eq, Node } from '@doeixd/metakit'
 import { Option } from 'effect'
 import { viewerIdOf, type ExprContext } from './context.js'
 import { chained } from './expr/logic.js'

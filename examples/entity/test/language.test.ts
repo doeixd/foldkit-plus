@@ -5,7 +5,7 @@
  * that holds only part of the rows is never wrong about what it says it knows.
  */
 import { Option, Result } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { Judge, type EntityRef } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { openDatabase, runLanguage } from '../src/language.js'

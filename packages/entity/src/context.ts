@@ -5,7 +5,7 @@
  * `Remote.make`'s `viewer` and its stand-in for the time.
  */
 import { Option, Schema } from 'effect'
-import { wrap } from 'metakit/build'
+import { wrap } from '@doeixd/metakit/build'
 import type { AnyEntity, EntityIdentity, EntityRef, IdOf } from './index.js'
 import { ASKER, made, read, type EntityEnv, type Expr } from './expr/operand.js'
 

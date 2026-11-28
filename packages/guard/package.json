@@ -72,7 +72,7 @@
   "dependencies": {
     "foldkit-entity": "workspace:*",
     "foldkit-metadata": "workspace:*",
-    "metakit": "workspace:*"
+    "@doeixd/metakit": "workspace:*"
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5",

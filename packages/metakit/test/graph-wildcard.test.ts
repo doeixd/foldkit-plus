@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { Path } from 'metakit'
-import * as Graph from 'metakit/graph'
-import { minimizePaths, pathsOverlap } from 'metakit/graph/match'
+import { Path } from '@doeixd/metakit'
+import * as Graph from '@doeixd/metakit/graph'
+import { minimizePaths, pathsOverlap } from '@doeixd/metakit/graph/match'
 
 const model = (segments: ReadonlyArray<string>) => Graph.modelPath(segments)
 const idOf = (segments: ReadonlyArray<string>) => segments.join('.')

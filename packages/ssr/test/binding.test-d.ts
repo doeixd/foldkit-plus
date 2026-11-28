@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { inertHtml as h } from 'foldkit/html'
-import { Arr, Path } from 'metakit'
+import { Arr, Path } from '@doeixd/metakit'
 import { Binding } from '../src/index.js'
 
 const Model = Schema.Struct({

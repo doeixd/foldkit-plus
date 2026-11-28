@@ -29,7 +29,7 @@ import { fact } from 'foldkit-sync'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import type { CommandTable } from 'foldkit-surface/declared'
-import type { EmitOf } from 'metakit/machine'
+import type { EmitOf } from '@doeixd/metakit/machine'
 import type { TodoMachine } from './machine.js'
 
 export const Priority = Schema.Union([

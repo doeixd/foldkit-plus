@@ -114,7 +114,7 @@ passes the row and member Read rules. Check both verdicts because an
 unreachable Update implies any Read.
 
 For an undecided implication, pass the report's `definition`, then
-`'Update'` and `'Read'`, to `policyImplies` from `metakit/prove` in a test.
+`'Update'` and `'Read'`, to `policyImplies` from `@doeixd/metakit/prove` in a test.
 The checker understands comparisons of row fields that always hold a number,
 and state invariants over them. It can leave a result unknown when it depends
 on a server-only check, a related row, a field that may be null, absent or

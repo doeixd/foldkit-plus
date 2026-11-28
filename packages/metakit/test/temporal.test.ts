@@ -1,10 +1,10 @@
 import { Effect, Option, Schema } from 'effect'
-import { Expr, Num, Transition } from 'metakit'
-import * as Rows from 'metakit/aggregates'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
-import * as Store from 'metakit/store'
-import * as Temporal from 'metakit/temporal'
+import { Expr, Num, Transition } from '@doeixd/metakit'
+import * as Rows from '@doeixd/metakit/aggregates'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Store from '@doeixd/metakit/store'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { describe, expect, it } from 'vitest'
 
 const Account = Schema.Struct({ balance: Schema.Int, label: Schema.String }).pipe(

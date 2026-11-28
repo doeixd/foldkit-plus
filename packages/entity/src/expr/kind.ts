@@ -1,6 +1,6 @@
 /** What a node comes to, read from its stored form or its operation: the checks made while building read it. */
 import { Option, Schema, SchemaAST } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { SchemaShape } from '../shape.js'
 import { originTagged } from './operand.js'
 

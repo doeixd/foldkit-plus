@@ -1,7 +1,7 @@
 import { Context, Effect, Option, Result, Schema } from 'effect'
-import { Bool, Expr, Num, Path, Transition } from 'metakit'
-import * as Rows from 'metakit/aggregates'
-import * as Machine from 'metakit/machine'
+import { Bool, Expr, Num, Path, Transition } from '@doeixd/metakit'
+import * as Rows from '@doeixd/metakit/aggregates'
+import * as Machine from '@doeixd/metakit/machine'
 import {
   keySegment,
   keyed,

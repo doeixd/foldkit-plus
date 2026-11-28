@@ -55,7 +55,7 @@
   "dependencies": {
     "foldkit-entity": "workspace:*",
     "foldkit-metadata": "workspace:*",
-    "metakit": "workspace:*"
+    "@doeixd/metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

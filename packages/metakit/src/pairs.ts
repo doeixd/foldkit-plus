@@ -1,5 +1,5 @@
 /**
- * Which pairs of a machine's transitions need a test (`metakit/pairs`).
+ * Which pairs of a machine's transitions need a test (`@doeixd/metakit/pairs`).
  *
  * Two transitions whose footprints overlap can be answered in either order.
  * For each such pair `Transition.commutes` answers: `True` needs no test, and
@@ -12,8 +12,8 @@
  *
  * It is a development and test tool: it carries the checker and the
  * generators, and no page imports it. The pairs come from the machine's own
- * footprints, the overlap `metakit/temporal` already names, not from
- * `metakit/graph`: a machine's footprints are paths of its own state, and the
+ * footprints, the overlap `@doeixd/metakit/temporal` already names, not from
+ * `@doeixd/metakit/graph`: a machine's footprints are paths of its own state, and the
  * graph adds only the bridges between rows and Model paths that none has.
  */
 import { Arbitrary, Effect, Option, Result, Schema } from 'effect'

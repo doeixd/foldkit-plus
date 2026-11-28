@@ -5,9 +5,9 @@
  */
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Arr, Eq, Expr, Null, Num, Ord, Path, Str, Transition, Verdict } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Arr, Eq, Expr, Null, Num, Ord, Path, Str, Transition, Verdict } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 
 const run = Effect.runPromise
 const reasonOf = (verdict: Verdict.Verdict<unknown>): string =>

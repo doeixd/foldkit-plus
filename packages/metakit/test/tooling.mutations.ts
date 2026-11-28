@@ -1,5 +1,5 @@
 /**
- * `metakit/tooling` guards broken in turn:
+ * `@doeixd/metakit/tooling` guards broken in turn:
  * `pnpm mutate packages/metakit/test/tooling.mutations.ts` checks that a test
  * fails for every one.
  */

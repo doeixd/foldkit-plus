@@ -1,4 +1,4 @@
-import { Transition } from 'metakit'
+import { Transition } from '@doeixd/metakit'
 
 // @ts-expect-error an emitted record's _tag is its tag argument, not a payload field
 Transition.emit('Saved', { _tag: 'Draft' })

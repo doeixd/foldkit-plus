@@ -648,7 +648,7 @@ const App = Surface.application({
 })
 -->
 ```ts
-import { Arr, Num, Path, Transition } from 'metakit'
+import { Arr, Num, Path, Transition } from '@doeixd/metakit'
 import { SyncDeclared } from 'foldkit-sync/metakit'
 
 const todos = Projection.pick(App.model.todos)
@@ -703,8 +703,8 @@ import { defineMessageUnion } from 'foldkit/message'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { DocumentId, forApplication } from 'foldkit-sync'
 import { SyncDeclared } from 'foldkit-sync/metakit'
-import { Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
   filter: Schema.String,
@@ -773,8 +773,8 @@ change it, from the transitions you already declared:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
-import { Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 const Model = Schema.Struct({
   title: Schema.String,
   tags: Schema.Array(Schema.String),
@@ -834,7 +834,7 @@ write still relies on id deduplication unless the Message also commutes with eve
 durable Message. The answers say what the
 declaration lets a rebase do; they run nothing. `settleConvergence(machine,
 tags, { owner, walkPair, walkRedelivery })` files each `possible` pair and each
-copy as an obligation of `metakit/temporal`, and discharges them with the
+copy as an obligation of `@doeixd/metakit/temporal`, and discharges them with the
 two-replica walks you give it. `examples/todo-app/test/sync.convergence.ts` is
 one, over the real replica and journal.
 

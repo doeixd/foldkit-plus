@@ -4,7 +4,7 @@
  * does not compile.
  */
 import { Option, Schema } from 'effect'
-import { Eq, Expr, Num, Transition, type Verdict } from 'metakit'
+import { Eq, Expr, Num, Transition, type Verdict } from '@doeixd/metakit'
 import { expectTypeOf } from 'vitest'
 import { Form, type Control } from '../src/index.js'
 import { Declared } from '../src/metakit.js'

@@ -764,7 +764,7 @@ Expr.path(Feed.Post.relations.author,
   list orders by one.
 - `evaluate` (one plain row) refuses a path or an exists. `Judge.query(body,
   input, row)` reads a `HeldRow` (`Held.rows(tables)` over plain records) and
-  answers a metakit `Verdict` (read with `Verdict.match` from `metakit`): `True` or `False`
+  answers a metakit `Verdict` (read with `Verdict.match` from `@doeixd/metakit`): `True` or `False`
   (SQL's answer), or `Unknown` with why, when the
   answer rests on a field or row the holder lacks or may not see, or an operator
   only the server runs. SQL's null is `False`; `Judge.query`'s `False` carries no witness, where

@@ -4,7 +4,7 @@ If you already use [Effect](https://effect.website) and `effect/Schema`, you kno
 
 That stops the moment you write a business rule or a state transition. A rule like "reserved may not exceed the balance" is a JavaScript function, so you write it again as a SQL `CHECK`, again as a disabled button and again in a test, and nothing proves an update cannot break it.
 
-`metakit` is a package that keeps such a rule as data, a small expression tree attached to your Effect `Schema`, so the browser, the database, the form and a prover all read the one copy. You can run all of it in one file: [`examples/metakit/src/demo.ts`](../../../examples/metakit/src/demo.ts). Install it with `pnpm add metakit effect`.
+`@doeixd/metakit` is a package that keeps such a rule as data, a small expression tree attached to your Effect `Schema`, so the browser, the database, the form and a prover all read the one copy. You can run all of it in one file: [`examples/metakit/src/demo.ts`](../../../examples/metakit/src/demo.ts). Install it with `pnpm add @doeixd/metakit effect`.
 
 ## The cliff: opaque JavaScript closures
 
@@ -40,20 +40,20 @@ Both work at runtime when you have every value in memory. Neither can be read by
 
 ## The natural extension: keep Effect Schema, make the rules data
 
-`metakit` does not replace Effect or `effect/Schema`. It extends `SchemaAST` by replacing only the opaque predicate with a small, typed expression tree (`Expr`) and replacing imperative update logic with a single-step `Transition` (`when` + simultaneous `apply` writes).
+`@doeixd/metakit` does not replace Effect or `effect/Schema`. It extends `SchemaAST` by replacing only the opaque predicate with a small, typed expression tree (`Expr`) and replacing imperative update logic with a single-step `Transition` (`when` + simultaneous `apply` writes).
 
 Your `Account` is still an ordinary Effect `Schema`: `Schema.decodeUnknownSync`, `Schema.is`, `Arbitrary`, `Option`, `Result`, and `Effect` all keep working unchanged.
 
-The imports below come from one package: `metakit` holds the expression and transition builders (`Expr`, `Transition`) and the operation namespaces (`Eq` for equality, `Num` for numbers), and each reader lives on its own subpath (`metakit/sql`, `metakit/prove`, and so on) so a page loads only the readers it names. `$` in `Expr.refine($ => …)` stands for the value being checked, so `$.balance` is its `balance` field.
+The imports below come from one package: `@doeixd/metakit` holds the expression and transition builders (`Expr`, `Transition`) and the operation namespaces (`Eq` for equality, `Num` for numbers), and each reader lives on its own subpath (`@doeixd/metakit/sql`, `@doeixd/metakit/prove`, and so on) so a page loads only the readers it names. `$` in `Expr.refine($ => …)` stands for the value being checked, so `$.balance` is its `balance` field.
 
 ```ts
 import { Effect, Result, Schema } from 'effect'
-import { Eq, Expr, Num, Path, Transition, Verdict } from 'metakit'
-import * as Graph from 'metakit/graph'
-import * as Inspect from 'metakit/inspect'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
-import * as Sql from 'metakit/sql'
+import { Eq, Expr, Num, Path, Transition, Verdict } from '@doeixd/metakit'
+import * as Graph from '@doeixd/metakit/graph'
+import * as Inspect from '@doeixd/metakit/inspect'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Account = Schema.Struct({
   id: Schema.String,
@@ -173,7 +173,7 @@ When a transition genuinely needs arbitrary JavaScript (such as a third-party fr
 
 ### 5. Static dependency graphs and minimal SSR payloads come for free
 
-Because reads and writes are inspectable paths, `metakit/graph` computes which view bindings each transition invalidates, which bindings never change (`deadBindings`), and which model paths SSR must serialize after folding static flags:
+Because reads and writes are inspectable paths, `@doeixd/metakit/graph` computes which view bindings each transition invalidates, which bindings never change (`deadBindings`), and which model paths SSR must serialize after folding static flags:
 
 ```ts
 const $ = Path.from(Account)
@@ -197,7 +197,7 @@ void pruned
 
 ## What stays in plain Effect
 
-`metakit` deliberately stops at single-step, synchronous expressions and transitions:
+`@doeixd/metakit` deliberately stops at single-step, synchronous expressions and transitions:
 
 - **I/O, concurrency, retries, and services** stay in `Effect` (a `Transition` returns the records listed in `emits`, each `Transition.emit(tag, fields)`, for your Effect runtime to turn into Commands).
 - **Encoding, decoding, and bidirectional codecs** stay in `effect/Schema`.

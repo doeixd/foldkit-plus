@@ -3,7 +3,7 @@
  * and each row a read reads, and what pending writes show of them (#248).
  */
 import { Array as Arr, Option } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import {
   Expr,
   Judge,

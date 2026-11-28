@@ -11,7 +11,7 @@
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { Entity, Mutation, Remote, type RemoteMessage } from '../src/index.js'
 import { live } from '../src/live.js'
 

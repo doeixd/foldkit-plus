@@ -1,13 +1,13 @@
 # Write your own language, store or protocol
 
-Applications often need domain-specific operations, custom storage adapters, or multi-step protocol invariants that every Foldkit Plus reader treats as first-class. `metakit/language`, `metakit/store/check`, and `Temporal.protocol` provide the typed extension seams.
+Applications often need domain-specific operations, custom storage adapters, or multi-step protocol invariants that every Foldkit Plus reader treats as first-class. `@doeixd/metakit/language`, `@doeixd/metakit/store/check`, and `Temporal.protocol` provide the typed extension seams.
 
 ## Bundle custom operations into a `Language`
 
-`Language.make` (from `metakit/language`) groups your `Operation.define` families into one object with exhaustive `implement`, partial `implementSome` (for browser pages), dialect-checked `sql('sqlite' | 'postgres')`, `describe()` (for client/server compatibility checks and `foldkit-agent/metakit`'s `x-metakit-operations` metadata), and `obligations()`:
+`Language.make` (from `@doeixd/metakit/language`) groups your `Operation.define` families into one object with exhaustive `implement`, partial `implementSome` (for browser pages), dialect-checked `sql('sqlite' | 'postgres')`, `describe()` (for client/server compatibility checks and `foldkit-agent/metakit`'s `x-metakit-operations` metadata), and `obligations()`:
 
 ```ts
-import * as Language from 'metakit/language'
+import * as Language from '@doeixd/metakit/language'
 import { flagsAndNot, flagsOr, flagsXor } from './operations'
 
 export const Permissions = Language.make({
@@ -27,10 +27,10 @@ Forgetting `flags.xor` in `Permissions.implement` fails to compile.
 
 ## Check a custom store adapter
 
-Import `checkStore` from `metakit/store/check` (test-only; never imported by server mains) to probe a custom store against its declared `StoreCapabilities`:
+Import `checkStore` from `@doeixd/metakit/store/check` (test-only; never imported by server mains) to probe a custom store against its declared `StoreCapabilities`:
 
 ```ts
-import { checkStore } from 'metakit/store/check'
+import { checkStore } from '@doeixd/metakit/store/check'
 
 const report = await checkStore(myStoreCapabilities, {
   connect: async () => openConnection(),
@@ -42,7 +42,7 @@ If an adapter claims `isolation: 'serializable'` over transactions but two concu
 
 ## Declare typed protocol obligations
 
-Use `Temporal.protocol(['undo-before-expire', ...])` from `metakit/temporal` to create typed `obligation(name, ...)` and `discharge(name, ...)` helpers. Misspelling an obligation name fails to compile, and an undischarged obligation fails your conformance test suite.
+Use `Temporal.protocol(['undo-before-expire', ...])` from `@doeixd/metakit/temporal` to create typed `obligation(name, ...)` and `discharge(name, ...)` helpers. Misspelling an obligation name fails to compile, and an undischarged obligation fails your conformance test suite.
 
 ## Next
 

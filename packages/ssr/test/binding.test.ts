@@ -1,6 +1,6 @@
 import { Option, Schema } from 'effect'
 import { inertHtml as h } from 'foldkit/html'
-import { Arr, Ord, Path } from 'metakit'
+import { Arr, Ord, Path } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { ANCHOR_ATTRIBUTE, Binding } from '../src/index.js'
 

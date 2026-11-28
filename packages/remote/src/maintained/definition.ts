@@ -39,7 +39,7 @@ export interface ListDefinition {
  */
 export const list: ListDefinition = { _tag: 'List' }
 
-/** What a maintained value keeps: a `metakit/aggregates` value, `reduce`, `join`, or `list`. */
+/** What a maintained value keeps: a `@doeixd/metakit/aggregates` value, `reduce`, `join`, or `list`. */
 export type Definition<Row> =
   | ListAggregate<Row>
   | ListDefinition

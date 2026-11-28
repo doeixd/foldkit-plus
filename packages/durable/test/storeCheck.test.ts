@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Effect, Schema } from 'effect'
-import { checkStore, type StoreAdapter, type StoreRow } from 'metakit/store/check'
+import { checkStore, type StoreAdapter, type StoreRow } from '@doeixd/metakit/store/check'
 import { describe, expect, it } from 'vitest'
 import { actorId, documentId, makeJournal, opId } from '../src/index.js'
 

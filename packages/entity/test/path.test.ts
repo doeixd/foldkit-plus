@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { Node as MetaNode } from 'metakit'
+import { Node as MetaNode } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,

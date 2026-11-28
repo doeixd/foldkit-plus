@@ -1,12 +1,12 @@
 /**
- * Unit tests for `metakit/fn`: hygienic nested `Rows` calls, `Inspect.fn`,
+ * Unit tests for `@doeixd/metakit/fn`: hygienic nested `Rows` calls, `Inspect.fn`,
  * `Expr.residualize` / `Expr.judge`, contract error phases, and `Prove.fn`.
  */
 import { Effect, Option, Result, Schema } from 'effect'
-import { Arr, Eq, Expr, Num, Path, Verdict } from 'metakit'
-import * as Fn from 'metakit/fn'
-import * as Inspect from 'metakit/inspect'
-import * as Prove from 'metakit/prove'
+import { Arr, Eq, Expr, Num, Path, Verdict } from '@doeixd/metakit'
+import * as Fn from '@doeixd/metakit/fn'
+import * as Inspect from '@doeixd/metakit/inspect'
+import * as Prove from '@doeixd/metakit/prove'
 import { describe, expect, it } from 'vitest'
 
 describe('metakit/fn: hygiene, partial evaluation, inspection & contract phases', () => {

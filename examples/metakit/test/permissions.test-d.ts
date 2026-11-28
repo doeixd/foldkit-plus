@@ -1,4 +1,4 @@
-import { Arr, Path, Transition } from 'metakit'
+import { Arr, Path, Transition } from '@doeixd/metakit'
 import { flagsAndNot, flagsOr, PermissionState, UserWithRoles } from '../src/permissions.js'
 
 const $user = Path.forSchema(UserWithRoles)

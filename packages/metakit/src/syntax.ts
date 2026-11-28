@@ -1,5 +1,5 @@
 /**
- * MetaKit DSL authoring toolkit (`metakit/syntax`, #647 P0/P1).
+ * MetaKit DSL authoring toolkit (`@doeixd/metakit/syntax`, #647 P0/P1).
  *
  * Small, orthogonal combinators over the existing MetaKit kernel:
  * - `dual` — data-first / data-last overloads from an `Operation` with an
@@ -10,7 +10,7 @@
  * - `grammar` — lightweight type-state builder combinator with compile-time
  *   stage/context enforcement AND derived runtime sequence validation.
  * - `testLanguage` — shared conformance harness running reference JS,
- *   `metakit/artifact` round-trip, fingerprinting, and `Language.readiness`
+ *   `@doeixd/metakit/artifact` round-trip, fingerprinting, and `Language.readiness`
  *   checks (distinguishing bounded `tested` results from formal proofs).
  */
 import { Effect, Result, Schema } from 'effect'

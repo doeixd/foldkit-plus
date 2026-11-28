@@ -276,8 +276,8 @@ import { Form } from 'foldkit-form'
 import { Declared } from 'foldkit-form/metakit'
 import { FormView } from 'foldkit-mixins-form'
 import { DeclaredView } from 'foldkit-mixins-form/declared'
-import { Expr } from 'metakit'
-import { CalendarDay } from 'metakit/domain'
+import { Expr } from '@doeixd/metakit'
+import { CalendarDay } from '@doeixd/metakit/domain'
 -->
 ```ts
 const StayInput = Schema.Struct({

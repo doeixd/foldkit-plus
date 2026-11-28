@@ -1,6 +1,6 @@
 /**
  * Generated law checks and obligation collection for custom operations
- * (Phase 4 bout 4.6, exported from `metakit/conformance`).
+ * (Phase 4 bout 4.6, exported from `@doeixd/metakit/conformance`).
  *
  * Samples each argument Schema with awkward values, range ends and seeded
  * `Arbitrary.schema` draws, runs every declared claim through `applyForeign`,

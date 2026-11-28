@@ -7,7 +7,7 @@
  * second way. The IndexedDB store's walk is in `protocols.store.ts`.
  */
 import { Effect, Exit, Option, Schema } from 'effect'
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 import {
   defineSync,
   documentId,

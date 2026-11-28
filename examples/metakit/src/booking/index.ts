@@ -9,10 +9,10 @@
  * - `Graph.queryReadiness`
  */
 import { Schema } from 'effect'
-import { Bool, Eq, Expr, Null, Num, Str, Time } from 'metakit'
-import { CalendarDay, Money } from 'metakit/domain'
-import * as Policy from 'metakit/policy'
-import * as Relation from 'metakit/relation'
+import { Bool, Eq, Expr, Null, Num, Str, Time } from '@doeixd/metakit'
+import { CalendarDay, Money } from '@doeixd/metakit/domain'
+import * as Policy from '@doeixd/metakit/policy'
+import * as Relation from '@doeixd/metakit/relation'
 
 export const Usd = Money.make('USD')
 

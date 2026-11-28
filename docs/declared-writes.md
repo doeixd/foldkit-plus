@@ -438,7 +438,7 @@ Client previews and local refusals (`Invalid` from held invariants or `Forbidden
 `Data.can` evaluates held `may` flags, `when` preconditions, and invariants in memory—matching the server's check order—to guide button states:
 
 ```ts
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 
 const answer = Data.can(model, Publish, { id: 'p1', status: 'published' })
 const label = Verdict.match(answer, {
@@ -448,7 +448,7 @@ const label = Verdict.match(answer, {
 })
 ```
 
-`Data.can` answers a `Verdict` from `metakit`, read with `Verdict.match`:
+`Data.can` answers a `Verdict` from `@doeixd/metakit`, read with `Verdict.match`:
 
 - **`True`:** Held data passes all checks.
 - **`False`:** Its `witness` is the `Forbidden`, `Unmet`, or `Invalid` refusal the server returns, as a `CanRefusal`.

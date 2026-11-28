@@ -3,7 +3,7 @@
  * and each states what it means here, where data-query §6.0.1 holds the rest.
  */
 import { Schema } from 'effect'
-import { Node, Str } from 'metakit'
+import { Node, Str } from '@doeixd/metakit'
 import { makeOperator, type Operator } from './expr/operator.js'
 
 const NullableText = Schema.NullOr(Schema.String)

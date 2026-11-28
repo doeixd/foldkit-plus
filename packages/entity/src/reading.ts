@@ -8,8 +8,8 @@
  * judge in memory and the SQL compiler read both.
  */
 import { Match, Option, Schema } from 'effect'
-import { Node } from 'metakit'
-import type { ForeignImplementations } from 'metakit/build'
+import { Node } from '@doeixd/metakit'
+import type { ForeignImplementations } from '@doeixd/metakit/build'
 import type { Collation } from './collation.js'
 import { childrenOf } from './expr/dependencies.js'
 import { originOf, relationName, type AnyExpr, type OneRelation } from './expr/operand.js'

@@ -18,8 +18,8 @@ import {
   type Journal as JournalShape,
 } from 'foldkit-durable'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { Arr, Eq, Expr, Num, Path, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Arr, Eq, Expr, Num, Path, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   Sync,

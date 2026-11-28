@@ -13,7 +13,7 @@
  * a path built at run time, since entity's project does not include them.
  */
 import { Effect, Option, Result, Schema, SchemaAST } from 'effect'
-import { Node, Transition } from 'metakit'
+import { Node, Transition } from '@doeixd/metakit'
 import { describe, expect, it, vi } from 'vitest'
 import { matchContext, type ViewerPathExpr } from '../src/context.js'
 import { dependenciesOf } from '../src/index.js'

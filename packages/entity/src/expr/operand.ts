@@ -12,9 +12,9 @@
  * built read it, and so do `Expr.show` and `dependenciesOf`.
  */
 import { Match, Option, Schema, SchemaAST } from 'effect'
-import { Node, Str, type Expr as MetaKit } from 'metakit'
-import { isExpr, wrap } from 'metakit/build'
-import { Text } from 'metakit/domain'
+import { Node, Str, type Expr as MetaKit } from '@doeixd/metakit'
+import { isExpr, wrap } from '@doeixd/metakit/build'
+import { Text } from '@doeixd/metakit/domain'
 import { Collation } from '../collation.js'
 import type { AnyEntity, Cardinality, EntityField, EntityRelation, IdOf } from '../index.js'
 import { SchemaShape } from '../shape.js'

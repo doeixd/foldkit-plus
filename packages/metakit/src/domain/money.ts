@@ -21,7 +21,7 @@ export type MoneyValue<C extends string, S extends number = 2> = number & {
   readonly [MoneyBrand]: readonly [currency: C, scale: S]
 }
 
-/** Construct a `Currency` literal union Schema with `metakit/domain` metadata. */
+/** Construct a `Currency` literal union Schema with `@doeixd/metakit/domain` metadata. */
 export const currency = <const Codes extends readonly [string, ...Array<string>]>(
   codes: Codes,
 ): Schema.Literals<Codes> =>

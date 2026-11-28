@@ -5,8 +5,8 @@
  */
 import { Effect, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Path, Str, Verdict } from 'metakit'
-import * as Prove from 'metakit/prove'
+import { Abstract, Eq, Expr, Path, Str, Verdict } from '@doeixd/metakit'
+import * as Prove from '@doeixd/metakit/prove'
 
 const Row = Schema.Struct({ s: Schema.String, n: Schema.Int, st: Schema.Literals(['a', 'b']) })
 const $ = Path.forSchema(Row)

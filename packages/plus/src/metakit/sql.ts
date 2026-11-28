@@ -1,2 +1,2 @@
-/** `metakit/sql`, as `foldkit-plus/metakit/sql`. */
-export * from 'metakit/sql'
+/** `@doeixd/metakit/sql`, as `foldkit-plus/metakit/sql`. */
+export * from '@doeixd/metakit/sql'

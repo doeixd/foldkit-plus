@@ -13,8 +13,8 @@
  * that *is* the whole expression is not: nothing encloses it.
  */
 import { Option } from 'effect'
-import { Node } from 'metakit'
-import { isExpr } from 'metakit/build'
+import { Node } from '@doeixd/metakit'
+import { isExpr } from '@doeixd/metakit/build'
 import { kindOf } from './kind.js'
 import { ASKER, originOf, type CompareOperator } from './operand.js'
 import { operatorName } from './table.js'

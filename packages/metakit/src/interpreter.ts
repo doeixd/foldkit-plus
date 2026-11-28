@@ -1,9 +1,9 @@
 /**
  * Effect-native Interpreter service and composable middleware layers
- * (`metakit/interpreter`).
+ * (`@doeixd/metakit/interpreter`).
  *
  * Provides `Interpreter` as an Effect `Context.Reference` (defaulting to the
- * in-memory evaluator, mirroring `Solver` in `metakit/prove`), so applications
+ * in-memory evaluator, mirroring `Solver` in `@doeixd/metakit/prove`), so applications
  * supply foreign operations (`Operation.define`), tracing spans, audit
  * observers, or foreign-op allowlists once via Effect `Layer`s instead of
  * threading `{ foreign }` options through every call site.

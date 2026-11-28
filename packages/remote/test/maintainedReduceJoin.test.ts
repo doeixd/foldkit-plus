@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import * as Operation from 'metakit/operation'
+import * as Operation from '@doeixd/metakit/operation'
 import { describe, expect, it } from 'vitest'
 import { filtered } from '../src/filter.js'
 import { Classification, Maintained, classify, rescanReport } from '../src/maintained/index.js'

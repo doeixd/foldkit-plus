@@ -31,11 +31,11 @@ Evaluation of a node against an environment produces one of four outcomes:
 | `Rows` (list & nested folds) | Exact | Partial when list/element known; residualized otherwise | Supported folds lowered (correlated/exists where supported); unsupported refused | Supported folds lowered; unsupported refused | Sound over-approximation / Z3 encoding where supported; `Unknown` otherwise |
 | `ForeignOp` (`id@version`) | Runs caller-supplied `ForeignImplementations`; `unsupported` refusal if absent | Runs only when args known & impl supplied; else residual / `Unknown` | Runs caller-supplied `ForeignLowerings` for dialect; refused if absent | Runs caller-supplied `ForeignLowerings` for dialect; refused if absent | Uses declared algebraic `claims` / `Unknown` unless lowered |
 | `Opaque` | Executes JS closure | Runs if declared `reads` are all known; else `Unknown` | **Refused** (not portable) | **Refused** (not portable) | Soundly `Unknown` |
-| Portable codec (`metakit/artifact`) | Round-trips all non-`Opaque` nodes | Identical post-decode | Identical post-decode | Identical post-decode | Identical post-decode |
+| Portable codec (`@doeixd/metakit/artifact`) | Round-trips all non-`Opaque` nodes | Identical post-decode | Identical post-decode | Identical post-decode | Identical post-decode |
 
 > **Sound approximation vs. equivalence:** SQL `CHECK` constraints pass when a row is valid and reject when the predicate is `FALSE` (`IS TRUE` / null-aware guards for `Schema.optional` and `Schema.NullOr`). Z3 proofs establish validity under the declared Schema constraints and timeout; a solver timeout or `Unknown` is **neither** a proof nor a counterexample.
 
-## 3. Portable Artifact Versioning Policy (`metakit/artifact`)
+## 3. Portable Artifact Versioning Policy (`@doeixd/metakit/artifact`)
 
 - **Wire version (`CODEC_VERSION = 1`):** Every encoded artifact carries `codecVersion: 1`. Decoders reject unknown versions with `ArtifactDecodeError` (`phase: 'version'`). Additive changes that preserve v1 decoding stay in v1; breaking wire changes bump `CODEC_VERSION` and ship an explicit migration decoder.
 - **Core operators (`Node.CoreOpId`):** Closed set of 50 operators. Existing core operator semantics do not change incompatibly; new behavior gets a new operator ID.

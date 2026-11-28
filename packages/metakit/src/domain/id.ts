@@ -1,5 +1,5 @@
 /**
- * `Id`: branded, non-empty, NUL-free entity identifiers (`metakit/domain`).
+ * `Id`: branded, non-empty, NUL-free entity identifiers (`@doeixd/metakit/domain`).
  *
  * `Id.make('User')` produces a `Schema` branded by `'User'` so TypeScript
  * rejects accidental cross-entity comparisons (`Eq.is(user.id, org.id)`), while

@@ -306,7 +306,7 @@ state and the variant constructor, such as `CounterMessage.Incremented`, for
 its input. A counter that stops at 10:
 
 ```ts
-import { Num, Path, Transition } from 'metakit'
+import { Num, Path, Transition } from '@doeixd/metakit'
 import { SyncDeclared } from 'foldkit-sync/metakit'
 
 const Counter = Schema.Struct({ count: Schema.Number })
@@ -374,7 +374,7 @@ Messages where one writes a path the other reads or writes, `rebase: 'never'` (`
 `'possible'`; per Message, `copy: 'harmless'` (an immediate back-to-back copy is
 idempotent, by `Transition.idempotent`; interleaved copies still rely on id deduplication) or `'removed by id'`.
 `settleConvergence(machine, tags, { owner, walkPair, walkRedelivery })` files
-each `possible` pair and each copy as a `metakit/temporal` obligation and
+each `possible` pair and each copy as a `@doeixd/metakit/temporal` obligation and
 discharges it with the two-replica walks you pass. A `possible` pair closes when its walk is `Held`, answering "the order matters" if `orderMatters` is true; a `Broken` walk (the replicas ended on different documents) leaves it open even where `orderMatters`, and a `never` pair whose orders differ is refuted. Development and test only.
 
 The journal judges every operation after `reduce` (`journalContract()` carries

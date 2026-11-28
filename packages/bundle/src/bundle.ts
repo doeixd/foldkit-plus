@@ -9,7 +9,7 @@ import type * as ManagedResource from 'foldkit/managedResource'
 import type * as Submodel from 'foldkit/submodel'
 import type * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
-import type * as Machine from 'metakit/machine'
+import type * as Machine from '@doeixd/metakit/machine'
 import type { AnyMessage, Link } from './link.js'
 import { each, type EachConfig, type PlacedCollection } from './collection.js'
 import {

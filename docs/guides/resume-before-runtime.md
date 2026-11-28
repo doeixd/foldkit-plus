@@ -8,7 +8,7 @@ Declare typed anchor bindings with `Binding.define`, mark the HTML with `data-fk
 
 ```ts
 import { Schema } from 'effect'
-import { Path, Transition } from 'metakit'
+import { Path, Transition } from '@doeixd/metakit'
 import { Binder, Binding } from 'foldkit-ssr/binder'
 
 const State = Schema.Struct({ count: Schema.Int })

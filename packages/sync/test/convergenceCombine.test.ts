@@ -1,8 +1,8 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Operation from 'metakit/operation'
+import { Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Operation from '@doeixd/metakit/operation'
 import { convergence } from '../src/convergence.js'
 
 const Flags = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 0x7fff_ffff }))

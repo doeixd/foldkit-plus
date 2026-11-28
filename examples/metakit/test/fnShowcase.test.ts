@@ -1,15 +1,15 @@
 /**
- * End-to-end showcase & verification suite for `metakit/fn`, `Prove.fn`,
+ * End-to-end showcase & verification suite for `@doeixd/metakit/fn`, `Prove.fn`,
  * and relational `ensures` postconditions on `Transition.make`.
  */
 import { PGlite } from '@electric-sql/pglite'
 import { Effect, Option, Result, Schema } from 'effect'
-import { Eq, Expr, Num, Path, Sets, Transition, Verdict } from 'metakit'
-import { Money, OrderedEnum } from 'metakit/domain'
-import * as Fn from 'metakit/fn'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
-import * as Sql from 'metakit/sql'
+import { Eq, Expr, Num, Path, Sets, Transition, Verdict } from '@doeixd/metakit'
+import { Money, OrderedEnum } from '@doeixd/metakit/domain'
+import * as Fn from '@doeixd/metakit/fn'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Sql from '@doeixd/metakit/sql'
 import { describe, expect, it } from 'vitest'
 
 const Usd = Money.make('USD')

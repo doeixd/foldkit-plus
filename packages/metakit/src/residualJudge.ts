@@ -1,6 +1,6 @@
 /**
  * The reference a judge of a partly known environment is held to
- * (`metakit/conformance`): the value and the verdict read off the expression
+ * (`@doeixd/metakit/conformance`): the value and the verdict read off the expression
  * partial evaluation leaves (`residualizeNode`). `judgeNode` and
  * `settleNode` decide without building that expression; over every node and
  * environment they must answer as these do.

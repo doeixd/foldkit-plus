@@ -3,7 +3,7 @@
  * both sides lowered by `str.lowerAscii`, as SQLite's `lower` folds without
  * ICU.
  */
-import { Node, Str } from 'metakit'
+import { Node, Str } from '@doeixd/metakit'
 import { Option } from 'effect'
 import {
   exprOf,

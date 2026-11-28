@@ -4,9 +4,9 @@
  */
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Expr, Num, Transition } from 'metakit'
-import { Money } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
+import { Expr, Num, Transition } from '@doeixd/metakit'
+import { Money } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
 import { describe, expect, it } from 'vitest'
 import { Agent } from '../src/index.js'
 import { machineTools } from '../src/metakit.js'

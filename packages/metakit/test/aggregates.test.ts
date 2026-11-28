@@ -1,10 +1,10 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Effect, Option, Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Eq, Expr, Num, Ord, Transition, Verdict, foldProperties } from 'metakit'
-import * as Rows from 'metakit/aggregates'
-import * as RowsSql from 'metakit/aggregates/sql'
-import * as Prove from 'metakit/prove'
+import { Eq, Expr, Num, Ord, Transition, Verdict, foldProperties } from '@doeixd/metakit'
+import * as Rows from '@doeixd/metakit/aggregates'
+import * as RowsSql from '@doeixd/metakit/aggregates/sql'
+import * as Prove from '@doeixd/metakit/prove'
 
 const Entry = Schema.Struct({
   id: Schema.String,

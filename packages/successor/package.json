@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "effect": "4.1.4",
-    "metakit": "workspace:*"
+    "@doeixd/metakit": "workspace:*"
   },
   "devDependencies": {
     "foldkit-durable": "workspace:*",

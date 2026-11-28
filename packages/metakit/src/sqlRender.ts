@@ -1,5 +1,5 @@
 /**
- * What `metakit/sql` and `metakit/drizzle` share to render lowered pieces:
+ * What `@doeixd/metakit/sql` and `@doeixd/metakit/drizzle` share to render lowered pieces:
  * the entry of a foreign operation, a literal written into DDL, the value a
  * driver binds, one column per path, and the shape of a subquery over the
  * rows related to the row a predicate is asked of.

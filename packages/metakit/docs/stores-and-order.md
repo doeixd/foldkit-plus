@@ -1,20 +1,20 @@
 # Check what a proof of one step cannot
 
-With `metakit` you wrote a withdrawal as data and [had `Prove.machine` show](./proving-transitions.md) that it never overdraws an account. Then two withdrawals arrive at the same moment. Each reads a balance of 100, each takes 80, and the account ends at -60. Nothing in the proof was wrong: it showed that one step, started from a valid account, leaves a valid account. It said nothing about two steps reading the same account before either wrote, and nothing about a reply that arrives after a later one.
+With `@doeixd/metakit` you wrote a withdrawal as data and [had `Prove.machine` show](./proving-transitions.md) that it never overdraws an account. Then two withdrawals arrive at the same moment. Each reads a balance of 100, each takes 80, and the account ends at -60. Nothing in the proof was wrong: it showed that one step, started from a valid account, leaves a valid account. It said nothing about two steps reading the same account before either wrote, and nothing about a reply that arrives after a later one.
 
 Two things decide whether the rule still holds, and neither is in the rule:
 
 - **How the database runs concurrent writes.** If it runs them one at a time, the second withdrawal reads 20 and is refused.
 - **The order events arrive in.** If a page applies an old reply over a newer one, it shows a state no single step produced.
 
-This guide shows how to turn the first into an error when the server starts, and the second into a list of tests still to write, with a function that runs your steps in many orders for you. It assumes you have read [the tutorial](./getting-started.md); the account here is a smaller one with only a `balance`. Install `metakit` and `effect`; the proof step needs `z3-solver` only if one of your transitions is one the built-in checks cannot decide. The code blocks below continue one file as an ES module (they use top-level `await`); the comment under each is its result.
+This guide shows how to turn the first into an error when the server starts, and the second into a list of tests still to write, with a function that runs your steps in many orders for you. It assumes you have read [the tutorial](./getting-started.md); the account here is a smaller one with only a `balance`. Install `@doeixd/metakit` and `effect`; the proof step needs `z3-solver` only if one of your transitions is one the built-in checks cannot decide. The code blocks below continue one file as an ES module (they use top-level `await`); the comment under each is its result.
 
 ## Refuse a store that cannot hold a rule
 
 A *store* here is whatever persists your state: Postgres, SQLite, a table in memory. Describe it with a name and three facts about how it runs writes, defined just below. The values here are Postgres as it comes: its default level is read committed, it runs a transaction of several statements as one unit, and nothing locks a parent row unless your writes do.
 
 ```ts
-import * as Store from 'metakit/store'
+import * as Store from '@doeixd/metakit/store'
 
 const postgres: Store.StoreCapabilities = {
   name: 'Postgres',
@@ -30,10 +30,10 @@ Now declare the rules. A *transition* is one change to one record, with an optio
 
 ```ts
 import { Schema } from 'effect'
-import { Expr, Num, Transition } from 'metakit'
-import * as Rows from 'metakit/aggregates'
-import * as Machine from 'metakit/machine'
-import * as Temporal from 'metakit/temporal'
+import { Expr, Num, Transition } from '@doeixd/metakit'
+import * as Rows from '@doeixd/metakit/aggregates'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Temporal from '@doeixd/metakit/temporal'
 
 const Account = Schema.Struct({ balance: Schema.Int }).pipe(
   Expr.refine($ => Num.gte($.balance, 0)),
@@ -145,7 +145,7 @@ Store.mount(postgres, [linked])
 
 ```ts
 import { Effect } from 'effect'
-import * as Prove from 'metakit/prove'
+import * as Prove from '@doeixd/metakit/prove'
 
 const report = await Effect.runPromise(Prove.machine(Bank))
 const owed = report.obligations.map(obligation => obligation.name)

@@ -1,5 +1,5 @@
 import { Context, Data, Effect, Layer, Option, Ref, Schema } from 'effect'
-import type { StoreCapabilities } from 'metakit/store'
+import type { StoreCapabilities } from '@doeixd/metakit/store'
 
 export const wireFact = Schema.Struct({
   type: Schema.NonEmptyString,

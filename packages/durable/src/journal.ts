@@ -352,7 +352,7 @@ export interface Cursors {
 
 /**
  * What the store under a journal guarantees of concurrent writes. It has the
- * shape of `StoreCapabilities` in `metakit/store`, which this package does not
+ * shape of `StoreCapabilities` in `@doeixd/metakit/store`, which this package does not
  * depend on: `isolation` is `'serializable'` (as if one at a time),
  * `'read-committed'` (each statement reads what has committed) or
  * `'eventual'` (replicas merge later); `isolates` is how far that reaches,

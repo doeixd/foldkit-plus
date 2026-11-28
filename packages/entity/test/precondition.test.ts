@@ -4,7 +4,7 @@
  * stand.
  */
 import { Option, Schema } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { Entity, Expr, Query, Write, truthOver } from '../src/index.js'
 

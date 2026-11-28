@@ -20,7 +20,7 @@ import {
 } from 'foldkit-remote'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { afterAll, describe, expect, it } from 'vitest'
 import { GuardAgent } from '../src/agent.js'
 import { GuardDrizzle } from '../src/drizzle.js'

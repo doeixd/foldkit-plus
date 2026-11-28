@@ -1,8 +1,8 @@
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Arr, Eq, Expr, Ord, Path, Verdict } from 'metakit'
-import * as Prove from 'metakit/prove'
-import * as Sql from 'metakit/sql'
+import { Abstract, Arr, Eq, Expr, Ord, Path, Verdict } from '@doeixd/metakit'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Research = Schema.Struct({ id: Schema.String, era: Schema.Int })
 const Era = Schema.Struct({ id: Schema.String, ordinal: Schema.Int })

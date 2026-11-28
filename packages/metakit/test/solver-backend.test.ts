@@ -1,6 +1,6 @@
 import { Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from 'effect'
-import { Expr, Num, Verdict } from 'metakit'
-import * as Prove from 'metakit/prove'
+import { Expr, Num, Verdict } from '@doeixd/metakit'
+import * as Prove from '@doeixd/metakit/prove'
 import { expect, it } from 'vitest'
 
 const Row = Schema.Struct({ count: Schema.Int })

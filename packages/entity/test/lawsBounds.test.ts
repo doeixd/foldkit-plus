@@ -6,7 +6,7 @@
  * leaves. Seeded; a failure prints its seed.
  */
 import { Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,

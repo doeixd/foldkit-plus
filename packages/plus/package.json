@@ -897,6 +897,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@doeixd/metakit": "workspace:*",
     "foldkit-agent": "workspace:*",
     "foldkit-agent-a2a": "workspace:*",
     "foldkit-agent-mcp": "workspace:*",
@@ -934,8 +935,7 @@
     "foldkit-site": "workspace:*",
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
-    "foldkit-sync": "workspace:*",
-    "metakit": "workspace:*"
+    "foldkit-sync": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

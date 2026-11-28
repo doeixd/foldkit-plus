@@ -14,8 +14,8 @@ import {
   foldProperties,
   type Path,
   type Verdict,
-} from 'metakit'
-import * as Relation from 'metakit/relation'
+} from '@doeixd/metakit'
+import * as Relation from '@doeixd/metakit/relation'
 
 type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false

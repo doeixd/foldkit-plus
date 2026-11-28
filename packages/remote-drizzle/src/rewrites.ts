@@ -8,8 +8,8 @@
  */
 import { Schema } from 'effect'
 import { Collation } from 'foldkit-entity'
-import { Node, Ord } from 'metakit'
-import { define } from 'metakit/operation'
+import { Node, Ord } from '@doeixd/metakit'
+import { define } from '@doeixd/metakit/operation'
 
 /** The segment under `row` a path not of the judged row is read at, so it lowers as a column of its own. */
 const PAST = { next: '#next', viewer: '#viewer', now: '#now', input: '#input' } as const

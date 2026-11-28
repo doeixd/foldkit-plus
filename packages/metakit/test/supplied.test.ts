@@ -5,10 +5,10 @@
  */
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Num, Ord, Path, Transition, Verdict } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
-import * as Sql from 'metakit/sql'
+import { Abstract, Eq, Expr, Num, Ord, Path, Transition, Verdict } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Sql from '@doeixd/metakit/sql'
 
 const State = Schema.Struct({
   lastId: Schema.NullOr(Schema.String),

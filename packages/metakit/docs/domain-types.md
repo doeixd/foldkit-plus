@@ -2,7 +2,7 @@
 
 Using plain `number` for money, `Date` for calendar dates, and plain strings for ordered statuses lets subtle bugs compile: adding USD to EUR, shifting a due date across a timezone boundary, or sorting `"pro"` after `"free"` alphabetically.
 
-`metakit/domain`, a subpath of the `metakit` package (`pnpm add metakit effect`), gives you branded integer-backed Effect Schemas, `Money`, `Decimal`, `CalendarDay` and `OrderedEnum`, whose operations are exact integer arithmetic in JavaScript and, with the exception noted under multiplication, in SQL and in the Z3 solver. `metakit/aggregates` adds row summaries (`sum`, `count`, `min`, `max`, `every`, `any`) that update by adding or removing one row's contribution (a delta) instead of adding every row again, and `metakit/aggregates/sql` compiles them to SQL.
+`@doeixd/metakit/domain`, a subpath of the `@doeixd/metakit` package (`pnpm add @doeixd/metakit effect`), gives you branded integer-backed Effect Schemas, `Money`, `Decimal`, `CalendarDay` and `OrderedEnum`, whose operations are exact integer arithmetic in JavaScript and, with the exception noted under multiplication, in SQL and in the Z3 solver. `@doeixd/metakit/aggregates` adds row summaries (`sum`, `count`, `min`, `max`, `every`, `any`) that update by adding or removing one row's contribution (a delta) instead of adding every row again, and `@doeixd/metakit/aggregates/sql` compiles them to SQL.
 
 The code blocks continue one file: `Schema`, `Expr`, `Num` and the first block's imports stay in scope. `Expr.refine` attaches a rule to a Schema as data, `Expr.in` builds an expression over named inputs, and `Expr.eval` runs one in memory.
 
@@ -12,8 +12,8 @@ The code blocks continue one file: `Schema`, `Expr`, `Num` and the first block's
 
 ```ts
 import { Schema } from 'effect'
-import { Expr, Num } from 'metakit'
-import { Decimal, Money } from 'metakit/domain'
+import { Expr, Num } from '@doeixd/metakit'
+import { Decimal, Money } from '@doeixd/metakit/domain'
 
 const Usd = Money.make('USD')
 const Invoice = Schema.Struct({
@@ -54,13 +54,13 @@ Both build one core operation, `num.mulScaled` (`Num.mulScaled(left, right, { sh
 | Reader | What it does with a decimal product |
 | --- | --- |
 | `Expr.eval`, `Expr.judge` and partial evaluation | Exact, as above. `Expr.judge` answers `Unknown` for a product it refuses. |
-| `metakit/sql` and `metakit/drizzle` (SQLite and Postgres) | Integer arithmetic only: an exact half goes to the even neighbour on both, and the answer is `NULL` where evaluation refuses. Postgres forms the product as `numeric`, which cannot overflow, and SQLite carries an overflowing product on as a float that lands past the bound, so neither raises nor returns a wrong number. A column that is not known to be an integer (a `Schema.Finite` field, say) is refused by name; use a `Schema.Int`, `Decimal` or `Money` field. |
+| `@doeixd/metakit/sql` and `@doeixd/metakit/drizzle` (SQLite and Postgres) | Integer arithmetic only: an exact half goes to the even neighbour on both, and the answer is `NULL` where evaluation refuses. Postgres forms the product as `numeric`, which cannot overflow, and SQLite carries an overflowing product on as a float that lands past the bound, so neither raises nor returns a wrong number. A column that is not known to be an integer (a `Schema.Finite` field, say) is refused by name; use a `Schema.Int`, `Decimal` or `Money` field. |
 | The interval and zone checker (`Abstract`) | Bounds the result from the operands' intervals, rounding each end half-even. It says a product has a value only where the operands are integers and the product stays in range, so a rule over unbounded operands is not proved. |
-| The Z3 prover (`metakit/prove`) | Exact over integers, with the solver's `div` and `mod`. A product of two unbounded fields is non-linear, so the solver may give up and answer `Unknown`; an operand that is not an integer sort is `Unknown`. |
-| `Rows.sum` (`metakit/aggregates`) | Takes a decimal product as its contribution, as it takes any integer-valued expression. |
+| The Z3 prover (`@doeixd/metakit/prove`) | Exact over integers, with the solver's `div` and `mod`. A product of two unbounded fields is non-linear, so the solver may give up and answer `Unknown`; an operand that is not an integer sort is `Unknown`. |
+| `Rows.sum` (`@doeixd/metakit/aggregates`) | Takes a decimal product as its contribution, as it takes any integer-valued expression. |
 
 ```ts
-import * as Rows from 'metakit/aggregates'
+import * as Rows from '@doeixd/metakit/aggregates'
 
 const totalVat = Rows.sum(Line, $ => Money.mul($.net, $.vat, { rateScale: 3 }))
 totalVat.evaluate([{ net: Money.minor('USD', 12_35), vat: Decimal.units(200, 3) }])
@@ -78,7 +78,7 @@ One difference remains between SQL and memory. SQL has no refusal to give, so a 
 `CalendarDay.schema` stores calendar dates as integer days since `1970-01-01` (no hours, minutes, or local timezone offsets).
 
 ```ts
-import { CalendarDay } from 'metakit/domain'
+import { CalendarDay } from '@doeixd/metakit/domain'
 
 const Booking = Schema.Struct({
   checkIn: CalendarDay.schema,
@@ -101,7 +101,7 @@ const shown = CalendarDay.toIso(checkOut)
 `OrderedEnum.make(values)` creates a literal-union Schema whose order is its declaration order, with `rank`, `lt`, `lte`, `gt`, `gte`, and `between` helpers that lower to `Expr.match` over integer ranks.
 
 ```ts
-import { OrderedEnum } from 'metakit/domain'
+import { OrderedEnum } from '@doeixd/metakit/domain'
 
 const Plan = OrderedEnum.make(['free', 'pro', 'enterprise'] as const)
 const canUseSso = Expr.in({ plan: Plan.schema }, ({ plan }) => Plan.gte(plan, 'pro'))
@@ -112,21 +112,21 @@ Expr.eval(canUseSso, { plan: 'enterprise' }) // true
 
 Because `OrderedEnum` lowers to `Match` over integer ranks, the built-in checkers prove monotonicity (for example, upgrading from `free` to `pro` increases `Plan.rank`) synchronously without calling Z3.
 
-## Row aggregates (`metakit/aggregates`)
+## Row aggregates (`@doeixd/metakit/aggregates`)
 
-`metakit/aggregates` distinguishes two kinds of summaries:
+`@doeixd/metakit/aggregates` distinguishes two kinds of summaries:
 
 - **Group aggregates** (`Rows.sum`, `Rows.count`) can undo a row's contribution, so inserts, deletes, and updates each take one step, however many rows there are, via `insertDelta`, `deleteDelta`, and `updateDelta`. The delta is exact only over integers (with floats, `0.1 + 0.2 + 0.3 - 0.2` is `0.4000000000000001`), so `Rows.sum` accepts only an integer-valued contribution: `Schema.Int`, `Money` and `Decimal` fields and integer literals, through `+`, `-`, `*`, negation, `Expr.when` and `Expr.match`. Anything else (a `Schema.Number` field, `0.5`) throws where the aggregate is defined.
 - **Min, max, every and any** (`Rows.min`, `Rows.max`, `Rows.every`, `Rows.any`) cannot undo a row: an insert takes one step, and a delete of the row that held the answer must look at the remaining rows again.
 
-Which kind an aggregate is comes from what its fold keeps, in `foldProperties` (exported from `metakit`): `sum` and `count` are commutative, associative and invertible over the integers, and `min`, `max`, `every` and `any` are not invertible.
+Which kind an aggregate is comes from what its fold keeps, in `foldProperties` (exported from `@doeixd/metakit`): `sum` and `count` are commutative, associative and invertible over the integers, and `min`, `max`, `every` and `any` are not invertible.
 
 Missing values get SQL's answers: `sum`, `min` and `max` skip a `null`, `sum` of no rows is `0`, and `min` and `max` of no rows are `Option.none()`. A row whose predicate is unknown counts as failing `every` and as not matching `any` or `count`. A `NaN` in `min` or `max` makes the answer `NaN` whatever the order of the rows; declare the field `Schema.Int` or `Schema.Finite` if it should never hold one.
 
 ```ts
 import { Result } from 'effect'
-import * as Rows from 'metakit/aggregates'
-import * as RowsSql from 'metakit/aggregates/sql'
+import * as Rows from '@doeixd/metakit/aggregates'
+import * as RowsSql from '@doeixd/metakit/aggregates/sql'
 
 const Entry = Schema.Struct({ amount: Schema.Int, active: Schema.Boolean })
 const activeSum = Rows.sum(Entry, $ => Expr.when($.active, { then: $.amount, else: 0 }))

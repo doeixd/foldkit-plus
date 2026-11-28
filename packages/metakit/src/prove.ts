@@ -1,5 +1,5 @@
 /**
- * Dev-only prover (`metakit/prove`): the synchronous Interval and Zone checks
+ * Dev-only prover (`@doeixd/metakit/prove`): the synchronous Interval and Zone checks
  * first, then the Z3 solver for what they leave undecided.
  *
  * The solver reads an expression as evaluation does: every term is a value

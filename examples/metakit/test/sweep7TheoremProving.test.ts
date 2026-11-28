@@ -10,11 +10,11 @@
  * 6. Security policy theorems (separation of duties + cross-tenant escalation counterexample)
  */
 import { Effect, Option, Result, Schema } from 'effect'
-import { Abstract, Bool, Eq, Expr, Null, Num, Path, Str, Time, Transition, Verdict } from 'metakit'
-import { CalendarDay, Money, Text } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
-import * as Policy from 'metakit/policy'
-import * as Prove from 'metakit/prove'
+import { Abstract, Bool, Eq, Expr, Null, Num, Path, Str, Time, Transition, Verdict } from '@doeixd/metakit'
+import { CalendarDay, Money, Text } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Policy from '@doeixd/metakit/policy'
+import * as Prove from '@doeixd/metakit/prove'
 import { describe, expect, it } from 'vitest'
 
 const Usd = Money.make('USD')

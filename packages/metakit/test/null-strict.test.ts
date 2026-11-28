@@ -3,7 +3,7 @@
  * every rewrite of partial evaluation keeps that answer.
  */
 import { Option, Result, Schema } from 'effect'
-import { Arr, Bool, Eq, Expr, Node, Null, Num, Ord, Path, Str, Transition, Verdict } from 'metakit'
+import { Arr, Bool, Eq, Expr, Node, Null, Num, Ord, Path, Str, Transition, Verdict } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 
 const Row = Schema.Struct({

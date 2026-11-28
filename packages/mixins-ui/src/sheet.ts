@@ -53,8 +53,8 @@ import {
   update as updateDialog,
   type ResolvedDialog,
 } from './dialog.js'
-import { Arr, Bool, Eq, Ord, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Arr, Bool, Eq, Ord, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import type { MixinList } from './resolve.js'
 import {
   CLOSE_SHARE,

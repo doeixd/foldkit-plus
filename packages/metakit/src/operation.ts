@@ -1,5 +1,5 @@
 /**
- * Typed custom operations with checked algebraic claims (`metakit/operation`).
+ * Typed custom operations with checked algebraic claims (`@doeixd/metakit/operation`).
  *
  * An operation is declared once with `Operation.define`: its id, version,
  * argument and result Schemas, null rule and claims. The declaration is a

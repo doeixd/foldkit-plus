@@ -12,8 +12,8 @@ import * as Submodel from 'foldkit/submodel'
 import { Bundle, Link } from 'foldkit-bundle'
 import { Surface } from 'foldkit-surface'
 import { Writes } from 'foldkit-surface/writes'
-import { Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { afterEach, expect, it, vi } from 'vitest'
 
 afterEach(() => {

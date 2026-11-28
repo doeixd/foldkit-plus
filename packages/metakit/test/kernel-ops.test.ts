@@ -6,8 +6,8 @@
  */
 import { Effect, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Bool, Eq, Expr, Node, Null, Num, Ord, Path, Str, Verdict } from 'metakit'
-import * as Prove from 'metakit/prove'
+import { Abstract, Bool, Eq, Expr, Node, Null, Num, Ord, Path, Str, Verdict } from '@doeixd/metakit'
+import * as Prove from '@doeixd/metakit/prove'
 
 const Row = Schema.Struct({
   n: Schema.NullOr(Schema.Int),

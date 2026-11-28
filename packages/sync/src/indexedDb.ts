@@ -1,5 +1,5 @@
 import { Config, Effect, Option } from 'effect'
-import type { StoreCapabilities } from 'metakit/store'
+import type { StoreCapabilities } from '@doeixd/metakit/store'
 import { StorageError } from './errors.js'
 
 /**

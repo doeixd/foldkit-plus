@@ -1,6 +1,6 @@
 /**
  * Questions asked of the rows of another kind that point at a row
- * (`metakit/relation`): does any follow row point at this author with me as
+ * (`@doeixd/metakit/relation`): does any follow row point at this author with me as
  * its follower, how many lines does this order have, what do they sum to.
  *
  * A relation names the kind of the pointing rows and the field they point

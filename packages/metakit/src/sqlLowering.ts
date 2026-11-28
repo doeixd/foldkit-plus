@@ -1,6 +1,6 @@
 /**
- * The one lowering of expressions to SQL, shared by `metakit/sql` (text and
- * parameters) and `metakit/drizzle` (Drizzle `SQL`).
+ * The one lowering of expressions to SQL, shared by `@doeixd/metakit/sql` (text and
+ * parameters) and `@doeixd/metakit/drizzle` (Drizzle `SQL`).
  *
  * It produces pieces (text, a value to bind, a column read) in the order they
  * are written, so a term written twice binds its values twice and a

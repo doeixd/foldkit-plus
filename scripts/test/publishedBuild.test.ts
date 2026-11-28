@@ -239,7 +239,7 @@ test('a page reading only Metadata keeps no Evidence module, built or source', a
  * test below holds. Of the graph, only the path matcher (`graph/match`); of
  * the domains, those a page names. `foldkit-*`'s own `metakit` adapter
  * entries are also off a page. Broken by hand: a module-level read of
- * `metakit/prove` in guard's `src/index.ts`, and a new module imported and
+ * `@doeixd/metakit/prove` in guard's `src/index.ts`, and a new module imported and
  * read at the top of metakit's `src/verdict.ts`, each turned the guard row red.
  */
 const ON_A_PAGE: ReadonlyArray<RegExp> = [
@@ -442,7 +442,7 @@ test('a page keeps no metakit for a Surface without declared writes, and no writ
 /**
  * Remote keeps its maintained values behind a separate entry. Both entries
  * keep the page's metakit module budget, including when a page keeps a list
- * without supplying an aggregate from `metakit/aggregates`.
+ * without supplying an aggregate from `@doeixd/metakit/aggregates`.
  */
 test.each([
   ['index', `import { Remote } from 'pkg'\nexport const used = Remote.make`, 'remote'],
@@ -582,7 +582,7 @@ test('a page running transitions keeps no judge unless it asks what a partial st
 
 /**
  * `num.mulScaled` is one module (`ops/mulScaled`): a page that names no decimal
- * multiplication keeps none of it, from the main entry or from `metakit/domain`,
+ * multiplication keeps none of it, from the main entry or from `@doeixd/metakit/domain`,
  * which holds `Decimal.mul` and `Money.mul` beside `Money.add`. The pages that
  * name it keep it, so the others can fail. Broken by hand: a call of
  * `isShift` from `./mulScaled.js` inside the evaluator of `num.add` turned
@@ -649,7 +649,7 @@ test.each([
 
 /**
  * `foldkit-remote-server` checks a writer's store on every server, so
- * `metakit/store` is that one module: no expression, transition or walk code.
+ * `@doeixd/metakit/store` is that one module: no expression, transition or walk code.
  * Broken by hand: a read of `rulesOf` from `./expr.js` inside `mount` turned
  * it red, built and source.
  */

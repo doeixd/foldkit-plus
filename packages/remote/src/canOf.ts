@@ -5,7 +5,7 @@
 import { Match, Option, Result, Schema } from 'effect'
 import { Write as DomainWrite, type AnyWrite, type ExprContext } from 'foldkit-entity'
 import type { HeldRow, MemoryOperators } from 'foldkit-entity'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { Can, CanRefusal, type CapabilityChecks, type CapabilityRequest } from './can.js'
 import { forbiddenByWrite, judgedByWrite, metByWrite, unheldByWrite } from './mutation.js'
 import { holderOf } from './held.js'

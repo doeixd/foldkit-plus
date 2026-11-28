@@ -1,5 +1,5 @@
 /**
- * Framework-independent declarative state machine (`metakit/machine`) built
+ * Framework-independent declarative state machine (`@doeixd/metakit/machine`) built
  * over `Transition`s: one declaration drives runtime `dispatch` (TEA `update`
  * / Sync journal) and per-message read/write `footprints`; `canDispatch` and
  * `affordances` ask what a partial state allows (UI and agents).

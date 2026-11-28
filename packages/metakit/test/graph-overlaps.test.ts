@@ -4,7 +4,7 @@
  * meet, a row write bridged into a Model path included.
  */
 import { Option } from 'effect'
-import * as Graph from 'metakit/graph'
+import * as Graph from '@doeixd/metakit/graph'
 import { describe, expect, it } from 'vitest'
 
 /** A small seeded generator (mulberry32), so a failing case reproduces. */

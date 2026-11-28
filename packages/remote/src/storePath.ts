@@ -3,7 +3,7 @@
  * and `Remote.resume` as what it restores. A raw optic or a hand-built binding names
  * none and claims nothing: its reads are made every time.
  */
-import { Path } from 'metakit'
+import { Path } from '@doeixd/metakit'
 import { entityKey } from './store.js'
 
 export const storePaths = (store: {

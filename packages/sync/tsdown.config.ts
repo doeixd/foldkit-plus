@@ -19,7 +19,7 @@ export default defineConfig({
       'foldkit-durable',
       'foldkit-remote',
       /^foldkit(\/.*)?$/,
-      /^metakit(\/.*)?$/,
+      /^@doeixd\/metakit(\/.*)?$/,
     ],
   },
 })

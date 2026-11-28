@@ -106,7 +106,7 @@ import {
   type Judged,
   type Requirement as StoreRequirement,
   type StoreCapabilities,
-} from 'metakit/store'
+} from '@doeixd/metakit/store'
 import { unauthenticatedAnswer } from './refusal.js'
 import { memoryWriter } from './memoryWriter.js'
 
@@ -555,7 +555,7 @@ export interface EntityWriter<P, R = never> {
    * Whether the database holds the links of `relation` by a foreign key it
    * enforces, which locks the row pointed at against its deleters at any
    * isolation. What a delete or a link through `relation` needs of `store` is
-   * then held by that constraint (`metakit/store`'s `constraint`).
+   * then held by that constraint (`@doeixd/metakit/store`'s `constraint`).
    */
   readonly foreignKey?: (relation: LinkRelation) => boolean
   /**
@@ -566,7 +566,7 @@ export interface EntityWriter<P, R = never> {
   readonly refuses?: (write: AnyWrite) => ReadonlyArray<string>
   /**
    * How the store this writer writes to runs concurrent writes
-   * (`metakit/store`'s vocabulary). Every writer says: `RemoteServer.write`
+   * (`@doeixd/metakit/store`'s vocabulary). Every writer says: `RemoteServer.write`
    * refuses a writer that names none. A rule that reads other rows (a `when`
    * or an invariant with a path or an exists) holds only where the writers of
    * those rows run one at a time, so it is refused through a store that
@@ -3913,9 +3913,9 @@ export const RemoteServer = {
 
 export * from './evaluate.js'
 export type { MemoryWriterOptions } from './memoryWriter.js'
-/** What an `EntityWriter`'s `store` declares; `metakit/store` says what each level gives. */
+/** What an `EntityWriter`'s `store` declares; `@doeixd/metakit/store` says what each level gives. */
 export type { StoreCapabilities }
-/** What a writer's own rules need of its store (`EntityWriter.needs`); `metakit/store`'s `Requirement`. */
+/** What a writer's own rules need of its store (`EntityWriter.needs`); `@doeixd/metakit/store`'s `Requirement`. */
 export type { StoreRequirement }
 export { bodyLimit } from './body.js'
 

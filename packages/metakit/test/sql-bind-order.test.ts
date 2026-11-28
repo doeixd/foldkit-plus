@@ -6,9 +6,9 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Bool, Eq, Num, Ord, Path } from 'metakit'
-import * as Relation from 'metakit/relation'
-import * as Sql from 'metakit/sql'
+import { Bool, Eq, Num, Ord, Path } from '@doeixd/metakit'
+import * as Relation from '@doeixd/metakit/relation'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Owner = Schema.Struct({ id: Schema.String })
 const Line = Schema.Struct({

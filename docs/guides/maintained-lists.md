@@ -7,7 +7,7 @@ Recomputing a total, a grouped lookup, or a sorted list over 100,000 loaded rows
 Define a maintained value once at module scope, then read it from your `Model` with `Maintained.value`:
 
 ```ts
-import { Aggregates } from 'metakit/aggregates'
+import { Aggregates } from '@doeixd/metakit/aggregates'
 import { Maintained } from 'foldkit-remote/maintained'
 import { Data, InvoiceList } from './remote'
 
@@ -40,7 +40,7 @@ const rescans = rescanReport([{ name: 'minPrice', definition: MinPrice }])
 
 ## Cascade dependent queries
 
-When one query's input depends on a value read from another query (such as loading cities after a state is chosen), wrap it with `dependentQuery` from `foldkit-remote`. It uses `queryReadiness` from `metakit/graph/readiness` and sends no request until every parameter is bound.
+When one query's input depends on a value read from another query (such as loading cities after a state is chosen), wrap it with `dependentQuery` from `foldkit-remote`. It uses `queryReadiness` from `@doeixd/metakit/graph/readiness` and sends no request until every parameter is bound.
 
 ## Next
 

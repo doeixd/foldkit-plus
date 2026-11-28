@@ -5,7 +5,7 @@
  * is refused, never written.
  */
 import { Option, Result, Schema } from 'effect'
-import { Transition } from 'metakit'
+import { Transition } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { Operators, QueryEvaluateError, Write, type AnyEntity } from '../src/index.js'
 import { transitionOf } from '../src/writeTransition.js'

@@ -1,5 +1,5 @@
 /**
- * `metakit/fn`: pure, Schema-typed, callable MetaKit functions with Design-by-Contract
+ * `@doeixd/metakit/fn`: pure, Schema-typed, callable MetaKit functions with Design-by-Contract
  * preconditions (`where`), return Schemas (`returns`), and postconditions (`ensures`).
  *
  * Calling a `Fn` inside an expression substitutes its argument ASTs directly into

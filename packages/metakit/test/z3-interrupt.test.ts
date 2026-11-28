@@ -1,6 +1,6 @@
 import { Effect, Exit, Fiber, Schema } from 'effect'
-import { Bool, Expr, Num, Verdict } from 'metakit'
-import * as Prove from 'metakit/prove'
+import { Bool, Expr, Num, Verdict } from '@doeixd/metakit'
+import * as Prove from '@doeixd/metakit/prove'
 import { expect, it, vi } from 'vitest'
 import type { Z3 } from '../src/prove/lower.js'
 

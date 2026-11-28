@@ -1,10 +1,10 @@
 /**
  * What Remote's protocols owe, declared in the shared registry
- * (`metakit/temporal`) and discharged by seeded walks over the real reducer
+ * (`@doeixd/metakit/temporal`) and discharged by seeded walks over the real reducer
  * (`protocols.walks.ts`). The repository's obligations test imports this file
  * and fails while any is open; `protocols.test.ts` holds each walk to `Held`.
  */
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { latestWins, lateAnswers, optimisticRollback, staleResponses } from './protocols.walks.js'
 
 const scope = { owner: 'foldkit-remote' }

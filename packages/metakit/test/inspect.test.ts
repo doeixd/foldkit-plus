@@ -1,8 +1,8 @@
 import { Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Expr, Num, Str } from 'metakit'
-import { CalendarDay } from 'metakit/domain'
-import * as Inspect from 'metakit/inspect'
+import { Expr, Num, Str } from '@doeixd/metakit'
+import { CalendarDay } from '@doeixd/metakit/domain'
+import * as Inspect from '@doeixd/metakit/inspect'
 
 const object = (
   properties: Readonly<Record<string, unknown>>,

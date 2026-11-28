@@ -8,10 +8,10 @@
  * - `Domain.Money` + `Domain.OrderedEnum` (loyalty tiers `bronze < silver < gold < platinum`)
  */
 import { Schema } from 'effect'
-import { Arr, Bool, Eq, Expr, Num, Path, Transition } from 'metakit'
-import * as Aggregates from 'metakit/aggregates'
-import { Money, OrderedEnum } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
+import { Arr, Bool, Eq, Expr, Num, Path, Transition } from '@doeixd/metakit'
+import * as Aggregates from '@doeixd/metakit/aggregates'
+import { Money, OrderedEnum } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
 import { CheckoutState } from './checkout.js'
 
 export const Usd = Money.make('USD')

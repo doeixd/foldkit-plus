@@ -14,7 +14,7 @@ import {
   truthOver,
   type PredicateVerdict,
 } from '../src/index.js'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import {
   Relational,
   heldWorlds,

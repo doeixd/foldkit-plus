@@ -5,8 +5,8 @@
  * checker code.
  */
 import { Option, Predicate, Result } from 'effect'
-import { Path, Transition } from 'metakit'
-import type { InputOf, Machine } from 'metakit/machine'
+import { Path, Transition } from '@doeixd/metakit'
+import type { InputOf, Machine } from '@doeixd/metakit/machine'
 import { messageTag, tagOf, type DeclaredTransition } from './make.js'
 
 type AnyTransition<Root> = Transition.Transition<Root, unknown, unknown, unknown>

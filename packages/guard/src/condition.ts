@@ -26,8 +26,8 @@ import {
   type MemoryOperators,
 } from 'foldkit-entity'
 import { envOf, foreignOf, readingOf, type Reading } from 'foldkit-entity/lowering'
-import { Bool, Node, Verdict } from 'metakit'
-import { Settled, fractionBesideInteger, judgeNode, settleNode } from 'metakit/build'
+import { Bool, Node, Verdict } from '@doeixd/metakit'
+import { Settled, fractionBesideInteger, judgeNode, settleNode } from '@doeixd/metakit/build'
 import {
   attached,
   defaultDeny,

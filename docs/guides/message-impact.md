@@ -18,7 +18,7 @@ const affected = graph.impactOf('Inc')
 
 ## Find readers no Message can change
 
-On a server-rendered page, some Surfaces only display static data. Call `deadReaders(graph, liveMessages)` (from `metakit/graph/prune`) to list every reader that no bound Message on the page can reach. `foldkit-ssr`'s `liveSet` uses this result to omit unchanging data from the resume envelope.
+On a server-rendered page, some Surfaces only display static data. Call `deadReaders(graph, liveMessages)` (from `@doeixd/metakit/graph/prune`) to list every reader that no bound Message on the page can reach. `foldkit-ssr`'s `liveSet` uses this result to omit unchanging data from the resume envelope.
 
 ## Check for broken links at test time
 

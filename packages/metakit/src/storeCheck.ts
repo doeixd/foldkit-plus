@@ -1,5 +1,5 @@
 /**
- * Store capability probe kit (`metakit/store/check`, Phase 9 Bout 9.3).
+ * Store capability probe kit (`@doeixd/metakit/store/check`, Phase 9 Bout 9.3).
  *
  * A test-only entry that opens two connections against a store adapter and
  * races concurrent writers to verify that what the adapter declares in

@@ -1,10 +1,10 @@
 /**
- * SSR static pruning (`metakit/graph/prune`).
+ * SSR static pruning (`@doeixd/metakit/graph/prune`).
  *
  * Partially evaluates bindings against a known `staticSlice` via
  * `Expr.residualize`, separating `staticValues` from `liveBindings` and
  * computing the minimal `resumePaths`. Kept in its own module so browser pages
- * using `metakit/graph/match` never load `ops/residualize` or `sqlLowering`.
+ * using `@doeixd/metakit/graph/match` never load `ops/residualize` or `sqlLowering`.
  */
 import { Option } from 'effect'
 import * as Expr from '../expr.js'

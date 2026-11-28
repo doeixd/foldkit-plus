@@ -23,12 +23,12 @@ import {
   Transition,
   Verdict,
   opProperties,
-} from 'metakit'
-import { call } from 'metakit/build'
-import { Domain, Text } from 'metakit/domain'
-import { checkProperties, coreOps } from 'metakit/conformance'
-import * as Prove from 'metakit/prove'
-import * as Sql from 'metakit/sql'
+} from '@doeixd/metakit'
+import { call } from '@doeixd/metakit/build'
+import { Domain, Text } from '@doeixd/metakit/domain'
+import { checkProperties, coreOps } from '@doeixd/metakit/conformance'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Row = Schema.Struct({
   n: Schema.NullOr(Schema.Int),

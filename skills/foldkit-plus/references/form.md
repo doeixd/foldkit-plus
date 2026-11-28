@@ -423,14 +423,14 @@ required as the case holds it, and sent only in its case.
 ## Limits and guards from a metakit declaration (`foldkit-form/metakit`)
 
 When the input Schema's rules and the action's guard are written with
-`metakit` ([metakit.md](metakit.md)), read them instead of restating them in the view:
+`@doeixd/metakit` ([metakit.md](metakit.md)), read them instead of restating them in the view:
 
 ```ts standalone
 import { Schema } from 'effect'
 import { Form } from 'foldkit-form'
 import { Declared } from 'foldkit-form/metakit'
-import { Eq, Expr, Transition, Verdict } from 'metakit'
-import { Money } from 'metakit/domain'
+import { Eq, Expr, Transition, Verdict } from '@doeixd/metakit'
+import { Money } from '@doeixd/metakit/domain'
 
 const Usd = Money.make('USD')
 const Input = Schema.Struct({ amount: Usd.pipe(Expr.refine($ => Money.gt($, Money.minor('USD', 0)))) })

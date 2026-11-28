@@ -44,7 +44,7 @@ export type DomainMetadata =
     }
 
 /**
- * Read `metakit/domain` metadata from a `SchemaAST.AST`, scanning check
+ * Read `@doeixd/metakit/domain` metadata from a `SchemaAST.AST`, scanning check
  * annotations from last to first so chaining `Expr.refine` after a domain
  * Schema (e.g. `Usd.pipe(Expr.refine(...))`) preserves its domain metadata.
  */
@@ -64,6 +64,6 @@ export const domainOfAst = (ast: SchemaAST.AST): Option.Option<DomainMetadata> =
   return Option.none()
 }
 
-/** Read `metakit/domain` metadata from an Effect `Schema`, if present. */
+/** Read `@doeixd/metakit/domain` metadata from an Effect `Schema`, if present. */
 export const domainOf = (schema: Schema.Top): Option.Option<DomainMetadata> =>
   domainOfAst(schema.ast)

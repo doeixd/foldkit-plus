@@ -6,7 +6,7 @@ import { Effect, Layer, Option, Result, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Write, type AnyWrite } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Mutation,

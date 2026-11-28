@@ -5,7 +5,7 @@
  * (`languagePage.ts`) read the same bodies, rows and readers.
  */
 import { Effect, Layer, Option, Result, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import {
   Expr,
   Held,

@@ -17,7 +17,7 @@
  * - an insert is `set` of `present` to true, and a delete to false.
  */
 import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
-import { Bool, Eq, Expr, Node, Null, Num, Path, Transition } from 'metakit'
+import { Bool, Eq, Expr, Node, Null, Num, Path, Transition } from '@doeixd/metakit'
 import type { ExprContext } from './context.js'
 import { matchContext, viewerIdOf } from './context.js'
 import type { OneRelation } from './expr/operand.js'

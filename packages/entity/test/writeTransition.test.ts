@@ -6,7 +6,7 @@
  * the transition reads and commutes with, and what a write's context supplies.
  */
 import { Effect, Option, Result, Schema } from 'effect'
-import { Transition, Verdict } from 'metakit'
+import { Transition, Verdict } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { Entity, Expr, Held, Relation, Write } from '../src/index.js'
 import { suppliedOf, transitionOf } from '../src/writeTransition.js'

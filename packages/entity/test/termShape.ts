@@ -1,4 +1,4 @@
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import type { Ordering } from '../src/index.js'
 
 /**

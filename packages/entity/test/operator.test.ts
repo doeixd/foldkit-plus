@@ -3,7 +3,7 @@
  * interpreter runs as that body. See `docs/design/expr-operations-DESIGN.md`.
  */
 import { Schema } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { Entity, Expr, Order, Query, evaluate, truthOver, type Predicate } from '../src/index.js'
 import { substituteNext } from './substituteNext.js'

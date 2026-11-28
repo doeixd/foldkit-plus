@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
-import { Arr, Expr, Path, Transition } from 'metakit'
-import * as Language from 'metakit/language'
-import * as Machine from 'metakit/machine'
+import { Arr, Expr, Path, Transition } from '@doeixd/metakit'
+import * as Language from '@doeixd/metakit/language'
+import * as Machine from '@doeixd/metakit/machine'
 import { describe, expect, it } from 'vitest'
 import {
   Flags,

@@ -12,8 +12,8 @@ It works on a list the page has already loaded into its Model with
 your Remote domain (the value `Remote.make` returns), `model` is your
 application's Model and `invoices` is a list read from `Data`, all set up as
 the [Remote page](../README.md) shows. The aggregate itself (the
-rule "add up the cents") is written with `metakit`, a package that keeps rules
-as data (`pnpm add metakit`), whose `metakit/aggregates` entry has the six
+rule "add up the cents") is written with `@doeixd/metakit`, a package that keeps rules
+as data (`pnpm add @doeixd/metakit`), whose `@doeixd/metakit/aggregates` entry has the six
 kinds this guide uses.
 
 `Unpaid` is the registered query that selects unpaid invoices. The example
@@ -54,7 +54,7 @@ declare const model: Model
 
 ```ts
 import { Schema } from 'effect'
-import * as Rows from 'metakit/aggregates'
+import * as Rows from '@doeixd/metakit/aggregates'
 import { Maintained } from 'foldkit-remote/maintained'
 
 // What the list decodes each invoice to, and the sum of its cents.

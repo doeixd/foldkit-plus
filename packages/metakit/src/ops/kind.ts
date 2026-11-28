@@ -56,7 +56,7 @@ const refusesNul = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): boolean =>
 }
 
 /**
- * Text `Text.schema` from `metakit/domain` describes, refinements after it
+ * Text `Text.schema` from `@doeixd/metakit/domain` describes, refinements after it
  * included: text holding no NUL, recognised by the annotation on the check
  * that refuses one (an annotation on the Schema alone refuses nothing).
  */

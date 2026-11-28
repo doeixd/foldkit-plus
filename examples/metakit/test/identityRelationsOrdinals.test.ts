@@ -5,11 +5,11 @@
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { Effect, Option, Result, Schema } from 'effect'
-import { Bool, Eq, Expr, Null, Num, Path, Transition, Verdict } from 'metakit'
-import { Domain, Id, OrderedEnum, Ordinal } from 'metakit/domain'
-import * as Prove from 'metakit/prove'
-import * as Relation from 'metakit/relation'
-import * as Sql from 'metakit/sql'
+import { Bool, Eq, Expr, Null, Num, Path, Transition, Verdict } from '@doeixd/metakit'
+import { Domain, Id, OrderedEnum, Ordinal } from '@doeixd/metakit/domain'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Relation from '@doeixd/metakit/relation'
+import * as Sql from '@doeixd/metakit/sql'
 import { describe, expect, it } from 'vitest'
 
 describe('Domain.Id: branded, NUL-free entity identifiers', () => {

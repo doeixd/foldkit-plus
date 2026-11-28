@@ -6,7 +6,7 @@
  * - `title` and `description` annotations both before and after `Expr.refine` (#639)
  */
 import { Schema } from 'effect'
-import { Arr, Expr, Num, Str, type SchemaOf } from 'metakit'
+import { Arr, Expr, Num, Str, type SchemaOf } from '@doeixd/metakit'
 
 export const NonEmptyId = Schema.String.annotate({
   title: 'Identifier',

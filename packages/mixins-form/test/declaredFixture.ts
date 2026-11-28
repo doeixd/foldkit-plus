@@ -1,8 +1,8 @@
 import { Schema } from 'effect'
 import { Form } from 'foldkit-form'
 import { Declared } from 'foldkit-form/metakit'
-import { Expr, Ord } from 'metakit'
-import { CalendarDay, Money } from 'metakit/domain'
+import { Expr, Ord } from '@doeixd/metakit'
+import { CalendarDay, Money } from '@doeixd/metakit/domain'
 import { DeclaredView } from '../src/declared.js'
 
 const Usd = Money.make('USD')

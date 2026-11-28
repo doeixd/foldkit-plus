@@ -1,8 +1,8 @@
 import { Result } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Expr, Num, Verdict } from 'metakit'
-import * as Conformance from 'metakit/conformance'
-import * as Sql from 'metakit/sql'
+import { Expr, Num, Verdict } from '@doeixd/metakit'
+import * as Conformance from '@doeixd/metakit/conformance'
+import * as Sql from '@doeixd/metakit/sql'
 import {
   RolloutLanguage,
   flagActiveFor,

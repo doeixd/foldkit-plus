@@ -1,7 +1,7 @@
 /**
  * An operator held to what it declares: one set of calls run through every
  * implementation given, their answers and refusals compared (`Conformance.operator`),
- * plus `checkOperation` and `lawObligations` from `metakit/conformance`.
+ * plus `checkOperation` and `lawObligations` from `@doeixd/metakit/conformance`.
  */
 import { Data, Option, Schema, SchemaAST } from 'effect'
 import {

@@ -1,7 +1,7 @@
 /**
  * Every declared obligation and every discharge in the repository, in one
  * report that fails while one is open. A package adds to the shared registry
- * (`metakit/temporal`) from a file named `*.obligations.ts` in its `test`
+ * (`@doeixd/metakit/temporal`) from a file named `*.obligations.ts` in its `test`
  * folder; this test imports each and reads the registry. `foldkit-plus laws
  * <file>#report` prints the same list for one such file.
  */

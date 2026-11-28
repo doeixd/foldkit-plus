@@ -16,10 +16,10 @@
  * 5. Randomized 100-triple runtime property fuzzer across integer and string sets.
  */
 import { Effect, Schema } from 'effect'
-import { Bool, Eq, Expr, type Expression, Node, Path, Sets, Transition, Verdict } from 'metakit'
-import { Text } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Bool, Eq, Expr, type Expression, Node, Path, Sets, Transition, Verdict } from '@doeixd/metakit'
+import { Text } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 import { describe, expect, it } from 'vitest'
 
 const makeRng = (seed: number) => {

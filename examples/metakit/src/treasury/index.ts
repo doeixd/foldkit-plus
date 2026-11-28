@@ -10,9 +10,9 @@
  * - `Temporal.requirements` & `Store.mount` capability enforcement
  */
 import { Schema } from 'effect'
-import { Eq, Expr, Num, Transition } from 'metakit'
-import { Decimal, Money } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
+import { Eq, Expr, Num, Transition } from '@doeixd/metakit'
+import { Decimal, Money } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
 
 export const Usd = Money.make('USD')
 export const Rate4 = Decimal.make({ scale: 4 })

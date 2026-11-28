@@ -1,5 +1,5 @@
 import { Option, Result, Schema } from 'effect'
-import { Path, Transition } from 'metakit'
+import { Path, Transition } from '@doeixd/metakit'
 import { expect, it } from 'vitest'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })

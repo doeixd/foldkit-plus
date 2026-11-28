@@ -6,9 +6,9 @@
  */
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Num, Ord, Path, Transition, Verdict } from 'metakit'
-import { Text } from 'metakit/domain'
-import * as Prove from 'metakit/prove'
+import { Abstract, Eq, Expr, Num, Ord, Path, Transition, Verdict } from '@doeixd/metakit'
+import { Text } from '@doeixd/metakit/domain'
+import * as Prove from '@doeixd/metakit/prove'
 
 const None = Schema.Struct({})
 

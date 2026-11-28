@@ -6,8 +6,8 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Expr, Num, Ord, Path } from 'metakit'
-import * as Sql from 'metakit/sql'
+import { Expr, Num, Ord, Path } from '@doeixd/metakit'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Row = Schema.Struct({ id: Schema.String, n: Schema.NullOr(Schema.Int) })
 const { row } = Path.forEnv({ row: Row })

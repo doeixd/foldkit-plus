@@ -6,7 +6,7 @@
  * page's WebAssembly and arrives later.
  */
 import { Effect, Option, Result, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'

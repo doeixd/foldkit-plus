@@ -3,7 +3,7 @@
  * real journal: what `convergence` reads from the declaration, and the walks
  * that discharge it (`sync.obligations.ts` declares and runs them).
  */
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { describe, expect, it } from 'vitest'
 import { read } from './sync.obligations.js'
 

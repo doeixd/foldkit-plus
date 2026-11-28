@@ -4,9 +4,9 @@
  * finite number, and knows a guard over NaN does not fire.
  */
 import { Effect, Option, Result, Schema } from 'effect'
-import { Abstract, Bool, Expr, Num, Path, Transition, Verdict } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Abstract, Bool, Expr, Num, Path, Transition, Verdict } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 import { describe, expect, it } from 'vitest'
 
 const gauge = (level: typeof Schema.Number) => {

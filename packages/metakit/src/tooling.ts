@@ -1,12 +1,12 @@
 /**
- * MetaKit semantic developer tooling (`metakit/tooling`, #646 P0).
+ * MetaKit semantic developer tooling (`@doeixd/metakit/tooling`, #646 P0).
  *
  * Shared Effect-native `SemanticIndex` service and `semanticDiff` over
  * MetaKit `Expr` and `Transition` definitions — standalone with zero Vite,
  * editor, or UI runtime dependencies.
  *
  * Distinguishes logical `DeclarationId` (stable across non-semantic edits),
- * `ArtifactFingerprint` (content identity from `metakit/artifact`), and
+ * `ArtifactFingerprint` (content identity from `@doeixd/metakit/artifact`), and
  * `SourceOrigin` (provenance excluded from semantic fingerprints).
  */
 import { Context, Effect, Layer, Match, Option, Schema } from 'effect'

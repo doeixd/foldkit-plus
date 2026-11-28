@@ -1,5 +1,5 @@
 /**
- * Portable semantic artifacts (`metakit/artifact`, #645 P0).
+ * Portable semantic artifacts (`@doeixd/metakit/artifact`, #645 P0).
  *
  * Encodes and decodes the portable subset of MetaKit `Expr` nodes as versioned
  * Effect `Schema` values: paths, JSON-safe literals, bound `Rows` variables,

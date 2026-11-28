@@ -11,9 +11,9 @@
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { Result, Schema } from 'effect'
-import { Bool, Eq, Expr, Null, Num, Ord, Str, Time } from 'metakit'
-import { CalendarDay, Text } from 'metakit/domain'
-import * as Sql from 'metakit/sql'
+import { Bool, Eq, Expr, Null, Num, Ord, Str, Time } from '@doeixd/metakit'
+import { CalendarDay, Text } from '@doeixd/metakit/domain'
+import * as Sql from '@doeixd/metakit/sql'
 import { describe, expect, it } from 'vitest'
 
 const Row = Schema.Struct({

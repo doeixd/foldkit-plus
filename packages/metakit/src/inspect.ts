@@ -1,5 +1,5 @@
 /**
- * Schema inspector (`metakit/inspect`) for forms, data grids, CMS fields, and
+ * Schema inspector (`@doeixd/metakit/inspect`) for forms, data grids, CMS fields, and
  * AI agent JSON Schemas.
  *
  * Reads Effect `SchemaAST`, `Expr.refinementsOf` and `Domain.domainOf`
@@ -328,7 +328,7 @@ const fieldJson = (field: Field, rules: ReadonlyArray<Node.Node>): Record<string
 
 /**
  * Generate a JSON Schema object enriched with `Expr.refine` bounds,
- * `title`/`description` annotations, and `metakit/domain` metadata
+ * `title`/`description` annotations, and `@doeixd/metakit/domain` metadata
  * (`x-metakit-domain`). Arrays state their item shape and nested structs their
  * properties; `required` lists only keys that may not be left out.
  */
@@ -344,7 +344,7 @@ export const toJsonSchema = <S extends Schema.Top>(
   return json
 }
 
-/** Inspected metadata for a `metakit/fn` `Fn` or `FnSpec` (forms, docs, agent tools). */
+/** Inspected metadata for a `@doeixd/metakit/fn` `Fn` or `FnSpec` (forms, docs, agent tools). */
 export interface FnSpecInfo {
   readonly params: ReadonlyArray<FieldSpec>
   readonly paramsJsonSchema: Readonly<Record<string, unknown>>

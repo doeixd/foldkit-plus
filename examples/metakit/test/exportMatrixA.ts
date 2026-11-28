@@ -3,16 +3,16 @@
  * type annotations, to be re-exported from Export Matrix B under `emitDeclarationOnly`.
  */
 import { Schema } from 'effect'
-import { Eq, Expr, Num, Sets, Transition } from 'metakit'
-import * as Aggregates from 'metakit/aggregates'
-import { CalendarDay, Id, Money, OrderedEnum, Ordinal } from 'metakit/domain'
-import * as Fn from 'metakit/fn'
-import * as Inspect from 'metakit/inspect'
-import * as Language from 'metakit/language'
-import * as Machine from 'metakit/machine'
-import * as Operation from 'metakit/operation'
-import * as Policy from 'metakit/policy'
-import * as Relation from 'metakit/relation'
+import { Eq, Expr, Num, Sets, Transition } from '@doeixd/metakit'
+import * as Aggregates from '@doeixd/metakit/aggregates'
+import { CalendarDay, Id, Money, OrderedEnum, Ordinal } from '@doeixd/metakit/domain'
+import * as Fn from '@doeixd/metakit/fn'
+import * as Inspect from '@doeixd/metakit/inspect'
+import * as Language from '@doeixd/metakit/language'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Operation from '@doeixd/metakit/operation'
+import * as Policy from '@doeixd/metakit/policy'
+import * as Relation from '@doeixd/metakit/relation'
 
 export const Usd = Money.make('USD')
 export const ItemId = Id.make('Item', { prefix: 'itm_' })

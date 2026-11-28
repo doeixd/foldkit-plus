@@ -1,8 +1,8 @@
 import { Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Expr, Transition, Verdict } from 'metakit'
-import * as Inspect from 'metakit/inspect'
-import * as Machine from 'metakit/machine'
+import { Expr, Transition, Verdict } from '@doeixd/metakit'
+import * as Inspect from '@doeixd/metakit/inspect'
+import * as Machine from '@doeixd/metakit/machine'
 import {
   AdvanceEra,
   ProgressMachine,

@@ -5,7 +5,7 @@
  * rows without a value go, and how its text compares.
  */
 import { Match, Option, type Schema } from 'effect'
-import type { Node } from 'metakit'
+import type { Node } from '@doeixd/metakit'
 import type { Collation } from '../collation.js'
 import type { AnyEntity, EntityField } from '../index.js'
 import {

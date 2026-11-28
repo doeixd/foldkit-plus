@@ -1,5 +1,5 @@
 /**
- * `metakit/artifact` guards broken in turn:
+ * `@doeixd/metakit/artifact` guards broken in turn:
  * `pnpm mutate packages/metakit/test/artifact.mutations.ts` checks that a test
  * fails for every one.
  */

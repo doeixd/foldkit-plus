@@ -21,11 +21,11 @@ Effect splits schema construction and synchronous decoding into two different vi
 
 ## Use `SchemaOf` when a helper both composes and decodes
 
-`metakit` exports `SchemaOf` as the intersection `Schema.Top & Schema.ConstraintDecoder<unknown>`. Constrain your generic parameter to `SchemaOf` and you can compose the wrapper Schema, attach `Expr.refine`, and decode synchronously with no `any` and no cast:
+`@doeixd/metakit` exports `SchemaOf` as the intersection `Schema.Top & Schema.ConstraintDecoder<unknown>`. Constrain your generic parameter to `SchemaOf` and you can compose the wrapper Schema, attach `Expr.refine`, and decode synchronously with no `any` and no cast:
 
 ```ts
 import { Schema } from 'effect'
-import { Arr, Expr, Num, type SchemaOf } from 'metakit'
+import { Arr, Expr, Num, type SchemaOf } from '@doeixd/metakit'
 
 export function table<S extends SchemaOf>(row: S) {
   const Table = Schema.Struct({

@@ -1,7 +1,7 @@
 /**
- * Dependent-query readiness (`metakit/graph/readiness`).
+ * Dependent-query readiness (`@doeixd/metakit/graph/readiness`).
  *
- * Kept in its own module so browser pages using `metakit/graph/match` never
+ * Kept in its own module so browser pages using `@doeixd/metakit/graph/match` never
  * load `sqlLowering` or `ops/residualize`.
  */
 import { Option, Result } from 'effect'

@@ -1,5 +1,5 @@
 /**
- * Formal Hoare-triple verification for `metakit/fn` (`Prove.fn`):
+ * Formal Hoare-triple verification for `@doeixd/metakit/fn` (`Prove.fn`):
  * proves that for all `params` admitted by `fn.paramsSchema` satisfying `fn.where`,
  * `fn.body` never refuses, satisfies `fn.returns` (if declared), and satisfies every `fn.ensures`.
  */

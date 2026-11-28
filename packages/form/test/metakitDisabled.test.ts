@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { Num, Ord, Transition } from 'metakit'
+import { Num, Ord, Transition } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { Form } from '../src/index.js'
 import { Declared } from '../src/metakit.js'

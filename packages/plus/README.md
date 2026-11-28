@@ -17,8 +17,8 @@ depends on them, so one install brings the set, and re-exports each:
 | `foldkit-remote/port` | `foldkit-plus/remote/port` |
 | `foldkit-remote-server` | `foldkit-plus/remote-server` |
 | `foldkit-mixins/theme` | `foldkit-plus/mixins/theme` |
-| `metakit/operation` | `foldkit-plus/metakit/operation` |
-| `metakit/operation/sql` | `foldkit-plus/metakit/operation/sql` |
+| `@doeixd/metakit/operation` | `foldkit-plus/metakit/operation` |
+| `@doeixd/metakit/operation/sql` | `foldkit-plus/metakit/operation/sql` |
 
 A subpath is the package itself, re-exported: `foldkit-plus/remote`'s `Remote`
 is `foldkit-remote`'s, so the two can be mixed in one application. This package
@@ -162,7 +162,7 @@ Entity's invariants and answers a report; `laws` prints that report as
 `Laws.show` writes it, so a person or an agent can read it without a test
 run. The export is a `LawReport` (what `Laws.check` returns), or the
 `{ writes }` that `Laws.check` takes; `examples/writes/src/laws.ts` exports
-the first. It can also be the report of obligations that `metakit/temporal`
+the first. It can also be the report of obligations that `@doeixd/metakit/temporal`
 keeps (`Temporal.registry.report()`): `laws` then prints the obligations still
 open with where each was declared, those a walk discharged, and the pairs of
 transitions decided without a test with the rule that decided each.

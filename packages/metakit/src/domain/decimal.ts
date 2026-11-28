@@ -1,5 +1,5 @@
 /**
- * Fixed-scale integer-backed `Decimal` Schema (`metakit/domain`) with
+ * Fixed-scale integer-backed `Decimal` Schema (`@doeixd/metakit/domain`) with
  * compile-time scale safety, exact decimal text parsing and formatting,
  * half-even integer rounding, and symbolic arithmetic lowering to `num.*`,
  * `ord.*` and `eq.*`.

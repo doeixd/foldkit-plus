@@ -13,11 +13,11 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { integer, sqliteTable, text as sqliteText } from 'drizzle-orm/sqlite-core'
 import { Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Arr, Bool, Eq, Expr, Null, Ord, Path } from 'metakit'
-import { call } from 'metakit/build'
-import * as Drizzle from 'metakit/drizzle'
-import * as Relation from 'metakit/relation'
-import * as Sql from 'metakit/sql'
+import { Arr, Bool, Eq, Expr, Null, Ord, Path } from '@doeixd/metakit'
+import { call } from '@doeixd/metakit/build'
+import * as Drizzle from '@doeixd/metakit/drizzle'
+import * as Relation from '@doeixd/metakit/relation'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Owner = Schema.Struct({ id: Schema.String })
 const Line = Schema.Struct({

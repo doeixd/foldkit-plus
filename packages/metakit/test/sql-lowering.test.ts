@@ -7,9 +7,9 @@ import { PGlite } from '@electric-sql/pglite'
 import { integer, pgTable, text } from 'drizzle-orm/pg-core'
 import { Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Bool, Eq, Expr, Num, Ord, Path, Str, Transition } from 'metakit'
-import * as Drizzle from 'metakit/drizzle'
-import * as Sql from 'metakit/sql'
+import { Bool, Eq, Expr, Num, Ord, Path, Str, Transition } from '@doeixd/metakit'
+import * as Drizzle from '@doeixd/metakit/drizzle'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Account = Schema.Struct({ id: Schema.String, balance: Schema.Int })
 const Withdraw = Transition.make({

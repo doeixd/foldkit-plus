@@ -49,8 +49,8 @@ import {
   type Invariant,
   type WriteAssignment,
 } from 'foldkit-entity'
-import { Node } from 'metakit'
-import { wrap } from 'metakit/build'
+import { Node } from '@doeixd/metakit'
+import { wrap } from '@doeixd/metakit/build'
 import type { ConnectionSpec, NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Diagnostics, Entity } from 'foldkit-remote'
 import {

@@ -1,5 +1,5 @@
 import { Effect, Option, Result, Schema } from 'effect'
-import { Expr, Ord, Path } from 'metakit'
+import { Expr, Ord, Path } from '@doeixd/metakit'
 import { renderer } from 'foldkit-successor/dom'
 import {
   action,

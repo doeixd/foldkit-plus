@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Bool, Eq, Expr, Num, Ord, Path, Verdict, opProperties } from 'metakit'
-import * as Conformance from 'metakit/conformance'
+import { Abstract, Bool, Eq, Expr, Num, Ord, Path, Verdict, opProperties } from '@doeixd/metakit'
+import * as Conformance from '@doeixd/metakit/conformance'
 
 const resolve = (id: keyof typeof Conformance.coreOps) => Conformance.coreOps[id]
 const binary = { arity: 2, resolve }

@@ -3,7 +3,7 @@
  * never its input, and the writes that set them.
  */
 import { Option, Schema, SchemaAST } from 'effect'
-import { isExpr } from 'metakit/build'
+import { isExpr } from '@doeixd/metakit/build'
 import type { ContextValue } from './context.js'
 import { originTagged } from './expr/operand.js'
 import type { AnyEntity, EntityMember } from './index.js'

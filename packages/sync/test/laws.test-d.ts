@@ -5,7 +5,7 @@
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import { Eq, Path, Transition } from 'metakit'
+import { Eq, Path, Transition } from '@doeixd/metakit'
 import { documentId, forApplication, type DeclaredLaw } from '../src/index.js'
 import { reaction } from '../src/journal.js'
 import { SyncDeclared } from '../src/metakit.js'

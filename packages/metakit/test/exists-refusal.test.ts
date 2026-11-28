@@ -7,7 +7,7 @@
  * not to refuse over environments its Schemas admit.
  */
 import { Option, Schema } from 'effect'
-import { Arr, Bool, Eq, Expr, Node, Ord, Path, Str, Verdict } from 'metakit'
+import { Arr, Bool, Eq, Expr, Node, Ord, Path, Str, Verdict } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import * as Text from '../src/domain/text.js'
 import { evalNode } from '../src/ops/eval.js'

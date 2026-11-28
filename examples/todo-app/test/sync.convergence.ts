@@ -16,7 +16,7 @@
 import { Effect, Option } from 'effect'
 import { layerFromPromise, type Exchange } from 'foldkit-sync'
 import type { PairWalk } from 'foldkit-sync/metakit'
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { Message } from '../src/app.js'
 import { openJournal, type ServerJournal } from '../src/journal.js'
 import type { SyncPrincipal } from '../src/principal.js'

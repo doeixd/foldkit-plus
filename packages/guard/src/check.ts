@@ -6,9 +6,9 @@
 import { Match, Option, Schema, SchemaAST } from 'effect'
 import { Entity, type AnyEntity, type Predicate } from 'foldkit-entity'
 import { readingOf } from 'foldkit-entity/lowering'
-import { Expr, Node, type Verdict } from 'metakit'
-import { readsOfNode, wrap } from 'metakit/build'
-import * as Policy from 'metakit/policy'
+import { Expr, Node, type Verdict } from '@doeixd/metakit'
+import { readsOfNode, wrap } from '@doeixd/metakit/build'
+import * as Policy from '@doeixd/metakit/policy'
 import { enforced, reachesOther, type AnyRule, type Surface } from './attach.js'
 
 type Term = Expr.Expr<unknown, boolean>

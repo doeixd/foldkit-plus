@@ -1,10 +1,10 @@
 /**
  * What a store guarantees of concurrent writes, and what a rule needs of it
- * (`metakit/store`).
+ * (`@doeixd/metakit/store`).
  *
  * A proof of one step assumes the store runs concurrent writers a certain
  * way. A store or adapter declares what it gives (`StoreCapabilities`), each
- * rule needs a `Capability` (`metakit/temporal`'s `requirements` reads them
+ * rule needs a `Capability` (`@doeixd/metakit/temporal`'s `requirements` reads them
  * off a machine and its aggregates), and `mount` throws where a store is set
  * up to hold a rule it cannot. This module imports no expression code, so a
  * server that only checks its stores carries nothing else of metakit.
