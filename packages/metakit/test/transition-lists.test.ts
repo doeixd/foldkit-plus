@@ -5,9 +5,9 @@
  */
 import { Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Arr, Bool, Eq, Expr, Num, Ord, Path, Str, Transition, Verdict } from 'metakit'
-import { Text } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
+import { Arr, Bool, Eq, Expr, Num, Ord, Path, Str, Transition, Verdict } from '@doeixd/metakit'
+import { Text } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
 
 // Ids hold no NUL: a removal by a key that may hold one is refused by some elements and not others.
 const Todo = Schema.Struct({

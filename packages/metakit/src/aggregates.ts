@@ -1,6 +1,6 @@
 /**
- * Cross-record Aggregates (`metakit/aggregates`). This module evaluates in
- * memory and imports no SQL, so a page can use it; `metakit/aggregates/sql`
+ * Cross-record Aggregates (`@doeixd/metakit/aggregates`). This module evaluates in
+ * memory and imports no SQL, so a page can use it; `@doeixd/metakit/aggregates/sql`
  * compiles the same aggregates to SQL. What each keeps is not declared here:
  * it is read off the fold's row of `foldProperties`.
  *

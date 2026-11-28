@@ -4,8 +4,8 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Num, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Num, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { expectTypeOf } from 'vitest'
 import { Bundle, Link } from '../src/index.js'
 

@@ -3,7 +3,21 @@
  * every rewrite of partial evaluation keeps that answer.
  */
 import { Option, Result, Schema } from 'effect'
-import { Arr, Bool, Eq, Expr, Node, Null, Num, Ord, Path, Str, Transition, Verdict } from 'metakit'
+import {
+  Arr,
+  Bool,
+  Eq,
+  Expr,
+  Node,
+  Null,
+  Num,
+  Ord,
+  Path,
+  Str,
+  Transition,
+  Verdict,
+} from '@doeixd/metakit'
+import { Text } from '@doeixd/metakit/domain'
 import { describe, expect, it } from 'vitest'
 
 const Row = Schema.Struct({
@@ -323,7 +337,7 @@ describe('partial evaluation keeps the answer of evaluation', () => {
     const tag = (expr: Expr.Expr<never, unknown>) => expr.node._tag
     expect(tag(Expr.residualize(model.user, part))).toBe('Path')
     expect(tag(Expr.residualize(model.user, { model: whole }))).toBe('Lit')
-    expect(tag(Expr.residualize(model.note, { model: whole }))).toBe('Lit')
+    expect(tag(Expr.residualize(model.note, { model: whole }))).toBe('Path')
     expect(tag(Expr.residualize(model.user.name, part))).toBe('Lit')
     expect(tag(Expr.residualize(model, { model: { user: { name: 'x', age: 3 } } }))).toBe('Path')
 
@@ -335,5 +349,102 @@ describe('partial evaluation keeps the answer of evaluation', () => {
     expect(
       Option.isSome(Expr.reads(Expr.residualize(adult, { model: { user: { name: 'x' } } }))),
     ).toBe(true)
+  })
+})
+
+describe('list reads that may hold NUL text do not fold', () => {
+  const ListRow = Schema.Struct({
+    tags: Schema.Array(Schema.String),
+    nums: Schema.Array(Schema.Finite),
+    texts: Schema.Array(Text.schema),
+    pair: Schema.Tuple([Schema.String, Schema.Number]),
+    safePair: Schema.Tuple([Schema.Finite, Text.schema]),
+    nested: Schema.Array(Schema.Array(Schema.String)),
+    nestedSafe: Schema.Array(Schema.Array(Text.schema)),
+  })
+  type ListRow = typeof ListRow.Type
+  const p = Path.from(ListRow)
+
+  const base: ListRow = {
+    tags: [],
+    nums: [],
+    texts: [],
+    pair: ['a', 1],
+    safePair: [1, 'a'],
+    nested: [],
+    nestedSafe: [],
+  }
+
+  const evalOutcome = <A>(expr: Expr.Expr<ListRow, A>, env: ListRow): unknown =>
+    Result.match(Expr.evalResult(expr, env), {
+      onSuccess: value => value,
+      onFailure: refusal => `refused: ${refusal.reason}`,
+    })
+
+  it('refuses NUL text in a list on evaluation and leaves Eq.is undecided in judge and residualize', () => {
+    const expr = Eq.is(p.tags, p.tags)
+    expect(evalOutcome(expr, { ...base, tags: ['a\u0000'] })).toBe('refused: unportable')
+    expect(Expr.judge(expr, {})).toEqual(
+      Verdict.Unknown(
+        'missing environment: tags',
+        Option.some({ kind: 'missing-env', detail: 'tags' }),
+      ),
+    )
+    const residual = Expr.residualize(expr, {})
+    expect(residual.node._tag).toBe('Call')
+    expect(Expr.show(residual)).toBe('(tags == tags)')
+  })
+
+  it('refuses NUL text in a list on Eq.in against [] and leaves it undecided in judge and residualize', () => {
+    const expr = Eq.in(p.tags, [])
+    expect(evalOutcome(expr, { ...base, tags: ['a\u0000'] })).toBe('refused: unportable')
+    expect(Expr.judge(expr, {})).toEqual(
+      Verdict.Unknown(
+        'missing environment: tags',
+        Option.some({ kind: 'missing-env', detail: 'tags' }),
+      ),
+    )
+    const residual = Expr.residualize(expr, {})
+    expect(residual.node._tag).toBe('Call')
+    expect(Expr.show(residual)).not.toBe('false')
+  })
+
+  it('leaves tuple and nested list reads with String elements undecided', () => {
+    const pairExpr = Eq.is(p.pair, p.pair)
+    expect(evalOutcome(pairExpr, { ...base, pair: ['a\u0000', 1] })).toBe('refused: unportable')
+    expect(Expr.judge(pairExpr, {})).toEqual(
+      Verdict.Unknown(
+        'missing environment: pair',
+        Option.some({ kind: 'missing-env', detail: 'pair' }),
+      ),
+    )
+    expect(Expr.residualize(pairExpr, {}).node._tag).toBe('Call')
+
+    const nestedExpr = Eq.is(p.nested, p.nested)
+    expect(evalOutcome(nestedExpr, { ...base, nested: [['a\u0000']] })).toBe('refused: unportable')
+    expect(Expr.judge(nestedExpr, {})).toEqual(
+      Verdict.Unknown(
+        'missing environment: nested',
+        Option.some({ kind: 'missing-env', detail: 'nested' }),
+      ),
+    )
+    expect(Expr.residualize(nestedExpr, {}).node._tag).toBe('Call')
+  })
+
+  it('still folds Eq.is and Eq.in over lists whose elements cannot hold NUL text', () => {
+    for (const expr of [
+      Eq.is(p.nums, p.nums),
+      Eq.is(p.texts, p.texts),
+      Eq.is(p.safePair, p.safePair),
+      Eq.is(p.nestedSafe, p.nestedSafe),
+    ]) {
+      expect(Verdict.isTrue(Expr.judge(expr, {}))).toBe(true)
+      expect(Expr.show(Expr.residualize(expr, {}))).toBe('true')
+    }
+
+    for (const expr of [Eq.in(p.nums, []), Eq.in(p.texts, [])]) {
+      expect(Verdict.isFalse(Expr.judge(expr, {}))).toBe(true)
+      expect(Expr.show(Expr.residualize(expr, {}))).toBe('false')
+    }
   })
 })

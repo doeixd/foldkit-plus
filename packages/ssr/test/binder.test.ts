@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { Schema } from 'effect'
-import { Bool, Path, Transition } from 'metakit'
+import { Bool, Path, Transition } from '@doeixd/metakit'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ANCHOR_ATTRIBUTE,

@@ -64,10 +64,39 @@ export interface TransitionEnv<State, Input, Supplied = NoSupplied> {
   readonly supplied: Supplied
 }
 
-/** Returned inside `Result.fail` when a transition's `when` guard evaluates to `false`. */
+/** The reason a transition could not run or a machine could not dispatch its message. */
+export type Why = Data.TaggedEnum<{
+  Input: {}
+  Supplied: {}
+  UnknownMessage: { readonly tag: string }
+  Guard: { readonly answer: false | null }
+  GuardRefused: { readonly refusal: Node.Refusal }
+  Evaluation: { readonly refusal: Node.Refusal }
+  Unwritable: { readonly target: ReadonlyArray<string>; readonly detail: string }
+}>
+
+export const Why = Data.taggedEnum<Why>()
+
+/** A failed step or dispatch. Match on `why` for the cause, or read `reason` for its text. */
 export class Refused extends Data.TaggedError('Refused')<{
-  readonly reason: string
-}> {}
+  readonly why: Why
+}> {
+  get reason(): string {
+    return Why.$match(this.why, {
+      Input: () => 'the input is not a value of its Schema',
+      Supplied: () => 'a supplied value is not a value of its Schema',
+      UnknownMessage: ({ tag }) => `unknown message "${tag}"`,
+      Guard: () => 'transition guard evaluated to false',
+      GuardRefused: () => 'transition guard evaluated to false',
+      Evaluation: ({ refusal }) => `evaluation refused: ${refusal.message}`,
+      Unwritable: ({ target, detail }) => `"${Path.format(target)}" ${detail}`,
+    })
+  }
+
+  override get message(): string {
+    return this.reason
+  }
+}
 
 /**
  * How a write changes its path, with the parts of its value that are its own
@@ -189,8 +218,8 @@ export interface Transition<State, Input, Emit = never, Supplied = NoSupplied>
   readonly when: ExprType<TransitionEnv<State, Input, Supplied>, boolean | null>
   readonly writes: ReadonlyArray<WriteEquation<State, Input, unknown, Supplied>>
   readonly emits: ReadonlyArray<EmitSpec>
-  /** Optional relational postcondition over `{ state, input, supplied, next }`. */
-  readonly ensures?: Option.Option<
+  /** Relational postcondition over `{ state, input, supplied, next }` (`Option.none()` when absent). */
+  readonly ensures: Option.Option<
     ExprType<TransitionPostEnv<State, Input, Supplied>, boolean | null>
   >
   readonly _emit?: () => Emit
@@ -423,7 +452,7 @@ export const make = <
       for (const [name] of fields) rejectReservedField(name)
       return { tag, fields, when }
     }),
-    ...(Option.isSome(ensuresExpr) ? { ensures: ensuresExpr } : {}),
+    ensures: ensuresExpr,
   })
 }
 
@@ -536,8 +565,8 @@ const observeWrite = <State>(
  * returning the next state and the records it emits, or
  * `Result.fail(Refused)`: where `input` or `supplied` is not a value of its
  * Schema (the proofs of a transition assume each is), where `when` is not
- * true, or where a written or emitted value, or an emit's condition, is
- * refused.
+ * true, where a written or emitted value or an emit's condition is refused,
+ * or where a write targets a field inside an Option or under a missing parent.
  *
  * All right-hand sides evaluate against the pre-state (simultaneous update).
  * A no-op returns the exact `state` reference it was given. A transition
@@ -578,17 +607,23 @@ const evaluateStep = <State, Input, Emit, Supplied>(
   const given = supplied ?? ({} as Supplied)
   const env: TransitionEnv<State, Input, Supplied> = { state, input, supplied: given }
   if (Option.isSome(transition.inputSchema) && !accepts(transition.inputSchema.value)(input)) {
-    return Result.fail(new Refused({ reason: 'the input is not a value of its Schema' }))
+    return Result.fail(new Refused({ why: Why.Input() }))
   }
   if (
     Option.isSome(transition.suppliedSchema) &&
     !accepts(transition.suppliedSchema.value)(given)
   ) {
-    return Result.fail(new Refused({ reason: 'a supplied value is not a value of its Schema' }))
+    return Result.fail(new Refused({ why: Why.Supplied() }))
   }
-  // A guard holds only where it is true: null and a refusal do not fire.
-  if (evalNode(transition.when.node, env, options?.foreign) !== true) {
-    return Result.fail(new Refused({ reason: 'transition guard evaluated to false' }))
+  const answer = evalNode(transition.when.node, env, options?.foreign)
+  if (answer !== true) {
+    if (answer === false || answer === null || answer === undefined) {
+      return Result.fail(new Refused({ why: Why.Guard({ answer: answer ?? null }) }))
+    }
+    const refusal = Node.isRefusal(answer)
+      ? answer
+      : Node.illTyped('transition guard', 'a boolean', answer)
+    return Result.fail(new Refused({ why: Why.GuardRefused({ refusal }) }))
   }
   const refusals: Array<Node.Refusal> = []
   const valueOf = (node: Node.Node): unknown => {
@@ -606,8 +641,10 @@ const evaluateStep = <State, Input, Emit, Supplied>(
       ...Object.fromEntries(entry.fields.map(([name, node]) => [name, valueOf(node)])),
     } as Emit)
   }
-  if (refusals.length > 0) {
-    return Result.fail(new Refused({ reason: `evaluation refused: ${refusals[0]!.message}` }))
+  const refusal = refusals[0]
+  if (refusal !== undefined) {
+    if (refusal.cause instanceof Refused) return Result.fail(refusal.cause)
+    return Result.fail(new Refused({ why: Why.Evaluation({ refusal }) }))
   }
   let nextState = state
   for (const [index, value] of computed.entries()) {
@@ -627,7 +664,9 @@ const evaluateStep = <State, Input, Emit, Supplied>(
  * `state` with `value` at `target`. Where the field holds an `Option`, the
  * value is stored as `Option.some(value)`, and null as `Option.none()`; one
  * that reads as the value already leaves `state` as it was. A write inside
- * an `Option` is refused: it has no field to write until it holds a value.
+ * an `Option` is refused: it has no field to write until it holds a value. A
+ * write under a null or absent parent is refused too, so it never invents a
+ * partial struct.
  */
 const writeAt = <State>(
   state: State,
@@ -644,7 +683,24 @@ const writeAt = <State>(
   if (inside !== -1) {
     return Result.fail(
       new Refused({
-        reason: `"${Path.format(target)}" is inside the Option at "${Path.format(target.slice(0, inside + 1))}": write the whole value`,
+        why: Why.Unwritable({
+          target,
+          detail: `is inside the Option at "${Path.format(target.slice(0, inside + 1))}": write the whole value`,
+        }),
+      }),
+    )
+  }
+  const missing = target.slice(0, -1).findIndex((_, index) => {
+    const held = Path.get(Path.make<State, unknown>(target.slice(0, index + 1)), state)
+    return Option.isNone(held) || held.value === null || held.value === undefined
+  })
+  if (missing !== -1) {
+    return Result.fail(
+      new Refused({
+        why: Why.Unwritable({
+          target,
+          detail: `is under "${Path.format(target.slice(0, missing + 1))}", which holds no value: write the whole value`,
+        }),
       }),
     )
   }

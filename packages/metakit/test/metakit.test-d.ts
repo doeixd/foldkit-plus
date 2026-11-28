@@ -1,8 +1,8 @@
 import { Effect, Schema } from 'effect'
-import { Eq, Expr, Num, Path, Transition } from 'metakit'
-import * as Graph from 'metakit/graph'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Eq, Expr, Num, Path, Transition } from '@doeixd/metakit'
+import * as Graph from '@doeixd/metakit/graph'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 
 const Account = Schema.Struct({
   id: Schema.String,

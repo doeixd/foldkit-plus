@@ -1,6 +1,6 @@
 import { Data, Option, Result, Schema } from 'effect'
-import { Path, Transition } from 'metakit'
-import type { Machine } from 'metakit/machine'
+import { Path, Transition } from '@doeixd/metakit'
+import type { Machine } from '@doeixd/metakit/machine'
 
 type Transitions = Readonly<Record<string, unknown>>
 

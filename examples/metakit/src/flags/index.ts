@@ -9,12 +9,12 @@
  * - `Expr.residualize` & `Expr.judge` with `{ foreign }`
  */
 import { Schema } from 'effect'
-import { Arr, Bool, Eq, Expr, Num } from 'metakit'
-import { Text } from 'metakit/domain'
-import * as Language from 'metakit/language'
-import * as Operation from 'metakit/operation'
-import { lowering, lowerings, piece } from 'metakit/operation/sql'
-import * as Relation from 'metakit/relation'
+import { Arr, Bool, Eq, Expr, Num } from '@doeixd/metakit'
+import { Text } from '@doeixd/metakit/domain'
+import * as Language from '@doeixd/metakit/language'
+import * as Operation from '@doeixd/metakit/operation'
+import { lowering, lowerings, piece } from '@doeixd/metakit/operation/sql'
+import * as Relation from '@doeixd/metakit/relation'
 
 export const Bucket = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 99 }))
 export const Priority = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 100 }))

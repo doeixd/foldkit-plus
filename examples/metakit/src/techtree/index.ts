@@ -5,8 +5,8 @@
  * stays green under `tsc -b examples/metakit`.
  */
 import { Schema } from 'effect'
-import { Arr, Bool, Eq, Expr, Num, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Arr, Bool, Eq, Expr, Num, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { CatalogBase, Era, defineTable } from './catalog.js'
 import {
   positiveBuildingTiers,

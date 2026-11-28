@@ -225,7 +225,7 @@ export const proveTransition = <State, Input, Emit, Supplied>(
   if (Option.isSome(tr.inputSchema)) slices.push([['input'], tr.inputSchema.value])
   // A supplied value is any its Schema admits: the proof holds for every time and id.
   if (Option.isSome(tr.suppliedSchema)) slices.push([['supplied'], tr.suppliedSchema.value])
-  const ensuresOpt = tr.ensures ?? Option.none()
+  const ensuresOpt = tr.ensures
   const tier3 = AbstractCheck.checkTransition(stateSchema, tr)
   if (Option.isNone(ensuresOpt) && Verdict.isTrue(tier3)) {
     return Effect.succeed({ verdict: tier3, replay: Option.none() })

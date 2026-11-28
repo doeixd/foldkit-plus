@@ -1,6 +1,6 @@
 /**
  * The seven kinds of node every MetaKit expression is made of, and the closed
- * set of 33 primitive operators (`CoreOpId`).
+ * set of 50 primitive operators (`CoreOpId`).
  *
  * Every reader's table (`sqlOps`, `abstractOps`, `smtOps`, `opProperties`) is
  * typed by `CoreOpId`, and `Conformance.coreOps` holds the operator
@@ -71,13 +71,16 @@ export type OpId = CoreOpId
  * Evaluation declined to answer: an integer result left the safe range
  * (`unsafe-integer`), a number was NaN or infinite (`non-finite`), an operand
  * was not of the operator's type (`ill-typed`), a `Match` met a value none
- * of its cases names (`unmatched`), a text or equality operation met text
- * holding a NUL character, which Postgres cannot store (`unportable`), a
+ * of its cases names (`unmatched`), a text, equality or `Match` operation met
+ * text holding a NUL character, which Postgres cannot store (`unportable`), a
  * foreign operation had no implementation (`unsupported`), or the one given
- * threw (`failed`). A refusal is not a value: it decides before null, and no
- * operator absorbs it, so an expression with a refused operand is refused, as
- * a database refuses a statement it cannot run before any operator answers.
- * A predicate that is refused does not hold.
+ * threw (`failed`). A refusal is not a value: it decides before null, and an
+ * operator given a refused operand is refused, as a database refuses a
+ * statement it cannot run before any operator answers. Only what needs an
+ * operand conditionally passes one by: `null.coalesce` answers its first
+ * operand where it has a value, `If` and `Match` evaluate only the
+ * branch taken, and an `any` (`every`) fold is true (false) once one element
+ * settles it, as SQL's `EXISTS` is. A predicate that is refused does not hold.
  */
 export class Refusal extends Data.TaggedError('Refusal')<{
   readonly reason:
@@ -127,7 +130,7 @@ export const holdsNul = (values: ReadonlyArray<unknown>): boolean =>
     Array.isArray(value) ? holdsNul(value) : typeof value === 'string' && value.includes('\u0000'),
   )
 
-/** The refusal of text holding a NUL character, which every text and equality operation gives. */
+/** The refusal of text holding a NUL character, which every text, equality and `Match` operation gives. */
 export const unportable = (at: string): Refusal =>
   new Refusal({
     reason: 'unportable',
@@ -266,6 +269,15 @@ export const RESERVED_PREFIXES = [
 export const foreignName = (op: Pick<ForeignOp, 'id' | 'version'>): string =>
   `${op.id}@${op.version}`
 
+/**
+ * Whether a foreign operation's `id@version` name is permitted by `allowlist`.
+ * Matches exact `id@version` names; `undefined` permits every operation.
+ */
+export const isForeignAllowed = (
+  name: string,
+  allowlist: ReadonlySet<string> | undefined,
+): boolean => allowlist === undefined || allowlist.has(name)
+
 /** The refusal of a call of an operation the reader holds no implementation of. */
 export const unsupported = (op: ForeignOp, detail = 'no implementation was given'): Refusal =>
   new Refusal({ reason: 'unsupported', at: op.id, detail: `${foreignName(op)}: ${detail}` })
@@ -335,7 +347,8 @@ export interface If {
 /**
  * A choice on a value among literal cases. With no `otherwise`, the cases
  * cover every value the Schema of `on` allows and a null `on` gives null;
- * with one, it takes null and every value no case names.
+ * with one, it takes null and every value no case names. A subject holding
+ * a NUL is refused (`unportable`).
  */
 export interface Match {
   readonly _tag: 'Match'
@@ -344,15 +357,31 @@ export interface Match {
   readonly otherwise: Option.Option<Node>
 }
 
+/** One implementation of a foreign operation. */
+export interface ForeignImplementation {
+  /**
+   * The operation on argument values, after its null rule. It returns a
+   * value, null, or a `Node.Refusal`; a throw is refused as `failed`.
+   */
+  readonly run: (args: ReadonlyArray<unknown>, foreign?: ForeignImplementations) => unknown
+}
+
+/**
+ * The implementations a reader is given, by `id@version` (`Node.foreignName`),
+ * so two versions of one operation each have theirs.
+ */
+export type ForeignImplementations = Readonly<Record<string, ForeignImplementation>>
+
 /**
  * Arbitrary code no reader can see into. It declares what it reads (none:
- * everything), runs in evaluation, and leaves every static reader undecided.
+ * everything), runs in evaluation with the caller's foreign implementations,
+ * and leaves every static reader undecided.
  */
 export interface Opaque {
   readonly _tag: 'Opaque'
   readonly name: string
   readonly reads: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
-  readonly run: (env: unknown) => unknown
+  readonly run: (env: unknown, foreign: ForeignImplementations) => unknown
 }
 
 /** The question a `Rows` node asks of each element. */
@@ -431,7 +460,12 @@ export const mapRows = (
     fold: rows.fold,
     over: RowsOver.$match(rows.over, {
       List: ({ list }) => RowsOver.List({ list: source(list) }),
-      Related: ({ of, relation }) => RowsOver.Related({ of: source(of), relation }),
+      Related: ({ of, relation, cardinality }) =>
+        RowsOver.Related({
+          of: source(of),
+          relation,
+          ...(cardinality === undefined ? {} : { cardinality }),
+        }),
     }),
     where: Option.map(rows.where, body),
     value: Option.map(rows.value, body),
@@ -566,7 +600,7 @@ export const prefix = (node: Node, segments: ReadonlyArray<string>): Node => {
         Opaque({
           name,
           reads: Option.map(reads, list => list.map(s => [...segments, ...s])),
-          run: env => {
+          run: (env, foreign) => {
             let sub: unknown = env
             for (const seg of segments) {
               if (
@@ -579,7 +613,7 @@ export const prefix = (node: Node, segments: ReadonlyArray<string>): Node => {
               }
               sub = (sub as Record<string, unknown>)[seg]
             }
-            return run(sub)
+            return run(sub, foreign)
           },
         }),
     })

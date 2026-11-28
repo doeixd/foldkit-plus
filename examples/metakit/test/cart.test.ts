@@ -1,10 +1,10 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Result } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Expr, Transition } from 'metakit'
-import * as AggregatesSql from 'metakit/aggregates/sql'
-import { Money } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
+import { Expr, Transition } from '@doeixd/metakit'
+import * as AggregatesSql from '@doeixd/metakit/aggregates/sql'
+import { Money } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
 import {
   AddItem,
   CartItemCount,

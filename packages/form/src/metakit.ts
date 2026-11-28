@@ -8,9 +8,9 @@
  */
 import { Array as Arr, Match, Option, Result, type Schema } from 'effect'
 import * as FieldValidation from 'foldkit/fieldValidation'
-import { Expr, Transition, Verdict } from 'metakit'
-import { CalendarDay, Decimal, type Domain } from 'metakit/domain'
-import { fieldSpecs, type FieldSpec } from 'metakit/inspect'
+import { Expr, Transition, Verdict } from '@doeixd/metakit'
+import { CalendarDay, Decimal, type Domain } from '@doeixd/metakit/domain'
+import { fieldSpecs, type FieldSpec } from '@doeixd/metakit/inspect'
 import { Input, type Control, type Draft } from './input.js'
 
 /**

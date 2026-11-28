@@ -7,7 +7,18 @@
  * check at the end runs every verdict it gets against evaluation.
  */
 import { Result, Schema } from 'effect'
-import { Abstract, Bool, Eq, Expr, Interval, Num, Ord, Path, Transition, Verdict } from 'metakit'
+import {
+  Abstract,
+  Bool,
+  Eq,
+  Expr,
+  Interval,
+  Num,
+  Ord,
+  Path,
+  Transition,
+  Verdict,
+} from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 
 const MIN = Number.MIN_VALUE

@@ -1,7 +1,7 @@
 import { Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Null, Num, Ord, Path, Transition, Verdict } from 'metakit'
-import { Text } from 'metakit/domain'
+import { Abstract, Eq, Expr, Null, Num, Ord, Path, Transition, Verdict } from '@doeixd/metakit'
+import { Text } from '@doeixd/metakit/domain'
 
 // Ids are text holding no NUL, so comparing them is never refused and partial evaluation may drop it.
 const Account = Schema.Struct({

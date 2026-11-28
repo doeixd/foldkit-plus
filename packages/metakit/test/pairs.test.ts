@@ -1,8 +1,8 @@
 import { Option, Schema } from 'effect'
-import { Eq, Num, Transition, Verdict } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Pairs from 'metakit/pairs'
-import * as Temporal from 'metakit/temporal'
+import { Eq, Num, Transition, Verdict } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Pairs from '@doeixd/metakit/pairs'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { describe, expect, it } from 'vitest'
 
 const State = Schema.Struct({

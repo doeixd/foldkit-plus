@@ -8,7 +8,7 @@
  */
 import { Data, Match, Option, type Schema } from 'effect'
 import { Evidence } from 'foldkit-metadata'
-import type { Verdict } from 'metakit'
+import type { Verdict } from '@doeixd/metakit'
 import { Steps, finiteValues, steps, type Step } from './enumerate.js'
 import { Decision, decide, meetable, type Witness } from './pairCheck.js'
 import { judgeAgainst, readsBefore, invariantsOf, type Invariant } from './invariant.js'

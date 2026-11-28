@@ -145,6 +145,73 @@ describe('checkOperation and lawObligations (Phase 4 bout 4.6)', () => {
     expect(Conformance.checkOperation(op, table).failures[0]).toContain('claims monotone')
   })
 
+  it('finds a commutativity violation outside the boundary samples', () => {
+    const Count = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 100 }))
+    const op = Operation.define({
+      id: 'claims.interior',
+      version: 1,
+      args: [Count, Count],
+      returns: Count,
+      nulls: 'strict',
+      claims: { commutative: true },
+    })
+    const table = Operation.implementations(
+      'memory',
+      Operation.implement(op, a => (a > 2 && a < 100 ? a : 0)),
+    )
+
+    const report = Conformance.checkOperation(op, table, { seed: 37 })
+    expect(report.ok).toBe(false)
+    expect(report.failures).toEqual([
+      expect.stringContaining('claims commutative, and it does not hold'),
+    ])
+  })
+
+  it('rejects a two-sided identity that holds only on the left', () => {
+    const Bit = Schema.Literals([0, 1])
+    const op = Operation.define({
+      id: 'claims.rightProjection',
+      version: 1,
+      args: [Bit, Bit],
+      returns: Bit,
+      nulls: 'strict',
+      claims: { identity: { value: 0, side: 'both' } },
+    })
+    const table = Operation.implementations(
+      'memory',
+      Operation.implement(op, (_, b) => b),
+    )
+
+    const report = Conformance.checkOperation(op, table)
+    expect(report.ok).toBe(false)
+    expect(report.failures).toEqual([
+      expect.stringContaining(
+        'claims identity, and it does not hold: claims.rightProjection(1, 0) is 0, not 1',
+      ),
+    ])
+  })
+
+  it('accepts associativity when regrouping works without commuting operands', () => {
+    const op = Operation.define({
+      id: 'claims.leftProjection',
+      version: 1,
+      args: [Flags, Flags],
+      returns: Flags,
+      nulls: 'strict',
+      claims: { associative: true },
+    })
+    const table = Operation.implementations(
+      'memory',
+      Operation.implement(op, a => a),
+    )
+
+    const report = Conformance.checkOperation(op, table)
+    expect(report.ok).toBe(true)
+    expect(report.discharges).toMatchObject([
+      { obligation: 'law:claims.leftProjection@1/associative/memory', result: { _tag: 'Held' } },
+    ])
+  })
+
   it.each([
     ['commutativity', 'commutative', NullableFlags, { commutative: true }],
     ['associativity', 'associative', Flags, { associative: true }],
@@ -299,6 +366,33 @@ describe('checkOperation and lawObligations (Phase 4 bout 4.6)', () => {
     expect(seenCalls).toBeGreaterThan(0)
     expect(report.ok).toBe(false)
     expect(report.failures.some(f => f.includes('sqlite parity failed'))).toBe(true)
+  })
+
+  it('refuses to discharge SQL parity when no sample produced an answer', () => {
+    const op = Operation.define({
+      id: 'claims.noParityAnswer',
+      version: 1,
+      args: [Flags],
+      returns: Flags,
+      nulls: 'own',
+    })
+    const table = Operation.implementations(
+      'memory',
+      Operation.implement(op, () => {
+        throw new Error('Refused')
+      }),
+    )
+
+    const report = Conformance.checkOperation(op, table, {
+      sql: [{ dialect: 'sqlite', evaluate: () => [] }],
+    })
+    expect(report.ok).toBe(false)
+    expect(report.failures).toEqual([
+      expect.stringContaining('sqlite parity failed: 0 valid calls were recorded'),
+    ])
+    expect(report.discharges).toMatchObject([
+      { obligation: 'law:claims.noParityAnswer@1/parity/sqlite', result: { _tag: 'Broken' } },
+    ])
   })
 
   it('C1 & M1: monotone fails on null/refused in-domain results and non-numeric 0-pair checks; invertible fails when all samples refuse', () => {

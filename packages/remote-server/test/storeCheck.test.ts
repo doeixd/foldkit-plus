@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { Remote } from 'foldkit-remote'
-import { checkStore, type StoreAdapter, type StoreRow } from 'metakit/store/check'
+import { checkStore, type StoreAdapter, type StoreRow } from '@doeixd/metakit/store/check'
 import { describe, expect, it } from 'vitest'
 import { RemoteServer, type MemoryStore } from '../src/index.js'
 

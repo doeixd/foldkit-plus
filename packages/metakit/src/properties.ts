@@ -3,7 +3,7 @@
  * writing keeps, as data: one table per kind, keyed by its closed set of
  * names, so a name with no row does not compile.
  *
- * A property is declared only where a generated check (`metakit/conformance`)
+ * A property is declared only where a generated check (`@doeixd/metakit/conformance`)
  * confirms it against the evaluator over the awkward values, and a reader
  * decides something from it:
  * - of an operation, partial evaluation reads `identity`, `absorbing`,
@@ -13,7 +13,7 @@
  * - of a fold, partial evaluation reads `absorbing` (a held list some of
  *   whose answers are unknown) and `monotone` of `any` and `every` (some of
  *   the related rows held); the checker reads `monotone` of `count` (a list
- *   `keep` leaves is no longer); `metakit/aggregates` keeps a total by
+ *   `keep` leaves is no longer); `@doeixd/metakit/aggregates` keeps a total by
  *   deltas only over the domain where `sum` is commutative, associative and
  *   invertible, and starts it at `identity`;
  * - of a way of writing, `Transition.commutes` and `foldkit-remote`'s replay
@@ -23,7 +23,7 @@
  * that judges carries; the ways of writing, and `num.add`'s row they derive
  * from, in `ops/ways.ts`, which a page that replays a pending write carries
  * (`foldkit-remote`); this module adds the rest, which only the checker,
- * `metakit/aggregates` and transitions read.
+ * `@doeixd/metakit/aggregates` and transitions read.
  */
 import { Record } from 'effect'
 import type * as Node from './node.js'

@@ -1,11 +1,11 @@
 /**
  * Dependent queries (Phase 4 Part B, Bout 4.19, #606): a query whose
  * parameters come from another read is asked only once `queryReadiness`
- * (`metakit/graph/readiness`) confirms every parameter is bound.
+ * (`@doeixd/metakit/graph/readiness`) confirms every parameter is bound.
  */
 import { Option } from 'effect'
-import type { Expr } from 'metakit'
-import { queryReadiness, type QueryReadiness } from 'metakit/graph/readiness'
+import type { Expr } from '@doeixd/metakit'
+import { queryReadiness, type QueryReadiness } from '@doeixd/metakit/graph/readiness'
 
 export interface DependentQueryOptions<Model, Env, Out> {
   /** Filter expression over `{ row, ...params }` whose non-row paths must be bound. */
@@ -30,7 +30,7 @@ export interface DependentQuery<Model, Env, Out> {
 }
 
 /**
- * Declare a dependent query gated by `metakit/graph/readiness`'s `queryReadiness`.
+ * Declare a dependent query gated by `@doeixd/metakit/graph/readiness`'s `queryReadiness`.
  */
 export const dependentQuery = <Model, Env, Out>(
   options: DependentQueryOptions<Model, Env, Out>,

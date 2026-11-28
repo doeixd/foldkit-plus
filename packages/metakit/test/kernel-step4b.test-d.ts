@@ -3,8 +3,8 @@
  * and the text operations take as they take `Schema.String`.
  */
 import { Schema } from 'effect'
-import { Eq, Expr, Path, Str } from 'metakit'
-import { Text } from 'metakit/domain'
+import { Eq, Expr, Path, Str } from '@doeixd/metakit'
+import { Text } from '@doeixd/metakit/domain'
 
 type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false

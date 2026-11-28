@@ -4,7 +4,9 @@
  *
  * `eq.is`, `eq.isNot` and `eq.in` are null-safe: null equals null and nothing
  * else, so these never give null; `eq.equals` and `eq.among` give null as SQL
- * does, and refuse NaN as the orders do. Uses Effect `Equal.equals` (with `Object.is` and `±0`
+ * does. Every equality refuses text holding a NUL (`unportable`) and NaN
+ * (`non-finite`) in any operand or candidate before null decides, as the orders
+ * do. Uses Effect `Equal.equals` (with `Object.is` and `±0`
  * normalization). SQL lowering emits `IS NOT DISTINCT FROM` / `IS` on nullable
  * columns so JS and SQL never diverge.
  */
@@ -22,8 +24,7 @@ const sameValue = (a: unknown, b: unknown): boolean => {
 const nullSafe =
   (id: 'eq.is' | 'eq.isNot', decide: (a: unknown, b: unknown) => boolean) =>
   (args: ReadonlyArray<unknown>): unknown =>
-    args.find(Node.isRefusal) ??
-    (Node.holdsNul(args) ? Node.unportable(id) : decide(args[0], args[1]))
+    args.find(Node.isRefusal) ?? Node.refusedForEquality(id, args) ?? decide(args[0], args[1])
 
 export const isOp: Node.Op<'eq.is'> = {
   id: 'eq.is',
@@ -48,7 +49,8 @@ export const inOp: Node.Op<'eq.in'> = {
     if (refused !== undefined) return refused
     const [needle, haystack] = args
     if (!Array.isArray(haystack)) return Node.illTyped('eq.in', 'an array of candidates', haystack)
-    if (Node.holdsNul([needle, ...haystack])) return Node.unportable('eq.in')
+    const screened = Node.refusedForEquality('eq.in', [needle, haystack])
+    if (screened !== undefined) return screened
     return haystack.some(item => sameValue(needle, item === undefined ? null : item))
   },
 }

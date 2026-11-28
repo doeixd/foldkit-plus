@@ -10,7 +10,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Option, Result } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { Expr, Query } from 'foldkit-entity'
 import { databaseLayer } from 'foldkit-remote-drizzle'
 import { ddl } from './tables.js'

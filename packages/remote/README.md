@@ -2575,7 +2575,7 @@ server to write; the input is still sent and validated whole.
 
 `Data.can(model, Mutation, input)` tells, before anything is sent, whether the
 server would refuse a declared write, from what the Model holds. It answers a
-metakit `Verdict` (read it with `Verdict.match` from `metakit`): `False`, whose
+metakit `Verdict` (read it with `Verdict.match` from `@doeixd/metakit`): `False`, whose
 witness is the refusal, `Forbidden` (a held `may`), `Unmet` (the `when`) or
 `Invalid` (an invariant), checked in the server's order; `Unknown` with its
 reasons where the row, a field it reads, a `may` member or an input key is

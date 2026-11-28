@@ -1,8 +1,8 @@
 import { Effect, Schema } from 'effect'
-import { Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Pairs from 'metakit/pairs'
-import * as Temporal from 'metakit/temporal'
+import { Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Pairs from '@doeixd/metakit/pairs'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { describe, expect, it, vi } from 'vitest'
 
 // A sampler that draws no state: the walk ran no case, so it shows nothing about the order.

@@ -1,14 +1,14 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Effect, Option, Result } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Transition, Verdict } from 'metakit'
-import { Decimal, Money } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
-import * as Pairs from 'metakit/pairs'
-import * as Prove from 'metakit/prove'
-import * as Sql from 'metakit/sql'
-import * as Store from 'metakit/store'
-import * as Temporal from 'metakit/temporal'
+import { Abstract, Transition, Verdict } from '@doeixd/metakit'
+import { Decimal, Money } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Pairs from '@doeixd/metakit/pairs'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Sql from '@doeixd/metakit/sql'
+import * as Store from '@doeixd/metakit/store'
+import * as Temporal from '@doeixd/metakit/temporal'
 import {
   BuggyTreasuryMachine,
   CaptureHold,

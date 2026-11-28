@@ -1,9 +1,9 @@
 /**
- * Drizzle `SQL` (`metakit/drizzle`, optional peer `drizzle-orm`): a Schema's
+ * Drizzle `SQL` (`@doeixd/metakit/drizzle`, optional peer `drizzle-orm`): a Schema's
  * rules for `check(name, sql)`, a boolean expression for `.where(...)`, and a
  * transition as `{ set, where }` for `db.update(table)`.
  *
- * The lowering is `sqlLowering.ts`, the one `metakit/sql` renders as text;
+ * The lowering is `sqlLowering.ts`, the one `@doeixd/metakit/sql` renders as text;
  * this module renders its pieces with the table's own columns and Drizzle's
  * parameters.
  */

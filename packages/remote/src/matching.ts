@@ -25,7 +25,7 @@
  * it. A local filter is not an access decision.
  */
 import { Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { Query as Relational } from 'foldkit-entity'
 import {
   Held,

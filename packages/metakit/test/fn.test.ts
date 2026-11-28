@@ -1,12 +1,12 @@
 /**
- * Unit tests for `metakit/fn`: hygienic nested `Rows` calls, `Inspect.fn`,
+ * Unit tests for `@doeixd/metakit/fn`: hygienic nested `Rows` calls, `Inspect.fn`,
  * `Expr.residualize` / `Expr.judge`, contract error phases, and `Prove.fn`.
  */
 import { Effect, Option, Result, Schema } from 'effect'
-import { Arr, Eq, Expr, Num, Path, Verdict } from 'metakit'
-import * as Fn from 'metakit/fn'
-import * as Inspect from 'metakit/inspect'
-import * as Prove from 'metakit/prove'
+import { Arr, Eq, Expr, Num, Path, Verdict } from '@doeixd/metakit'
+import * as Fn from '@doeixd/metakit/fn'
+import * as Inspect from '@doeixd/metakit/inspect'
+import * as Prove from '@doeixd/metakit/prove'
 import { describe, expect, it } from 'vitest'
 
 describe('metakit/fn: hygiene, partial evaluation, inspection & contract phases', () => {
@@ -56,8 +56,12 @@ describe('metakit/fn: hygiene, partial evaluation, inspection & contract phases'
     const $ = Path.from(Env)
     const expr = isDiscounted({ price: $.price, pct: $.pct })
 
-    // Knowing only pct = 0 settles the whole conjunction to false!
-    expect(Verdict.isFalse(Expr.judge(expr, { pct: 0 }))).toBe(true)
+    // Guarded symbolic call checks non-nullness of `price`, so knowing only pct = 0 stays Unknown;
+    // `bare` omits parameter guards and settles the conjunction to False.
+    expect(Verdict.isUnknown(Expr.judge(expr, { pct: 0 }))).toBe(true)
+    expect(
+      Verdict.isFalse(Expr.judge(isDiscounted.bare({ price: $.price, pct: $.pct }), { pct: 0 })),
+    ).toBe(true)
     // Knowing only pct = 10 leaves price > 0 undecided
     expect(Verdict.isUnknown(Expr.judge(expr, { pct: 10 }))).toBe(true)
   })

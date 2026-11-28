@@ -1,6 +1,6 @@
 /** The README's paths and `Judge` snippets, run: what they say they answer. */
 import { Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { expect, it } from 'vitest'
 import { Entity, Expr, Held, Judge, Order, Query, Relation, evaluate } from '../src/index.js'
 

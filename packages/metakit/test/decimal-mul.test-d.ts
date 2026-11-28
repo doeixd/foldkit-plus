@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
-import { Expr, Num } from 'metakit'
-import * as Rows from 'metakit/aggregates'
-import { Decimal, Money } from 'metakit/domain'
+import { Expr, Num } from '@doeixd/metakit'
+import * as Rows from '@doeixd/metakit/aggregates'
+import { Decimal, Money } from '@doeixd/metakit/domain'
 
 const Pair = Schema.Struct({
   a: Schema.Int,

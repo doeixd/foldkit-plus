@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
-import { Expr } from 'metakit'
-import { CalendarDay, Decimal, Money, OrderedEnum } from 'metakit/domain'
+import { Expr } from '@doeixd/metakit'
+import { CalendarDay, Decimal, Money, OrderedEnum } from '@doeixd/metakit/domain'
 
 const Usd = Money.make('USD')
 const Eur = Money.make('EUR')

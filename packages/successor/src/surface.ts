@@ -1,7 +1,13 @@
 import { Context, Effect, Option } from 'effect'
-import { Expr } from 'metakit'
-import { build, knownEdge, modelPath, unknownEdge, type DependencyGraph } from 'metakit/graph'
-import { covers } from 'metakit/graph/match'
+import { Expr } from '@doeixd/metakit'
+import {
+  build,
+  knownEdge,
+  modelPath,
+  unknownEdge,
+  type DependencyGraph,
+} from '@doeixd/metakit/graph'
+import { covers } from '@doeixd/metakit/graph/match'
 import type { Observed } from './block.js'
 
 type Patch<Value> = { readonly set: (anchor: string, value: Value) => void }

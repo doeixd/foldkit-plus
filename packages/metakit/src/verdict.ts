@@ -31,7 +31,7 @@ export const Proved = (tier: ProofTier, solver?: SolverEvidence): ProofEvidence 
 /**
  * A goal left to something else: a higher tier when a lower one returns
  * `Unknown`, or, for `walk`, a test that runs steps in several orders
- * (`metakit/temporal`).
+ * (`@doeixd/metakit/temporal`).
  */
 export interface Obligation {
   readonly kind:

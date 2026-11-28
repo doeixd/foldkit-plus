@@ -6,7 +6,7 @@
  */
 import { Effect, Option } from 'effect'
 import { Graph } from 'foldkit-surface'
-import { modelPath } from 'metakit/graph'
+import { modelPath } from '@doeixd/metakit/graph'
 import { afterEach, describe, expect, it } from 'vitest'
 import { initialModel, Message } from '../src/app.js'
 import { TodoModule } from '../src/module.js'

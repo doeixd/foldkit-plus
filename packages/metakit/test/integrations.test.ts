@@ -4,11 +4,11 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { integer, pgTable, text } from 'drizzle-orm/pg-core'
 import { Option, Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Eq, Expr, Num, Ord, Transition, Verdict } from 'metakit'
-import { CalendarDay, Money, OrderedEnum } from 'metakit/domain'
-import * as Drizzle from 'metakit/drizzle'
-import * as Inspect from 'metakit/inspect'
-import * as Machine from 'metakit/machine'
+import { Eq, Expr, Num, Ord, Transition, Verdict } from '@doeixd/metakit'
+import { CalendarDay, Money, OrderedEnum } from '@doeixd/metakit/domain'
+import * as Drizzle from '@doeixd/metakit/drizzle'
+import * as Inspect from '@doeixd/metakit/inspect'
+import * as Machine from '@doeixd/metakit/machine'
 
 const accountsTable = pgTable('accounts', {
   id: text('id').primaryKey(),

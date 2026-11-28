@@ -1,6 +1,6 @@
 import { Option, Schema } from 'effect'
-import { Path } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Path } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { describe, expect, it } from 'vitest'
 import * as Sheet from '../src/sheet.js'
 import * as WindowList from '../src/windowList.js'

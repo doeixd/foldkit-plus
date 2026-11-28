@@ -1,5 +1,5 @@
 /**
- * Domain Schemas & symbolic ops (`metakit/domain`):
+ * Domain Schemas & symbolic ops (`@doeixd/metakit/domain`):
  *   - `Money` (fixed-scale integer minor units + compile-time currency safety)
  *   - `Decimal` (fixed-scale integer units + compile-time scale safety + half-even rounding)
  *   - `CalendarDay` (timezone-free epoch days)

@@ -46,8 +46,8 @@ import {
   type VirtualLayout,
   type VirtualWindow,
 } from 'foldkit-primitives/state'
-import { Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import type { MixinList } from './resolve.js'
 
 export const WindowListSlots = Slots.define({

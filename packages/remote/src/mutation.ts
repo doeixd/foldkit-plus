@@ -4,7 +4,7 @@
  * invariants and `may` it breaks, and what `Data.can` tells of them.
  */
 import { Effect, Match, Option, Record as Rec, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import {
   Entity as DomainEntity,
   Write as DomainWrite,

@@ -1,5 +1,5 @@
 /**
- * `metakit/syntax` guards broken in turn:
+ * `@doeixd/metakit/syntax` guards broken in turn:
  * `pnpm mutate packages/metakit/test/syntax.mutations.ts` checks that a test
  * fails for every one.
  */

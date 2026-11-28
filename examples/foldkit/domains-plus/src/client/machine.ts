@@ -1,7 +1,7 @@
 /**
  * Declared transitions for `domains-plus` (Phase 3, Bouts 3.4 & 3.5).
  *
- * 30 of the 39 own Messages are declared as one `metakit/machine` Machine
+ * 30 of the 39 own Messages are declared as one `@doeixd/metakit/machine` Machine
  * (meeting the three-in-four Phase 3 gate). The remaining 9 stay in `fallback`:
  *   - 3 upstream Listbox Messages (`GotTldListboxMessage`, `GotAvailabilityListboxMessage`, `GotSortListboxMessage`): upstream `@foldkit/ui/listbox` has no machine.
  *   - 5 search/address Messages (`UpdatedSearch`, `PressedEscape`, `ClickedClearSearch`, `ClickedRetrySearch`, `ChangedUrl`): call debounce `update`, `Data.refresh`, and `routeOf`.
@@ -11,9 +11,9 @@ import { Array, Option, Schema } from 'effect'
 import { UrlRequest } from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import { Sheet, WindowList } from 'foldkit-mixins-ui'
-import { Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Operation from 'metakit/operation'
+import { Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Operation from '@doeixd/metakit/operation'
 import { Domain as DomainCase, DomainLabel, queryToMaybeDomainLabel } from '../shared/domain'
 import { AvailabilityFilter, Cart, SortOrder, TldFilter } from './domain'
 import { ResultsListScrollKey } from './resultsList.js'

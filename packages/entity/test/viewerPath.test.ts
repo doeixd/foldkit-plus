@@ -6,7 +6,7 @@
  * operations-phase3-DESIGN.
  */
 import { Effect, Option, Schema } from 'effect'
-import { Node, Verdict } from 'metakit'
+import { Node, Verdict } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,

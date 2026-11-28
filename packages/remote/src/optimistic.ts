@@ -5,7 +5,7 @@
  * rebase for free.
  */
 import { Match, Option } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import {
   Operators,
   QueryEvaluateError,

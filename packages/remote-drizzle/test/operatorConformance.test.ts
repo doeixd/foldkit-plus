@@ -14,7 +14,7 @@ import { SQLiteDialect, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Schema } from 'effect'
 import { Conformance, type Runner } from 'foldkit-entity/conformance'
 import { Expr, Operators, Text } from 'foldkit-entity'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { DrizzleOperators, compileCall, entity, type CompileTarget } from '../src/index.js'
 

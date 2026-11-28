@@ -2,6 +2,16 @@
 
 This file is the core every agent must know. Area-specific hazards live in `docs/agents/`: read the file for your area before you change code there (see "Traps: read before you change code").
 
+## Where the project is going
+
+Read [`docs/direction.md`](./docs/direction.md) before planning any work. Upstream Foldkit has stopped and become Effect UI; this project takes its own route in three stages, each the foundation of the next:
+
+1. **MetaKit** (`packages/metakit`): a framework for small typed languages and correct software in TypeScript and Effect. Its whole plan is [`docs/design/metakit-PLAN.md`](./docs/design/metakit-PLAN.md).
+2. **A successor to Foldkit and Effect UI**, with its own runtime on MetaKit and Effect: checked transitions, best-in-class performance, resumability, incremental view maintenance, sync, and TypeScript that infers well. The design on record is issue #612.
+3. **Foldkit Plus rebuilt on the successor.**
+
+Find which stage a task belongs to and read that stage's plan. Do not add public surface for a later stage while an earlier stage's gate is open (`docs/direction.md`, "The order"). The MetaKit plan also says how decisions are recorded and made (§9.1), who builds what (§8.0), and that a defined thing is referred to by typed reference, never by a magic string (rule 22).
+
 ## Repository
 
 - Workspace: pnpm, `packages/*` and `examples/*`.

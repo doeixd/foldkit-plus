@@ -64,6 +64,14 @@ const full = rendering === 'ssr' && manager === 'npm'
 
 /** Each of our packages' name, to its tarball. */
 const tarballs = new Map()
+// A scoped package packs without its `@` and with `-` for `/`
+// (`@doeixd/metakit` → `doeixd-metakit-0.1.0.tgz`), so the file name does
+// not give the package name back: the tarball's own manifest does.
+const nameIn = file => {
+  const read = spawnSync('tar', ['-xzOf', file, 'package/package.json'], { encoding: 'utf8' })
+  if (read.status !== 0) throw new Error(`could not read the manifest in ${file}: ${read.stderr}`)
+  return JSON.parse(read.stdout).name
+}
 const given = args[0]
 if (given === undefined) {
   for (const dir of readdirSync(join(root, 'packages'))) {
@@ -71,14 +79,14 @@ if (given === undefined) {
     if (!existsSync(manifest)) continue
     const { name, version, private: unpublished } = JSON.parse(readFileSync(manifest, 'utf8'))
     if (unpublished) continue
-    const file = join(root, 'packages', dir, `${name}-${version}.tgz`)
+    const packed = `${name.replace(/^@/, '').replace('/', '-')}-${version}.tgz`
+    const file = join(root, 'packages', dir, packed)
     if (!existsSync(file)) throw new Error(`${file} is missing: run pnpm pack first`)
     tarballs.set(name, file)
   }
 } else {
   for (const file of readdirSync(given)) {
-    const named = /^(.+)-\d+\.\d+\.\d+.*\.tgz$/.exec(file)
-    if (named !== null) tarballs.set(named[1], join(given, file))
+    if (file.endsWith('.tgz')) tarballs.set(nameIn(join(given, file)), join(given, file))
   }
 }
 if (!tarballs.has('foldkit-plus')) throw new Error('No foldkit-plus tarball')
@@ -341,7 +349,8 @@ const pnpmSteps = (name, project, top, adapters) => {
   const direct = new Set(commands.flatMap(command => command.split(' ')))
   const ours = [...tarballs].filter(([each]) => !direct.has(each))
   if (block[1] === 'yaml') {
-    const tarballLines = ours.map(([each, file]) => `  ${each}: 'file:${file}'`)
+    // YAML reserves `@` at the start of a plain key: a scoped name is quoted.
+    const tarballLines = ours.map(([each, file]) => `  '${each}': 'file:${file}'`)
     const merged = block[2].replace('overrides:\n', `overrides:\n${tarballLines.join('\n')}\n`)
     writeFileSync(target, `${readFileSync(target, 'utf8')}${merged}\n`)
   } else {

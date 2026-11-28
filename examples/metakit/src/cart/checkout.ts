@@ -2,8 +2,8 @@
  * Example 6 (lazy child module): Checkout sub-machine loaded on demand via `Machine.lazyChild`.
  */
 import { Schema } from 'effect'
-import { Bool, Eq, Expr, Num, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Bool, Eq, Expr, Num, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 
 export const CheckoutState = Schema.Struct({
   step: Schema.Literals(['idle', 'shipping', 'payment', 'confirmed']),

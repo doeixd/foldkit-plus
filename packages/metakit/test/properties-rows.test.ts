@@ -4,8 +4,8 @@
  */
 import { Struct } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { foldProperties, writeProperties } from 'metakit'
-import * as Conformance from 'metakit/conformance'
+import { foldProperties, writeProperties } from '@doeixd/metakit'
+import * as Conformance from '@doeixd/metakit/conformance'
 
 describe('foldProperties', () => {
   const reports = Conformance.checkAllFoldProperties()

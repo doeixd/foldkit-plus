@@ -3,7 +3,7 @@
  * named by the machine, take the agent's Model and Principal, and a variant
  * whose Message does not fit the transition's input does not compile.
  */
-import type { Money } from 'metakit/domain'
+import type { Money } from '@doeixd/metakit/domain'
 import { expectTypeOf, test } from 'vitest'
 import { Agent } from '../src/index.js'
 import { machineTools } from '../src/metakit.js'

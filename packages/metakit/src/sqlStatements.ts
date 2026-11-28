@@ -1,5 +1,5 @@
 /**
- * What `metakit/sql` and `metakit/drizzle` lower whole: a Schema's rules as
+ * What `@doeixd/metakit/sql` and `@doeixd/metakit/drizzle` lower whole: a Schema's rules as
  * one condition, a predicate as a `WHERE`, and a transition for one input as
  * the columns it sets and its guard.
  */
@@ -14,7 +14,7 @@ import {
   type Sql,
   type SqlDialect,
 } from './sqlLowering.js'
-import { Refused, type Transition } from './transition.js'
+import { Refused, Why, type Transition } from './transition.js'
 
 type Lowered = Result.Result<Sql, SqlUnsupportedError>
 
@@ -74,7 +74,7 @@ export const lowerUpdate = <State, Input, Emit>(
     )
   }
   if (Option.isSome(transition.inputSchema) && !Schema.is(transition.inputSchema.value)(input)) {
-    return Result.fail(new Refused({ reason: 'the input does not satisfy the input Schema' }))
+    return Result.fail(new Refused({ why: Why.Input() }))
   }
   const lower = (node: Node.Node) =>
     lowerNode(residualizeNode(node, { input }), { dialect, rowPrefix: ['state'] })

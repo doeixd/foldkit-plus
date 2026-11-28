@@ -9,10 +9,10 @@
  * - `Inspect.fieldSpecs` & `Inspect.toJsonSchema` (annotated agent tool schemas)
  */
 import { Schema } from 'effect'
-import { Bool, Eq, Expr, Num, Path, Str, Transition } from 'metakit'
-import { Text } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
-import * as Policy from 'metakit/policy'
+import { Bool, Eq, Expr, Num, Path, Str, Transition } from '@doeixd/metakit'
+import { Text } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Policy from '@doeixd/metakit/policy'
 
 export const ReviewState = Schema.Struct({
   approvals: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),

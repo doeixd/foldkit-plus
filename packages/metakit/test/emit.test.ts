@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Transition } from 'metakit'
+import { Transition } from '@doeixd/metakit'
 
 describe('Transition.emit reserves the emitted record tag', () => {
   it('refuses a payload field named _tag', () => {

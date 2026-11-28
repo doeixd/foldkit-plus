@@ -5,7 +5,7 @@
  * `Verdict` is made where the answer is read.
  */
 import { Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { Condition, May, MaySchema, type RowRule } from '../src/index.js'
 import { answerOf } from '../src/may.js'

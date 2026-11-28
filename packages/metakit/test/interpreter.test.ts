@@ -91,7 +91,7 @@ describe('metakit/interpreter (Effect service & composable layers)', () => {
           { id: 'a1', balance: 10 },
           { amount: 25 },
         )
-        const fnVal = yield* Interpreter.runFn(BonusFn, { amount: 7 }, { checked: true })
+        const fnVal = yield* Interpreter.runFn(BonusFn, { amount: 7 })
         const allowed = yield* Interpreter.allow(AccountPolicy, 'highValue', {
           row: { id: 'a1', balance: 50 },
           principal: { id: 'u1', role: 'viewer' },
@@ -113,7 +113,7 @@ describe('metakit/interpreter (Effect service & composable layers)', () => {
     const fullLayer = Interpreter.layer({
       foreign: Operation.implementations('math', doubleImpl, tripleImpl),
     })
-    const sandboxLayer = Interpreter.withAllowlist(new Set(['math.double'])).pipe(
+    const sandboxLayer = Interpreter.withAllowlist(new Set(['math.double@1'])).pipe(
       Layer.provide(fullLayer),
     )
 
@@ -165,7 +165,7 @@ describe('metakit/interpreter (Effect service & composable layers)', () => {
     const acc = Path.from(Account)
 
     // Layer order: withAllowlist -> withForeign -> withObserver (observer is UNDER withForeign/withAllowlist)
-    const stackedLayer = Interpreter.withAllowlist(new Set(['math.double'])).pipe(
+    const stackedLayer = Interpreter.withAllowlist(new Set(['math.double@1'])).pipe(
       Layer.provide(
         Interpreter.withForeign(Operation.implementations('math', doubleImpl, tripleImpl)),
       ),

@@ -8,7 +8,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
-import { checkStore, type StoreAdapter, type StoreRow } from 'metakit/store/check'
+import { checkStore, type StoreAdapter, type StoreRow } from '@doeixd/metakit/store/check'
 import { describe, expect, it } from 'vitest'
 import { bind, writer } from '../src/index.js'
 

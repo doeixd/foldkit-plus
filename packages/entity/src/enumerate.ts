@@ -6,7 +6,7 @@
  * input, makes the question undecided, with the reason.
  */
 import { Data, Match, Option, Schema, SchemaAST } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { Judge, type Row } from './evaluate.js'
 import { dependencies } from './expr/query.js'
 import type { AnyEntity, EntityField } from './index.js'

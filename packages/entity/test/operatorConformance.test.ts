@@ -1,5 +1,5 @@
 import { Option, Schema } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { Conformance, Outcome } from '../src/conformance/index.js'
 import { exprOf } from '../src/expr/operand.js'

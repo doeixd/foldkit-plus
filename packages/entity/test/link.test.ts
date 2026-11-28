@@ -4,7 +4,7 @@
  * field over the same column is needed. operations-phase3-DESIGN.
  */
 import { Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,

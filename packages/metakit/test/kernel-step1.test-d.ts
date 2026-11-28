@@ -15,8 +15,8 @@ import {
   opProperties,
   type OpProperties,
   type PathAccessor,
-} from 'metakit'
-import { call } from 'metakit/build'
+} from '@doeixd/metakit'
+import { call } from '@doeixd/metakit/build'
 
 type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false

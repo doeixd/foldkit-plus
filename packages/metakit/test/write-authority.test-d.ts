@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
-import { Num, Path, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Num, Path, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 
 const Child = Schema.Struct({ quantity: Schema.Int })
 const Shape = Schema.Struct({

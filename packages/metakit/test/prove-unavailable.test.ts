@@ -1,8 +1,8 @@
 /** `z3-solver` is an optional peer: without it a proof that needs it fails with a typed error, once. */
 import { Effect, Result, Schema } from 'effect'
 import { expect, it, vi } from 'vitest'
-import { Abstract, Expr, Num, Path, Verdict } from 'metakit'
-import * as Prove from 'metakit/prove'
+import { Abstract, Expr, Num, Path, Verdict } from '@doeixd/metakit'
+import * as Prove from '@doeixd/metakit/prove'
 
 const Ledger = Schema.Struct({ a: Schema.Int, b: Schema.Int, c: Schema.Int }).pipe(
   Expr.refine($ =>

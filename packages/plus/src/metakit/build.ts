@@ -1,2 +1,2 @@
-/** `metakit/build`, as `foldkit-plus/metakit/build`. */
-export * from 'metakit/build'
+/** `@doeixd/metakit/build`, as `foldkit-plus/metakit/build`. */
+export * from '@doeixd/metakit/build'

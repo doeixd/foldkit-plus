@@ -51,9 +51,26 @@ export const wrap = <Env, A>(node: Node.Node): Expr<Env, A> =>
 export const isExpr = (value: unknown): value is Expr<never, unknown> =>
   typeof value === 'object' && value !== null && ExprTypeId in value
 
+/** A value outside MetaKit's value domain, which no reader can hold: a bigint, a symbol or a function, at any depth. */
+const outsideDomain = (value: unknown): boolean =>
+  typeof value === 'bigint' ||
+  typeof value === 'symbol' ||
+  typeof value === 'function' ||
+  (Array.isArray(value) && value.some(outsideDomain))
+
+/** A literal node of `value`; throws where the value is one no reader can hold. */
+export const literal = (value: unknown): Node.Node => {
+  if (outsideDomain(value)) {
+    throw new Error(
+      `[metakit] a literal must be a number, boolean, string, null, array or plain object; got ${typeof value === 'object' ? 'an array holding one that is not' : typeof value}`,
+    )
+  }
+  return Node.Lit({ value })
+}
+
 /** Convert an `ExprInput` (either an `Expr` or a literal) to a `Node`. */
 export const toNode = <Env, A>(input: ExprInput<Env, A>): Node.Node =>
-  isExpr(input) ? input.node : Node.Lit({ value: input })
+  isExpr(input) ? input.node : literal(input)
 
 /** Build a `Call` expression from an operator, core or foreign, and argument `ExprInput`s. */
 export const call = <Env, A>(

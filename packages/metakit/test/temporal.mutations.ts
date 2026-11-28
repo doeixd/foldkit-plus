@@ -1,4 +1,4 @@
-/** Mutations for `metakit/store` and `metakit/temporal`: the store refusal, the derived obligations and the walk. */
+/** Mutations for `@doeixd/metakit/store` and `@doeixd/metakit/temporal`: the store refusal, the derived obligations and the walk. */
 const file = '../src/temporal.ts'
 const store = '../src/store.ts'
 const proveMachine = '../src/prove/machine.ts'

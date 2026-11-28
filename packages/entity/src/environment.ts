@@ -8,7 +8,7 @@
  * every one.
  */
 import { Option } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import type { ExprContext } from './context.js'
 import { relationsOf } from './descriptor.js'
 import { ASKER, type OneRelation } from './expr/operand.js'

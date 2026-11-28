@@ -6,7 +6,7 @@
  * only where `import.meta.env.DEV` holds carries none of it.
  */
 import { Effect, Equal, Option } from 'effect'
-import { covers, pathsOverlap } from 'metakit/graph/match'
+import { covers, pathsOverlap } from '@doeixd/metakit/graph/match'
 import { movedOutside, type ClosedSurfaces } from './closure.js'
 import { Diagnostics, type Diagnostic } from './diagnostics.js'
 import type { DependencyTree } from './index.js'

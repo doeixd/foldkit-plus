@@ -1,9 +1,9 @@
 /**
- * SQL text for Postgres and SQLite (`metakit/sql`): a Schema's rules as a
+ * SQL text for Postgres and SQLite (`@doeixd/metakit/sql`): a Schema's rules as a
  * `CHECK`, a boolean expression as a `WHERE` predicate with its parameters,
  * and a transition as a guarded `UPDATE`.
  *
- * The lowering itself is `sqlLowering.ts`, which `metakit/drizzle` renders
+ * The lowering itself is `sqlLowering.ts`, which `@doeixd/metakit/drizzle` renders
  * too; this module renders its pieces as text.
  */
 import { Option, Result } from 'effect'

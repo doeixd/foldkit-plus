@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { Arr, Expr, Num } from 'metakit'
+import { Arr, Expr, Num } from '@doeixd/metakit'
 
 const Capability = Schema.Literals(['sharding'])
 

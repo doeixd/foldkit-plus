@@ -9,8 +9,8 @@
  * Its own file, imported by `laws.ts` alone: a page never carries the checker.
  */
 import { Data, Match, Option, Schema } from 'effect'
-import { Abstract, Expr, Node, Verdict } from 'metakit'
-import { evalNode } from 'metakit/build'
+import { Abstract, Expr, Node, Verdict } from '@doeixd/metakit'
+import { evalNode } from '@doeixd/metakit/build'
 import { finiteValues } from './enumerate.js'
 import { judgeAgainst, readsBefore, type Invariant } from './invariant.js'
 import type { Row } from './evaluate.js'

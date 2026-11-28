@@ -2,7 +2,7 @@
 
 Server-rendered pages often serialize the entire model to the browser even when half the UI is behind a disabled feature flag or never changes after load. And cascading forms (country -> region -> city) often fire broken queries before upstream selections are filled in.
 
-`metakit/graph`, a subpath of the `metakit` package (`pnpm add metakit effect`), works both out from your `Machine` and `Expr` definitions before the page runs, so no runtime tracker has to watch what each view reads. A `Machine` is a named set of transitions over one Schema (see [Write a business rule once](./getting-started.md)); an `Expr` is a rule or a value written as data. This page also shows how to build one machine from the machines of a model's parts.
+`@doeixd/metakit/graph`, a subpath of the `@doeixd/metakit` package (`pnpm add @doeixd/metakit effect`), works both out from your `Machine` and `Expr` definitions before the page runs, so no runtime tracker has to watch what each view reads. A `Machine` is a named set of transitions over one Schema (see [Write a business rule once](./getting-started.md)); an `Expr` is a rule or a value written as data. This page also shows how to build one machine from the machines of a model's parts.
 
 A binding is a named expression a view reads, such as the balance the screen shows. A path is a field's address in the Model, such as `['balance']`.
 
@@ -16,9 +16,9 @@ A binding is a named expression a view reads, such as the balance the screen sho
 
 ```ts
 import { Option, Schema } from 'effect'
-import { Eq, Expr, Num, Path, Transition } from 'metakit'
-import * as Graph from 'metakit/graph'
-import * as Machine from 'metakit/machine'
+import { Eq, Expr, Num, Path, Transition } from '@doeixd/metakit'
+import * as Graph from '@doeixd/metakit/graph'
+import * as Machine from '@doeixd/metakit/machine'
 
 const Account = Schema.Struct({
   id: Schema.String,
@@ -124,7 +124,7 @@ To check a specific renderer, pass a `prepare` function that sends the residual 
 
 ```ts
 import { Result } from 'effect'
-import * as Sql from 'metakit/sql'
+import * as Sql from '@doeixd/metakit/sql'
 
 const City = Schema.Struct({ id: Schema.String, countryId: Schema.String, regionId: Schema.String })
 const Params = Schema.Struct({

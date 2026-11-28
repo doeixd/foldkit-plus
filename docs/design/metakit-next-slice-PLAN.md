@@ -1,5 +1,7 @@
 # MetaKit Next-Slice Plan (`#600`, `#606`, `#607`, `#608`)
 
+> **Status (2026-11-28): superseded.** The current plan for MetaKit is [`metakit-PLAN.md`](./metakit-PLAN.md); read it instead. This file is kept as a record of the five-slice plan for Tier 3 `Match` case-splitting, `Prove.machine`, the static dependency graph and SSR pruning, dependent-query readiness, and docs (`#600`, `#606`, `#607`, `#608`).
+
 This plan implements five tightly connected slices surfaced by the open GitHub issues, each anchored in `packages/metakit` with zero Foldkit dependencies, strict type inference, bundle isolation, and an explicit review + verification gate per slice.
 
 ```mermaid

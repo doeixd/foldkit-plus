@@ -4,7 +4,7 @@
  * `Can.fromWire` and `Can.toWire` are the conversion between the two.
  */
 import { Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { Can, CanWire, type CanRefusal } from '../src/index.js'
 

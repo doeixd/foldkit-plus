@@ -1,5 +1,5 @@
 import { Option, Schema } from 'effect'
-import { Bool, Node, Str } from 'metakit'
+import { Bool, Node, Str } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Collation,

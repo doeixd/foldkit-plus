@@ -5,7 +5,7 @@
  */
 import { Option, Schema } from 'effect'
 import { defineTaggedUnion } from 'foldkit/schema'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 
 /** What the client can tell the server would refuse a write with. */
 export const CanRefusal = defineTaggedUnion({

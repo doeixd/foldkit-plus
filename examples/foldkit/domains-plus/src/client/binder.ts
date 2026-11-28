@@ -7,7 +7,7 @@
  * button and announcement anchors in place, and hands over its updated `cart`
  * slice to `SSR.hydrate` once the runtime chunk arrives.
  */
-import { Arr, Path, Transition } from 'metakit'
+import { Arr, Path, Transition } from '@doeixd/metakit'
 import { Binder, Binding } from 'foldkit-ssr/binder'
 import {
   BinderModelSchema,

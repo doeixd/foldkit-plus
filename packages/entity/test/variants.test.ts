@@ -4,7 +4,7 @@
  * narrowing to a case, over the row and through a relation.
  */
 import { Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { Metadata } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
 import {

@@ -1,5 +1,5 @@
 import { Option, Result } from 'effect'
-import { Bool, Expr, Node, Num, Path, Verdict } from 'metakit'
+import { Bool, Expr, Node, Num, Path, Verdict } from '@doeixd/metakit'
 import { keySegment } from 'foldkit-successor/block'
 import {
   countedToggle,

@@ -1,9 +1,9 @@
 import { Schema } from 'effect'
-import { Arr, Path, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Operation from 'metakit/operation'
-import { lowering, lowerings, piece } from 'metakit/operation/sql'
-import * as Relation from 'metakit/relation'
+import { Arr, Path, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Operation from '@doeixd/metakit/operation'
+import { lowering, lowerings, piece } from '@doeixd/metakit/operation/sql'
+import * as Relation from '@doeixd/metakit/relation'
 
 /** 31-bit non-negative permission bitmask, exact in JS, SQLite, and Postgres int4. */
 export const Flags = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 0x7fff_ffff }))

@@ -6,9 +6,9 @@
  */
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Num, Ord, Path, Transition, Verdict } from 'metakit'
-import { Text } from 'metakit/domain'
-import * as Prove from 'metakit/prove'
+import { Abstract, Eq, Expr, Num, Ord, Path, Transition, Verdict } from '@doeixd/metakit'
+import { Text } from '@doeixd/metakit/domain'
+import * as Prove from '@doeixd/metakit/prove'
 
 const None = Schema.Struct({})
 
@@ -159,7 +159,7 @@ describe('an operand past the safe range is refused by every reader', () => {
     )
   }, 30_000)
 
-  it('refuses an out-of-range Float64 result only for integer operands', async () => {
+  it('refuses an out-of-range integer Float64 result with either kind of operand', async () => {
     const limit = Number.MAX_SAFE_INTEGER
     const Boundary = Schema.Struct({
       n: Schema.Finite.check(Schema.isBetween({ minimum: limit, maximum: limit })),
@@ -169,9 +169,9 @@ describe('an operand past the safe range is refused by every reader', () => {
     const fractional = Num.gt(Num.mul(n, 1.5), 0)
     const env = { n: limit }
     expect(Result.isFailure(Expr.evalResult(integer, env))).toBe(true)
-    expect(Expr.evaluate(fractional, env)).toBe(true)
+    expect(Result.isFailure(Expr.evalResult(fractional, env))).toBe(true)
     expect(Verdict.isFalse(await Effect.runPromise(Prove.invariant(Boundary, integer)))).toBe(true)
-    expect(Verdict.isTrue(await Effect.runPromise(Prove.invariant(Boundary, fractional)))).toBe(
+    expect(Verdict.isFalse(await Effect.runPromise(Prove.invariant(Boundary, fractional)))).toBe(
       true,
     )
   }, 30_000)

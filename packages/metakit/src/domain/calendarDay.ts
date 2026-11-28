@@ -31,7 +31,7 @@ export const earliest = -719_162 as CalendarDayValue
 export const latest = 2_932_896 as CalendarDayValue
 
 /**
- * Effect `Schema` for an integer epoch-day `CalendarDay` with `metakit/domain`
+ * Effect `Schema` for an integer epoch-day `CalendarDay` with `@doeixd/metakit/domain`
  * metadata. It holds any safe integer; the ISO conversions cover
  * `earliest` to `latest` (years 0001 to 9999).
  */

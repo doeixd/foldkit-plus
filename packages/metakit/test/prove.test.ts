@@ -1,8 +1,8 @@
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Eq, Expr, Null, Num, Ord, Path, Transition, Verdict } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Eq, Expr, Null, Num, Ord, Path, Transition, Verdict } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 
 const Account = Schema.Struct({
   id: Schema.String,

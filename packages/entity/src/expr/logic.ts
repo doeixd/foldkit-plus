@@ -3,7 +3,7 @@
  * operations: `eq.equals` and `eq.among` (SQL's `=` and `in`, null-giving),
  * `null.isNull`, and Kleene's `bool.and`, `bool.or`, `bool.not`.
  */
-import { Bool, Eq, Node, Null } from 'metakit'
+import { Bool, Eq, Node, Null } from '@doeixd/metakit'
 import { kindOf } from './kind.js'
 import {
   exprOf,

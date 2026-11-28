@@ -1,6 +1,9 @@
+import { DatabaseSync } from 'node:sqlite'
+import { PGlite } from '@electric-sql/pglite'
 import { Effect, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Expr, Num, Ord, Path, Verdict } from '../src/index.js'
+import { Expr, Null, Num, Ord, Path, Verdict } from '../src/index.js'
+import * as Node from '../src/node.js'
 import * as Artifact from '../src/artifact.js'
 import * as Fn from '../src/fn.js'
 import * as Language from '../src/language.js'
@@ -9,6 +12,123 @@ import * as Prove from '../src/prove.js'
 import * as Sql from '../src/sql.js'
 
 const Bounded = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 10_000 }))
+
+const BoundedAdd = Operation.derived({
+  id: 'test.boundedAdd',
+  version: 1,
+  definition: Fn.make({ a: Bounded, b: Bounded }, ({ a, b }) => Num.add(a, b)),
+  paramOrder: ['a', 'b'],
+  returns: Bounded,
+})
+const foreign = Operation.implementations('bounded', BoundedAdd.implementation)
+const expand = <E, A>(expr: Expr.Expr<E, A>) => Operation.expandDerived(expr, [BoundedAdd])
+
+it('preserves argument and result refusals under expansion and coalesce', () => {
+  const badResult = BoundedAdd(9000, 9000)
+  const badArgument = BoundedAdd(-1, 2)
+  for (const { call, contract } of [
+    { call: badResult, contract: 'result' },
+    { call: badArgument, contract: 'argument' },
+  ]) {
+    expect(Expr.evalResult(call, {}, { foreign })).toMatchObject({
+      failure: { detail: expect.stringContaining(contract) },
+    })
+    expect(Expr.evalResult(expand(call), {})).toMatchObject({
+      failure: { reason: 'unmatched', detail: expect.stringContaining(contract) },
+    })
+  }
+  for (const { expr, value } of [
+    { expr: BoundedAdd(1, 2), value: 3 },
+    { expr: Null.coalesce(1, badResult), value: 1 },
+    { expr: BoundedAdd(null, -1), value: null },
+  ]) {
+    expect(Expr.evalResult(expr, {}, { foreign })).toEqual(Result.succeed(value))
+    expect(Expr.evalResult(expand(expr), {})).toEqual(Result.succeed(value))
+  }
+})
+
+it('lowers expanded result and argument guards to SQL in both dialects', async () => {
+  const Row = Schema.Struct({ a: Schema.NullOr(Bounded), b: Schema.NullOr(Bounded) })
+  const $ = Path.from(Row)
+  const sqlite = new DatabaseSync(':memory:')
+  const pg = await PGlite.create()
+  try {
+    sqlite.exec('CREATE TABLE rows (id TEXT PRIMARY KEY, a INTEGER, b INTEGER)')
+    await pg.exec('CREATE TABLE rows (id TEXT PRIMARY KEY, a BIGINT, b BIGINT)')
+    const fixture = [
+      { id: 'badResult', a: 9000, b: 9000 },
+      { id: 'badArg', a: -1, b: 2 },
+      { id: 'good', a: 1, b: 2 },
+      { id: 'nullArg', a: null, b: -1 },
+    ] as const
+    for (const r of fixture) {
+      sqlite.prepare('INSERT INTO rows VALUES (?, ?, ?)').run(r.id, r.a, r.b)
+      await pg.query('INSERT INTO rows VALUES ($1, $2, $3)', [r.id, r.a, r.b])
+    }
+
+    for (const { expr, selectedIds } of [
+      { expr: Ord.gt(BoundedAdd($.a, $.b), 0), selectedIds: ['good'] },
+      {
+        expr: Ord.gt(Null.coalesce(1, BoundedAdd($.a, $.b)), 0),
+        selectedIds: ['badArg', 'badResult', 'good', 'nullArg'],
+      },
+    ]) {
+      const expanded = expand(expr)
+      const sq = Result.getOrThrow(Sql.toWhere(expanded, { dialect: 'sqlite', rowPrefix: [] }))
+      const ps = Result.getOrThrow(Sql.toWhere(expanded, { dialect: 'postgres', rowPrefix: [] }))
+      expect(sq.text).not.toContain(' ELSE ')
+      expect(ps.text).not.toContain(' ELSE ')
+      const params = sq.params.map(value => {
+        if (value === null || typeof value === 'number' || typeof value === 'string') return value
+        throw new Error(`unexpected SQLite parameter: ${String(value)}`)
+      })
+      const sqIds = sqlite
+        .prepare(`SELECT id FROM rows WHERE ${sq.text} ORDER BY id`)
+        .all(...params)
+        .map(row => String(row['id']))
+      const pgIds = (
+        await pg.query<{ id: string }>(`SELECT id FROM rows WHERE ${ps.text} ORDER BY id`, [
+          ...ps.params,
+        ])
+      ).rows.map(r => r.id)
+      expect(sqIds).toEqual(selectedIds)
+      expect(pgIds).toEqual(selectedIds)
+    }
+  } finally {
+    sqlite.close()
+    await pg.close()
+  }
+}, 30_000)
+
+it('keeps a call with an integer or custom check that rulesOfExact cannot discharge', () => {
+  const Fraction = Operation.derived({
+    id: 'test.fraction',
+    version: 1,
+    definition: Fn.make({ a: Schema.Int }, ({ a }) => Num.add(a, 0.5)),
+    paramOrder: ['a'],
+    returns: Schema.Int,
+  })
+  const call = Fraction(2)
+  const expanded = Operation.expandDerived(call, [Fraction])
+  expect(expanded.node).toEqual(call.node)
+  expect(Node.$is('Call')(expanded.node)).toBe(true)
+  expect(Sql.toWhere(Ord.gt(expanded, 0))).toMatchObject({
+    failure: { reason: expect.stringContaining('test.fraction') },
+  })
+
+  const Even = Schema.Int.check(Schema.makeFilter(n => (n % 2 === 0 ? undefined : 'must be even')))
+  const AddEven = Operation.derived({
+    id: 'test.addEven',
+    version: 1,
+    definition: Fn.make({ a: Schema.Int, b: Schema.Int }, ({ a, b }) => Num.add(a, b)),
+    paramOrder: ['a', 'b'],
+    returns: Even,
+  })
+  const evenCall = AddEven(1, 2)
+  const evenExpanded = Operation.expandDerived(evenCall, [AddEven])
+  expect(evenExpanded.node).toEqual(evenCall.node)
+  expect(Node.$is('Call')(evenExpanded.node)).toBe(true)
+})
 
 describe('Operation.derived & Operation.expandDerived (#648 #7 & #597)', () => {
   it('derives JS implementation, preserves named identity in Artifact/Language, and expands cleanly to SQL and Z3', async () => {

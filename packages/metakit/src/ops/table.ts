@@ -2,7 +2,7 @@
  * Closed lookup table of every core operator descriptor (`CoreOpId -> Node.Op`)
  * and its fixed arity.
  *
- * Shared by `metakit/conformance` and `metakit/artifact` so adding a primitive
+ * Shared by `@doeixd/metakit/conformance` and `@doeixd/metakit/artifact` so adding a primitive
  * to `Node.CoreOpId` fails to compile until its descriptor and arity are here.
  */
 import type * as Node from '../node.js'

@@ -3,16 +3,16 @@
  * maximum, an "every" or an "any" over the counted rows, each changed by one
  * row delta at a time.
  *
- * The aggregate is a `metakit/aggregates` value supplied by the caller.
+ * The aggregate is a `@doeixd/metakit/aggregates` value supplied by the caller.
  * This module calls its methods without loading that subpath.
  */
 import { Match, Option } from 'effect'
-import { Node } from 'metakit'
-import type { Any, Count, Every, Max, Min, Sum } from 'metakit/aggregates'
+import { Node } from '@doeixd/metakit'
+import type { Any, Count, Every, Max, Min, Sum } from '@doeixd/metakit/aggregates'
 import type { Keeper } from './deltas.js'
 
 /**
- * The parts of a `metakit/aggregates` value a list's rows are folded with.
+ * The parts of a `@doeixd/metakit/aggregates` value a list's rows are folded with.
  * Only functions of a row, so an aggregate over fewer fields than the list
  * selects is accepted, and one reading a field the list does not select is not.
  */

@@ -220,11 +220,11 @@ const listed = Effect.runSync(partsRuntime.parts.list) // one snapshot; sends no
 
 ### A metakit Machine's transitions as tools
 
-When the rules are a `metakit/machine` `Machine` (transitions with an input Schema and a `when` guard; see [metakit.md](metakit.md)), `machineTools` from `foldkit-agent/metakit` makes one `expose` variant per transition, so nothing is restated:
+When the rules are a `@doeixd/metakit/machine` `Machine` (transitions with an input Schema and a `when` guard; see [metakit.md](metakit.md)), `machineTools` from `foldkit-agent/metakit` makes one `expose` variant per transition, so nothing is restated:
 
 ```ts
-import { Eq, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Eq, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { machineTools } from 'foldkit-agent/metakit'
 
 const Account = Schema.Struct({ status: Schema.Literals(['open', 'frozen']) })

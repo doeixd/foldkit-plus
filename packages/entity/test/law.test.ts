@@ -1,11 +1,11 @@
 /**
  * Entity operators built on `Operation.define` and `claims`: checked by
- * `metakit/conformance`'s `checkOperation`, with defined operators refusing
+ * `@doeixd/metakit/conformance`'s `checkOperation`, with defined operators refusing
  * claims and legacy `Law`/`Evidence` removed.
  */
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import * as Operation from 'metakit/operation'
+import * as Operation from '@doeixd/metakit/operation'
 import { checkOperation } from '../src/conformance/index.js'
 import { Expr, Operators } from '../src/index.js'
 

@@ -1,6 +1,6 @@
 # Hold a rule to a store
 
-A rule that sums child rows (such as keeping an account balance non-negative across its entries) can be broken by two concurrent writes unless the database serializes writers of the same parent row. `metakit/store` declares what each store guarantees (`StoreCapabilities`), refuses mismatched rules at mount time, and `metakit/store/check` tests a store adapter against real concurrent races.
+A rule that sums child rows (such as keeping an account balance non-negative across its entries) can be broken by two concurrent writes unless the database serializes writers of the same parent row. `@doeixd/metakit/store` declares what each store guarantees (`StoreCapabilities`), refuses mismatched rules at mount time, and `@doeixd/metakit/store/check` tests a store adapter against real concurrent races.
 
 ## Example
 

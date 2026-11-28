@@ -49,7 +49,8 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // +8,800 on 2026-11-26 (CI read 209,281): domains-plus adopted metakit/machine (`src/client/machine.ts`,
 // declaring 30 of its 39 own Messages as one Machine) alongside metakit's core evaluator and
 // foldkit-remote's IVM/Effect updates. Ceiling: CI's reading plus ~500, rounded up.
-const CEILING = 209_800
+// +212 bytes over the last ceiling: MetaKit's W1 correctness fixes (2026-11-28: the checker's drop log, the NUL and NaN screens, throw-free refusal text, the literal domain check, the safe-range SQL guard).
+const CEILING = 210_100
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))

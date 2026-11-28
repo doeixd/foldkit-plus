@@ -11,6 +11,6 @@ export default [
   ),
   mutation(
     'Float64 arithmetic accepts an unsafe integer result',
-    '            z3.And(unsafeFp(result), fpInteger(x), fpInteger(y)),\n',
+    '            z3.And(unsafeFp(result), fpInteger(result)),\n',
   ),
 ]

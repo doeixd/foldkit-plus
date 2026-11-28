@@ -1,6 +1,6 @@
 /** The kernel's arithmetic, `Expr.add` and `Expr.sub`: metakit's `num.add` and `num.sub`. */
 import { Schema } from 'effect'
-import { Node, Num } from 'metakit'
+import { Node, Num } from '@doeixd/metakit'
 import { makeOperator, type Operator } from './operator.js'
 
 /** A number, or a null, which a strict operator answers with null. */

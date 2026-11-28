@@ -91,7 +91,7 @@
     "foldkit-entity": "workspace:*",
     "foldkit-metadata": "workspace:*",
     "foldkit-surface": "workspace:*",
-    "metakit": "workspace:*"
+    "@doeixd/metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

@@ -91,6 +91,11 @@ export const make = <const Values extends readonly [string, ...Array<string>]>(
   const rankMap = new Map<string, number>()
   for (let i = 0; i < values.length; i++) {
     const v = values[i]!
+    if (v.includes('\u0000')) {
+      throw new Error(
+        `[metakit] OrderedEnum.make: value ${JSON.stringify(v)} holds a NUL character, which Postgres cannot store`,
+      )
+    }
     if (rankMap.has(v)) {
       throw new Error(`[metakit] OrderedEnum.make duplicate value "${v}"`)
     }

@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { Num, Transition } from 'metakit'
+import { Num, Transition } from '@doeixd/metakit'
 import { expect, it } from 'vitest'
 
 it('reports invalid transition write targets even for dynamic callers', () => {

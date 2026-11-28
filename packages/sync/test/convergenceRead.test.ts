@@ -4,9 +4,9 @@
  * answers of the walks the caller gives are filed.
  */
 import { Schema } from 'effect'
-import { Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Temporal from 'metakit/temporal'
+import { Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { describe, expect, it } from 'vitest'
 import { convergence, settleConvergence } from '../src/metakit.js'
 

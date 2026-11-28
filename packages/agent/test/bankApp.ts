@@ -1,8 +1,8 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Eq, Expr, Num, Transition } from 'metakit'
-import { Money } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
+import { Eq, Expr, Num, Transition } from '@doeixd/metakit'
+import { Money } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
 
 /**
  * An account whose rules are a metakit Machine, and an application whose

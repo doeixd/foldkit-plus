@@ -8,8 +8,8 @@
  */
 import { Option } from 'effect'
 import type { Attribute, HtmlBuilder } from 'foldkit/html'
-import { Expr, Path } from 'metakit'
-import { minimizePaths } from 'metakit/graph/match'
+import { Expr, Path } from '@doeixd/metakit'
+import { minimizePaths } from '@doeixd/metakit/graph/match'
 
 /** Attribute written on every anchored element by the server. */
 export const ANCHOR_ATTRIBUTE = 'data-fk-anchor' as const

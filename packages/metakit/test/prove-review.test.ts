@@ -5,9 +5,9 @@
  */
 import { Effect, Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Arr, Eq, Expr, Null, Num, Ord, Path, Str, Transition, Verdict } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Arr, Eq, Expr, Null, Num, Ord, Path, Str, Transition, Verdict } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 
 const run = Effect.runPromise
 const reasonOf = (verdict: Verdict.Verdict<unknown>): string =>
@@ -107,16 +107,14 @@ describe('a refutation replays, or is not one', () => {
 })
 
 describe('what the lowering leaves undecided', () => {
-  it('a match that may meet a value none of its cases names', async () => {
+  it('refutes a match that may meet a value none of its cases names', async () => {
     const Named = Schema.Struct({ name: Schema.String, plan: Schema.Literals(['free', 'pro']) })
     const $ = Path.forSchema(Named)
     const open = Eq.is(Expr.match($.name, { a: 1 }), 1)
     expect(Result.isFailure(Expr.evalResult(open, { name: 'z', plan: 'free' }))).toBe(true)
-    const undecided = await run(Prove.invariant(Named, open))
-    expect(reasonOf(undecided)).toContain('a match that may meet a value none of its cases names')
-    expect(Verdict.isUnknown(undecided) && undecided.obligation).toEqual(
-      Option.some({ kind: 'unsupported', detail: expect.any(String) }),
-    )
+    expect(Verdict.isFalse(await run(Prove.invariant(Named, open)))).toBe(true)
+    const openAlwaysArm = Ord.gte(Expr.match($.name, { a: 1 }), 0)
+    expect(Verdict.isFalse(await run(Prove.invariant(Named, openAlwaysArm)))).toBe(true)
     const closed = Ord.gte(Expr.match($.plan, { free: 0, pro: 9 }), 0)
     expect(
       Verdict.isTrue(

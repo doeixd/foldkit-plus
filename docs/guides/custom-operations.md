@@ -1,6 +1,6 @@
 # Define an operation and check its laws
 
-Built-in arithmetic and text operations do not cover domain rules like permission bitmasks or clamped scores. `metakit/operation` lets you declare a typed custom operation with its algebraic claims (`commutative`, `associative`, `idempotent`, `identity`, `invertible`, `monotone`), test those claims automatically, and lower the operation to SQL.
+Built-in arithmetic and text operations do not cover domain rules like permission bitmasks or clamped scores. `@doeixd/metakit/operation` lets you declare a typed custom operation with its algebraic claims (`commutative`, `associative`, `idempotent`, `identity`, `invertible`, `monotone`), test those claims automatically, and lower the operation to SQL.
 
 ## Example
 
@@ -8,8 +8,8 @@ Declare a bitwise OR operation over non-negative 31-bit integers, implement it i
 
 ```ts
 import { Schema } from 'effect'
-import * as Operation from 'metakit/operation'
-import { checkOperation } from 'metakit/conformance'
+import * as Operation from '@doeixd/metakit/operation'
+import { checkOperation } from '@doeixd/metakit/conformance'
 
 const Flags = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 2147483647 }))
 
@@ -39,10 +39,10 @@ const report = checkOperation(flagsOr, impls)
 
 ## Lower to SQL
 
-Keep SQL lowering out of browser bundles by importing `metakit/operation/sql` on the server only:
+Keep SQL lowering out of browser bundles by importing `@doeixd/metakit/operation/sql` on the server only:
 
 ```ts
-import { lowering, lowerings, piece } from 'metakit/operation/sql'
+import { lowering, lowerings, piece } from '@doeixd/metakit/operation/sql'
 
 export const sqlLowerings = lowerings(
   lowering(flagsOr, {
@@ -53,7 +53,7 @@ export const sqlLowerings = lowerings(
 )
 ```
 
-If a dialect lacks a lowering (such as SQLite's missing `bit_or` aggregate), `metakit/sql` refuses by operation name and dialect at compile/query time rather than silently falling back.
+If a dialect lacks a lowering (such as SQLite's missing `bit_or` aggregate), `@doeixd/metakit/sql` refuses by operation name and dialect at compile/query time rather than silently falling back.
 
 ## Next
 

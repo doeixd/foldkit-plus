@@ -1,5 +1,5 @@
 /**
- * Conformance (`metakit/conformance`): every primitive operator, over the
+ * Conformance (`@doeixd/metakit/conformance`): every primitive operator, over the
  * values that trip readers up, held to one answer.
  *
  * `checkOpSoundness` takes an operator and, for each choice of awkward

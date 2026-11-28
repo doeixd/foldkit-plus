@@ -39,8 +39,8 @@ import type {
   Predicate,
   Ordering,
 } from 'foldkit-entity'
-import { Node, Str } from 'metakit'
-import { wrap } from 'metakit/build'
+import { Node, Str } from '@doeixd/metakit'
+import { wrap } from '@doeixd/metakit/build'
 import type { OrderTerm } from './cursor.js'
 import { isKernelOperator } from './kernel.js'
 import { isPostgresColumn } from './dialect.js'

@@ -1,12 +1,12 @@
 /**
- * MetaKit semantic developer tooling (`metakit/tooling`, #646 P0).
+ * MetaKit semantic developer tooling (`@doeixd/metakit/tooling`, #646 P0).
  *
  * Shared Effect-native `SemanticIndex` service and `semanticDiff` over
  * MetaKit `Expr` and `Transition` definitions — standalone with zero Vite,
  * editor, or UI runtime dependencies.
  *
  * Distinguishes logical `DeclarationId` (stable across non-semantic edits),
- * `ArtifactFingerprint` (content identity from `metakit/artifact`), and
+ * `ArtifactFingerprint` (content identity from `@doeixd/metakit/artifact`), and
  * `SourceOrigin` (provenance excluded from semantic fingerprints).
  */
 import { Context, Effect, Layer, Match, Option, Schema } from 'effect'
@@ -234,7 +234,7 @@ const entrySubExprs = (
             list.push({ label: `emit:${e.tag}:${field}`, expr: wrap<never, unknown>(node) })
           }
         }
-        if (transition.ensures !== undefined && Option.isSome(transition.ensures)) {
+        if (Option.isSome(transition.ensures)) {
           list.push({ label: 'ensures', expr: transition.ensures.value })
         }
         return list
@@ -301,10 +301,9 @@ const fingerprintTransition = (
         return { tag: e.tag, when: whenArt, fields }
       }),
     )
-    const ensuresEncoded =
-      transition.ensures !== undefined && Option.isSome(transition.ensures)
-        ? Artifact.canonicalJson(yield* Artifact.encodeExpr(transition.ensures.value))
-        : null
+    const ensuresEncoded = Option.isSome(transition.ensures)
+      ? Artifact.canonicalJson(yield* Artifact.encodeExpr(transition.ensures.value))
+      : null
 
     const canonicalPayload = JSON.stringify({
       kind: 'transition',

@@ -4,11 +4,11 @@
  * `OrderedEnum`, `Time`, and `Money.mul`.
  */
 import { Effect, Result, Schema } from 'effect'
-import { Bool, Eq, Expr, Null, Num, Path, Time, Transition, Verdict } from 'metakit'
-import { CalendarDay, Money, OrderedEnum } from 'metakit/domain'
-import * as Graph from 'metakit/graph'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Bool, Eq, Expr, Null, Num, Path, Time, Transition, Verdict } from '@doeixd/metakit'
+import { CalendarDay, Money, OrderedEnum } from '@doeixd/metakit/domain'
+import * as Graph from '@doeixd/metakit/graph'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 import { describe, expect, it } from 'vitest'
 
 describe('Bug-Hunting Sweep 5B: Lifted nullable children, list writes, opaque & Z3 proofs', () => {

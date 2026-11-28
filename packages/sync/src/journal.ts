@@ -26,7 +26,7 @@ import {
 } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Diagnostic, ReportDiagnostic } from 'foldkit-surface'
-import { mount, type Requirement, type StoreCapabilities } from 'metakit/store'
+import { mount, type Requirement, type StoreCapabilities } from '@doeixd/metakit/store'
 import {
   Cursor,
   DocumentId as JournalDocumentId,
@@ -72,7 +72,7 @@ export {
 } from './serverJournal.js'
 
 /**
- * Throws `StoreRefused` (`metakit/store`) where `journal`'s store cannot hold
+ * Throws `StoreRefused` (`@doeixd/metakit/store`) where `journal`'s store cannot hold
  * the document's laws. A law judges the document an operation leaves
  * (`journalContract().judge`), so it holds only where that judgement and the
  * append are one step. A durable journal appends only at the sequence after

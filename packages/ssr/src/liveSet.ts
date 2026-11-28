@@ -12,7 +12,7 @@
  */
 import { Option, type Schema } from 'effect'
 import { GraphEdge, type Graph } from 'foldkit-surface'
-import { covers, minimizePaths, pathsOverlap } from 'metakit/graph/match'
+import { covers, minimizePaths, pathsOverlap } from '@doeixd/metakit/graph/match'
 import type { ResumePlan } from './shared.js'
 
 /** What a page's bound Messages can reach, computed on the server from `Graph.of`. */

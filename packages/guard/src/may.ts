@@ -7,7 +7,7 @@
  */
 import { Effect, Match, Option, Record, Schema } from 'effect'
 import { Derived, Entity, type AnyEntity, type Forbids, type Predict } from 'foldkit-entity'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { attached, type InteractionKey } from './attach.js'
 import { Condition, deciding, type MemberRead, type RowRule } from './condition.js'
 

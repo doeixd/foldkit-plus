@@ -2,7 +2,7 @@
  * `reaches`: each reach variant, the own fields, the Unknown cases and the
  * owner comparison dropped. `pnpm mutate packages/remote/test/reaches.mutations.ts`.
  *
- * `reaches` builds a `metakit/graph` of row edges (one namespace per Entity
+ * `reaches` builds a `@doeixd/metakit/graph` of row edges (one namespace per Entity
  * identity) and asks which readers the write affects, so each entry drops the
  * edges one kind of read contributes, or changes how a namespace is named.
  */
@@ -102,7 +102,7 @@ export default [
   },
   {
     // One namespace per owner decides the members and the footprint alike: the
-    // rewrite onto `metakit/graph` left a single place where owners are compared.
+    // rewrite onto `@doeixd/metakit/graph` left a single place where owners are compared.
     name: 'members and footprints are compared by their Entity name, not its identity',
     edits: [
       {

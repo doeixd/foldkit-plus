@@ -6,7 +6,7 @@
 import { Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { RemoteData } from 'foldkit-remote'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { expectTypeOf } from 'vitest'
 import { GuardAgent } from '../src/agent.js'
 import { Interaction, May, type MayAnswer } from '../src/index.js'

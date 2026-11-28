@@ -7,8 +7,8 @@
  * reads the pointing row under `each`. `Expr.is` asks a row's case.
  */
 import { Match, Option, type Schema } from 'effect'
-import { Node } from 'metakit'
-import { isExpr, loadRows } from 'metakit/build'
+import { Node } from '@doeixd/metakit'
+import { isExpr, loadRows } from '@doeixd/metakit/build'
 import type { ViewerExpr, ViewerPathExpr } from '../context.js'
 import type { AnyEntity, AnyVariantEntity, EntityField, EntityRelation } from '../index.js'
 import { put } from '../record.js'

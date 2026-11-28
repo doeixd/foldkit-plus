@@ -1,9 +1,9 @@
 /**
  * Effect-native Interpreter service and composable middleware layers
- * (`metakit/interpreter`).
+ * (`@doeixd/metakit/interpreter`).
  *
  * Provides `Interpreter` as an Effect `Context.Reference` (defaulting to the
- * in-memory evaluator, mirroring `Solver` in `metakit/prove`), so applications
+ * in-memory evaluator, mirroring `Solver` in `@doeixd/metakit/prove`), so applications
  * supply foreign operations (`Operation.define`), tracing spans, audit
  * observers, or foreign-op allowlists once via Effect `Layer`s instead of
  * threading `{ foreign }` options through every call site.
@@ -14,7 +14,7 @@ import * as Expr from './expr.js'
 import type * as Fn from './fn.js'
 import * as Language from './language.js'
 import * as Node from './node.js'
-import { applyForeign, evalNode } from './ops/eval.js'
+import { applyForeign, evalNode, matchArm } from './ops/eval.js'
 import { readable } from './path.js'
 import type * as Policy from './policy.js'
 import * as Transition from './transition.js'
@@ -48,7 +48,6 @@ export type InterpreterEvent =
   | {
       readonly kind: 'runFn'
       readonly backend: string
-      readonly checked: boolean
       readonly durationMs: number
       readonly ok: boolean
     }
@@ -96,12 +95,11 @@ export interface InterpreterBackend {
     input: NoInfer<Input>,
     ...args: Transition.SuppliedArgs<Supplied>
   ) => Effect.Effect<StepOutput<State, Emit>, Transition.Refused>
-  /** Execute a `Fn` (optionally contract-checked via `runChecked`). */
+  /** Execute a `Fn` with contract checking (`runChecked`). */
   readonly runFn: <P extends Fn.ParamSchemas, R>(
     fn: Fn.Fn<P, R>,
     args: Fn.ParamValues<P>,
-    options?: { readonly checked?: boolean },
-  ) => Effect.Effect<R | null, Node.Refusal | Fn.FnContractError>
+  ) => Effect.Effect<R, Fn.FnContractError>
   /** Evaluate a named `Policy` rule. */
   readonly allow: <
     Row,
@@ -116,7 +114,7 @@ export interface InterpreterBackend {
   /**
    * Return a copy of this backend with `foreign` (and optionally `name` /
    * `allowlist`) updated while preserving any surrounding middleware wrappers
-   * (`withTracing`, `withObserver`).
+   * (`withTracing`, `withObserver`). A supplied allowlist only narrows access.
    */
   readonly rebind?: (options: {
     readonly name?: string | undefined
@@ -138,8 +136,7 @@ const filterForeign = (
   if (allowlist === undefined) return table
   const filtered: Record<string, Expr.ForeignImplementation> = {}
   for (const [key, impl] of Object.entries(table)) {
-    const baseId = key.split('@')[0] ?? key
-    if (allowlist.has(key) || allowlist.has(baseId)) {
+    if (Node.isForeignAllowed(key, allowlist)) {
       filtered[key] = impl
     }
   }
@@ -152,6 +149,15 @@ const mergeForeign = (
   allowlist?: ReadonlySet<string>,
 ): Expr.ForeignImplementations =>
   filterForeign(override === undefined ? base : { ...base, ...override }, allowlist)
+
+const intersectAllowlists = (
+  current: ReadonlySet<string> | undefined,
+  next: ReadonlySet<string> | undefined,
+): ReadonlySet<string> | undefined => {
+  if (current === undefined) return next
+  if (next === undefined) return current
+  return new Set(Array.from(next).filter(key => current.has(key)))
+}
 
 /** Construct an in-memory `InterpreterBackend` with optional ambient `foreign` implementations. */
 export const makeMemoryBackend = (options?: MemoryBackendOptions): InterpreterBackend => {
@@ -183,10 +189,7 @@ export const makeMemoryBackend = (options?: MemoryBackendOptions): InterpreterBa
       const callArgs = [supplied, mergedOptions] as unknown as Transition.SuppliedArgs<Supplied>
       return Effect.fromResult(Transition.step(transition, state, input, ...callArgs))
     },
-    runFn: (fn, args, opts) =>
-      opts?.checked === true
-        ? Effect.fromResult(fn.runChecked(args, readerOptions))
-        : Effect.fromResult(Expr.evalResult(fn.body, args, readerOptions)),
+    runFn: (fn, args) => Effect.fromResult(fn.runChecked(args, readerOptions)),
     allow: (policy, rule, env) =>
       Effect.sync(() => {
         if (!Object.hasOwn(policy.rules, rule)) {
@@ -201,7 +204,7 @@ export const makeMemoryBackend = (options?: MemoryBackendOptions): InterpreterBa
       makeMemoryBackend({
         name: next.name ?? name,
         foreign: next.foreign,
-        allowlist: next.allowlist ?? allowlist,
+        allowlist: intersectAllowlists(allowlist, next.allowlist),
       }),
   }
 }
@@ -236,9 +239,9 @@ export const withForeign = (foreign: Expr.ForeignImplementations): Layer.Layer<n
 
 /**
  * Sandbox layer: restricts the current `Interpreter`'s `foreign` implementations
- * (including any caller-supplied `step` options) to only those whose ids appear
- * in `allowedForeignOps`. Any disallowed foreign op is omitted so evaluation
- * refuses it cleanly with `Node.Refusal`.
+ * (including any caller-supplied `step` options) to only those whose exact
+ * `id@version` names appear in every layered allowlist. Any disallowed foreign op
+ * is omitted so evaluation refuses it cleanly with `Node.Refusal`.
  */
 export const withAllowlist = (allowedForeignOps: ReadonlySet<string>): Layer.Layer<never> =>
   Layer.effect(
@@ -275,10 +278,10 @@ const wrapTracing = (inner: InterpreterBackend, prefix: string): InterpreterBack
     inner
       .step(transition, state, input, ...args)
       .pipe(Effect.withSpan(`${prefix}.step`, { attributes: { backend: inner.name } })),
-  runFn: (fn, args, opts) =>
-    inner.runFn(fn, args, opts).pipe(
+  runFn: (fn, args) =>
+    inner.runFn(fn, args).pipe(
       Effect.withSpan(`${prefix}.runFn`, {
-        attributes: { backend: inner.name, checked: opts?.checked === true },
+        attributes: { backend: inner.name },
       }),
     ),
   allow: (policy, rule, env) =>
@@ -360,15 +363,14 @@ const wrapObserver = (
       })
       return yield* exit
     }),
-  runFn: (fn, args, opts) =>
+  runFn: (fn, args) =>
     Effect.gen(function* () {
       const start = yield* Clock.currentTimeMillis
-      const exit = yield* Effect.exit(inner.runFn(fn, args, opts))
+      const exit = yield* Effect.exit(inner.runFn(fn, args))
       const end = yield* Clock.currentTimeMillis
       yield* observer({
         kind: 'runFn',
         backend: inner.name,
-        checked: opts?.checked === true,
         durationMs: end - start,
         ok: Exit.isSuccess(exit),
       })
@@ -452,13 +454,12 @@ export const run = <State, Input, Emit, Supplied>(
 ): Effect.Effect<State, Transition.Refused> =>
   Effect.map(step(transition, state, input, ...args), s => s.state)
 
-/** Execute a `Fn` using the current `Interpreter`. */
+/** Execute a `Fn` with contract checking (`runChecked`) using the current `Interpreter`. */
 export const runFn = <P extends Fn.ParamSchemas, R>(
   fn: Fn.Fn<P, R>,
   args: Fn.ParamValues<P>,
-  options?: { readonly checked?: boolean },
-): Effect.Effect<R | null, Node.Refusal | Fn.FnContractError> =>
-  Effect.flatMap(Effect.service(Interpreter), i => i.runFn(fn, args, options))
+): Effect.Effect<R, Fn.FnContractError> =>
+  Effect.flatMap(Effect.service(Interpreter), i => i.runFn(fn, args))
 
 /** Evaluate a named `Policy` rule using the current `Interpreter`. */
 export const allow = <
@@ -600,7 +601,8 @@ const compileNode = (
           return Node.illTyped('if', 'a boolean', c)
         }
       },
-      Match: ({ on, cases, otherwise }): CompiledFn => {
+      Match: (match): CompiledFn => {
+        const { on, cases, otherwise } = match
         const onFn = visit(on)
         const table = new Map<string, CompiledFn>()
         for (const [label, branch] of cases) {
@@ -611,6 +613,10 @@ const compileNode = (
         return (env: unknown) => {
           const target = onFn(env)
           if (Node.isRefusal(target)) return target
+          if (Array.isArray(target) || (typeof target === 'string' && target.includes('\u0000'))) {
+            const taken = matchArm(match, target)
+            if ('value' in taken) return taken.value
+          }
           const held = Node.textIdentity(target)
           if (typeof held === 'string') {
             const hit = table.get(held)
@@ -628,7 +634,7 @@ const compileNode = (
       Opaque: ({ run }): CompiledFn => {
         hybrid = true
         return (env: unknown) => {
-          const out = run(env)
+          const out = run(env, foreign)
           return out === undefined ? null : out
         }
       },

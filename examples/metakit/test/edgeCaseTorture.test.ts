@@ -9,10 +9,10 @@
  * - `Inspect.toJsonSchema` & `Expr.rulesOf` on `Schema.Option`, `Schema.optional(Schema.NullOr(...))`
  */
 import { Effect, Option, Result, Schema } from 'effect'
-import { Abstract, Arr, Bool, Eq, Expr, Null, Num, Path, Str, Verdict } from 'metakit'
-import { Text } from 'metakit/domain'
-import * as Inspect from 'metakit/inspect'
-import * as Prove from 'metakit/prove'
+import { Abstract, Arr, Bool, Eq, Expr, Null, Num, Path, Str, Verdict } from '@doeixd/metakit'
+import { Text } from '@doeixd/metakit/domain'
+import * as Inspect from '@doeixd/metakit/inspect'
+import * as Prove from '@doeixd/metakit/prove'
 import { describe, expect, it } from 'vitest'
 
 describe('Bug-Hunting Sweep 4: Soundness & adversarial edge cases', () => {

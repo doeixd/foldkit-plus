@@ -1,6 +1,6 @@
 import { Option, Result, Schema } from 'effect'
-import { Eq, Expr, Path, Transition, Verdict } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Eq, Expr, Path, Transition, Verdict } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { describe, expect, it } from 'vitest'
 import { Can, CanRefusal, initialRemoteModel, storeRowPath } from '../src/index.js'
 import { entityKey } from '../src/store.js'

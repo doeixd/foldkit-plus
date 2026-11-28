@@ -1,5 +1,5 @@
 /**
- * Declarative authorization policies (`metakit/policy`, browser & server safe).
+ * Declarative authorization policies (`@doeixd/metakit/policy`, browser & server safe).
  *
  * Keeps authority (`{ row, principal }`) strictly scoped apart from data
  * validity (`row` invariants): `Policy` rules can read both `row` and
@@ -8,7 +8,7 @@
  * Supports runtime `allow`, partial-evaluation `can` (for UI/agent hints),
  * and synchronous Tier 3 Zone checks (`checkImplication`, `checkConsistent`).
  * For Tier 4 Z3 escalation and counterexample witnesses, pass a `Policy` to
- * `Prove.policyImplies` or `Prove.policyConsistent` in `metakit/prove`.
+ * `Prove.policyImplies` or `Prove.policyConsistent` in `@doeixd/metakit/prove`.
  */
 import { Option, Pipeable, Result, type Schema } from 'effect'
 import * as AbstractCheck from './abstract/check.js'

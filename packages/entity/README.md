@@ -863,7 +863,7 @@ Judge.query(ByHandle, { handle: 'ada' }, Option.getOrThrow(holder.row(Post, 'p2'
 // { _tag: 'Unknown', reason: 'User u2 is not held', obligation: none }
 ```
 
-A verdict is metakit's `Verdict` (read it with `Verdict.match` from `metakit`):
+A verdict is metakit's `Verdict` (read it with `Verdict.match` from `@doeixd/metakit`):
 `True`, `False` or `Unknown`. A predicate SQL leaves null is `False` (a row is
 not kept on it; `Judge.predicate` gives the witness `'null'`); `Unknown` means the answer
 rests on a field or row the holder lacks or may not see, or on an operator only

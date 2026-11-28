@@ -5,7 +5,7 @@
  * the Schema stores, the inputs carry the bounds and step it declares, and a
  * rule over two keys shows its message beside both and goes when it holds.
  */
-import { CalendarDay, Money } from 'metakit/domain'
+import { CalendarDay, Money } from '@doeixd/metakit/domain'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it, vi } from 'vitest'

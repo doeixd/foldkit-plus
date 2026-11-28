@@ -7,6 +7,6 @@ export default defineConfig({
   clean: true,
   target: 'es2022',
   deps: {
-    neverBundle: ['effect', 'foldkit-surface', /^foldkit(\/.*)?$/, /^metakit(\/.*)?$/],
+    neverBundle: ['effect', 'foldkit-surface', /^foldkit(\/.*)?$/, /^@doeixd\/metakit(\/.*)?$/],
   },
 })

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { Schema } from 'effect'
-import { Num, Path, Transition } from 'metakit'
+import { Num, Path, Transition } from '@doeixd/metakit'
 import { describe, expect, it, vi } from 'vitest'
 import { Binder, Binding, type BinderTransition } from '../src/binder.js'
 import { claimBinder } from '../src/handoff.js'

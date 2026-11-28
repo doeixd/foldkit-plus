@@ -2,14 +2,14 @@
 
 Effect `Schema` already gives you types, runtime decoding, and JSON Schema from one shape—until you add a cross-field rule with `Schema.makeFilter` or an update function in plain TypeScript. Because JavaScript closures are opaque, you end up repeating the same rule in SQL `CHECK`/`WHERE` clauses, in UI `disabled` checks, and in tests.
 
-`metakit` extends Effect `Schema` by keeping those rules and single-step transitions as inspectable data. This tutorial takes you from an ordinary Effect `Schema` to one rule that validates values, generates Postgres SQL, disables UI actions when a row is frozen, and proves a withdrawal cannot overdraw an account. For the deeper design rationale, see [Why Effect Schema needs inspectable expressions](./why-metakit.md); the full runnable version lives in [`examples/metakit/src/demo.ts`](../../../examples/metakit/src/demo.ts).
+`@doeixd/metakit` extends Effect `Schema` by keeping those rules and single-step transitions as inspectable data. This tutorial takes you from an ordinary Effect `Schema` to one rule that validates values, generates Postgres SQL, disables UI actions when a row is frozen, and proves a withdrawal cannot overdraw an account. For the deeper design rationale, see [Why Effect Schema needs inspectable expressions](./why-metakit.md); the full runnable version lives in [`examples/metakit/src/demo.ts`](../../../examples/metakit/src/demo.ts).
 
 ## Prerequisites
 
-Install `metakit` alongside `effect`. `z3-solver` is a general-purpose solver; add it as a dev dependency only if you want counterexamples for transitions the built-in checks cannot decide (this tutorial's proof does not need it).
+Install `@doeixd/metakit` alongside `effect`. `z3-solver` is a general-purpose solver; add it as a dev dependency only if you want counterexamples for transitions the built-in checks cannot decide (this tutorial's proof does not need it).
 
 ```bash
-pnpm add metakit effect
+pnpm add @doeixd/metakit effect
 pnpm add -D z3-solver
 ```
 
@@ -21,7 +21,7 @@ An Effect `Schema` describes the shape of a record. `Expr.refine` attaches a dat
 
 ```ts
 import { Result, Schema } from 'effect'
-import { Eq, Expr, Num, Transition } from 'metakit'
+import { Eq, Expr, Num, Transition } from '@doeixd/metakit'
 
 export const Account = Schema.Struct({
   id: Schema.String,
@@ -39,10 +39,10 @@ Decoding with `Schema.decodeUnknownSync(Account)` now enforces `balance >= 0`, `
 
 ## 2. Generate SQL `CHECK` and `WHERE` from the same rule
 
-Because the invariant is data rather than a closure, `metakit/sql` compiles it to SQL without re-writing it.
+Because the invariant is data rather than a closure, `@doeixd/metakit/sql` compiles it to SQL without re-writing it.
 
 ```ts
-import * as Sql from 'metakit/sql'
+import * as Sql from '@doeixd/metakit/sql'
 
 const check = Result.getOrThrow(Sql.toCheck(Account, { dialect: 'postgres' }))
 // check ->
@@ -65,7 +65,7 @@ The check ends in `IS TRUE` because SQL lets a `CHECK` pass when its result is n
 A `Transition` is one state change: a boolean guard (`when`) with the field writes (`apply`) that happen together when the guard holds. A `Machine` is a named set of transitions over one Schema. You can evaluate a transition against a full `{ state, input }` pair to run the update, or against a partial `{ state }` to know whether the action is allowed before the user types an amount.
 
 ```ts
-import * as Machine from 'metakit/machine'
+import * as Machine from '@doeixd/metakit/machine'
 
 const Withdraw = Transition.make({
   state: Account,
@@ -116,7 +116,7 @@ Use `Machine.intent` when the same control checks a transition and builds its me
 
 ```ts
 import { Effect } from 'effect'
-import * as Prove from 'metakit/prove'
+import * as Prove from '@doeixd/metakit/prove'
 
 const report = await Effect.runPromise(
   Prove.machine(AccountMachine, { pin: ['Withdraw', 'Freeze'] }),
@@ -131,11 +131,11 @@ If someone removes `Num.lte(input.amount, Num.sub(state.balance, state.reserved)
 
 ## 5. Write a generic helper over a Schema
 
-When you write a generic helper that both builds a wrapper Schema (`Schema.Struct`, `Schema.Array`, `Expr.refine`, `Inspect.fieldSpecs`) and decodes it synchronously (`Schema.decodeUnknownSync`), constrain the type parameter to `SchemaOf` (`Schema.Top & Schema.ConstraintDecoder<unknown>`) exported from `metakit`:
+When you write a generic helper that both builds a wrapper Schema (`Schema.Struct`, `Schema.Array`, `Expr.refine`, `Inspect.fieldSpecs`) and decodes it synchronously (`Schema.decodeUnknownSync`), constrain the type parameter to `SchemaOf` (`Schema.Top & Schema.ConstraintDecoder<unknown>`) exported from `@doeixd/metakit`:
 
 ```ts
 import { Schema } from 'effect'
-import type { SchemaOf } from 'metakit'
+import type { SchemaOf } from '@doeixd/metakit'
 
 export const decodeTable = <S extends SchemaOf>(row: S, input: unknown) =>
   Schema.decodeUnknownSync(Schema.Struct({ rows: Schema.Array(row) }))(input)
@@ -143,7 +143,7 @@ export const decodeTable = <S extends SchemaOf>(row: S, input: unknown) =>
 
 Using only `Schema.Top` fails on `decodeUnknownSync` (`DecodingServices` is `unknown`, not `never`); using only `Schema.ConstraintDecoder<unknown>` fails on `Schema.Struct` / `Schema.Array` because it lacks `Schema.Top`'s combinators. When your helper only constructs or inspects Schemas (without decoding), `Schema.Top` alone is enough.
 
-If you attach `Schema.annotate({ title, description })` alongside `Expr.refine(...)` and also pass the Schema to Effect's `Schema.toJsonSchemaDocument`, place `.annotate(...)` **before** `Expr.refine(...)` (`metakit/inspect` reads annotations in either order, while Effect's generator reads annotations placed before the refinement).
+If you attach `Schema.annotate({ title, description })` alongside `Expr.refine(...)` and also pass the Schema to Effect's `Schema.toJsonSchemaDocument`, place `.annotate(...)` **before** `Expr.refine(...)` (`@doeixd/metakit/inspect` reads annotations in either order, while Effect's generator reads annotations placed before the refinement).
 
 ## Next
 

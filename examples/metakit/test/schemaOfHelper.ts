@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { Arr, Expr, Num, type SchemaOf } from 'metakit'
+import { Arr, Expr, Num, type SchemaOf } from '@doeixd/metakit'
 
 export function table<S extends SchemaOf>(row: S) {
   const Table = Schema.Struct({

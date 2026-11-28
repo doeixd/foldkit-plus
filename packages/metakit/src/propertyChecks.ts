@@ -7,7 +7,7 @@
  */
 import { Equal } from 'effect'
 import * as Node from './node.js'
-import { isSafeNumber } from './ops/kind.js'
+import { isPortableValue, isSafeNumber } from './ops/kind.js'
 import { wellFormed } from './ops/str.js'
 import { EARLIEST_DAY, LATEST_DAY } from './ops/time.js'
 import type { Domain, OpProperties, Side } from './properties.js'
@@ -168,7 +168,8 @@ export const checkProperties = (
     }
   }
   if (reflexive !== undefined) {
-    for (const x of awkward.filter(value => !Node.isRefusal(value) && !holdsNul(value))) {
+    // The reflexive law applies to a read no equality refuses (`isPortableRead`): no NUL text, no NaN.
+    for (const x of awkward.filter(isPortableValue)) {
       expect('reflexive', [x, x], sameAnswer(run([x, x]), reflexive.value), 'of one read')
     }
   }

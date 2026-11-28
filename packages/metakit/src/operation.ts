@@ -1,5 +1,5 @@
 /**
- * Typed custom operations with checked algebraic claims (`metakit/operation`).
+ * Typed custom operations with checked algebraic claims (`@doeixd/metakit/operation`).
  *
  * An operation is declared once with `Operation.define`: its id, version,
  * argument and result Schemas, null rule and claims. The declaration is a
@@ -8,11 +8,14 @@
  * Schemas so every claim's domain is enforced at run time.
  */
 import { Equal, Option, Schema, SchemaAST } from 'effect'
+import { rulesOfExact, type UnreadCheck } from './expr.js'
 import type { Fn, ParamSchemas, ReturnCarrier } from './fn.js'
 import * as Node from './node.js'
 import { orOp } from './ops/bool.js'
 import { toNode, wrap, type ExprInput, type NullOf } from './ops/core.js'
 import { evalNode, type ForeignImplementation, type ForeignImplementations } from './ops/eval.js'
+import { guardedBy, type GuardCondition } from './ops/guard.js'
+import { isAlwaysInteger } from './ops/integerTerm.js'
 import { isNullOp } from './ops/null.js'
 export { applyForeign } from './ops/eval.js'
 import type { Expr } from './path.js'
@@ -325,6 +328,11 @@ export const define = <
       `[metakit] Operation.define: "${id}" is under the core prefix "${reserved}"; choose an id outside ${Node.RESERVED_PREFIXES.join(', ')}.`,
     )
   }
+  if (id.includes('@')) {
+    throw new Error(
+      `[metakit] Operation.define: "${id}" contains "@", which separates an operation id from its version; choose an id without "@".`,
+    )
+  }
   if (!Number.isSafeInteger(spec.version) || spec.version < 1) {
     throw new Error(
       `[metakit] Operation.define: the version of "${id}" is ${String(spec.version)}; a version is a positive integer, and a changed meaning takes a new one.`,
@@ -632,7 +640,10 @@ export interface DerivedOperation<
 
 /** Any `DerivedOperation`, regardless of its concrete signature. */
 export interface AnyDerivedOperation extends AnyOperation {
-  readonly definition: (args: never) => Expr<never, unknown>
+  readonly definition: {
+    (args: never): Expr<never, unknown>
+    readonly bare: (args: never) => Expr<never, unknown>
+  }
   readonly paramOrder: ReadonlyArray<string>
   readonly implementation: Implementation
 }
@@ -706,15 +717,23 @@ export const derived = <
     ...(spec.claims === undefined ? {} : { claims: spec.claims }),
   }) as Operation<Id, V, OrderedParamSchemas<P, Order>, R, N, C>
 
-  const implementation = implement(op, (...values) => {
-    const env: Record<string, unknown> = {}
-    for (let i = 0; i < spec.paramOrder.length; i++) {
-      env[spec.paramOrder[i]!] = values[i]
-    }
-    const result = evalNode(spec.definition.body.node, env, spec.foreign)
-    if (Node.isRefusal(result)) throw result
-    return result as Schema.Schema.Type<R> | null
-  })
+  // The body runs its inner operations from the table it is evaluated with;
+  // the one given at definition fills only what that table lacks (T5).
+  const implementation: Implementation<Operation<Id, V, OrderedParamSchemas<P, Order>, R, N, C>> = {
+    op,
+    key: Node.foreignName(op.descriptor),
+    entry: {
+      run: (values, foreign) => {
+        const env: Record<string, unknown> = {}
+        for (let i = 0; i < spec.paramOrder.length; i++) {
+          env[spec.paramOrder[i]!] = values[i]
+        }
+        const result = evalNode(spec.definition.body.node, env, { ...spec.foreign, ...foreign })
+        if (Node.isRefusal(result)) throw result
+        return result
+      },
+    },
+  }
 
   return Object.assign(op, {
     definition: spec.definition,
@@ -725,10 +744,32 @@ export const derived = <
 
 const DEFAULT_MAX_DERIVED_NODES = 10_000
 
+const canDischargeUnread = (unread: ReadonlyArray<UnreadCheck>, target: Node.Node): boolean =>
+  unread.every(
+    check =>
+      check.at.length === 0 &&
+      Option.exists(check.id, id => id === 'effect/schema/isInt') &&
+      isAlwaysInteger(target),
+  )
+
+const substituteRuleTarget = (ruleNode: Node.Node, target: Node.Node): Node.Node =>
+  Node.substitutePaths(ruleNode, segments =>
+    segments.length === 0 ? Option.some(target) : Option.none(),
+  )
+
+const allowNullRule = (target: Node.Node, cond: Node.Node): Node.Node =>
+  Node.Call({
+    op: orOp,
+    args: [Node.Call({ op: isNullOp, args: [target] }), cond],
+  })
+
 /**
  * Symbolically expand calls to any `DerivedOperation` in `ops` using their
- * canonical `Fn` definitions, so SQL, Tier 3, and Z3 readers can lower and
- * verify them directly. Detects cyclic expansions and enforces `maxNodes`.
+ * canonical `Fn` definitions, preserving argument and result Schema refusals
+ * and strict null propagation so SQL, Tier 3, and Z3 readers can lower and
+ * verify them directly. Calls whose argument or result Schemas carry checks
+ * that cannot be stated or discharged stay unexpanded. Detects cyclic
+ * expansions and enforces `maxNodes`.
  */
 export const expandDerived = <Env, A>(
   expr: Expr<Env, A>,
@@ -772,10 +813,47 @@ export const expandDerived = <Env, A>(
         for (let i = 0; i < derivedOp.paramOrder.length; i++) {
           argRecord[derivedOp.paramOrder[i]!] = wrap(expandedArgs[i]!)
         }
-        const inlined = derivedOp.definition(argRecord as never).node
+        const inlined = derivedOp.definition.bare(argRecord as never).node
         const nextActive = new Set(active)
         nextActive.add(key)
         const expandedBody = expandNode(inlined, nextActive)
+
+        const argSchemas = derivedOp.descriptor.args
+        const resultSchema = derivedOp.descriptor.result
+        const argExact = argSchemas.map(schema => rulesOfExact(schema))
+        const resultExact = rulesOfExact(resultSchema)
+
+        for (let i = 0; i < argExact.length; i++) {
+          if (!canDischargeUnread(argExact[i]!.unread, expandedArgs[i]!)) {
+            return Node.Call({ op, args: expandedArgs })
+          }
+        }
+        if (!canDischargeUnread(resultExact.unread, expandedBody)) {
+          return Node.Call({ op, args: expandedArgs })
+        }
+
+        const conditions: Array<GuardCondition> = []
+        const ownNulls = derivedOp.descriptor.nulls === 'own'
+        for (let i = 0; i < argExact.length; i++) {
+          const argNode = expandedArgs[i]!
+          const contract = `${key}: argument ${i + 1}`
+          for (const rule of argExact[i]!.rules) {
+            const cond = substituteRuleTarget(rule.expr.node, argNode)
+            conditions.push({
+              cond: ownNulls ? allowNullRule(argNode, cond) : cond,
+              contract,
+            })
+          }
+        }
+        for (const rule of resultExact.rules) {
+          const cond = substituteRuleTarget(rule.expr.node, expandedBody)
+          conditions.push({
+            cond: allowNullRule(expandedBody, cond),
+            contract: `${key}: result`,
+          })
+        }
+
+        const guardedBody = guardedBy(conditions, expandedBody)
         if (derivedOp.descriptor.nulls === 'strict' && expandedArgs.length > 0) {
           let anyNull: Node.Node = Node.Call({ op: isNullOp, args: [expandedArgs[0]!] })
           for (let i = 1; i < expandedArgs.length; i++) {
@@ -787,10 +865,10 @@ export const expandDerived = <Env, A>(
           return Node.If({
             cond: anyNull,
             then: Node.Lit({ value: null }),
-            otherwise: expandedBody,
+            otherwise: guardedBody,
           })
         }
-        return expandedBody
+        return guardedBody
       },
       If: ({ cond, then: t, otherwise }) =>
         Node.If({

@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsdown'
 
-// `foldkit-remote/maintained` accepts definitions from `metakit/aggregates`.
-const metakit = /^metakit(\/.*)?$/
+// `foldkit-remote/maintained` accepts definitions from `@doeixd/metakit/aggregates`.
+const metakit = /^@doeixd\/metakit(\/.*)?$/
 
 // One file per source module, relative imports left as written: a page then
 // keeps only the modules it reads, as from source (#215), and the `Remote`

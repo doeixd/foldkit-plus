@@ -1,5 +1,5 @@
 /**
- * `Ordinal`: lexicographic fractional-index ordering keys (`metakit/domain`).
+ * `Ordinal`: lexicographic fractional-index ordering keys (`@doeixd/metakit/domain`).
  *
  * Uses base-62 ASCII digits (`0-9A-Za-z`, strictly ascending by Unicode code
  * point), so JavaScript (`Str.lt`), Postgres (`ORDER BY col COLLATE "C"` /

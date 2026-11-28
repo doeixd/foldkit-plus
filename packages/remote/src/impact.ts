@@ -26,7 +26,7 @@ import {
 import { edge, hasNext, hasPrevious, isGapped, items, type Connection } from './connection.js'
 import { RowPlace, placeIn, withEdge, withoutEdge } from './placement.js'
 import { Data, Match, Option } from 'effect'
-import { pathsOverlap } from 'metakit/graph/match'
+import { pathsOverlap } from '@doeixd/metakit/graph/match'
 import type { ListQuery, Lists } from './capability.js'
 import { belongsEncoded, type BelongsOptions } from './matching.js'
 import type { RemoteModel } from './model.js'

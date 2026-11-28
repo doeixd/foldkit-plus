@@ -2,8 +2,8 @@
  * The node kinds and operator sorts no conformance case reaches, through both
  * judges, as `lower.test.ts` runs the conformance cases (`lowerKindCases.ts`).
  */
-import { Node } from 'metakit'
-import { evalNode } from 'metakit/build'
+import { Node } from '@doeixd/metakit'
+import { evalNode } from '@doeixd/metakit/build'
 import { describe, expect, it } from 'vitest'
 import { envOf } from '../src/environment.js'
 import { foreignOf, readingOf } from '../src/reading.js'

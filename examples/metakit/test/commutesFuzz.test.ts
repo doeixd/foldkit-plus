@@ -8,9 +8,9 @@
  * across 200 randomized executions.
  */
 import { Result, Schema } from 'effect'
-import { Bool, Eq, Num, Transition, Verdict } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Pairs from 'metakit/pairs'
+import { Bool, Eq, Num, Transition, Verdict } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Pairs from '@doeixd/metakit/pairs'
 import { describe, expect, it } from 'vitest'
 
 const Item = Schema.Struct({

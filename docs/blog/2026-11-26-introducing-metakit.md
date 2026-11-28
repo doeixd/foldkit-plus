@@ -12,7 +12,7 @@ Every backend starts with a simple rule: *an account's reserved hold can never e
 
 You write that rule once in your [Effect `Schema`](https://effect.website) validator, copy it into your UI to disable the **Withdraw** button, and copy it a third time into a Postgres `UPDATE ... WHERE` clause. When one copy drifts, TypeScript cannot catch it because plain JavaScript filter functions are opaque.
 
-**`metakit`** replaces only those opaque closures with typed expression trees stored directly on your Effect v4 `Schema`. One declaration drives runtime decoding, UI disabled states, parameterized Postgres or SQLite SQL, and automated proofs. You can read the complete runnable walkthrough in [`examples/metakit/src/demo.ts`](../../examples/metakit/src/demo.ts).
+**`@doeixd/metakit`** replaces only those opaque closures with typed expression trees stored directly on your Effect v4 `Schema`. One declaration drives runtime decoding, UI disabled states, parameterized Postgres or SQLite SQL, and automated proofs. You can read the complete runnable walkthrough in [`examples/metakit/src/demo.ts`](../../examples/metakit/src/demo.ts).
 
 Here is the drift bug you are trying to eliminate:
 
@@ -37,14 +37,14 @@ Copy #3 compiles, passes unit tests where `reserved` is `0`, and drains held fun
 
 ## Put the rule on your Effect Schema once
 
-Install `metakit` alongside Effect v4 (`pnpm add metakit effect`).
+Install `@doeixd/metakit` alongside Effect v4 (`pnpm add @doeixd/metakit effect`).
 
-Instead of `Schema.makeFilter`, attach the rule with `Expr.refine` from `metakit`. Its callback receives `$`, a typed field accessor built from your `Schema.Struct`, and returns a data tree using operator helpers (`Num` for numbers, `Eq` for equality, `Expr.all` for logical AND). Pass `Account` to `Sql.toCheck` from `metakit/sql` to translate the same rule into a database constraint:
+Instead of `Schema.makeFilter`, attach the rule with `Expr.refine` from `@doeixd/metakit`. Its callback receives `$`, a typed field accessor built from your `Schema.Struct`, and returns a data tree using operator helpers (`Num` for numbers, `Eq` for equality, `Expr.all` for logical AND). Pass `Account` to `Sql.toCheck` from `@doeixd/metakit/sql` to translate the same rule into a database constraint:
 
 ```ts
 import { Result, Schema } from 'effect'
-import { Expr, Num } from 'metakit'
-import * as Sql from 'metakit/sql'
+import { Expr, Num } from '@doeixd/metakit'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Account = Schema.Struct({
   id: Schema.String,
@@ -85,8 +85,8 @@ Data-at-rest checks only catch bad rows after the fact. Most drift happens in st
 
 ```ts
 import { Result, Schema } from 'effect'
-import { Eq, Expr, Num, Transition, Verdict } from 'metakit'
-import * as Sql from 'metakit/sql'
+import { Eq, Expr, Num, Transition, Verdict } from '@doeixd/metakit'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Withdraw = Transition.make({
   state: Account,
@@ -131,13 +131,13 @@ Pass `update.text` and `update.params` straight to `pg`, `postgres.js`, or Drizz
 
 ## Catch the forgotten `- reserved` bug before CI ships it
 
-Now introduce the exact bug from the opening snippet: check `amount <= balance` instead of `amount <= balance - reserved`. Group your transitions into a state machine with `Machine.make` (`metakit/machine`) and pass it to `Prove.machine` (`metakit/prove`, backed by the optional peer `z3-solver`, an automated theorem prover):
+Now introduce the exact bug from the opening snippet: check `amount <= balance` instead of `amount <= balance - reserved`. Group your transitions into a state machine with `Machine.make` (`@doeixd/metakit/machine`) and pass it to `Prove.machine` (`@doeixd/metakit/prove`, backed by the optional peer `z3-solver`, an automated theorem prover):
 
 ```ts
 import { Effect, Schema } from 'effect'
-import { Eq, Expr, Num, Transition, Verdict } from 'metakit'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Eq, Expr, Num, Transition, Verdict } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 
 const BuggyWithdraw = Transition.make({
   state: Account,
@@ -172,16 +172,16 @@ For the fixed `Withdraw` transition, `Prove.transition` proves `fixedOk === true
 
 ## Reuse verified functions and run them through Effect
 
-Real domains share calculations across guards, transitions, and queries. `Fn.params` (`metakit/fn`) declares a typed function with preconditions (`where`), a return `Schema` (`returns`), and postconditions (`ensures`). Calling it inside an expression inlines its tree so it still translates to SQL and proves in Z3 with `Prove.fn`.
+Real domains share calculations across guards, transitions, and queries. `Fn.params` (`@doeixd/metakit/fn`) declares a typed function with preconditions (`where`), a return `Schema` (`returns`), and postconditions (`ensures`). Calling it inside an expression inlines its tree so it still translates to SQL and proves in Z3 with `Prove.fn`.
 
-To evaluate expressions, transitions, or functions inside an Effect program, `metakit/interpreter` provides `Interpreter` as an Effect `Context.Reference`. You can `yield*` it directly and layer tracing spans, audit observers, or custom-operator allowlists using standard Effect `Layer`s:
+To evaluate expressions, transitions, or functions inside an Effect program, `@doeixd/metakit/interpreter` provides `Interpreter` as an Effect `Context.Reference`. You can `yield*` it directly and layer tracing spans, audit observers, or custom-operator allowlists using standard Effect `Layer`s:
 
 ```ts
 import { Effect, Schema } from 'effect'
-import { Num, Verdict } from 'metakit'
-import * as Fn from 'metakit/fn'
-import * as Interpreter from 'metakit/interpreter'
-import * as Prove from 'metakit/prove'
+import { Num, Verdict } from '@doeixd/metakit'
+import * as Fn from '@doeixd/metakit/fn'
+import * as Interpreter from '@doeixd/metakit/interpreter'
+import * as Prove from '@doeixd/metakit/prove'
 
 const NonNeg = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 1_000_000 }))
 
@@ -209,13 +209,13 @@ What happened:
 
 ## The rest of the toolkit
 
-Every subpath is tree-shakeable. Browser bundles that import `metakit`, `metakit/domain`, `metakit/machine`, or `metakit/inspect` never pull in `metakit/sql`, `metakit/drizzle`, or `z3-solver`:
+Every subpath is tree-shakeable. Browser bundles that import `@doeixd/metakit`, `@doeixd/metakit/domain`, `@doeixd/metakit/machine`, or `@doeixd/metakit/inspect` never pull in `@doeixd/metakit/sql`, `@doeixd/metakit/drizzle`, or `z3-solver`:
 
-- **Domain types (`metakit/domain`):** Fixed-scale `Money` and `Decimal` with exact half-even rounding in JS, SQL, and Z3, plus `CalendarDay`, `OrderedEnum`, `Id`, and fractional-index `Ordinal` ordering keys.
-- **Cross-table rules (`metakit/relation`, `metakit/aggregates`, `metakit/drizzle`):** Typed foreign-key relations (including self-referential trees and composite keys) that compile to Drizzle or raw SQL subqueries, plus O(1) incremental `sum` and `count` deltas.
-- **Concurrency checks (`metakit/pairs`, `metakit/store`):** `Transition.commutes` proves when two transitions give the same result in either order, and `Store.mountEffect` checks your declared database isolation level at startup, failing with `StoreRefused` if it cannot uphold your rules under concurrent writes.
-- **Custom operations (`metakit/operation`, `metakit/language`):** Register domain-specific operators with typed Schemas and SQL templates, then supply their JS implementations once via `Interpreter.layer({ foreign })`.
-- **Forms and JSON Schema (`metakit/inspect`):** `Inspect.fieldSpecs` and `Inspect.toJsonSchema` extract field kinds, numeric bounds, and nullability straight off your `Schema`.
+- **Domain types (`@doeixd/metakit/domain`):** Fixed-scale `Money` and `Decimal` with exact half-even rounding in JS, SQL, and Z3, plus `CalendarDay`, `OrderedEnum`, `Id`, and fractional-index `Ordinal` ordering keys.
+- **Cross-table rules (`@doeixd/metakit/relation`, `@doeixd/metakit/aggregates`, `@doeixd/metakit/drizzle`):** Typed foreign-key relations (including self-referential trees and composite keys) that compile to Drizzle or raw SQL subqueries, plus O(1) incremental `sum` and `count` deltas.
+- **Concurrency checks (`@doeixd/metakit/pairs`, `@doeixd/metakit/store`):** `Transition.commutes` proves when two transitions give the same result in either order, and `Store.mountEffect` checks your declared database isolation level at startup, failing with `StoreRefused` if it cannot uphold your rules under concurrent writes.
+- **Custom operations (`@doeixd/metakit/operation`, `@doeixd/metakit/language`):** Register domain-specific operators with typed Schemas and SQL templates, then supply their JS implementations once via `Interpreter.layer({ foreign })`.
+- **Forms and JSON Schema (`@doeixd/metakit/inspect`):** `Inspect.fieldSpecs` and `Inspect.toJsonSchema` extract field kinds, numeric bounds, and nullability straight off your `Schema`.
 
 ## Where to go next
 

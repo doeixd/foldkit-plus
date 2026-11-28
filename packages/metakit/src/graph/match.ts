@@ -1,5 +1,5 @@
 /**
- * Minimal path-matching helpers (`metakit/graph/match`).
+ * Minimal path-matching helpers (`@doeixd/metakit/graph/match`).
  *
  * Imports ONLY `../path.js` and `effect/Option` — zero `Expr`, zero
  * `ops/residualize`, and zero `sqlLowering` — so browser code (such as

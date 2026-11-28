@@ -1,7 +1,7 @@
 /** The plain operands an expression starts from: a constant, an input, a field, a field after a write. */
 import { Match, type Schema } from 'effect'
-import { Node } from 'metakit'
-import { wrap } from 'metakit/build'
+import { Node } from '@doeixd/metakit'
+import { wrap } from '@doeixd/metakit/build'
 import type { AnyEntity, EntityField, EntityRelation } from '../index.js'
 import {
   asOne,

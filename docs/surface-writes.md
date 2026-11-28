@@ -7,12 +7,12 @@ If you say which fields of the Model each Message writes, and which fields each 
 `foldkit-surface` already has the reads: a **Surface** names a part of the page and the Model fields it reads ([its README](../packages/surface/README.md) starts from nothing). `foldkit-surface/writes` adds the writes and joins the two. The test [`packages/surface/test/writes.test.ts`](../packages/surface/test/writes.test.ts) runs five Surfaces through fifty Messages in a running Foldkit application and counts the drawings.
 
 ```bash
-pnpm add foldkit-surface metakit
+pnpm add foldkit-surface @doeixd/metakit
 ```
 
 ## Keep a Surface's drawing until a Message writes what it reads
 
-This page has a title and a counter. The blocks below are one file (install `foldkit`, `effect`, `foldkit-surface` and `metakit`). The first is an application as you would already have it: a Model, two Messages, and a Surface with a view function (a renderer) for each part. `App.surface`'s `model` picks the fields the part reads. A `Renderer<Model, Message>` is a view function from the fields the Surface reads and an HTML builder `h` to HTML; its second type parameter is the Messages the part can send, and `never` means none.
+This page has a title and a counter. The blocks below are one file (install `foldkit`, `effect`, `foldkit-surface` and `@doeixd/metakit`). The first is an application as you would already have it: a Model, two Messages, and a Surface with a view function (a renderer) for each part. `App.surface`'s `model` picks the fields the part reads. A `Renderer<Model, Message>` is a view function from the fields the Surface reads and an HTML builder `h` to HTML; its second type parameter is the Messages the part can send, and `never` means none.
 
 ```ts
 import { Result, Schema } from 'effect'
@@ -33,11 +33,11 @@ const drawTally: Renderer<{ readonly count: number }, never> = (model, h) =>
   h.p([], [String(model.count)])
 ```
 
-Now declare what each Message writes. A **Transition**, from the `metakit` package, is a Message's change written as data: `Transition.set(state.count, …)` says "this sets `count`", and the path is checked against the Model's Schema (`state` is the Model's paths, `Num` builds number expressions). A **Machine** is a record of Transitions, one under each Message's name.
+Now declare what each Message writes. A **Transition**, from the `@doeixd/metakit` package, is a Message's change written as data: `Transition.set(state.count, …)` says "this sets `count`", and the path is checked against the Model's Schema (`state` is the Model's paths, `Num` builds number expressions). A **Machine** is a record of Transitions, one under each Message's name.
 
 ```ts
-import { Num, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Num, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { Writes } from 'foldkit-surface/writes'
 
 const Renamed = Transition.make({
@@ -139,5 +139,5 @@ The check walks the Model on every Message, so keep it behind `import.meta.env?.
 ## Next
 
 - What a Surface, a Projection and `closed` are: [`foldkit-surface`](../packages/surface/README.md).
-- What else a Transition gives you (guards, proofs, SQL): [`metakit`](../packages/metakit/README.md).
+- What else a Transition gives you (guards, proofs, SQL): [`@doeixd/metakit`](../packages/metakit/README.md).
 - Keep part of a single view on the values it reads, with no declared writes: `SlotView.region` in [`foldkit-mixins`](../packages/mixins/README.md).

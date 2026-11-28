@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 
 const owed = Temporal.obligation({
   name: 'keeps',

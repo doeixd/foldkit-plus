@@ -1,14 +1,18 @@
 /**
  * Custom `reduce` fold kind for `foldkit-remote/maintained` (Phase 4 Part B, Bout 4.20).
  *
- * Folds a `metakit/operation` commutative monoid (`commutative`, `associative`,
+ * Folds a `@doeixd/metakit/operation` commutative monoid (`commutative`, `associative`,
  * `identity`) over maintained rows. When the operation also declares an
  * `invertible` inverse that is present in `implementations`, deletes and
  * replacements update in O(1); otherwise deletes mark dirty and rescan on read.
  */
 import { Option } from 'effect'
-import { Node } from 'metakit'
-import { applyForeign, type AnyOperation, type OperationImplementations } from 'metakit/operation'
+import { Node } from '@doeixd/metakit'
+import {
+  applyForeign,
+  type AnyOperation,
+  type OperationImplementations,
+} from '@doeixd/metakit/operation'
 import type { Keeper } from './deltas.js'
 
 export interface ReduceDefinition<Row, V> {
@@ -24,7 +28,7 @@ const hasImpl = (implementations: OperationImplementations, key: string): boolea
   Object.hasOwn(implementations, key) && implementations[key] !== undefined
 
 /**
- * Define a maintained fold over a custom `metakit/operation` commutative monoid.
+ * Define a maintained fold over a custom `@doeixd/metakit/operation` commutative monoid.
  * Refuses at definition time if `op` does not claim `commutative: true`,
  * `associative: true`, and an `identity`.
  */

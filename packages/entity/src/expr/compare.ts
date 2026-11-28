@@ -6,7 +6,7 @@
  * chosen here, where the comparison is written, and reaches no operation.
  */
 import { Option, type Schema } from 'effect'
-import { Node, Ord, Str } from 'metakit'
+import { Node, Ord, Str } from '@doeixd/metakit'
 import type { Collation } from '../collation.js'
 import type { EntityField } from '../index.js'
 import type { Fits } from './logic.js'

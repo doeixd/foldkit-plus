@@ -4,9 +4,9 @@
  * overlap, which `Transition.commutes` decides, and the walk each other pair
  * has (`pairs.obligations.ts`, which declares and walks them).
  */
-import { Verdict } from 'metakit'
-import * as Pairs from 'metakit/pairs'
-import * as Temporal from 'metakit/temporal'
+import { Verdict } from '@doeixd/metakit'
+import * as Pairs from '@doeixd/metakit/pairs'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { describe, expect, it } from 'vitest'
 import { todoMachine } from '../src/surface.js'
 import './pairs.obligations.js'

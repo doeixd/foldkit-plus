@@ -56,28 +56,31 @@ const refusesNul = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): boolean =>
 }
 
 /**
- * Text `Text.schema` from `metakit/domain` describes, refinements after it
+ * Text `Text.schema` from `@doeixd/metakit/domain` describes, refinements after it
  * included: text holding no NUL, recognised by the annotation on the check
  * that refuses one (an annotation on the Schema alone refuses nothing).
  */
 export const isText = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isString(ast) && refusesNul(ast.checks ?? [])
 
-/** A value of `ast` is never text holding a NUL character. */
+/** A value of `ast` is neither text holding a NUL character nor NaN. */
 const holdsNoNulText = (ast: SchemaAST.AST): boolean =>
   present(ast).every(
     member =>
-      SchemaAST.isNumber(member) ||
+      isFiniteNumber(member) ||
       SchemaAST.isBoolean(member) ||
       SchemaAST.isObjects(member) ||
-      SchemaAST.isArrays(member) ||
+      (SchemaAST.isArrays(member) &&
+        member.elements.every(holdsNoNulText) &&
+        member.rest.every(holdsNoNulText)) ||
       isText(member) ||
-      (SchemaAST.isLiteral(member) && !Node.holdsNul([member.literal])),
+      (SchemaAST.isLiteral(member) &&
+        Node.refusedForEquality('eq.is', member.literal) === undefined),
   )
 
 /**
- * A literal or a path that holds no text with a NUL character: a term
- * evaluation reads, which no text or equality operation refuses for it.
+ * A literal or a path that holds neither text with a NUL character nor NaN:
+ * a term evaluation reads, which no text or equality operation refuses for it.
  */
 export const isPortableRead = (node: Node.Node): boolean => {
   if (Node.$is('Lit')(node)) return isPortableValue(node.value)
@@ -103,9 +106,9 @@ export const isSafeRead = (node: Node.Node): boolean =>
         present(ast).every(member => SchemaAST.isNumber(member) && declares(member.checks, INT)),
       )
 
-/** A literal `isPortableRead` takes: not a refusal, and no text holding a NUL. */
+/** A literal `isPortableRead` takes: not a refusal, no text holding a NUL, and not NaN. */
 export const isPortableValue = (value: unknown): boolean =>
-  !Node.isRefusal(value) && !Node.holdsNul([value])
+  !Node.isRefusal(value) && Node.refusedForEquality('eq.is', value) === undefined
 
 /** A value no operation refuses for itself: not a refusal, no text holding a NUL, no NaN or infinity. */
 export const admitted = (value: unknown): boolean => {

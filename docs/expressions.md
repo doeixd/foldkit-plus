@@ -336,7 +336,7 @@ verdict('p1') // some(Verdict.True())
 verdict('p3') // some(Verdict.Unknown('Author a2 is not held'))
 ```
 
-Read verdicts with `Verdict.match` from `metakit`. `True` and `False` match SQL; `Unknown` leaves uncertain list updates to the next server query rather than guessing. Short-circuit logic still resolves whenever possible (such as `false` in an `and`, or one held matching child in an `exists`).
+Read verdicts with `Verdict.match` from `@doeixd/metakit`. `True` and `False` match SQL; `Unknown` leaves uncertain list updates to the next server query rather than guessing. Short-circuit logic still resolves whenever possible (such as `false` in an `and`, or one held matching child in an `exists`).
 
 ### Using expressions in invariants, states, writes, and guards
 

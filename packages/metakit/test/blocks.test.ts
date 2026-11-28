@@ -4,10 +4,10 @@
  * alone on the child's state.
  */
 import { Effect, Option, Result, Schema } from 'effect'
-import { Expr, Num, Path, Transition, Verdict } from 'metakit'
-import * as Graph from 'metakit/graph'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
+import { Expr, Num, Path, Transition, Verdict } from '@doeixd/metakit'
+import * as Graph from '@doeixd/metakit/graph'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 const Counter = Schema.Struct({ count: Schema.Int, label: Schema.String })

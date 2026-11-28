@@ -1,6 +1,6 @@
 import { Option, Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
-import { Expr, Num } from 'metakit'
+import { Expr, Num } from '@doeixd/metakit'
 
 const Account = Schema.Struct({ balance: Schema.Number, reserved: Schema.Number }).pipe(
   Expr.refine($ => Num.lte($.reserved, $.balance), { message: 'reserved exceeds balance' }),

@@ -15,9 +15,9 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { integer, sqliteTable, text as sqliteText } from 'drizzle-orm/sqlite-core'
 import { Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Expr, Null, Num, Path, Transition } from 'metakit'
-import * as Drizzle from 'metakit/drizzle'
-import * as Sql from 'metakit/sql'
+import { Expr, Null, Num, Path, Transition } from '@doeixd/metakit'
+import * as Drizzle from '@doeixd/metakit/drizzle'
+import * as Sql from '@doeixd/metakit/sql'
 
 const MAX = Number.MAX_SAFE_INTEGER
 const INT64_MAX = 9_223_372_036_854_775_807n

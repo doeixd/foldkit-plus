@@ -4,7 +4,7 @@
  * so a page that does not use metakit carries none of it.
  */
 import { Option, Result, Schema } from 'effect'
-import { Abstract, Bool, Expr, Transition, Verdict } from 'metakit'
+import { Abstract, Bool, Expr, Transition, Verdict } from '@doeixd/metakit'
 import { fromMachine } from './machine.js'
 import { messageTag, tagOf, type DeclaredTransition, type Law } from './make.js'
 

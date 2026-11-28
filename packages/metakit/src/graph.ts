@@ -1,8 +1,8 @@
 /**
  * Static dependency graph, SSR live-frontier pruning, and dependent-query
- * readiness (`metakit/graph`).
+ * readiness (`@doeixd/metakit/graph`).
  *
- * Browser code that only needs path matching should import `metakit/graph/match`
+ * Browser code that only needs path matching should import `@doeixd/metakit/graph/match`
  * (which imports only `path.ts` and never loads `ops/residualize` or `sqlLowering`).
  */
 import { Option } from 'effect'

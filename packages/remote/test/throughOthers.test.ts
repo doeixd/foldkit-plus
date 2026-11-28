@@ -11,7 +11,7 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Collation, Entity, Expr, Order, ReadFilter, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
-import * as Rows from 'metakit/aggregates'
+import * as Rows from '@doeixd/metakit/aggregates'
 import { describe, expect, it } from 'vitest'
 import { Maintained } from '../src/maintained/index.js'
 import {

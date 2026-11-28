@@ -1,2 +1,2 @@
-/** `metakit/drizzle`, as `foldkit-plus/metakit/drizzle`. */
-export * from 'metakit/drizzle'
+/** `@doeixd/metakit/drizzle`, as `foldkit-plus/metakit/drizzle`. */
+export * from '@doeixd/metakit/drizzle'

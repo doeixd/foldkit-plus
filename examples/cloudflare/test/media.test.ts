@@ -68,7 +68,13 @@ describe('the image route', () => {
       })
     // A name proves nothing, and neither does another token.
     for (const refused of [{ 'x-actor': 'editor' }, { authorization: 'Bearer guess' }]) {
-      expect((await upload(refused)).status).toBe(403)
+      const answer = await upload(refused)
+      // CI once answered 500 here, rarely and with no reason shown: the body and the Worker's log say why.
+      const why = `${await answer.text()}\n${stack
+        .logs()
+        .map(log => `${log.level}: ${log.message}`)
+        .join('\n')}`
+      expect(answer.status, why).toBe(403)
     }
     const preflight = await fetch(`${stack.origin}/_media/upload`, { method: 'OPTIONS' })
     expect(preflight.headers.get('access-control-allow-origin')).toBe(null)

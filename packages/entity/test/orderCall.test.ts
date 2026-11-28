@@ -4,7 +4,7 @@
  * expr-operations-DESIGN §8.
  */
 import { Option, Schema } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Collation,

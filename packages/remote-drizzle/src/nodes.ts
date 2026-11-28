@@ -1,6 +1,6 @@
 /** Walking and rewriting metakit nodes, for what the SQL compiler does to an expression's nodes before it writes SQL. */
 import { Option } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 
 /** The key of the judged row's own field `node` reads (`row.<key>`), if it is one. */
 export const ownFieldKey = (node: Node.Node): Option.Option<string> =>

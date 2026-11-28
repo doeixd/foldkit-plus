@@ -1,6 +1,6 @@
 import { Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Path, Transition } from 'metakit'
+import { Path, Transition } from '@doeixd/metakit'
 
 const Inner = Schema.Struct({ a: Schema.Int, b: Schema.Int })
 const Middle = Schema.Struct({ child: Inner })

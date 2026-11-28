@@ -1,8 +1,8 @@
-/** `reaches`: which queries a declared write can change, backed by `metakit/graph` (#439, #581). */
+/** `reaches`: which queries a declared write can change, backed by `@doeixd/metakit/graph` (#439, #581). */
 import { Match, Option, Schema } from 'effect'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { Footprint, Query as Body, Write, dependenciesOf, type AnyWrite } from 'foldkit-entity'
-import { build as buildGraph, knownEdge, rowPath, type PathEdge } from 'metakit/graph'
+import { build as buildGraph, knownEdge, rowPath, type PathEdge } from '@doeixd/metakit/graph'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { QueryDescriptor } from './query.js'
 
@@ -43,7 +43,7 @@ const entityNamespace = () => {
 }
 
 /**
- * What `write` may write as `metakit/graph` row edges, or `undefined` when no
+ * What `write` may write as `@doeixd/metakit/graph` row edges, or `undefined` when no
  * declaration says (`Mutation.make` or `Footprint.unknown`).
  */
 const writeEdgesOf = (
@@ -68,7 +68,7 @@ const writeEdgesOf = (
 
 /**
  * Which of a query's lists a declared write can reach, asked of the
- * declarations alone through `metakit/graph`: `Write.writes` against what the
+ * declarations alone through `@doeixd/metakit/graph`: `Write.writes` against what the
  * body reads (`Query.dependencies`'s `fields` and `reaches`). Members are
  * compared by their owner's identity, so two Entities of one name are told
  * apart. Pure, and it reads no Model.

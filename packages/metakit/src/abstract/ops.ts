@@ -95,8 +95,8 @@ const textOrder = (op: Node.Op, reflexive: boolean): PredicateOp => ({
     if (Node.key(a!) === Node.key(b!)) return reflexive ? proved('concrete') : refuted()
     return Verdict.Unknown(`${op.id} undecided in Tier 3`)
   },
-  assume: () => {},
-  refute: () => {},
+  assume: (_, state) => state.drop('unsupported', op.id),
+  refute: (_, state) => state.drop('unsupported', op.id),
 })
 
 const arithmetic = (relation: TermOp['relation'], forward: TermOp['forward']): TermOp => ({
@@ -221,12 +221,14 @@ const assumeEqual = (args: ReadonlyArray<Node.Node>, state: AbstractState): void
   const [a, b] = [args[0]!, args[1]!]
   const compared = termAndLiteral(args)
   if (Option.isNone(compared)) {
+    const av = state.varOf(a)
+    const bv = state.varOf(b)
+    // Only two numbers' equality is kept (in the Zone); of other terms nothing is.
+    if (Option.isNone(av) || Option.isNone(bv)) state.drop('unsupported', 'eq.is')
     // Null equals null, so equality says two terms have values only where one is known to.
     if (!state.hasValue(a) && !state.hasValue(b)) return
     state.markValued(a)
     state.markValued(b)
-    const av = state.varOf(a)
-    const bv = state.varOf(b)
     if (Option.isSome(av) && Option.isSome(bv)) state.zone.constrainEq(av.value, bv.value, 0)
     return
   }
@@ -247,22 +249,36 @@ const assumeEqual = (args: ReadonlyArray<Node.Node>, state: AbstractState): void
   } else if (Node.$is('Path')(term)) {
     const pk = Node.key(term)
     const outside = Option.exists(literalsLeft(state, pk), left => !holds(left, literal))
-    if (outside || (state.eqFacts.has(pk) && state.eqFacts.get(pk) !== literal)) state.markBottom()
+    // Compared as evaluation compares: a struct or list literal written twice is one value.
+    const other =
+      state.eqFacts.has(pk) && Node.apply(Eq.isOp, [state.eqFacts.get(pk), literal]) !== true
+    if (outside || other) state.markBottom()
     else state.eqFacts.set(pk, literal)
+  } else {
+    state.drop('unsupported', 'eq.is')
   }
 }
 
 const assumeUnequal = (args: ReadonlyArray<Node.Node>, state: AbstractState): void => {
   const compared = termAndLiteral(args)
-  if (Option.isNone(compared)) return
+  if (Option.isNone(compared)) {
+    // A term is never unequal to itself, null included (`eq.isNot` is null-safe).
+    if (Node.key(args[0]!) === Node.key(args[1]!)) state.markBottom()
+    else state.drop('unsupported', 'eq.isNot')
+    return
+  }
   const [term, literal] = compared.value
   if (literal === null) {
     state.markNotNull(term)
     return
   }
+  // What is kept of "not this literal" is used by decisions but is not in the Zone.
+  state.drop('unsupported', 'eq.isNot')
   if (!Node.$is('Path')(term)) return
   const pk = Node.key(term)
-  if (state.eqFacts.get(pk) === literal) state.markBottom()
+  if (state.eqFacts.has(pk) && Node.apply(Eq.isOp, [state.eqFacts.get(pk), literal]) === true) {
+    state.markBottom()
+  }
   const excluded = state.neqFacts.get(pk) ?? new Set()
   excluded.add(literal)
   state.neqFacts.set(pk, excluded)
@@ -296,14 +312,16 @@ const search = (op: Node.Op): PredicateOp => ({
     }
     return Verdict.Unknown(`${op.id} unknown`)
   },
+  // Only the length is read of what the text holds.
   assume: (args, state) => {
+    state.drop('unsupported', op.id)
     const part = args[1]!
     const length = state.varOf(lengthOf(args[0]!))
     if (Node.$is('Lit')(part) && typeof part.value === 'string' && Option.isSome(length)) {
       state.zone.constrainLower(length.value, Str.codePointLength(part.value))
     }
   },
-  refute: () => {},
+  refute: (_, state) => state.drop('unsupported', op.id),
 })
 
 /**
@@ -429,7 +447,9 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
         state.markBottom()
         return
       }
-      if (values.some(value => value === null || value === undefined)) return
+      // What is kept is the range of the candidates, not the membership itself.
+      state.drop('unsupported', 'eq.in')
+      if (values.some(value => value === null || value === undefined || Number.isNaN(value))) return
       state.markValued(needle)
       const numbers = values.filter((value): value is number => typeof value === 'number')
       const id = state.varOf(needle)
@@ -438,7 +458,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
         state.zone.constrainUpper(id.value, Math.max(...numbers))
       }
     },
-    refute: () => {},
+    refute: (_, state) => state.drop('unsupported', 'eq.in'),
   },
   'eq.equals': {
     _tag: 'Predicate',
@@ -481,12 +501,18 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
       return Verdict.Unknown('membership undecided in Tier 3')
     },
     assume: ([needle, candidates], state) => {
-      if (!Node.$is('Lit')(candidates!) || !Array.isArray(candidates.value)) return
+      if (!Node.$is('Lit')(candidates!) || !Array.isArray(candidates.value)) {
+        state.drop('unsupported', 'eq.among')
+        return
+      }
+      if (candidates.value.some(item => Number.isNaN(item))) return
       const present = candidates.value.filter(item => item !== null && item !== undefined)
       if (present.length === 0) {
         state.markBottom()
         return
       }
+      // What is kept is the range of the candidates, not the membership itself.
+      state.drop('unsupported', 'eq.among')
       state.markValued(needle!)
       const numbers = present.filter((item): item is number => typeof item === 'number')
       const id = state.varOf(needle!)
@@ -497,8 +523,14 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     },
     // False of no candidate whatever the value; among some, only of a value where no candidate is null.
     refute: ([needle, candidates], state) => {
-      if (!Node.$is('Lit')(candidates!) || !Array.isArray(candidates.value)) return
+      if (!Node.$is('Lit')(candidates!) || !Array.isArray(candidates.value)) {
+        state.drop('unsupported', 'eq.among')
+        return
+      }
       if (candidates.value.length === 0) return
+      // Which values are excluded is not kept.
+      state.drop('unsupported', 'eq.among')
+      if (candidates.value.some(item => Number.isNaN(item))) return
       if (candidates.value.some(item => item === null || item === undefined)) state.markBottom()
       else state.markValued(needle!)
     },
@@ -727,7 +759,8 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
       lt.assume([s1, e2], state)
       lt.assume([s2, e1], state)
     },
-    refute: () => {},
+    // Not overlapping is a disjunction, which is not kept.
+    refute: (_, state) => state.drop('unsupported', 'time.overlaps'),
   },
   'str.len': length,
   'str.startsWith': search(Str.startsWithOp),
@@ -769,11 +802,13 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
       }
       return Verdict.Unknown('array membership undecided in Tier 3')
     },
+    // Only that the list is not empty is kept of a membership.
     assume: (args, state) => {
+      state.drop('unsupported', 'arr.has')
       const count = state.varOf(countOf(args[0]!))
       if (Option.isSome(count)) state.zone.constrainLower(count.value, 1)
     },
-    refute: () => {},
+    refute: (_, state) => state.drop('unsupported', 'arr.has'),
   },
   'arr.append': { _tag: 'Value', unportable: false },
   'arr.include': text,
@@ -789,8 +824,8 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     measures: () => [],
     valued: () => false,
     decide: () => Verdict.Unknown('set subset undecided in Tier 3'),
-    assume: () => {},
-    refute: () => {},
+    assume: (_, state) => state.drop('unsupported', 'set.subset'),
+    refute: (_, state) => state.drop('unsupported', 'set.subset'),
   },
   'set.disjoint': {
     _tag: 'Predicate',
@@ -799,7 +834,7 @@ export const abstractOps: Readonly<Record<Node.CoreOpId, AbstractOp>> = {
     measures: () => [],
     valued: () => false,
     decide: () => Verdict.Unknown('set disjointness undecided in Tier 3'),
-    assume: () => {},
-    refute: () => {},
+    assume: (_, state) => state.drop('unsupported', 'set.disjoint'),
+    refute: (_, state) => state.drop('unsupported', 'set.disjoint'),
   },
 }

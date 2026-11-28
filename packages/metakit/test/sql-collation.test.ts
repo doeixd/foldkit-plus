@@ -6,8 +6,8 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Eq, Expr, Path, Str } from 'metakit'
-import * as Sql from 'metakit/sql'
+import { Eq, Expr, Path, Str } from '@doeixd/metakit'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Row = Schema.Struct({
   id: Schema.String,

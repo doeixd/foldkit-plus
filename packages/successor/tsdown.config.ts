@@ -7,5 +7,5 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   target: 'es2022',
-  deps: { neverBundle: [/^\.\.?\//, 'effect', /^metakit(\/.*)?$/] },
+  deps: { neverBundle: [/^\.\.?\//, 'effect', /^@doeixd\/metakit(\/.*)?$/] },
 })

@@ -14,8 +14,8 @@
  */
 import { Schema } from 'effect'
 import { Entity, Expr as EntityExpr } from 'foldkit-entity'
-import { Node, Verdict } from 'metakit'
-import * as Operation from 'metakit/operation'
+import { Node, Verdict } from '@doeixd/metakit'
+import * as Operation from '@doeixd/metakit/operation'
 import { describe, expect, it } from 'vitest'
 import { filtered } from '../src/filter.js'
 import { ConnectionChange, Query } from '../src/index.js'

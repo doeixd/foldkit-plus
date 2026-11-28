@@ -8,7 +8,7 @@
  * arguments where the call is built.
  */
 import { Option, Schema, SchemaAST } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import type { Collation } from '../collation.js'
 import { kindOfAst } from './kind.js'
 import { folded } from './operand.js'

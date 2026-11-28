@@ -11,7 +11,7 @@
     "@electric-sql/pglite": "0.5.11",
     "drizzle-orm": "1.0.0-rc.5",
     "effect": "4.1.4",
-    "metakit": "workspace:*",
+    "@doeixd/metakit": "workspace:*",
     "z3-solver": "5.4.1"
   },
   "devDependencies": {

@@ -1,12 +1,12 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Effect, Option, Result } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Expr, Verdict } from 'metakit'
-import { CalendarDay, Money } from 'metakit/domain'
-import * as Graph from 'metakit/graph'
-import * as Prove from 'metakit/prove'
-import * as Relation from 'metakit/relation'
-import * as Sql from 'metakit/sql'
+import { Expr, Verdict } from '@doeixd/metakit'
+import { CalendarDay, Money } from '@doeixd/metakit/domain'
+import * as Graph from '@doeixd/metakit/graph'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Relation from '@doeixd/metakit/relation'
+import * as Sql from '@doeixd/metakit/sql'
 import {
   CancellationPolicy,
   Reservation,

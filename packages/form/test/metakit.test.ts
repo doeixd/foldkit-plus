@@ -5,8 +5,8 @@
  * the guard reads something not entered.
  */
 import { Option, Schema } from 'effect'
-import { Eq, Expr, Num, Ord, Transition, Verdict } from 'metakit'
-import { CalendarDay, Money } from 'metakit/domain'
+import { Eq, Expr, Num, Ord, Transition, Verdict } from '@doeixd/metakit'
+import { CalendarDay, Money } from '@doeixd/metakit/domain'
 import { describe, expect, it } from 'vitest'
 import { Form } from '../src/index.js'
 import { Declared } from '../src/metakit.js'

@@ -4,7 +4,7 @@ Say your account rules are written once, as a state machine: "withdraw" is allow
 
 `machineTools`, from `foldkit-agent/metakit`, makes each of those tools from the rule itself. A tool's parameters come from the transition's input, it is offered only while the state allows it, and a call the rule refuses is turned down before anything changes.
 
-This guide assumes a Foldkit app: its state is a Model, its events are Messages, and its `update` function turns a Message into the next Model. It also assumes you have a `foldkit-agent` contract: the list of your app's Messages that an assistant may send, declared with `Agent.expose`. The [package page](../README.md) shows how to write one, connect it to a running app, and serve it to an assistant through an adapter (a package that speaks one protocol, such as MCP). Install `foldkit-agent` and `metakit` (`pnpm add foldkit-agent metakit effect`). The blocks below continue one file; nothing runs until a host serves the contract, so the results are described in the text.
+This guide assumes a Foldkit app: its state is a Model, its events are Messages, and its `update` function turns a Message into the next Model. It also assumes you have a `foldkit-agent` contract: the list of your app's Messages that an assistant may send, declared with `Agent.expose`. The [package page](../README.md) shows how to write one, connect it to a running app, and serve it to an assistant through an adapter (a package that speaks one protocol, such as MCP). Install `foldkit-agent` and `@doeixd/metakit` (`pnpm add foldkit-agent @doeixd/metakit effect`). The blocks below continue one file; nothing runs until a host serves the contract, so the results are described in the text.
 
 ## Write the rules as a metakit machine
 
@@ -12,9 +12,9 @@ This guide assumes a Foldkit app: its state is a Model, its events are Messages,
 
 ```ts
 import { Schema } from 'effect'
-import { Eq, Expr, Num, Transition } from 'metakit'
-import { Money } from 'metakit/domain'
-import * as Machine from 'metakit/machine'
+import { Eq, Expr, Num, Transition } from '@doeixd/metakit'
+import { Money } from '@doeixd/metakit/domain'
+import * as Machine from '@doeixd/metakit/machine'
 
 const Usd = Money.make('USD')
 const Account = Schema.Struct({ balance: Usd, status: Schema.Literals(['open', 'frozen']) })

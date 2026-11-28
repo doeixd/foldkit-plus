@@ -2,7 +2,7 @@
  * The one implementation behind `Decimal` and `Money`: an integer count of
  * units of `10^-scale`, with exact parsing, formatting, half-even rounding and
  * multiplication in integers, and the symbolic operations both modules export
- * under their own brand. Internal: `metakit/domain` does not export it.
+ * under their own brand. Internal: `@doeixd/metakit/domain` does not export it.
  */
 import { Data, Option, Result, SchemaAST } from 'effect'
 import * as Node from '../node.js'

@@ -16,14 +16,14 @@ import {
   type OperatorDescriptor,
 } from 'foldkit-entity'
 import { type Reading, type RelatedSlot } from 'foldkit-entity/lowering'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import {
   lowerNode,
   relatedSubquery,
   SqlPiece,
   type Sql,
   type SqlUnsupportedError,
-} from 'metakit/sql'
+} from '@doeixd/metakit/sql'
 import { collatedColumn } from './cursor.js'
 import { collated, collatedInfo, columnFirst, pastRow, typed, typedNumber } from './rewrites.js'
 import { walk, rewrite } from './nodes.js'

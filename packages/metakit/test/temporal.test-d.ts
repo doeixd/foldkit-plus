@@ -1,11 +1,11 @@
 import { Effect, Option, Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
-import { Num, Transition } from 'metakit'
-import * as Rows from 'metakit/aggregates'
-import * as Machine from 'metakit/machine'
-import * as Prove from 'metakit/prove'
-import type * as Store from 'metakit/store'
-import * as Temporal from 'metakit/temporal'
+import { Num, Transition } from '@doeixd/metakit'
+import * as Rows from '@doeixd/metakit/aggregates'
+import * as Machine from '@doeixd/metakit/machine'
+import * as Prove from '@doeixd/metakit/prove'
+import type * as Store from '@doeixd/metakit/store'
+import * as Temporal from '@doeixd/metakit/temporal'
 
 const Counter = Schema.Struct({ count: Schema.Int })
 const Add = Transition.make({

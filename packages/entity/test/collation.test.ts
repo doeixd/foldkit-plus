@@ -4,7 +4,7 @@
  * `Query.placement`.
  */
 import { Option, Schema } from 'effect'
-import { Node, Str } from 'metakit'
+import { Node, Str } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { Collation, Entity, Expr, Order, Query, evaluate } from '../src/index.js'
 

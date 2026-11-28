@@ -265,7 +265,7 @@ const judge = (
           Option.isSome(lookupPartial(env, segments, Option.none())),
         )
       ) {
-        const value = opaque.run(env)
+        const value = opaque.run(env, foreign)
         return value === undefined ? null : value
       }
       return new Leftover(Option.none(), false, undefined, undefined, opaque.reads, true, undefined)

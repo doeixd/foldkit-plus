@@ -6,8 +6,8 @@ export default [
     edits: [
       {
         file: '../src/transition.ts',
-        find: 'if (evalNode(transition.when.node, env, options?.foreign) !== true) {',
-        replace: 'if (evalNode(transition.when.node, env, options?.foreign) === false) {',
+        find: 'if (answer !== true) {',
+        replace: 'if (answer !== true && answer !== null && answer !== undefined) {',
       },
     ],
     tests,

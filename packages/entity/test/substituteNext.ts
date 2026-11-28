@@ -1,5 +1,5 @@
 import { Option } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { exprOf } from '../src/expr/operand.js'
 import type { Predicate } from '../src/index.js'
 

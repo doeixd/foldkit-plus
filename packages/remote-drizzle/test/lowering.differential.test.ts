@@ -37,8 +37,8 @@ import {
   type ConformanceCase,
 } from 'foldkit-entity/conformance'
 import { Query } from 'foldkit-remote'
-import { Node, Str } from 'metakit'
-import { evalNode } from 'metakit/build'
+import { Node, Str } from '@doeixd/metakit'
+import { evalNode } from '@doeixd/metakit/build'
 import { bind, databaseLayer, entity, entityChecks, query } from '../src/index.js'
 
 postgres()

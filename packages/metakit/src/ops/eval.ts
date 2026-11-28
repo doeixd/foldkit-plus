@@ -10,7 +10,10 @@
 import { Option } from 'effect'
 import * as Node from '../node.js'
 import { readable } from '../path.js'
+import { formatValue } from './format.js'
 import { rowsEvaluation } from './rowsReading.js'
+
+export const normalizeRead = (value: unknown): unknown => (Object.is(value, -0) ? 0 : value)
 
 /** The value at `segments`: null where a step is absent, and an `Option` read as its value or null. */
 const readSegments = (env: unknown, segments: ReadonlyArray<string>): unknown => {
@@ -28,18 +31,38 @@ const readSegments = (env: unknown, segments: ReadonlyArray<string>): unknown =>
     current = (current as Record<string, unknown>)[segment]
   }
   current = readable(current)
-  return current === undefined ? null : current
+  return current === undefined ? null : normalizeRead(current)
+}
+
+/** Keep the NUL screen for arrays whose elements refer back to them. */
+const matchHoldsNul = (target: unknown): boolean => {
+  if (!Array.isArray(target)) return Node.holdsNul([target])
+  const pending: Array<unknown> = [target]
+  const seen = new Set<ReadonlyArray<unknown>>()
+  while (pending.length > 0) {
+    const value = pending.pop()
+    if (!Array.isArray(value)) {
+      if (Node.holdsNul([value])) return true
+      continue
+    }
+    if (seen.has(value)) continue
+    seen.add(value)
+    for (const item of value) pending.push(item)
+  }
+  return false
 }
 
 /**
  * The branch of `match` that `target` takes: null where there is no fallback
- * and the target is null, a refusal where no case names it.
+ * and the target is null, a refusal where the target is text holding a NUL
+ * or no case names it.
  */
 export const matchArm = (
   match: Node.Match,
   target: unknown,
 ): { readonly arm: Node.Node } | { readonly value: null | Node.Refusal } => {
   if (Node.isRefusal(target)) return { value: target }
+  if (matchHoldsNul(target)) return { value: Node.unportable('match') }
   const held = Node.textIdentity(target)
   for (const [value, arm] of match.cases) {
     if (held === Node.wellFormed(value)) return { arm }
@@ -50,7 +73,7 @@ export const matchArm = (
     value: new Node.Refusal({
       reason: 'unmatched',
       at: 'match',
-      detail: `no case names ${JSON.stringify(target)}`,
+      detail: `no case names ${formatValue(target)}`,
     }),
   }
 }
@@ -66,22 +89,9 @@ export const ifArm = (
   return { value: Node.illTyped('if', 'a boolean', cond) }
 }
 
-/** One implementation of a foreign operation. */
-export interface ForeignImplementation {
-  /**
-   * The operation on argument values, after its null rule. It returns a
-   * value, null, or a `Node.Refusal`; a throw is refused as `failed`.
-   */
-  readonly run: (args: ReadonlyArray<unknown>) => unknown
-}
+export type { ForeignImplementation, ForeignImplementations } from '../node.js'
 
-/**
- * The implementations a reader is given, by `id@version` (`Node.foreignName`),
- * so two versions of one operation each have theirs.
- */
-export type ForeignImplementations = Readonly<Record<string, ForeignImplementation>>
-
-const none: ForeignImplementations = {}
+const none: Node.ForeignImplementations = {}
 
 const kindOfValue = (value: unknown): Node.ValueKind | 'other' =>
   typeof value === 'number'
@@ -101,7 +111,7 @@ const kindOfValue = (value: unknown): Node.ValueKind | 'other' =>
 export const applyForeign = (
   op: Node.ForeignOp,
   args: ReadonlyArray<unknown>,
-  implementations: ForeignImplementations,
+  implementations: Node.ForeignImplementations,
 ): unknown => {
   const name = Node.foreignName(op)
   const implementation = Object.hasOwn(implementations, name) ? implementations[name] : undefined
@@ -126,7 +136,8 @@ export const applyForeign = (
     }
     let result: unknown
     try {
-      result = implementation.run(values)
+      // The table it is evaluated with, which a derived operation runs its own body against.
+      result = implementation.run(values, implementations)
     } catch (error) {
       return Node.failed(op, error)
     }
@@ -154,7 +165,7 @@ export const applyForeign = (
 export const evalNode = (
   node: Node.Node,
   env: unknown,
-  foreign: ForeignImplementations = none,
+  foreign: Node.ForeignImplementations = none,
 ): unknown =>
   Node.$match(node, {
     Lit: ({ value }) => (value === undefined ? null : value),
@@ -172,7 +183,7 @@ export const evalNode = (
       return 'arm' in taken ? evalNode(taken.arm, env, foreign) : taken.value
     },
     Opaque: ({ run }) => {
-      const value = run(env)
+      const value = run(env, foreign)
       return value === undefined ? null : value
     },
     // Read by `rowsLoad.ts`, which whatever built the node loaded.

@@ -3,7 +3,7 @@
  * gave, an operator the table lacks, a context or rows the run was not given.
  */
 import { Option } from 'effect'
-import type { Node } from 'metakit'
+import type { Node } from '@doeixd/metakit'
 import type { OperatorDescriptor } from './expr/operator.js'
 import { missingName, noOperators, type OperatorTable } from './expr/table.js'
 import { show } from './expr/show.js'

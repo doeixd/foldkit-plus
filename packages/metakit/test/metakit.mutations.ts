@@ -161,8 +161,8 @@ export default [
     edits: [
       {
         file: transition,
-        find: 'if (evalNode(transition.when.node, env, options?.foreign) !== true) {',
-        replace: 'if (false && evalNode(transition.when.node, env, options?.foreign) !== true) {',
+        find: 'if (answer !== true) {',
+        replace: 'if (false) {',
       },
     ],
     tests: coreTests,

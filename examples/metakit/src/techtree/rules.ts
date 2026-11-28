@@ -1,7 +1,7 @@
 /**
  * Example 2 (module 2 of 3): Cross-list & nested-fold rules exported across modules (#638, #640)
  */
-import { Arr, Bool, Eq, Expr, Null, Num } from 'metakit'
+import { Arr, Bool, Eq, Expr, Null, Num } from '@doeixd/metakit'
 import { CatalogBase } from './catalog.js'
 
 /** Every research node belongs to an era present in `eras`. */

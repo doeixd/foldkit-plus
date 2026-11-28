@@ -24,7 +24,7 @@ export const can = <State, Input, Emit, Supplied>(
 ): Verdict.Verdict<never> => {
   // A list fold loads only its evaluation; a guard judged in part needs its judgement too.
   loadRows()
-  return judgeNode(transition.when.node, partial, options?.foreign)
+  return judgeNode(transition.when.node, partial, options?.foreign, options?.rewritePolicy)
 }
 
 // A tag may come from outside the types (an agent's tool call): `constructor`
@@ -68,7 +68,10 @@ export interface Intent<State, Tag extends string, Arm> {
   readonly message: (input: InputOf<Arm>) => { readonly _tag: Tag; readonly input: InputOf<Arm> }
 }
 
-/** Select a registered arm. The intent checks the guard against the values you give it. */
+/**
+ * Select a registered arm. The intent checks the guard against the values you give it,
+ * using `options` for custom operation implementations and the rewrite policy.
+ */
 export const intent = <
   State,
   Transitions extends Readonly<Record<string, unknown>>,
@@ -76,6 +79,7 @@ export const intent = <
 >(
   machine: Machine<State, Transitions>,
   tag: K,
+  options?: Expr.ReaderOptions,
 ): Intent<State, K, Transitions[K]> => {
   const transition = Option.getOrThrowWith(
     transitionOf(machine, tag),
@@ -83,15 +87,19 @@ export const intent = <
   )
   const Message = Schema.TaggedStruct(tag, { input: Schema.Unknown })
   return {
-    can: partial => can(transition, partial),
+    can: partial => can(transition, partial, options),
     message: input => Message.make({ input }) as { readonly _tag: K; readonly input: typeof input },
   }
 }
 
-/** Every tag of `machine`, as `available`, `disabled`, or `pending` (its guard needs the input). */
+/**
+ * Every tag of `machine`, as `available`, `disabled`, or `pending` (its guard is undecided),
+ * using `options` for custom operation implementations and the rewrite policy.
+ */
 export const affordances = <State, Transitions extends Readonly<Record<string, unknown>>>(
   machine: Machine<State, Transitions>,
   state: Expr.PartialEnv<State>,
+  options?: Expr.ReaderOptions,
 ): {
   readonly available: ReadonlyArray<keyof Transitions & string>
   readonly disabled: ReadonlyArray<keyof Transitions & string>
@@ -101,7 +109,7 @@ export const affordances = <State, Transitions extends Readonly<Record<string, u
   const disabled: Array<keyof Transitions & string> = []
   const pending: Array<keyof Transitions & string> = []
   for (const tag of Object.keys(machine.transitions) as Array<keyof Transitions & string>) {
-    Verdict.match(canDispatch(machine, tag, { state }), {
+    Verdict.match(canDispatch(machine, tag, { state }, options), {
       True: () => available.push(tag),
       False: () => disabled.push(tag),
       Unknown: () => pending.push(tag),

@@ -1,7 +1,7 @@
 import { Option, Result, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Expr, Null, Num, Path, Str, Verdict } from 'metakit'
-import * as Sql from 'metakit/sql'
+import { Abstract, Expr, Null, Num, Path, Str, Verdict } from '@doeixd/metakit'
+import * as Sql from '@doeixd/metakit/sql'
 
 const shown = (schema: Schema.Top) =>
   Expr.rulesOf(schema).map(rule => ({

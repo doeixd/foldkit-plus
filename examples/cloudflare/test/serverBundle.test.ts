@@ -49,7 +49,8 @@ import { record } from '../../../scripts/perf-report.mjs'
 // +76,389 on 2026-11-26 (4,734,700 on CI Linux; 4,721,293 locally on Windows after marking
 // Config.all exports pure): metakit's expanded core/store/relation/sets runtime, foldkit-remote
 // IVM/Effect updates, and remote-server ManagedRuntime/withSpan. Ceiling: CI's reading plus ~3.3 kB.
-const CEILING = 4_738_000
+// +1221 bytes over the last ceiling: MetaKit's W1 correctness fixes (2026-11-28: the checker's drop log, the NUL and NaN screens, throw-free refusal text, the literal domain check, the safe-range SQL guard).
+const CEILING = 4_740_000
 
 // The replica side of `foldkit-sync`. A server reaches `Sync` through the namespace
 // object, or a shared module does, and the bundler then keeps all of these.

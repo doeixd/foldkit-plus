@@ -1,11 +1,11 @@
 /**
  * What Sync's protocols owe, declared in the shared registry
- * (`metakit/temporal`) and discharged by seeded walks over the real replica and
+ * (`@doeixd/metakit/temporal`) and discharged by seeded walks over the real replica and
  * the real IndexedDB store (`protocols.walks.ts`, `protocols.store.ts`). The repository's obligations
  * test imports this file and fails while any is open; `protocols.test.ts` holds
  * each walk to `Held`.
  */
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { tabWriters } from './protocols.store.js'
 import { reconnect, serverReset, twoTabs } from './protocols.walks.js'
 

@@ -80,8 +80,8 @@ export default [
   mutation(
     'the solver takes the last case of a match for every value no case names',
     proveLower,
-    'if (!isCovered(on)) {',
-    'if (false) {',
+    'refused: z3.Not(target.isNull),',
+    'refused: never,',
     proveTests,
   ),
   mutation(

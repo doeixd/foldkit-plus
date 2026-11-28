@@ -161,7 +161,7 @@ edge yet.
 ## `Data.can`
 
 `Data.can(model, Mutation, input)` is a hint, from the held rows and no I/O:
-a metakit `Verdict` (read with `Verdict.match` from `metakit`): `True`, `False`
+a metakit `Verdict` (read with `Verdict.match` from `@doeixd/metakit`): `True`, `False`
 with the refusal as its witness (`Forbidden`, `Unmet` or `Invalid`, in the
 server's order) or `Unknown` with its reasons (a row not held, a field or
 operator missing). `Data.mutate` does not read it: the server answers some

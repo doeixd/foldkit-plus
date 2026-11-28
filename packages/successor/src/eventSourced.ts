@@ -1,5 +1,10 @@
 import { Data, Effect, Option, Schema, Scope, type Context } from 'effect'
-import { StoreRefused, refused, type Requirement, type StoreCapabilities } from 'metakit/store'
+import {
+  StoreRefused,
+  refused,
+  type Requirement,
+  type StoreCapabilities,
+} from '@doeixd/metakit/store'
 import {
   AtomicJournal,
   DispatchConflict,

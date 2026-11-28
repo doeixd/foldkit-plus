@@ -4,7 +4,7 @@
  * runs still runs through a step.
  */
 import { Schema, flow, pipe } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Collation,

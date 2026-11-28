@@ -29,7 +29,8 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // only an island uses, so one imported from the start code again fails here.
 // +900 on 2026-11-26 (CI read 151,959): foldkit-bundle's placement machine-lifting symbol path and
 // foldkit-surface diagnostics updates. Ceiling: CI's reading plus ~400, rounded up.
-const CEILING = 152_400
+// +467 bytes over the last ceiling: MetaKit's W1 correctness fixes (2026-11-28: the checker's drop log, the NUL and NaN screens, throw-free refusal text, the literal domain check, the safe-range SQL guard).
+const CEILING = 152_900
 
 clientBudget({
   name: 'design-system',

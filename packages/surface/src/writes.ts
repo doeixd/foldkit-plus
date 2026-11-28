@@ -11,8 +11,8 @@
 import { Option, type Schema } from 'effect'
 import { createLazy, type Html } from 'foldkit/html'
 import type { MessageUnion } from 'foldkit/message'
-import { affectedTags, covers, pathsOverlap } from 'metakit/graph/match'
-import type { Machine } from 'metakit/machine'
+import { affectedTags, covers, pathsOverlap } from '@doeixd/metakit/graph/match'
+import type { Machine } from '@doeixd/metakit/machine'
 import {
   Metadata,
   pathsRead,

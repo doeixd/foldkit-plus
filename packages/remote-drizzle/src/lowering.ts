@@ -7,8 +7,8 @@
 import { Option } from 'effect'
 import { type AnyExpr } from 'foldkit-entity'
 import { ASKER, foreignOf, readingOf, type Reading } from 'foldkit-entity/lowering'
-import { Node } from 'metakit'
-import { residualizeNode } from 'metakit/build'
+import { Node } from '@doeixd/metakit'
+import { residualizeNode } from '@doeixd/metakit/build'
 import { walk, rewrite } from './nodes.js'
 import { QueryCompileError, operatorsOf, type CompileTarget } from './target.js'
 

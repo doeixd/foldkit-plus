@@ -4,7 +4,7 @@
  * the same rule kept for one that reads the row before.
  */
 import { Schema } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { Entity, Expr, Relation, type AfterRow, type BeforeRow } from '../src/index.js'
 

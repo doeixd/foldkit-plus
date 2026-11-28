@@ -1,5 +1,7 @@
 # MetaKit Implementation Plan: Phases 2–6
 
+> **Status (2026-11-28): superseded.** The current plan for MetaKit is [`metakit-PLAN.md`](./metakit-PLAN.md); read it instead. This file is kept as a record of the phases 2–6 implementation plan over the 15-op MetaKit core (domain types, sync and guard, application propagation, concurrency obligations, and resumable TEA).
+
 Grounded in the existing `packages/metakit` implementation (15-op v1 core, `metakit/domain`, `metakit/aggregates`, `metakit/machine`, `metakit/inspect`, `metakit/graph`, `metakit/sql`, `metakit/drizzle`, `metakit/prove`, `metakit/conformance`) and GitHub issues `#601`, `#580`, `#581`, `#480`, `#436`, and `#472`.
 
 ---

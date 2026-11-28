@@ -1,6 +1,6 @@
 /** Shared lightweight schemas and foreign formatters for the `domains-plus` binder and its lazy chunks. */
 import { Schema } from 'effect'
-import * as Operation from 'metakit/operation'
+import * as Operation from '@doeixd/metakit/operation'
 
 export interface CartDomain {
   readonly _tag: 'Available'

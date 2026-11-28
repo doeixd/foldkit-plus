@@ -1,8 +1,8 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Eq, Expr, Null, Num, Ord, Transition } from 'metakit'
-import * as Sql from 'metakit/sql'
+import { Eq, Expr, Null, Num, Ord, Transition } from '@doeixd/metakit'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Account = Schema.Struct({
   id: Schema.String,

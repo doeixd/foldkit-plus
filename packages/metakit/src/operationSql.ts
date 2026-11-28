@@ -1,8 +1,8 @@
 /**
- * SQL lowerings for custom operations (`metakit/operation/sql`).
+ * SQL lowerings for custom operations (`@doeixd/metakit/operation/sql`).
  *
  * Kept on its own subpath so no browser page bundles SQL lowering code.
- * One lowering serves both `metakit/sql` (text + parameters) and `metakit/drizzle`
+ * One lowering serves both `@doeixd/metakit/sql` (text + parameters) and `@doeixd/metakit/drizzle`
  * (Drizzle `SQL`), using the `piece` tagged template whose holes are strictly
  * other `SqlPiece` values so no raw value enters SQL as text.
  */
@@ -172,7 +172,7 @@ export interface ForeignLowerings {
     arg: S,
     combine: (parts: ReadonlyArray<string | S>) => S,
   ) => Result.Result<S, SqlUnsupportedError>
-  /** Convert into a `ForeignSql<S>` table for `metakit/sql` or `metakit/drizzle`. */
+  /** Convert into a `ForeignSql<S>` table for `@doeixd/metakit/sql` or `@doeixd/metakit/drizzle`. */
   readonly toForeignSql: <S>(
     dialect: SqlDialect,
     combine: (parts: ReadonlyArray<string | S>) => S,

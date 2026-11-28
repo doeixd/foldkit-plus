@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
-import { Expr } from 'metakit'
-import * as Rows from 'metakit/aggregates'
-import { Decimal, Money } from 'metakit/domain'
+import { Expr } from '@doeixd/metakit'
+import * as Rows from '@doeixd/metakit/aggregates'
+import { Decimal, Money } from '@doeixd/metakit/domain'
 
 // The scale a value is formatted at is its own.
 Decimal.format(Decimal.units(12345, 4), { scale: 4 })

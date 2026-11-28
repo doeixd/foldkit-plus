@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "foldkit-surface": "workspace:*",
-    "metakit": "workspace:*"
+    "@doeixd/metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

@@ -1,10 +1,10 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Effect, Option, Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Abstract, Eq, Expr, Ord, Path, Transition, Verdict } from 'metakit'
-import { CalendarDay, Decimal, Domain, Money, OrderedEnum } from 'metakit/domain'
-import * as Prove from 'metakit/prove'
-import * as Sql from 'metakit/sql'
+import { Abstract, Eq, Expr, Ord, Path, Transition, Verdict } from '@doeixd/metakit'
+import { CalendarDay, Decimal, Domain, Money, OrderedEnum } from '@doeixd/metakit/domain'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Sql from '@doeixd/metakit/sql'
 
 const Usd = Money.make('USD')
 const OrderStatus = OrderedEnum.make(['draft', 'pending', 'paid', 'refunded'] as const)

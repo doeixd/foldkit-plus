@@ -1,2 +1,2 @@
-/** `metakit/graph`, as `foldkit-plus/metakit/graph`. */
-export * from 'metakit/graph'
+/** `@doeixd/metakit/graph`, as `foldkit-plus/metakit/graph`. */
+export * from '@doeixd/metakit/graph'

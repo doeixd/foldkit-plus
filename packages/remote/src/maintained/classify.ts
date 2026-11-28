@@ -8,7 +8,7 @@
  */
 import { Data, Match } from 'effect'
 import { Query as Relational, type AnyQuery } from 'foldkit-entity'
-import type { AnyOperation, OperationImplementations } from 'metakit/operation'
+import type { AnyOperation, OperationImplementations } from '@doeixd/metakit/operation'
 import type { Definition } from './definition.js'
 
 export type Classification = Data.TaggedEnum<{
@@ -70,7 +70,7 @@ export const classify = <Row>(
   })
 }
 
-/** Classify a custom `reduce` fold over a `metakit/operation` `Operation`. */
+/** Classify a custom `reduce` fold over a `@doeixd/metakit/operation` `Operation`. */
 export const classifyOperation = (
   op: AnyOperation,
   options?: {

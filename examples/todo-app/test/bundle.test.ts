@@ -39,7 +39,8 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +3,100 on 2026-11-26 (CI read 176,095): metakit's core evaluator/machine updates (Sets,
 // Domain.Id/Ordinal, Pipeable/Inspectable, nested folds) and foldkit-sync Effect tracing. Ceiling:
 // CI's reading plus ~500, rounded up.
-const CEILING = 176_600
+// +25 bytes over the last ceiling: MetaKit's W1 correctness fixes (2026-11-28: the checker's drop log, the NUL and NaN screens, throw-free refusal text, the literal domain check, the safe-range SQL guard).
+const CEILING = 176_700
 
 clientBudget({
   name: 'todo-app',

@@ -1,6 +1,6 @@
 import { Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import * as Operation from 'metakit/operation'
+import * as Operation from '@doeixd/metakit/operation'
 import { noKept } from '../src/kept.js'
 import { beginMutation, emptyMutationState } from '../src/ledger.js'
 import { beginOptimistic, emptyOptimistic, settleSuccess, visibleStore } from '../src/optimistic.js'

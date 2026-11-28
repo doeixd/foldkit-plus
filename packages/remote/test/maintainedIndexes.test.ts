@@ -1,5 +1,5 @@
 import { Option, Schema } from 'effect'
-import { Eq, Path } from 'metakit'
+import { Eq, Path } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import { dependentQuery } from '../src/dependent.js'
 import {

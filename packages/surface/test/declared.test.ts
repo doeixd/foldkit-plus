@@ -5,8 +5,8 @@
  */
 import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Eq, Num, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Eq, Num, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { describe, expect, it } from 'vitest'
 import { Declared } from '../src/declared.js'
 import { Surface } from '../src/index.js'

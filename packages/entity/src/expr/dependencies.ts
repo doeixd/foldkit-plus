@@ -5,8 +5,8 @@
  * calls, and each place it reaches another row.
  */
 import { Match, Option } from 'effect'
-import { Node } from 'metakit'
-import { isExpr } from 'metakit/build'
+import { Node } from '@doeixd/metakit'
+import { isExpr } from '@doeixd/metakit/build'
 import type { AnyEntity } from '../index.js'
 import type { OperatorDescriptor } from './operator.js'
 import type { OperatorTable } from './table.js'

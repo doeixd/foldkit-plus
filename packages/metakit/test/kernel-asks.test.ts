@@ -7,11 +7,11 @@ import { PGlite } from '@electric-sql/pglite'
 import { DatabaseSync } from 'node:sqlite'
 import { Result, Schema } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Arr, Expr, Node, Num, Ord, Path, Transition, Verdict } from 'metakit'
-import * as Rows from 'metakit/aggregates'
-import * as RowsSql from 'metakit/aggregates/sql'
-import { call } from 'metakit/build'
-import * as Machine from 'metakit/machine'
+import { Arr, Expr, Node, Num, Ord, Path, Transition, Verdict } from '@doeixd/metakit'
+import * as Rows from '@doeixd/metakit/aggregates'
+import * as RowsSql from '@doeixd/metakit/aggregates/sql'
+import { call } from '@doeixd/metakit/build'
+import * as Machine from '@doeixd/metakit/machine'
 
 const Counter = Schema.Struct({
   count: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 1000 })),

@@ -5,7 +5,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Command from 'foldkit/command'
 import type * as Update from 'foldkit/update'
 import { Closure, MessageSet, Projection, Surface } from 'foldkit-surface'
-import { Arr, Num, Transition } from 'metakit'
+import { Arr, Num, Transition } from '@doeixd/metakit'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   documentId,

@@ -7,8 +7,8 @@
  */
 import { Option, Schema } from 'effect'
 import type { AnyQuery } from 'foldkit-entity'
-import { Abstract, Bool, type Expr, Node, Transition, Verdict } from 'metakit'
-import { wrap } from 'metakit/build'
+import { Abstract, Bool, type Expr, Node, Transition, Verdict } from '@doeixd/metakit'
+import { wrap } from '@doeixd/metakit/build'
 
 const readInputPath = (
   input: Readonly<Record<string, unknown>>,

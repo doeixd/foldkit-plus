@@ -6,7 +6,7 @@
  * query answers the case's `expected`. Where the old judge answered otherwise
  * (`differences`), the judge now gives metakit's answer.
  */
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Held,

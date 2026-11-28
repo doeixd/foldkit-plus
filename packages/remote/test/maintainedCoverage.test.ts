@@ -1,8 +1,8 @@
 import { Schema } from 'effect'
 import { Entity, Expr as EntityExpr, Query } from 'foldkit-entity'
-import { Verdict } from 'metakit'
-import * as Aggregates from 'metakit/aggregates'
-import * as Operation from 'metakit/operation'
+import { Verdict } from '@doeixd/metakit'
+import * as Aggregates from '@doeixd/metakit/aggregates'
+import * as Operation from '@doeixd/metakit/operation'
 import { describe, expect, it } from 'vitest'
 import {
   Classification,

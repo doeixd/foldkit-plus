@@ -14,15 +14,15 @@
  * (the replica drops an operation it holds committed, and the journal commits
  * an id once) unless the Message also commutes with every durable Message.
  *
- * `settleConvergence` declares what is owed in the registry of `metakit/temporal` and
+ * `settleConvergence` declares what is owed in the registry of `@doeixd/metakit/temporal` and
  * runs the walks the caller supplies: the walks need the application's
  * replica and journal, which this module does not know. Development and test
  * only; no page imports it.
  */
-import { Transition, Verdict } from 'metakit'
-import type { Machine } from 'metakit/machine'
-import * as Pairs from 'metakit/pairs'
-import * as Temporal from 'metakit/temporal'
+import { Transition, Verdict } from '@doeixd/metakit'
+import type { Machine } from '@doeixd/metakit/machine'
+import * as Pairs from '@doeixd/metakit/pairs'
+import * as Temporal from '@doeixd/metakit/temporal'
 
 type AnyTransition = Transition.Transition<unknown, unknown, unknown, unknown>
 

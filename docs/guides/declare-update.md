@@ -9,8 +9,8 @@ This counter declares `Inc` as a `Transition` (a data description of a state cha
 ```ts
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Num, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Num, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import { Surface } from 'foldkit-surface'
 import { Declared } from 'foldkit-surface/declared'
 
@@ -51,4 +51,4 @@ If a `fallback` arm or a `Transition.opaque` writes a field it did not declare, 
 ## Next
 
 - See what a Message can affect across Surfaces and queries: [See what a Message can affect](./message-impact.md).
-- Reference: [`foldkit-surface` README](../../packages/surface/README.md) and [`metakit` README](../../packages/metakit/README.md).
+- Reference: [`foldkit-surface` README](../../packages/surface/README.md) and [`@doeixd/metakit` README](../../packages/metakit/README.md).

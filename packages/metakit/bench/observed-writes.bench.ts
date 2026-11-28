@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { Transition } from 'metakit'
+import { Transition } from '@doeixd/metakit'
 import { test } from 'vitest'
 
 const State = Schema.Struct({ count: Schema.Int })

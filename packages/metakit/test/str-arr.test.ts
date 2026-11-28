@@ -1,8 +1,8 @@
 import { PGlite } from '@electric-sql/pglite'
 import { Effect, Result, Schema } from 'effect'
-import { Abstract, Arr, Eq, Expr, Ord, Path, Str, Verdict } from 'metakit'
-import * as Prove from 'metakit/prove'
-import * as Sql from 'metakit/sql'
+import { Abstract, Arr, Eq, Expr, Ord, Path, Str, Verdict } from '@doeixd/metakit'
+import * as Prove from '@doeixd/metakit/prove'
+import * as Sql from '@doeixd/metakit/sql'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 const Item = Schema.Struct({

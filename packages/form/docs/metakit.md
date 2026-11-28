@@ -11,7 +11,7 @@ into input attributes, judges the transition against what has been typed so
 far, and shows a rule over two keys (leave after you arrive) beside both keys
 as soon as the dates break it.
 
-A form's keys are its fields, and its input Schema is the Effect `Schema` of the value it decodes to. Install `foldkit-form`, `metakit` and `effect`. The blocks below continue one file; each result is in the comment under the code.
+A form's keys are its fields, and its input Schema is the Effect `Schema` of the value it decodes to. Install `foldkit-form`, `@doeixd/metakit` and `effect`. The blocks below continue one file; each result is in the comment under the code.
 
 ## Read input attributes from the Schema
 
@@ -24,8 +24,8 @@ an amount of US dollars, which metakit's `Money` type stores as whole cents. `Fo
 import { Schema } from 'effect'
 import { Form } from 'foldkit-form'
 import { Declared } from 'foldkit-form/metakit'
-import { Expr } from 'metakit'
-import { Money } from 'metakit/domain'
+import { Expr } from '@doeixd/metakit'
+import { Money } from '@doeixd/metakit/domain'
 
 const Usd = Money.make('USD')
 const WithdrawInput = Schema.Struct({
@@ -126,7 +126,7 @@ goes through when the account is open and the amount is within the balance.
 transition's input and `state` as what you know of the account:
 
 ```ts
-import { Eq, Transition, Verdict } from 'metakit'
+import { Eq, Transition, Verdict } from '@doeixd/metakit'
 
 const Account = Schema.Struct({ balance: Usd, frozen: Schema.Boolean })
 const Withdraw = Transition.make({
@@ -174,7 +174,7 @@ break, with the keys it reads, and `field(model, key)` is the form's own
 `field` with those messages added after the key's own errors:
 
 ```ts
-import { CalendarDay } from 'metakit/domain'
+import { CalendarDay } from '@doeixd/metakit/domain'
 
 const StayInput = Schema.Struct({ arrives: CalendarDay.schema, leaves: CalendarDay.schema }).pipe(
   Expr.refine($ => CalendarDay.before($.arrives, $.leaves), { message: 'Leave after you arrive' }),

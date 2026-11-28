@@ -1,5 +1,5 @@
 {
-  "name": "metakit",
+  "name": "@doeixd/metakit",
   "version": "0.1.0",
   "description": "Inspectable expressions and single-step transitions over Effect Schema: one rule read by evaluation, partial evaluation, SQL, interval/zone checks and Z3.",
   "keywords": [

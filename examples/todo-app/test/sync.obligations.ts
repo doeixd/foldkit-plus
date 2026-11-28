@@ -8,7 +8,7 @@
  * repository's obligations test imports it.
  */
 import { convergence, settleConvergence } from 'foldkit-sync/metakit'
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { todoMachine } from '../src/surface.js'
 import { durableTags, walkPair, walkRedelivery } from './sync.convergence.js'
 

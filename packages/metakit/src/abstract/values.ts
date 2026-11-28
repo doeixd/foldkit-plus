@@ -87,10 +87,18 @@ export const refusesNaN: ReadonlySet<string> = new Set([
 /** Whether `node` is never NaN: not a number, a finite one, or what an operation gave. */
 export function notNaN(this: AbstractState, node: Node.Node): boolean {
   return Node.$match(node, {
-    Lit: ({ value }) =>
-      Array.isArray(value) ? !value.some(item => Number.isNaN(item)) : !Number.isNaN(value),
+    Lit: ({ value }) => Node.refusedForEquality('eq.is', value)?.reason !== 'non-finite',
     Path: path =>
-      Option.exists(this.fieldOf(path), info => info.kind !== 'number' || info.finite) ||
+      Option.exists(
+        this.fieldOf(path),
+        info =>
+          info.kind === 'boolean' ||
+          info.kind === 'text' ||
+          info.kind === 'struct' ||
+          (info.kind === 'number' && info.finite) ||
+          (info.kind === 'literal' &&
+            !Option.exists(info.literals, lits => lits.some(item => Number.isNaN(item)))),
+      ) ||
       Option.exists(this.varOf(path), id => {
         const iv = this.zone.intervalOf(id)
         return Number.isFinite(iv.lo) || Number.isFinite(iv.hi)

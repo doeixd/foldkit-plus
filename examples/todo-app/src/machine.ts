@@ -22,8 +22,8 @@
  *   (`Transition.opaque`).
  */
 import { Schema } from 'effect'
-import { Arr, Bool, Eq, Null, Str, Transition } from 'metakit'
-import * as Machine from 'metakit/machine'
+import { Arr, Bool, Eq, Null, Str, Transition } from '@doeixd/metakit'
+import * as Machine from '@doeixd/metakit/machine'
 import type { MirrorRestored } from 'foldkit-mirror'
 import type { Url } from 'foldkit/url'
 import { Message, Model } from './app.js'

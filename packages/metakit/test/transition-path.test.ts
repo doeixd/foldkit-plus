@@ -3,7 +3,7 @@
  * and `Expr.match`.
  */
 import { Option, Result, Schema } from 'effect'
-import { Expr, Num, Ord, Path, Transition } from 'metakit'
+import { Expr, Num, Ord, Path, Transition } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 
 const Child = Schema.Struct({ count: Schema.Int })

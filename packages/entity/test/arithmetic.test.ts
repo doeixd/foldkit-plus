@@ -4,7 +4,7 @@
  * kernel's own operators, read by every reader as any primitive call is.
  */
 import { Schema } from 'effect'
-import { Node } from 'metakit'
+import { Node } from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Computation,

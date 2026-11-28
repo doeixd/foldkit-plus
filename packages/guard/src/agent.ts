@@ -9,7 +9,7 @@
  */
 import { Option } from 'effect'
 import { RemoteData } from 'foldkit-remote'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import type { InteractionKey } from './attach.js'
 import { May, type MayAnswer } from './may.js'
 

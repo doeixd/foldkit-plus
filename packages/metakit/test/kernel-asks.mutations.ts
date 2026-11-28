@@ -39,8 +39,8 @@ export default [
   mutation(
     'step: a guard is evaluated with no foreign implementations',
     transition,
-    'if (evalNode(transition.when.node, env, options?.foreign) !== true)',
-    'if (evalNode(transition.when.node, env) !== true)',
+    'const answer = evalNode(transition.when.node, env, options?.foreign)',
+    'const answer = evalNode(transition.when.node, env)',
   ),
   mutation(
     'run: the options are dropped before the step',

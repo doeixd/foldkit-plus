@@ -9,9 +9,9 @@
  * from the static Model slice so its data can be omitted from the envelope.
  */
 import { Data, Option, Result } from 'effect'
-import { Expr, Path } from 'metakit'
-import { pathsOverlap } from 'metakit/graph/match'
-import { pruneStatic } from 'metakit/graph/prune'
+import { Expr, Path } from '@doeixd/metakit'
+import { pathsOverlap } from '@doeixd/metakit/graph/match'
+import { pruneStatic } from '@doeixd/metakit/graph/prune'
 import type { AnyBinding, Bindings, BindingValue } from './binding.js'
 import { isUnchangingPath, type LiveSet } from './liveSet.js'
 

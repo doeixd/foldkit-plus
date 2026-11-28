@@ -2,11 +2,11 @@ import { PGlite } from '@electric-sql/pglite'
 import { Option, Result } from 'effect'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { Abstract, Expr, Node, Ord, Path, Transition, Verdict } from 'metakit'
-import * as Conformance from 'metakit/conformance'
-import * as Operation from 'metakit/operation'
-import * as Sql from 'metakit/sql'
-import * as Temporal from 'metakit/temporal'
+import { Abstract, Expr, Node, Ord, Path, Transition, Verdict } from '@doeixd/metakit'
+import * as Conformance from '@doeixd/metakit/conformance'
+import * as Operation from '@doeixd/metakit/operation'
+import * as Sql from '@doeixd/metakit/sql'
+import * as Temporal from '@doeixd/metakit/temporal'
 import {
   effectivePermissions,
   Flags,
@@ -123,16 +123,32 @@ describe('examples/metakit permissions (checked custom algebras)', () => {
   it('acts on claims across partial eval, abstract checker, Arr.reduce, Transition.combine, and describe/compare', () => {
     const $ = Path.forSchema(PermissionState)
 
-    // Partial eval & judge: identity and absorbing rewrites.
+    // Partial eval & judge: identity and absorbing rewrites authorized by checkOperation evidence.
+    const verifiedFlagsOr = Expr.RewritePolicy.verified(
+      Conformance.checkOperation(flagsOr, pageImplementations).evidence,
+    )
     expect(
       Node.$is('Path')(
-        Expr.residualize(flagsOr($.granted, 0), {}, { foreign: pageImplementations }).node,
+        Expr.residualize(
+          flagsOr($.granted, 0),
+          {},
+          {
+            foreign: pageImplementations,
+            rewritePolicy: verifiedFlagsOr,
+          },
+        ).node,
       ),
     ).toBe(true)
     expect(
       Node.$is('Lit')(
-        Expr.residualize(flagsOr($.granted, 0x7fff_ffff), {}, { foreign: pageImplementations })
-          .node,
+        Expr.residualize(
+          flagsOr($.granted, 0x7fff_ffff),
+          {},
+          {
+            foreign: pageImplementations,
+            rewritePolicy: verifiedFlagsOr,
+          },
+        ).node,
       ),
     ).toBe(true)
 

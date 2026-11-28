@@ -69,7 +69,8 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // shell +6,000 and gallery +9,000 on 2026-11-26 (CI read 193,460 and 466,464): site shell and
 // gallery carry the updated blog/guide index metadata (including the new metakit posts) and
 // foldkit-ssr/surface/bundle updates. Ceilings: CI's reading plus ~500.
-const CEILINGS = { shell: 194_000, gallery: 467_000 }
+// Shell +177 bytes over its last ceiling: MetaKit's W1 correctness fixes (2026-11-28).
+const CEILINGS = { shell: 194_200, gallery: 467_000 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
 const PREVIEWS = ['preview-heading', 'preview-trip']

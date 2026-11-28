@@ -5,8 +5,8 @@
  * and the environment `lowerEnv.ts` builds.
  */
 import { Option } from 'effect'
-import { Node, Str, Verdict } from 'metakit'
-import { evalNode, judgeNode } from 'metakit/build'
+import { Node, Str, Verdict } from '@doeixd/metakit'
+import { evalNode, judgeNode } from '@doeixd/metakit/build'
 import {
   Held,
   Judge,

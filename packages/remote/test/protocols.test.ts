@@ -1,4 +1,4 @@
-import * as Temporal from 'metakit/temporal'
+import * as Temporal from '@doeixd/metakit/temporal'
 import { describe, expect, it } from 'vitest'
 import { report, results } from './protocols.obligations.js'
 

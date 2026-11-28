@@ -1,7 +1,7 @@
 /**
  * `foldkit-plus laws <module>[#export]`: loads a module of the project and
  * prints `Laws.show` of the report it holds, or the list an obligations
- * report holds (`Temporal.registry.report()` of `metakit/temporal`: open,
+ * report holds (`Temporal.registry.report()` of `@doeixd/metakit/temporal`: open,
  * discharged, and decided without a test). It reads `tsx` and
  * `foldkit-entity` from the project, never its own copies: a report is the
  * project's data, and Effect values from a second copy of a library do not

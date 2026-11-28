@@ -6,7 +6,7 @@
  * guard rule or a write's `from` and `becomes` read the predicate it holds.
  */
 import { Match, Option, Schema } from 'effect'
-import { Verdict } from 'metakit'
+import { Verdict } from '@doeixd/metakit'
 import { Judge, OperatorMissingError, type Row } from './evaluate.js'
 import { and, eq, isNull } from './expr/logic.js'
 import {

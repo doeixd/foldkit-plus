@@ -1,7 +1,7 @@
 import { Option, Schema } from 'effect'
 import { Expr } from 'foldkit-entity'
 import { Maintained, type MaintainedValue } from 'foldkit-remote/maintained'
-import * as Rows from 'metakit/aggregates'
+import * as Rows from '@doeixd/metakit/aggregates'
 import { expectTypeOf } from 'vitest'
 import { Query } from '../src/index.js'
 import {
