@@ -473,7 +473,7 @@ The maintainer's instruction (2026-11-28): to save money, implementation of this
 | Agent | Command (non-interactive) | Model |
 |---|---|---|
 | Gemini | `agy --dangerously-skip-permissions --model gemini-4-neon-high -p "<brief>"` | Gemini 4 Neon |
-| Codex | `codex exec -m gpt-6.2-sol "<brief>"` (the user's `~/.codex/config.toml` already sets this model, no approval prompts and full access) | GPT Sol 6.2 |
+| Codex | `~/.bun/bin/codex exec -m gpt-6.2-sol - < <brief file>` (the user's `~/.codex/config.toml` already sets this model, no approval prompts and full access). Call the Bun install by path: the `codex` first on `PATH` is an older standalone install (0.160.0) whose model catalog has no GPT Sol 6.2 and answers "model not supported". | GPT Sol 6.2 |
 
 Both were checked to exist on this machine (`agy` 1.5.18, `codex-cli` 0.160.0) and to list these models. Neither has been run for this plan yet, so the first delegated step should be a small one (W0 step 2), to learn how each reports.
 
