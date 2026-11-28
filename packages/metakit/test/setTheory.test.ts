@@ -16,7 +16,17 @@
  * 5. Randomized 100-triple runtime property fuzzer across integer and string sets.
  */
 import { Effect, Schema } from 'effect'
-import { Bool, Eq, Expr, type Expression, Node, Path, Sets, Transition, Verdict } from '@doeixd/metakit'
+import {
+  Bool,
+  Eq,
+  Expr,
+  type Expression,
+  Node,
+  Path,
+  Sets,
+  Transition,
+  Verdict,
+} from '@doeixd/metakit'
 import { Text } from '@doeixd/metakit/domain'
 import * as Machine from '@doeixd/metakit/machine'
 import * as Prove from '@doeixd/metakit/prove'

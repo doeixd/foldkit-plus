@@ -30,7 +30,11 @@ import {
   type WayOfWriting,
   type WriteProperties,
 } from '@doeixd/metakit'
-import { applyForeign, implementationsMeta, type OperationImplementations } from '@doeixd/metakit/operation'
+import {
+  applyForeign,
+  implementationsMeta,
+  type OperationImplementations,
+} from '@doeixd/metakit/operation'
 import { noKept, type Kept, type KeptField } from './kept.js'
 import type { EntityLayer } from './optimistic.js'
 import { own } from './record.js'

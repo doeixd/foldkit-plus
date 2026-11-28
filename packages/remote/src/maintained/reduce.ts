@@ -8,7 +8,11 @@
  */
 import { Option } from 'effect'
 import { Node } from '@doeixd/metakit'
-import { applyForeign, type AnyOperation, type OperationImplementations } from '@doeixd/metakit/operation'
+import {
+  applyForeign,
+  type AnyOperation,
+  type OperationImplementations,
+} from '@doeixd/metakit/operation'
 import type { Keeper } from './deltas.js'
 
 export interface ReduceDefinition<Row, V> {

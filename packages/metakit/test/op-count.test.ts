@@ -18,7 +18,9 @@ describe('core operator count', () => {
   ])('keeps every operator count in %s consistent with coreOps', path => {
     const document = readFileSync(new URL(path, import.meta.url), 'utf8')
     const counts = [
-      ...document.matchAll(/\b(\d+)(?: primitive operators|-op core| operators| core operators)\b/g),
+      ...document.matchAll(
+        /\b(\d+)(?: primitive operators|-op core| operators| core operators)\b/g,
+      ),
     ]
 
     expect(counts.length).toBeGreaterThan(0)

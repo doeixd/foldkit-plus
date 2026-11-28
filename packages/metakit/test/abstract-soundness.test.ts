@@ -4,7 +4,19 @@
  * not prove with an environment in which it is not true.
  */
 import { Result, Schema } from 'effect'
-import { Abstract, Bool, Eq, Expr, Null, Num, Ord, Path, Str, Transition, Verdict } from '@doeixd/metakit'
+import {
+  Abstract,
+  Bool,
+  Eq,
+  Expr,
+  Null,
+  Num,
+  Ord,
+  Path,
+  Str,
+  Transition,
+  Verdict,
+} from '@doeixd/metakit'
 import { describe, expect, it } from 'vitest'
 
 /** `goal` is not proved, and `env`, which the Schema admits, is why. */

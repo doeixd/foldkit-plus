@@ -1,6 +1,12 @@
 import { Context, Effect, Option } from 'effect'
 import { Expr } from '@doeixd/metakit'
-import { build, knownEdge, modelPath, unknownEdge, type DependencyGraph } from '@doeixd/metakit/graph'
+import {
+  build,
+  knownEdge,
+  modelPath,
+  unknownEdge,
+  type DependencyGraph,
+} from '@doeixd/metakit/graph'
 import { covers } from '@doeixd/metakit/graph/match'
 import type { Observed } from './block.js'
 
