@@ -1,199 +1,232 @@
 # MetaKit → Reffect Native Adapter Spike Plan (`#598`, `#612`)
 
-**Status:** Decision-complete design & execution plan (ready for Phase B1)  
-**Issues:** `#598` (MetaKit / Reffect convergence), `#612` (Foldkit successor native execution boundary)  
-**Prerequisites landed in `#610`:** `metakit/artifact` (`PortableArtifactV1`, `ArtifactFingerprint`, `EvidenceKey`), `Expr.matchTags` / `Expr.matchTagsExhaustive`, `metakit/fn` (`FnObligation`, `ReturnCarrier`), `Operation.derived` / `expandDerived`, `Interpreter.prepare`, `Language.readiness`, `metakit/tooling` (`SemanticIndex`, `semanticDiff`).
+**Status:** Revised 2026-11-28 after checking the first draft against the MetaKit and Reffect source. Ready for Phase A.
+**Issues:** `#598` (MetaKit / Reffect convergence), `#612` (Foldkit successor native execution boundary), `#645` (portable artifacts)
+**Landed in `#610`:** `metakit/artifact` (`PortableArtifactV1`, `ArtifactFingerprint`, `EvidenceKey`), `Expr.matchTags` / `Expr.matchTagsExhaustive`, `Operation.derived` / `expandDerived`, `Interpreter.prepare`.
 
 ---
 
-## 1. Purpose & Core Question
+## 1. The question
 
-Both **MetaKit** (`doeixd/foldkit-plus`) and **Reffect** (`doeixd/reffect`) now have real, tested implementations:
-- MetaKit owns the target-neutral pure semantic calculus: `Expr<Env, A>` over Effect `Schema`, `Transition`, `Machine`, portable wire artifacts (`PortableArtifactV1`), Kleene $K_3$ partial evaluation, SQL/Drizzle lowering, and Tier 3/4 Z3 verification.
-- Reffect owns native Rust compilation (`Compile`, `Rs`, `CargoApi`, `NativeRunner`), ownership/representation planning, and native Effect/Foldkit SSR/Remote/RPC execution (`packages/reffect/src/foldkit.ts` already lowers `foldkit-entity` queries to dependency-free Rust).
+MetaKit (`doeixd/foldkit-plus`) owns a pure expression calculus over Effect Schema and a single-step `Transition`. Reffect (`doeixd/reffect`) compiles to dependency-free Rust and already lowers `foldkit-entity` queries (`packages/reffect/src/foldkit.ts`).
 
-The question this spike answers is **not** *"should we merge both repos into a mega-kernel?"* (Reffect's `docs/reuse-strategy.md` explicitly defers that). The concrete question is:
+> Can Reffect run a real MetaKit slice (tagged-message match, guarded `Transition`, named views) natively, with every answer equal to MetaKit's reference evaluator, while the two repositories share only versioned data and neither depends on the other's code?
 
-> **Can a small, strictly checked adapter lower a real MetaKit `Expr.matchTagsExhaustive` + guarded `Transition` + named-view vertical slice to Reffect's Rust target with 100% 3-way semantic parity (`MetaKit JS` === `Reffect Reference` === `Reffect Rust`), zero external Rust crate dependencies, and measurable native execution benefit — without weakening MetaKit's semantics or adding a Rust dependency to `foldkit-plus`?**
+Speed is measured and reported, not a gate. For scalar rules over a small state there is no reason to expect native code to beat `Interpreter.prepare` by a useful margin, and a subprocess will lose to it. What the spike can establish is a capability (a native Reffect server evaluates MetaKit rules with no JavaScript runtime) and its price (how much adapter, and how tightly coupled).
 
 ---
 
-## 2. Design Thoughts & Locked-In Architectural Decisions (D1–D7)
+## 2. What checking the source changed
 
-### D1. Repo Placement & Dependency Direction
-- **Decision:** Implement the adapter inside `doeixd/reffect` (`packages/reffect/src/metakit.ts` + `packages/reffect/src/metakit-runtime.ts` + Rust runtime source in `RuntimeSources.metakit_eval`), right beside Reffect's existing `packages/reffect/src/foldkit.ts`.
-- **Consumed contract:** MetaKit's JSON-serializable `PortableArtifactV1` + `ArtifactFingerprint` + Schema/Transition structural descriptors (no private MetaKit `Node` internals or closures).
-- **Alternatives rejected:**
-  - *Putting Rust codegen inside `foldkit-plus`:* would force `cargo`/`rustc` into `foldkit-plus` CI or leave native tests unrunnable in CI.
-  - *Extracting `@doeixd/semantic-ir` first:* premature abstraction archaeology before a single real cross-repo vertical slice exists.
-- **Implication:** `foldkit-plus` stays 100% pure TypeScript with zero Rust toolchain requirement, while `reffect` CI compiles and executes real Rust binaries on every PR.
+Each row is a claim in the first draft that the code does not keep.
 
-### D2. Lowering Target Inside Reffect
-- **Decision:** Emit **zero-dependency Rust** backed by a dedicated `metakit_eval` runtime (mirroring `foldkit.ts` + `foldkit-runtime.ts`), reusing Reffect's `CompileError`, `SemanticRef`, `Rs` AST emitter, `CargoApi`, and `records.ts` naming/layout helpers (`rustFieldNames`, `rustVariantName`).
-- **Alternatives rejected:**
-  - *Lowering MetaKit directly into Reffect's general `Kernel.Expr` (`U64Type`, `NumberType`, `OptionIR`):* Reffect's `U64Type` uses wrapping unsigned arithmetic and standard `Option`/`Result`, whereas MetaKit uses signed safe-53-bit checked integers (`±(2^53−1)`), Kleene $K_3$ three-valued logic, and refusal-before-null propagation. Forcing MetaKit through `U64Type` would either silently corrupt semantics or pollute Reffect's general kernel.
-- **Implication:** Exact semantic parity, zero external Cargo crates (sub-second `cargo build`), and clean `Metakit.embed(...)` composability into Reffect's SSR/Remote/RPC crates.
-
-### D3. Numeric Representation (`i64` Checked Safe-53 vs Floats)
-- **Decision:** Represent `Schema.Int` (and integer-backed domain types `Money`, `Decimal`, `CalendarDay`) as Rust `i64` with explicit checked arithmetic and a safe-integer guard:
-  ```rust
-  pub const MAX_SAFE_INT: i64 = 9_007_199_254_740_991; // (1 << 53) - 1
-  ```
-  Every `mk_add`, `mk_sub`, `mk_mul`, `mk_neg` uses Rust `checked_*` followed by `v.abs() <= MAX_SAFE_INT`, returning `Err(Refusal::UnsafeInteger)` on violation.
-- **v1 boundary:** Reject `Schema.Number` (IEEE-754 floats), `num.div`, `num.rem`, and `num.mulScaled` in v1 with `CompileError('UNSUPPORTED_REPRESENTATION' | 'UNSUPPORTED_OPERATOR')`.
-- **Implication:** Eliminates `-0`, `NaN`, and float rounding divergence in v1 while covering 100% of business-domain integer/money/counter/limit rules.
-
-### D4. Text & Unicode Semantics (Native UTF-8 vs UTF-16)
-- **Decision:** Use **native Rust UTF-8 `String` / `&str`** (NOT `foldkit-runtime.ts`'s UTF-16 bridge).
-  - On the JS → wire boundary: run MetaKit's `wellFormed()` (lone surrogates `\uD800`–`\uDFFF` → `U+FFFD`) and reject `\u0000` (NUL) before null (`Refusal::Unportable`).
-  - In Rust `metakit_eval`:
-    - `str.len`: `s.chars().count() as i64` (Unicode code points — matches MetaKit `codePointLength`, Postgres `char_length`, and SQLite `length`).
-    - `str.lt`/`lte`/`gt`/`gte`: `a.cmp(b)` (Rust `&str` ordering is exact UTF-8 / Unicode scalar value order!).
-    - `str.lowerAscii`: `s.to_ascii_lowercase()` (ASCII A–Z only — matches MetaKit `ops/str.ts`).
-    - `str.trim`: **`s.trim_matches(&[' ', '\t', '\n', '\r'][..])`** — **NOT** Rust's `str::trim()`!
-- **Trap avoided:** Rust's built-in `str::trim()` strips Unicode whitespace like `\u00A0` (NBSP) and `\u2003`, whereas MetaKit's `str.trim` strips **only** ASCII space, tab, LF, and CR. Explicit `trim_matches` guarantees 100% parity.
-
-### D5. Kleene $K_3$ & Refusal-Before-Null Evaluation Order
-- **Decision:** Every MetaKit expression evaluates to `Result<Option<Val>, Refusal>` in Rust:
-  - `Ok(Some(v))` = non-null value
-  - `Ok(None)` = `null` (or absent optional key)
-  - `Err(r)` = `Node.Refusal` (`UnsafeInteger`, `NonFinite`, `IllTyped`, `Unmatched`, `Unportable`, `Unsupported`, `Failed`)
-- **Strict evaluation rules (matching `packages/metakit/docs/semantics.md`):**
-  - `Call` arguments evaluate **eagerly left-to-right** before the operator runs, so `bool.and(false, <refused>)` and `bool.or(true, <refused>)` return `Err(<refused>)` (refusal decides before null and before boolean absorption!).
-  - `eq.is` / `eq.isNot` are **total** over null (`eq.is(null, null) == Ok(Some(true))`, `eq.is(null, 1) == Ok(Some(false))`), whereas `eq.equals` is SQL 3-valued (`eq.equals(null, null) == Ok(None)`).
-  - `If` and `Match` evaluate **only the selected branch** (an untaken branch holding a refusal must NEVER fire!). `If(null, t, e)` returns `Ok(None)`. `Match` on `null` returns `otherwise` if present else `Ok(None)`; unmatched non-null tag returns `Err(Refusal::Unmatched)`.
-  - `null.coalesce(a, b)` evaluates `a` first; if `Ok(Some(v))` returns `Ok(Some(v))` without evaluating `b` (matches `ops/null.ts`: `b`'s refusal does not reach the answer when `a` is non-null).
-
-### D6. `Transition` Purity & Emitted Commands Boundary (`#612`)
-- **Decision:** Lower a guarded `Transition` as a pure function:
-  ```rust
-  (state: &State, input: &Input, supplied: &Supplied) -> Result<TransitionOutcome<State, Emit>, TransitionRefusal>
-  ```
-  - Step 1: Validate guard `when` (`Ok(Some(true))` proceeds; `Ok(Some(false))` or `Ok(None)` returns `Err(TransitionRefusal::GuardNotMet)`; `Err(r)` returns `Err(TransitionRefusal::ExprRefusal(r))`).
-  - Step 2: Evaluate all `emits` conditions and field expressions against **pre-step** `state` (matching `packages/metakit/src/transition.ts`), keeping emitted records as plain data (`Vec<Emit>`).
-  - Step 3: Evaluate all `writes` (`set` and `add` in v1) against **pre-step** `state`, apply them to produce `next_state`, and validate any `ensures` clauses over `(state, input, next_state)`.
-  - **Never execute side effects inside the lowered Rust transition.** Host runtimes (JS or Reffect `EffectFn`) execute emitted commands after commit.
-
-### D7. Fingerprint Continuity, Caching & Wire vs In-Process Boundary
-- **Decision:**
-  - Every `MetakitArtifact` records the source MetaKit `ArtifactFingerprint` (`sha256:...`) and derives a Reffect-side `EvidenceKey` (`reader: { id: 'reffect/metakit-rust', version }`, `profile: 'metakit/safe-int-k3@1'`, `fingerprint`).
-  - Support two execution modes:
-    1. **Subprocess wire protocol (`reffect-metakit-v1`)**: dependency-free line protocol for Phases B1–B3 CLI & 3-way differential fuzzing (mirroring `reffect-query-v1`).
-    2. **In-process embedding (`Metakit.embed(...)`)**: emits Rust module functions directly callable from Reffect SSR/Remote/RPC crates (mirroring `Foldkit.embed`) for honest Phase B4 micro-benchmarks without subprocess spawn overhead.
-
----
-
-## 3. Admitted Fragment v1 Matrix
-
-| Category | Admitted in v1 | Rejected in v1 (`CompileError`) |
+| First draft | What the source says | Consequence |
 |---|---|---|
-| **Types** | `Schema.Int` (safe-53), `Schema.Boolean`, `Text.schema`, `Schema.Literals`, `Schema.NullOr`, `Schema.optional` / `optionalKey`, `Schema.Struct`, `Schema.Union` of `Schema.TaggedStruct` | `Schema.Number` (floats), `Schema.Array`, `Schema.Record`, non-tagged unions, `Schema.Unknown`, `Schema.Any` |
-| **AST Nodes** | `Lit` (int, bool, string, null), `Path`, `Call` (admitted core ops), `If`, `Match` | `Opaque`, `Rows`, unbound `Foreign` ops (use `Operation.expandDerived` before lowering) |
-| **Core Ops (19)** | `bool.and`, `bool.or`, `bool.not`, `eq.is`, `eq.isNot`, `eq.equals`, `ord.lt`, `ord.lte`, `ord.gt`, `ord.gte`, `num.add`, `num.sub`, `num.mul`, `num.neg`, `null.isNull`, `null.coalesce`, `str.len`, `str.trim`, `str.lowerAscii`, `str.startsWith`, `str.contains`, `str.lt`, `str.lte`, `str.gt`, `str.gte` | `num.div`, `num.rem`, `num.mulScaled`, `eq.oneOf`, `eq.among`, `arr.*`, `set.*`, `time.*` |
-| **Transition Writes** | `Transition.set`, `Transition.add` | List writes (`append`, `insert`, `remove`, `patch`, `include`, `exclude`), `Transition.opaque` |
+| Reffect installs MetaKit and runs it in a three-way differential test | `metakit` on npm is another project's package (motionbank, 0.4.0); ours has never been published. Reffect pins `effect` 4.0.0 exactly; MetaKit peers on `^4.1.0` | Couple through data files, not a package (D1). The name is a release blocker for all 16 packages that depend on `metakit` and needs its own issue |
+| "`reffect` CI compiles and executes real Rust binaries on every PR" | `doeixd/reffect` has no `.github/workflows`; its checks are local (`vp test`, `runtime:check`). Last push 2026-10-09; the local checkout is at 2026-10-06 | Checks in B1–B4 are run locally and reported. Pull before starting |
+| The adapter consumes `PortableArtifactV1` plus "Schema/Transition structural descriptors" | `PortableArtifactV1` is `{ codecVersion, node, requiredOps }`. It carries no Schema, and `metakit/artifact` has no Transition encoding. A `Path` is bare string segments | MetaKit must publish both descriptors first (Phase A) |
+| `ensures` is validated after the writes | `evaluateStep` (`packages/metakit/src/transition.ts`) never evaluates `ensures`; it is a proof obligation | A Rust step that checked it would refuse where MetaKit succeeds. Carry it as data, do not execute it (D7) |
+| Guard refusal returns a separate `ExprRefusal` | `when !== true` gives one `Refused('transition guard evaluated to false')` for false, null and a refusal alike | One guard disposition (D7) |
+| Emits are evaluated, then writes | Write values are computed first, in order, then each emit's `when` and fields. Every refusal is collected and the first is reported; no write is applied | Order fixed in D7; it decides which refusal is reported |
+| The step starts at the guard | It first checks `input` and `supplied` against their Schemas | Boundary validation is part of the contract (D5, D7) |
+| `null.coalesce` is lazy in MetaKit | `Call` evaluates every argument; `coalesceOp` then ignores the fallback when the value is non-null | Lazy code is allowed because it is observationally equal (expressions are pure), not because it mirrors the evaluator (D6) |
+| "Core Ops (19)" | The row lists 25, names `eq.oneOf` (the id is `eq.in`), and omits `str.endsWith`, `str.concat`, `str.upperAscii` without a reason | Matrix redone against the 50 ids in `ops/table.ts` (§4) |
+| Reject NUL and replace lone surrogates "on the wire boundary" | MetaKit refuses NUL only inside an operator that screens for it; a bare `Path` read returns the string as held, lone surrogates included | Such inputs are outside the profile, not a parity case (D5) |
+| D5 gives `Result<Option<Val>, Refusal>` with seven refusals; B2 gives `Value` with a `Null` variant and four | The two sections disagree | One representation (D6) |
+| A tagged union lowers to a Rust enum | `matchTags` lowers to `Match` over the path `<subject>._tag`, and each branch reads payload fields as ordinary paths into the same subject. A field its variant lacks reads as null | A path is a nullable slot; no Rust enum is needed (D3) |
 
 ---
 
-## 4. Target Vertical Slice (`CounterAccount` — `#612` + `#598`)
+## 3. Decisions
 
-One realistic slice exercising every part of the v1 contract:
+### D1. The repositories share data, not code
+MetaKit emits two JSON documents. Reffect reads them and imports nothing from `foldkit-plus`.
 
-- **State Schema (`CounterAccount`):**
-  `{ count: BoundedInt, limit: BoundedInt, status: Schema.Literals(['open', 'frozen']), note: Schema.NullOr(Text.schema) }`
-- **Tagged Message (`Expr.matchTagsExhaustive`):**
-  `Increment {}` | `Decrement {}` | `SetCount { count: Schema.Int }` | `Add { delta: Schema.Int }` | `Freeze {}`
-- **Named View Derivations (`Expr`):**
-  - `remaining`: `Num.sub(state.limit, state.count)`
-  - `canIncrement`: `Bool.and(Eq.is(state.status, 'open'), Ord.lt(state.count, state.limit))`
-  - `noteLen`: `Null.coalesce(Str.len(Str.trim(state.note)), 0)`
-- **Guarded `Transition` (`UpdateCounter`):**
-  - Computes `nextCount` via `Expr.matchTagsExhaustive(input.msg, ...)`
-  - `when`: `Bool.and(Eq.is(state.status, 'open'), Bool.and(Ord.gte(nextCount, 0), Ord.lte(nextCount, state.limit)))`
-  - `apply`: `[Transition.set(state.count, nextCount)]`
-  - `emits`: `[Transition.emit('CountChanged', { previous: state.count, next: nextCount }, { when: Eq.isNot(nextCount, state.count) })]`
+1. A **lowering bundle**: the portable expressions or transition, plus the interface they read (D2).
+2. A **conformance corpus**: inputs and the outcome MetaKit's reference evaluator gave for each (D8).
+
+The adapter code lives in `doeixd/reffect`, beside `foldkit.ts`. `foldkit-plus` gains no Rust toolchain and no dependency.
+
+Rejected: a `metakit` dev dependency in Reffect (unpublishable name, Effect version skew, and it would let the adapter read private `Node` structure); Rust code generation inside `foldkit-plus`; extracting a shared semantic IR package before one slice works.
+
+### D2. MetaKit publishes the interface and the transition
+The first draft had Reffect walk Effect `SchemaAST` and a live `Transition`. That makes Reffect a second reader of MetaKit's private structure, which drifts. MetaKit owns the encoding instead, in `metakit/artifact`:
+
+```ts
+// Illustrative; Phase A fixes the names.
+interface PortableSlot {
+  readonly path: ReadonlyArray<string>
+  readonly kind: 'int' | 'bool' | 'text'
+  readonly nullable: boolean // NullOr, optional key, or a field some union variant lacks
+}
+interface PortableTransitionV1 {
+  readonly codecVersion: 1
+  readonly slots: ReadonlyArray<PortableSlot>
+  readonly when: PortableNode
+  readonly writes: ReadonlyArray<{ target: ReadonlyArray<string>; way: 'set' | 'add'; value: PortableNode }>
+  readonly emits: ReadonlyArray<{ tag: string; when?: PortableNode; fields: ReadonlyArray<readonly [string, PortableNode]> }>
+  readonly ensures?: PortableNode // an obligation for provers; no executor runs it
+  readonly requiredOps: ReadonlyArray<PortableOpRef>
+}
+```
+
+An expression bundle is the same with `node` in place of `when`/`writes`/`emits`. Encoding refuses a `Path` whose Schema is not one of the three scalar kinds, a write way outside the fragment, and `Transition.opaque`. `Artifact.fingerprint` covers the whole bundle, slots included, so a Schema change that alters a slot's kind or nullability changes the fingerprint.
+
+This is the "portable schema/domain identity" that `#645` P1 asks for, and `#646` tooling can read it too.
+
+### D3. Lower over slots, not Rust structs
+Every distinct `Path` becomes one input slot holding `Option<Value>`. The host reads the slots; generated Rust never sees a struct or an enum.
+
+- A tagged message is a text slot (`input.msg._tag`) and a nullable slot per payload field (`input.msg.count`). This is exactly how MetaKit's `readSegments` answers the same reads.
+- A step returns a plan, not a state: the value of each write in order, and the emitted records. The host applies the writes.
+- This matches the precedent in `foldkit.ts`, whose generated functions take `&[Value]`.
+
+Cost: the host marshals slots on every call. B4 measures it. Typed struct binding (so a native Reffect crate passes its own state by reference) is the first widening to consider after B4, and only if that measurement says marshalling dominates.
+
+Rejected: lowering into Reffect's general `Kernel.Expr`. Its `U64Type` wraps; MetaKit's integers are signed, bounded by ±(2^53−1) and refuse on overflow.
+
+### D4. Integers
+`int` is Rust `i64`. `num.add`, `num.sub`, `num.mul`, `num.neg` use `checked_*` and then require `|v| <= 9_007_199_254_740_991`, else `Refusal::UnsafeInteger`. A number literal that is not an integer in that range is a compile error, since a `Lit` carries no kind of its own. `Schema.Number`, `num.div`, `num.rem` and `num.mulScaled` are outside v1.
+
+### D5. Text, and the input domain
+Text is a native Rust `String`.
+
+| Operator | Rust | Why not the obvious call |
+|---|---|---|
+| `str.len` | `s.chars().count()` | MetaKit counts code points |
+| `str.lt` and friends | `a.cmp(b)` | Rust orders `str` by scalar value, as `byCodePoint` does |
+| `str.trim` | `trim_matches(&[' ', '\t', '\n', '\r'][..])` | `str::trim` also strips NBSP and other Unicode space |
+| `str.lowerAscii`, `str.upperAscii` | `to_ascii_lowercase`, `to_ascii_uppercase` | A to Z only |
+| `str.startsWith`, `endsWith`, `contains`, `concat` | the `str` methods | Equal on well-formed text |
+
+**Profile `metakit/safe-int-k3@1` admits an input only if** every slot value matches its slot's kind and nullability, every integer is within the safe range, and every text is well-formed UTF-16 with no NUL. The boundary refuses anything else as `InputOutsideProfile`, before evaluation. That is a narrowing, declared as such: MetaKit itself returns a lone surrogate or a NUL unchanged from a bare path read, and no Rust `String` can hold the first. The corpus marks such vectors `outsideProfile`; they test the boundary, not parity.
+
+The checker also refuses a text literal holding a NUL or a lone surrogate. With both doors shut, `unportable` cannot arise in v1.
+
+### D6. One evaluation contract
+Every expression evaluates to `Result<Option<T>, Refusal>`: `Ok(Some(v))` a value, `Ok(None)` null, `Err` a refusal. `T` is known statically, because the checker types every node from the slot kinds and each operator's signature. A term MetaKit would refuse at run time as `ill-typed` (`ord.lt` over text) is a compile error here.
+
+Refusals that can arise in v1: `UnsafeInteger` and `Unmatched`. Parity compares the refusal's reason, not its message.
+
+- **Strict operators:** arguments evaluate left to right; the first refusal wins, before null; then any null gives null.
+- **`bool.and`, `bool.or`:** both arguments evaluate; a refusal wins over a deciding `false`/`true`; then Kleene.
+- **`eq.is`, `eq.isNot`, `null.isNull`:** total over null, still propagate a refusal. `eq.equals` is strict.
+- **`null.coalesce(a, b)`:** `b` may be skipped when `a` is a value (see §2).
+- **`If`:** condition first; `true` takes `then`, `false` takes `otherwise`, null gives null, a refusal is returned. The other arm is not evaluated.
+- **`Match`:** subject once, then only the matching arm. Null subject gives `otherwise`, or null without one. A value no case names, with no `otherwise`, is `Unmatched`.
+
+### D7. The step, in MetaKit's order
+1. The boundary validates `input` and `supplied` against the profile (D5). MetaKit checks them against their Schemas here.
+2. Evaluate `when`. Anything but `true` is `Refused(Guard)`: false, null and a refusal alike.
+3. Evaluate every write's value in order, then for each emit its `when` and, if `true`, its fields in order. All of it reads the state before the step. A refusal anywhere gives `Refused(Evaluation(reason))` with the first refusal in that order, and the plan is discarded.
+4. Return the write values and the emitted records. `Transition.add` arrives as an ordinary `num.add` call in the write's value.
+5. `ensures` is not evaluated.
+
+No effect runs inside the step. Emitted records are data for the host.
+
+### D8. Two legs and a corpus
+The first draft's third leg, a "Reffect Reference" evaluator in TypeScript, would be a third implementation of the same semantics with no user. Drop it. Parity is MetaKit's reference evaluator against generated Rust, through a corpus MetaKit writes:
+
+```ts
+// Illustrative.
+interface ConformanceCorpusV1 {
+  readonly profile: 'metakit/safe-int-k3@1'
+  readonly metakitCommit: string
+  readonly cases: ReadonlyArray<{
+    readonly fingerprint: string
+    readonly bundle: PortableExprV1 | PortableTransitionV1
+    readonly vectors: ReadonlyArray<{ slots: ReadonlyArray<Scalar | null>; outsideProfile?: true; expected: Outcome }>
+  }>
+}
+```
+
+It is generated by a seeded, type-directed generator plus a fixed adversarial list, and checked into Reffect at a recorded MetaKit commit. Coverage is stated by class, not by count: every admitted operator appears with a null in each position, a refused operand in each position, and its boundary values; every structural node appears with a refused untaken arm.
+
+The same corpus can hold any later reader to the reference (a WASM target, another SQL dialect), which is what Reffect's `docs/reuse-strategy.md` asks for under "reuse Foldkit-Plus's conformance tests".
+
+### D9. Identity and execution modes
+- The bundle carries its MetaKit fingerprint. Reffect treats it as opaque and derives its cache key from the fields `Artifact.evidenceKey` already takes: `reader: { id: 'reffect/metakit-rust', version }`, `profile: 'metakit/safe-int-k3@1'`, `fingerprint`. Reffect cannot recompute the fingerprint without MetaKit's canonical JSON rules; publishing those is an open item (§9).
+- Subprocess line protocol `reffect-metakit-v1` for corpus replay, mirroring `reffect-query-v1`. `Metakit.embed(...)` for in-process calls from a Reffect crate, mirroring `Foldkit.embed`; benchmarks use this one.
 
 ---
 
-## 5. Step-by-Step Execution Plan
+## 4. Fragment v1
 
-### Phase B1 — Admitted-Fragment Checker, Schema Translator & Diagnostics
-**Goal:** Validate `PortableArtifactV1` + Schema descriptors and reject everything outside v1 with exact `CompileError` diagnostics before generating a single line of Rust.
+All 50 core operator ids are accounted for: 28 admitted, 22 refused.
 
-- **Steps:**
-  1. Define `MetakitInput` wire types in `packages/reffect/src/metakit.ts` accepting `PortableArtifactV1`, `ArtifactFingerprint`, environment Schemas, and optional `Transition` descriptor.
-  2. Implement `checkMetakitSchema` translating Effect `SchemaAST` (`Struct`, `TaggedStruct` unions, `Literals`, `NullOr`, `optional`, `Int`, `Boolean`, `Text`) to Reffect slot/layout metadata (`rustFieldNames`, `rustVariantName`), rejecting unsupported types with `UNSUPPORTED_REPRESENTATION`.
-  3. Implement `checkMetakitNode` walking `PortableNode` with cycle/depth/node limits, verifying every `Call` is in the admitted core-op set, every `Path` resolves in scope, and rejecting `Opaque`/`Rows`/unsupported ops with `UNSUPPORTED_NODE` / `UNSUPPORTED_OPERATOR`.
-  4. Emit structured `MetakitAnalysis` (parallel to `QueryAnalysis` in `foldkit.ts`: `name`, `fingerprint`, `evidenceKey`, `slots`, `operations`, `profile: 'metakit/safe-int-k3@1'`, `crates: []`).
-- **Tests:**
-  - Positive check tests for all admitted types, `Expr.matchTagsExhaustive`, `If`, `Match`, and all admitted core ops.
-  - Negative tests verifying exact `CompileError` codes + paths for: `Opaque`, `Rows`, `Time.*`, `Sets.*`, floats (`Schema.Number`), unknown foreign ops, out-of-scope paths, and prototype keys (`__proto__`, `constructor`).
-- **Exit Criteria:** Checker passes all positive/negative tests; zero Rust emission yet.
-
-### Phase B2 — `metakit_eval` Rust Runtime, Expression Lowering & 3-Way Differential Fuzzer
-**Goal:** Lower any checked `PortableArtifactV1` expression to dependency-free Rust and prove 100% 3-way parity (`MetaKit JS` === `Reffect Reference` === `Reffect Rust`).
-
-- **Steps:**
-  1. Write the zero-dependency Rust runtime `metakit_eval.rs` (added to `RuntimeSources`) implementing:
-     - `Value` enum (`Int(i64)`, `Bool(bool)`, `Str(String)`, `Null`), `Refusal` enum (`UnsafeInteger`, `IllTyped`, `Unmatched`, `Unportable`), and `EvalResult = Result<Value, Refusal>`.
-     - All admitted core ops with exact MetaKit semantics (safe-53 checked arithmetic, Kleene $K_3$ with refusal-before-null, `eq.is` vs `eq.equals`, 4-char `trim_matches`, ASCII `to_ascii_lowercase`, code-point `str.len` and `str.cmp`, NUL check before null).
-     - `reffect-metakit-v1` line encoder/decoder (escaping `\n`/`\r`/`\\`, rejecting `\u0000` on wire).
-  2. Implement `emitMetakitExpr` using Reffect's `Rs` AST emitter:
-     - Lazy `If` and `Match` codegen (inactive branches never evaluated).
-     - Lazy `null.coalesce(a, b)` codegen (matches `ops/null.ts` short-circuiting).
-     - Eager left-to-right argument evaluation for all other `Call`s (preserves refusal-before-null).
-  3. Implement `Metakit.compile`, `Metakit.embed`, `Metakit.build`, and `Metakit.run` (mirroring `Foldkit.*`).
-  4. Build a 3-way differential fuzzer: 200+ randomly generated well-scoped trees + deterministic adversarial suite (`MAX_SAFE_INTEGER`, `-MAX_SAFE_INTEGER`, overflow at `+1`/`-1`/`*2`, `null` in every slot, untaken-branch overflow refusal, `bool.and(false, overflow)`, `str.trim("\u00A0hi ")`, emoji/surrogate pairs `"🎉"`, lone surrogate `"\uD800"`, NUL byte `"a\0b"`, `Expr.matchTagsExhaustive` on all variants + `null`).
-- **Exit Criteria:** 100% 3-way agreement across all 200+ fuzz trees and every adversarial edge case; `cargo test` and `cargo clippy -- -D warnings` pass with zero warnings.
-
-### Phase B3 — Guarded `Transition` & Named View Vertical Slice (`#612`)
-**Goal:** Compile and run the full `CounterAccount` vertical slice (tagged `Message` update + guarded `Transition` + pre-step `emits` + named view derivations) natively in Rust and verify 100% parity with MetaKit JS.
-
-- **Steps:**
-  1. Extend `Metakit.compile` / `Metakit.embed` with `compileTransition` supporting `when`, `writes` (`set`, `add`), `emits` (evaluated over pre-step `state`), and `ensures`.
-  2. Wire the `CounterAccount` vertical slice: encode from MetaKit (`Artifact.encodeExpr` + Transition descriptor), compile with Reffect, and run against a comprehensive state × message matrix (open/frozen, in-bounds/out-of-bounds, `null`/non-null `note`, no-op emit suppression, overflow refusal, guard refusal).
-  3. Verify `EvidenceKey` cache invalidation: changing one expression or guard changes `ArtifactFingerprint` → invalidates cached native artifact; non-semantic metadata edits leave `ArtifactFingerprint` unchanged.
-- **Exit Criteria:** 100% parity between `Transition.step` (MetaKit JS) and compiled Rust on state, refusals, emitted records, and view derivations.
-
-### Phase B4 — Benchmarks, Convergence Report & Go/No-Go Decision (`#598`)
-**Goal:** Measure real performance and document what should (and should not) be shared going forward.
-
-- **Steps:**
-  1. Benchmark **MetaKit `Interpreter.prepare` (JS)** vs **Reffect `Metakit.embed` (in-process Rust)** vs **subprocess `reffect-metakit-v1`** on single-step transition + batch evaluation (1k / 10k / 100k rows) and report both raw compute time and wire/serialization cost.
-  2. Write `docs/design/598-612-metakit-reffect-FINDINGS.md` recording:
-     - Measured parity results and any semantic gaps discovered.
-     - Measured latency/throughput numbers (including cold `cargo build` time and binary size).
-     - Concrete recommendation on which contracts genuinely eliminate duplication (`PortableArtifactV1`, `ArtifactFingerprint`, `EvidenceKey`, `TaggedUnion`, structured diagnostics) vs what should stay separate in each repo.
-- **Exit Criteria:** Findings doc published, `#598` and `#612` updated with measured evidence.
+| | Admitted | Refused with a `CompileError` |
+|---|---|---|
+| **Slot kinds** | `int` (`Schema.Int`), `bool`, `text` (`Schema.String`, `Schema.Literals` of strings, a `_tag`), each optionally nullable | `Schema.Number`, arrays, records, `Schema.Option`, any non-scalar read |
+| **Nodes** | `Lit` (integer, boolean, text, null), `Path`, `Call`, `If`, `Match` | `Rows`, a foreign call (expand derived operations before encoding). `Opaque` never encodes |
+| **Operators** | `bool.and` `or` `not`; `eq.is` `isNot` `equals`; `ord.lt` `lte` `gt` `gte`; `num.add` `sub` `mul` `neg`; `null.isNull` `coalesce`; `str.len` `trim` `lowerAscii` `upperAscii` `startsWith` `endsWith` `contains` `concat` `lt` `lte` `gt` `gte` | `num.div` `rem` `mulScaled`; `eq.in` `among`; `arr.*` (7); `set.*` (5); `time.*` (5) |
+| **Writes** | `set`, `add` | `combine`, the list and set ways, `Transition.opaque` |
 
 ---
 
-## 6. Success Criteria
+## 5. The slice: `CounterAccount`
 
-| Criterion | Concrete Threshold |
+- **State:** `{ count: Schema.Int, limit: Schema.Int, status: Schema.Literals(['open', 'frozen']), note: Schema.NullOr(Schema.String) }`
+- **Message:** `Increment {}` | `Decrement {}` | `SetCount { count }` | `Add { delta }` | `Freeze {}`
+- **Views:** `remaining` = `Num.sub(limit, count)`; `canIncrement` = `Bool.and(Eq.is(status, 'open'), Ord.lt(count, limit))`; `noteLen` = `Null.coalesce(Str.len(Str.trim(note)), 0)`
+- **Transition `UpdateCounter`:** `nextCount` by `Expr.matchTagsExhaustive(input.msg, …)`; guard `status` is open and `0 <= nextCount <= limit`; `set(count, nextCount)`; emit `CountChanged { previous, next }` when `nextCount` differs from `count`.
+
+`Freeze` writes `status`, so the slice needs either a second write under a `Match` or a second transition. Decide in A2; a second transition keeps each one readable.
+
+---
+
+## 6. Phases
+
+### Phase A: MetaKit publishes the contract (`foldkit-plus`, TypeScript only)
+Worth doing whatever B concludes: it closes part of `#645` and feeds `#646`.
+
+- **A1.** `Artifact.encodeTransition` and the slot interface on expression bundles (D2), with validated decoding, fingerprinting and refusals for everything outside the fragment. Type tests, unit tests, a mutation spec, Jev review, changelog and skill reference.
+- **A2.** The corpus generator (D8) and the `CounterAccount` fixture, writing one deterministic JSON file. A test proves two runs with one seed are byte-equal.
+- **A3.** `packages/metakit/docs/semantics.md` gains the step order (D7) and the profile's definition (D5), each sentence checked against the source.
+- **Exit:** a corpus file at a known commit; no Rust anywhere.
+
+### Phase B1: checker (`reffect`)
+Read Reffect's `AGENTS.md` and pull first. Decode the bundle as untrusted JSON with depth and node limits, type every node, resolve every path to a slot, and refuse everything outside §4 with a `CompileError` naming the path. No Rust is emitted.
+
+- **Tests:** each admitted form accepted; each refused operator, node, kind and literal refused with its code; an out-of-scope path; `__proto__` and `constructor` as keys; an ill-typed call.
+
+### Phase B2: runtime, expression lowering, corpus replay
+`metakit_eval.rs` (zero crates) and `emitMetakitExpr` through Reffect's `Rs` emitter, then `Metakit.compile`, `embed`, `build`, `run`.
+
+- **Exit:** every expression vector in the corpus agrees; every `outsideProfile` vector is refused at the boundary; `cargo test` and `cargo clippy -- -D warnings` clean.
+
+### Phase B3: the transition
+Lower the step (D7) and replay the `CounterAccount` vectors: open and frozen, in and out of bounds, null and non-null note, the suppressed emit, overflow, each guard disposition.
+
+- **Exit:** dispositions, write values and emitted records agree on every vector. Changing one expression changes the fingerprint and misses the cache; changing a slot's nullability does too.
+
+### Phase B4: measure and decide
+Benchmark `Interpreter.prepare` against `Metakit.embed` and the subprocess, on one step and on batches of 1k, 10k and 100k, reporting compute and marshalling separately, plus cold `cargo build` time and binary size. Write `docs/design/598-612-metakit-reffect-FINDINGS.md` and update `#598` and `#612`.
+
+---
+
+## 7. What decides the outcome
+
+| Outcome | Condition |
 |---|---|
-| **3-way semantic parity** | 0 mismatches across 200+ randomized expression trees + full adversarial edge-case suite + `CounterAccount` transition matrix (`MetaKit JS` === `Reffect Reference` === `Reffect Rust`). |
-| **Sound refusal boundary** | 100% of out-of-fragment inputs (`Opaque`, `Rows`, floats, `Time.*`, `Sets.*`, unbound foreign ops) fail at `check` stage with structured `CompileError` — never silently approximated. |
-| **Zero Rust creep in `foldkit-plus`** | `foldkit-plus` has 0 new dependencies, 0 Rust toolchain requirements, and 0 bundle size regression. |
-| **Zero external Rust crates** | Generated `reffect_generated` crate has empty `[dependencies]` and passes `cargo clippy -- -D warnings`. |
-| **Honest benchmark evidence** | Both in-process (`embed()`) and wire-boundary numbers measured and reported before expanding the fragment beyond v1. |
+| **Go** (keep the adapter, consider widening) | Zero mismatches on the corpus; the adapter reads only the bundle and corpus; nothing in MetaKit's semantics changed to make Rust agree |
+| **Narrow** | A class of vectors cannot agree without a semantic change: remove that operator or kind from the profile and say so |
+| **Stop** | The adapter needs MetaKit's private structure, or agreement needs a second semantics |
+
+Widening the fragment (arrays, `Rows`, floats, struct binding) needs a named consumer first. The likeliest is a native Reffect Remote or RPC handler that evaluates a guard or policy with no JavaScript runtime. A benchmark number alone does not justify it.
 
 ---
 
-## 7. Review & Verification Protocol (Mandatory Gate After Every Phase)
+## 8. Review after each phase
 
-Every phase (B1, B2, B3, B4) must pass this review loop before moving to the next phase:
+1. **Checks.** Phase A follows this repository's rules (project typecheck, the phase's tests, `pnpm mutate`, Jev on the API change). Phases B follow Reffect's own, run locally.
+2. **Self-review against the source**, one question per decision: does `bool.and(false, refused)` refuse; is an untaken arm's refusal silent; does `str.trim` keep NBSP; is `str.len` of an emoji 1; do the three overflow cases refuse without a panic; is a guard that refuses reported as a guard failure; is the first refusal the first write's, not the first emit's; is `ensures` untouched.
+3. **An independent reviewer** after B2 and after B3, given the diff and the corpus, not this plan's conclusions.
+4. **Commits** are small and per unit of work, with explicit paths.
 
-1. **Automated checks:**
-   - Typecheck (`tsc -b`), lint/format, unit tests, and mutation tests (verify every guard in `checkMetakitSchema`, `checkMetakitNode`, and `metakit_eval` can fail).
-   - For B2–B4: `cargo test` + `cargo clippy -- -D warnings` on generated Rust artifacts + full 3-way differential suite.
-2. **Adversarial self-review checklist (explicitly audit each item on the phase diff):**
-   - **Refusal-before-null:** Does `bool.and(false, refused)` still refuse (not return `false`)? Does `eq.is(null, refused)` refuse? Does `str.len("a\0b")` refuse before null?
-   - **Lazy vs eager:** Do inactive `If` / `Match` branches and the fallback of `null.coalesce(nonNull, refused)` stay unevaluated?
-   - **Unicode & trim:** Does `str.trim("\u00A0x ")` keep `\u00A0`? Does `str.len("🎉")` return `1` (not `2`)? Does lone surrogate `\uD800` map to `U+FFFD` identically?
-   - **Integer bounds:** Does `MAX_SAFE_INTEGER + 1`, `-MAX_SAFE_INTEGER - 1`, and `MAX_SAFE_INTEGER * 2` return `Refusal::UnsafeInteger` without panicking or wrapping?
-   - **Prototype & wire safety:** Are `__proto__`, `constructor`, inherited properties, getters/accessors, and truncated/extra wire lines rejected cleanly?
-   - **Pre-step `emits`:** Do `Transition` emits read pre-step `state`, not `next_state`?
-3. **Independent adversarial subagent review:**
-   - After Phase B2 (expression lowering) and after Phase B3 (transition vertical slice), run an independent read-only adversarial reviewer over the diff to hunt for parity holes, silent fallbacks, or unsound shortcuts. Fix every Critical/High finding before advancing.
-4. **Commit cadence:**
-   - One clean, coherent commit per phase (and follow-up fix commits for review findings) with explicit paths and green verification before moving on.
+---
+
+## 9. Open items
+
+- **The npm name.** `metakit` cannot be published. Not this plan's work, but it blocks every release that includes MetaKit.
+- **Canonical JSON.** Publish the fingerprint's canonicalisation rules so a consumer without MetaKit can verify a bundle.
+- **Not verified for this revision:** whether `Artifact.encodeExpr` already refuses a NUL in a text literal; what changed in Reffect between the local checkout (2026-10-06) and `origin/master` (2026-10-09); the first draft's claim that `Money`, `Decimal` and `CalendarDay` are integer-backed (dropped from v1 until checked).
