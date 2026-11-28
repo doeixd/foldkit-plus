@@ -32,6 +32,11 @@
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./metakit": {
+      "foldkit-plus:source": "./src/metakit.ts",
+      "types": "./dist/metakit.d.mts",
+      "import": "./dist/metakit.mjs"
     }
   },
   "files": [
@@ -44,7 +49,8 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "foldkit-surface": "workspace:*"
+    "foldkit-surface": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

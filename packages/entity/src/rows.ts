@@ -2,7 +2,7 @@
 import { Match, Option } from 'effect'
 import type { Row } from './evaluate.js'
 import { Held } from './held.js'
-import type { OneRelation } from './expr.js'
+import type { OneRelation } from './expr/operand.js'
 import type { AnyEntity, EntityMember } from './index.js'
 
 /** An Entity's `one` relations: a row holds each as the id it points at; a `many` holds no one value. */

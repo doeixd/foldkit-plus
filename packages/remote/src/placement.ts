@@ -19,7 +19,6 @@ import {
   dependenciesOf,
   type AnyQuery,
   type MemoryOperators,
-  type OrderTerm,
 } from 'foldkit-entity'
 import type { Connection, Edge } from './connection.js'
 import { entityKey, readField, type EntityStore } from './store.js'
@@ -48,10 +47,10 @@ const keysOf = (
   key: string,
   id: Option.Option<string>,
   idIsText: boolean,
-  terms: ReadonlyArray<OrderTerm>,
+  fields: ReadonlyArray<{ readonly key: string }>,
 ): Option.Option<Readonly<Record<string, unknown>>> => {
   const values: Record<string, unknown> = Object.create(null)
-  for (const { key: field } of dependenciesOf(...terms).fields) {
+  for (const { key: field } of fields) {
     const stored = readField(store, key, field)
     const value = field === 'id' && Option.isNone(stored) && idIsText ? id : stored
     if (Option.isNone(value)) return Option.none()
@@ -77,13 +76,14 @@ export const placeIn = (
   const placement = Relational.placement(body, input, { operators })
   if (placement._tag === 'NotPlaceable') return RowPlace.Unknown({ reason: placement.reason })
   const terms = Relational.orderFor(body, input)
+  const fields = dependenciesOf(...terms).fields
   // The row is of the body's Entity, so its key is that name, a colon, its id.
   const prefix = `${body.entity.name}:`
   const id = key.startsWith(prefix) ? Option.some(key.slice(prefix.length)) : Option.none()
   const idField = (body.entity.fields as Readonly<Record<string, { readonly schema: Schema.Top }>>)
     .id
   const idIsText = idField !== undefined && SchemaAST.isString(Schema.toEncoded(idField.schema).ast)
-  const row = keysOf(store, key, id, idIsText, terms)
+  const row = keysOf(store, key, id, idIsText, fields)
   if (Option.isNone(row)) {
     return RowPlace.Unknown({ reason: `${key} lacks a field the order reads` })
   }
@@ -95,7 +95,7 @@ export const placeIn = (
         entityKey(edge.ref.entity, edge.ref.id),
         Option.some(edge.ref.id),
         idIsText,
-        terms,
+        fields,
       ),
       values => {
         try {
@@ -115,23 +115,47 @@ export const placeIn = (
   const { segments } = connection
   for (let index = 0; index < segments.length; index++) {
     const segment = segments[index]!
-    const held = segment.edges.findIndex(edge => edge.key === key)
-    const edges = segment.edges.filter(edge => edge.key !== key)
-    for (let position = 0; position < edges.length; position++) {
-      const edge = edges[position]!
+    const { edges } = segment
+    const n = edges.length
+    let lo = 0
+    let hi = n
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      const edge = edges[mid]!
+      if (edge.key === key) {
+        if (mid > lo) {
+          const prev = edges[mid - 1]!
+          const sign = against(prev)
+          if (Option.isNone(sign)) {
+            return RowPlace.Unknown({ reason: `${prev.key} lacks a field the order reads` })
+          }
+          if (sign.value < 0) hi = mid - 1
+          else lo = mid + 1
+        } else {
+          lo = mid + 1
+        }
+        continue
+      }
       const sign = against(edge)
       if (Option.isNone(sign)) {
         return RowPlace.Unknown({ reason: `${edge.key} lacks a field the order reads` })
       }
       if (sign.value < 0) {
-        const before = RowPlace.Before({ segment: index, edge: edge.key })
-        if (position > 0) return before
-        // Before this segment's first edge is loaded only when nothing precedes it.
-        return Match.value(segment.start).pipe(
-          Match.tag('Terminal', () => before),
-          Match.orElse(() => (held === 0 ? boundary : RowPlace.Outside())),
-        )
+        hi = mid
+      } else {
+        lo = mid + 1
       }
+    }
+    if (lo < n && edges[lo]!.key === key) lo += 1
+    if (lo < n) {
+      const before = RowPlace.Before({ segment: index, edge: edges[lo]!.key })
+      const hasBefore = lo > 0 && !(lo === 1 && edges[0]!.key === key)
+      if (hasBefore) return before
+      // Before this segment's first edge is loaded only when nothing precedes it.
+      return Match.value(segment.start).pipe(
+        Match.tag('Terminal', () => before),
+        Match.orElse(() => (n > 0 && edges[0]!.key === key ? boundary : RowPlace.Outside())),
+      )
     }
     // After every edge of this segment: its end, if nothing follows; else the
     // next segment, or rows not loaded.
@@ -140,7 +164,7 @@ export const placeIn = (
       Match.orElse(() => false),
     )
     if (ends) return RowPlace.End({ segment: index })
-    if (held >= 0 && held === segment.edges.length - 1) return boundary
+    if (n > 0 && edges[n - 1]!.key === key) return boundary
   }
   return RowPlace.Outside()
 }
@@ -157,6 +181,18 @@ export const withoutEdge = (connection: Connection, key: string): Connection =>
       }
     : connection
 
+export interface SingleEdgeInsert {
+  readonly base: ReadonlyArray<Edge>
+  readonly at: number
+  readonly added: Edge
+}
+
+const singleInserts = new WeakMap<ReadonlyArray<Edge>, SingleEdgeInsert>()
+
+/** If `edges` was built by inserting one edge into `base` at `at`, return that metadata. */
+export const singleInsertOf = (edges: ReadonlyArray<Edge>): SingleEdgeInsert | undefined =>
+  singleInserts.get(edges)
+
 /** The connection with `edge` where `place` says: before an edge, or at a segment's end. */
 export const withEdge = (
   connection: Connection,
@@ -172,6 +208,10 @@ export const withEdge = (
         End: () => segment.edges.length,
       }),
     )
-    return { ...segment, edges: [...segment.edges.slice(0, at), added, ...segment.edges.slice(at)] }
+    const nextEdges = [...segment.edges.slice(0, at), added, ...segment.edges.slice(at)]
+    if (connection.segments.length === 1 && at >= 0) {
+      singleInserts.set(nextEdges, { base: segment.edges, at, added })
+    }
+    return { ...segment, edges: nextEdges }
   }),
 })

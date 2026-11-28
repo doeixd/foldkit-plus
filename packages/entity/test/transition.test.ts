@@ -6,6 +6,7 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Entity, Expr, truthOver } from '../src/index.js'
+import { substituteNext } from './substituteNext.js'
 
 const OrderFields = Entity.define(
   'Order',
@@ -81,16 +82,16 @@ describe('A transition invariant', () => {
   })
 })
 
-describe('Expr.substituteNext', () => {
+describe('Substituting the values a write sets for what a predicate reads after', () => {
   const [stays] = Entity.invariants(Order)
 
   it('reads a field the write sets as its value after, and leaves the rest to the row after', () => {
     // Setting the status back: before is the row's, after is the value.
-    const back = Expr.substituteNext(stays!.predicate, { status: 'placed' })
+    const back = substituteNext(stays!.predicate, { status: 'placed' })
     expect(truthOver(back, shipped)).toBe(false)
     expect(truthOver(back, placed)).toBe(true)
     // A value it does not name stays the row after's to give.
-    const open = Expr.substituteNext(stays!.predicate, { total: 12 })
+    const open = substituteNext(stays!.predicate, { total: 12 })
     expect(truthOver(open, shipped, {}, shipped)).toBe(true)
     expect(truthOver(open, shipped, {}, placed)).toBe(false)
   })

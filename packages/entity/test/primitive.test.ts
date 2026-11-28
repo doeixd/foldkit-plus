@@ -19,6 +19,7 @@ import {
   type Expr as ExprOf,
   type Predicate,
 } from '../src/index.js'
+import { collationOf } from '../src/expr/operand.js'
 
 const Item = Entity.define(
   'Item',
@@ -50,7 +51,7 @@ const joinedLive = Operators.implement(joined, (left, right) => `${left}${right}
 const blank = Expr.operator('acme.blank', {
   input: [Schema.NullOr(Schema.String)],
   output: Schema.Boolean,
-  nulls: 'handled',
+  nulls: 'own',
 })
 const blankLive = Operators.implementHandlingNulls(blank, value =>
   value === null ? true : value.trim() === '',
@@ -114,9 +115,15 @@ describe('A primitive operator', () => {
 
   it('refuses text holding a NUL before the implementation sees it', () => {
     const body = where(Expr.eq(joined(fields.code, `a${String.fromCharCode(0)}`), 'x'))
-    expect(() => ids(body, Operators.memory(joinedLive))).toThrow(
-      'the operator "acme.joined" was given text holding a NUL character',
+    const seen: Array<string> = []
+    const watched = Operators.implement(joined, (left, right) => {
+      seen.push(right)
+      return `${left}${right}`
+    })
+    expect(() => ids(body, Operators.memory(watched))).toThrow(
+      'acme.joined: text holding a NUL character',
     )
+    expect(seen).toEqual([])
   })
 
   it('names itself when its implementation throws', () => {
@@ -126,19 +133,32 @@ describe('A primitive operator', () => {
       }),
     )
     expect(() => ids(where(Expr.eq(joined(fields.code, '!'), 'x')), table)).toThrow(
-      'the operator "acme.joined" failed: boom',
+      'acme.joined: acme.joined@1: boom',
     )
   })
 
-  it('has its answer held to its output schema by a checked table', () => {
+  it('is refused for an answer of another kind than it declares, checked table or not', () => {
     const wrong = Operators.memory(
       // @ts-expect-error a number is not the text it gives
       Operators.implement(joined, () => 7),
     )
     const body = where(Expr.eq(joined(fields.code, '!'), 'x'))
-    expect(() => ids(body, wrong)).not.toThrow()
+    expect(() => ids(body, wrong)).toThrow('acme.joined: expected a text, got number')
     expect(() => ids(body, Operators.checked(wrong))).toThrow(
-      'the operator "acme.joined" answered 7, which its output schema does not admit',
+      'acme.joined: expected a value its output schema admits, got number',
+    )
+  })
+
+  it('holds its answer to its output schema on every call', () => {
+    const short = Expr.operator('acme.short', {
+      input: [Schema.String],
+      output: Schema.String.check(Schema.isMaxLength(1)),
+    })
+    const long = Operators.memory(Operators.implement(short, () => 'ab'))
+    const body = where(Expr.eq(short(fields.code), 'x'))
+    expect(() => ids(body, long)).toThrow('outside its result Schema')
+    expect(() => ids(body, Operators.checked(long))).toThrow(
+      'expected a value its output schema admits',
     )
   })
 
@@ -147,7 +167,7 @@ describe('A primitive operator', () => {
       // @ts-expect-error text is not the truth it gives
       Operators.implementHandlingNulls(blank, () => 'yes'),
     )
-    expect(() => ids(where(blank(fields.note)), table)).toThrow('which is not a truth')
+    expect(() => ids(where(blank(fields.note)), table)).toThrow('expected a boolean, got string')
   })
 })
 
@@ -179,12 +199,14 @@ describe('A call carrying a collation', () => {
     // `code` is binary: 'ab-2' + '!' does not reach 'AB-' + '2!' and above.
     const body = where(Expr.gte(joined(fields.code, '!'), 'AB-2!'))
     expect(ids(body, table)).toEqual(['i2', 'i3'])
-    expect(joined(fields.code, '!').collation).toEqual(Collation.declared(fields.code.metadata))
+    expect(collationOf(joined(fields.code, '!').node)).toEqual(
+      Collation.declared(fields.code.metadata),
+    )
   })
 
   it('carries none when no operand holds one, and its text is then refused in a comparison', () => {
     const bare = joined(Expr.input('a', Schema.String), 'b')
-    expect(bare.collation._tag).toBe('None')
+    expect(collationOf(bare.node)._tag).toBe('None')
     expect(() => Expr.lt(bare, 'x')).toThrow(
       'acme.joined($a, "b") is text with no declared collation',
     )
@@ -196,7 +218,7 @@ describe('A call carrying a collation', () => {
 
   it('may be given one, in place of its operands', () => {
     const given = joined(fields.code, '!', { collation: Collation.asciiFold })
-    expect(given.collation).toEqual(Collation.declared(fields.name.metadata))
+    expect(collationOf(given.node)).toEqual(Collation.declared(fields.name.metadata))
   })
 })
 
@@ -239,7 +261,7 @@ describe('An operator declaration', () => {
         input: [Schema.String],
         output: Schema.Boolean,
         definedAs: (name: ExprOf<string>) => Expr.isNull(name),
-        nulls: 'handled',
+        nulls: 'own',
       }),
     ).toThrow("a defined operator means its body, so `nulls` and `collation` are its body's")
   })

@@ -42,6 +42,11 @@
       "types": "./dist/live.d.ts",
       "import": "./dist/live.js"
     },
+    "./maintained": {
+      "foldkit-plus:source": "./src/maintained/index.ts",
+      "types": "./dist/maintained/index.d.ts",
+      "import": "./dist/maintained/index.js"
+    },
     "./outbox": {
       "foldkit-plus:source": "./src/outbox.ts",
       "types": "./dist/outbox.d.ts",
@@ -85,7 +90,8 @@
   "dependencies": {
     "foldkit-entity": "workspace:*",
     "foldkit-metadata": "workspace:*",
-    "foldkit-surface": "workspace:*"
+    "foldkit-surface": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

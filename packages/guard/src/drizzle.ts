@@ -5,7 +5,7 @@
  */
 import { and, or, sql, type SQL } from 'drizzle-orm'
 import { Effect, Match, Option } from 'effect'
-import { Query, type AnyEntity } from 'foldkit-entity'
+import { Operators, Query, type AnyEntity } from 'foldkit-entity'
 import {
   DrizzleOperators,
   bodyOperations,
@@ -65,7 +65,11 @@ export const GuardDrizzle = {
         Match.valueTags(rule, {
           PrincipalGuard: () => {},
           RowGuard: guard => {
-            const missing = Query.unsupported(guard.query, bodyOperations, sqlOperators)
+            // The kernel's operators (`Expr.add`) are metakit's operations, whose SQL it lowers.
+            const missing = Query.unsupported(guard.query, bodyOperations, {
+              has: operator => Operators.kernel.has(operator) || sqlOperators.has(operator),
+              versions: sqlOperators.versions,
+            })
             if (missing.length > 0) {
               fail(
                 `${entity.name}'s ${guard.name} needs ${missing.join(', ')}, which SQL here does not run`,

@@ -54,8 +54,8 @@ export default [
     edits: [
       {
         file,
-        find: 'put(values, field.key, encoded(field, held))',
-        replace: 'put(values, field.key, held)',
+        find: 'Option.map(given(value), held => encoded(field, held))',
+        replace: 'Option.map(given(value), held => held)',
       },
     ],
     tests,

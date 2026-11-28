@@ -6,6 +6,8 @@
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
 export * from './can.js'
+export { storeRowPath } from './storePath.js'
+export { dependentQuery, type DependentQuery, type DependentQueryOptions } from './dependent.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
 export {
@@ -31,6 +33,7 @@ export * from './edgeCache.js'
 export * from './inspect.js'
 export * from './liveState.js'
 export * from './liveEvents.js'
+// Exported from `liveEvents.js` until every domain with writes kept a read's values.
 export * from './matching.js'
 export { placeIn, RowPlace } from './placement.js'
 export {

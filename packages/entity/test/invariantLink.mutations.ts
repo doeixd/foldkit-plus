@@ -13,7 +13,7 @@ export default [
     edits: [
       {
         file: '../src/invariant.ts',
-        find: '    ...links.map(link => [link.key, Expr.next(link)] as const),',
+        find: '    ...links.map(link => [link.key, link] as const),',
         replace: '',
       },
     ],

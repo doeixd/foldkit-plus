@@ -3,9 +3,10 @@
  * as a transition, each broken in turn:
  * `pnpm mutate packages/entity/test/arithmetic.mutations.ts`.
  */
-const expr = '../src/expr.ts'
+const logic = '../src/expr/logic.ts'
+const show = '../src/expr/show.ts'
 const memory = '../src/memoryTable.ts'
-const sql = '../../remote-drizzle/src/operators.ts'
+const sql = '../../metakit/src/sqlLowering.ts'
 const write = '../src/write.ts'
 const invariant = '../src/invariant.ts'
 const entityTests = [
@@ -27,52 +28,35 @@ const edit = (
 export default [
   edit(
     'an implication drops the negation',
-    expr,
-    'Expr.or(Expr.not(condition), then) as',
-    'Expr.or(condition, then) as',
-  ),
-  edit(
-    'memory adds as it subtracts',
-    memory,
-    '(left as number) + (right as number)',
-    '(left as number) - (right as number)',
-  ),
-  edit(
-    'memory subtracts the first from the second',
-    memory,
-    '(left as number) - (right as number)',
-    '(right as number) - (left as number)',
+    logic,
+    'or(not(condition), then) as',
+    'or(condition, then) as',
   ),
   edit(
     'SQL subtracts as it adds',
     sql,
-    'sql`(${left} - ${right})`',
-    'sql`(${left} + ${right})`',
+    "'num.sub': exact('-'),",
+    "'num.sub': exact('+'),",
     sqlTests,
   ),
   edit(
     'SQL adds the first to itself',
     sql,
-    'sql`(${left} + ${right})`',
-    'sql`(${left} + ${left})`',
+    "'num.add': exact('+'),",
+    "'num.add': (args, ctx) => both(args, ctx, left => q`(${left} + ${left})`),",
     sqlTests,
   ),
-  edit(
-    'a sum prints as a call',
-    expr,
-    'const infix = arithmeticSymbols.get(node.operator)',
-    'const infix = undefined as string | undefined',
-  ),
+  edit('a sum prints as a call', show, '? infixes[node.op.id]', '? undefined'),
   edit(
     'a difference of integers is no integer',
     write,
-    '(operator === Expr.add.descriptor || operator === Expr.sub.descriptor) &&',
+    '(operator === add.descriptor || operator === sub.descriptor) &&',
     'false &&',
   ),
   edit(
     'a sum of anything is an integer',
     write,
-    'args.every(arg => !isPredicate(arg) && comesToInteger(arg))',
+    'args.every(arg => !isPredicateNode(arg) && comesToInteger(arg))',
     'true',
   ),
   edit(

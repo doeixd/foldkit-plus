@@ -13,7 +13,7 @@
  * handover. This module is the server's side and the browser's
  * (`foldkit-ssr/client`) together.
  */
-import { Cause, Context, Effect, Exit, Layer, Option, Result, Schema } from 'effect'
+import { Cause, Clock, Config, Context, Effect, Exit, Layer, Option, Result, Schema } from 'effect'
 import {
   FOLDKIT_FLAGS_ATTRIBUTE,
   Rendered,
@@ -48,6 +48,7 @@ import type {
   SurfaceFamily,
   SurfaceSource,
 } from 'foldkit-surface'
+import { covers, minimizePaths } from 'metakit/graph/match'
 import { withContext, type Binding, type Region, type UnnamedHandler } from './context.js'
 import { cachedPageDiffers, handlerUnnamed, pageFailed, reportingTo } from './diagnostics.js'
 import {
@@ -95,7 +96,24 @@ import {
   type RouteMatch,
 } from './shared.js'
 
-/** The set `foldkit-mixins` collects drawn classes in, under the same registered symbol. */
+export {
+  ANCHOR_ATTRIBUTE,
+  Binding,
+  type AnyBinding,
+  type AttributeBinding,
+  type BindingValue,
+  type Bindings,
+  type OrderBinding,
+  type ShownBinding,
+  type TextBinding,
+} from './binding.js'
+export {
+  isUnchangingPath,
+  liveSet,
+  omittedReadMessage,
+  type LiveSet,
+  type LiveSetOptions,
+} from './liveSet.js'
 const DRAWN_CLASSES = Symbol.for('foldkit-plus.drawnClasses')
 
 /** The projections of the plan's entries that are active for `model`. */
@@ -353,8 +371,8 @@ const browserModelOf = <Model, Fields extends Schema.Struct.Fields>(
       )
 }
 
-/** Where the browser gets a Model path's value: the envelope, itself, or nowhere it may. */
-export type Cover = 'state' | 'restored' | 'local' | 'missing'
+/** Where the browser gets a Model path's value: the envelope, itself, unchanging HTML, or nowhere it may. */
+export type Cover = 'state' | 'restored' | 'local' | 'part' | 'unchanging' | 'missing'
 
 /** One Surface as a plan covers it, for the server's Model. */
 export interface SurfaceCoverage {
@@ -403,7 +421,12 @@ const pathOf = (path: ReadonlyArray<string>): string =>
 
 /**
  * A path is covered by a sent, restored or local path equal to it or
- * containing it. An empty path is the whole Model, which no pick covers.
+ * containing it, or by a path a part of the plan restores (a Remote store
+ * `Remote.resume` carries) when the read is one that part resumes: `reads`
+ * names the metadata the projection carries, and the part must cover one of
+ * them. A part carries what those reads ask and not the field, so a plain
+ * reference to the store, which carries no metadata, is not covered by it.
+ * An empty path is the whole Model, which no pick covers.
  */
 const coverOf = (
   path: ReadonlyArray<string>,
@@ -411,15 +434,24 @@ const coverOf = (
     readonly state: { readonly dependencies: ReadonlyArray<ReadonlyArray<string>> }
     readonly restored: ReadonlyArray<{ readonly path: ReadonlyArray<string> }>
     readonly local: ReadonlyArray<ReadonlyArray<string>>
+    readonly parts: ReadonlyArray<{
+      readonly covers: ReadonlyArray<string>
+      readonly restores?: ReadonlyArray<ReadonlyArray<string>> | undefined
+    }>
   },
+  reads: ReadonlyArray<string> = [],
 ): Cover => {
-  const contains = (outer: ReadonlyArray<string>) =>
-    outer.length > 0 &&
-    outer.length <= path.length &&
-    outer.every((key, index) => path[index] === key)
-  if (plan.state.dependencies.some(contains)) return 'state'
-  if (plan.restored.some(({ path: outer }) => contains(outer))) return 'restored'
-  if (plan.local.some(contains)) return 'local'
+  const coveredBy = (outers: ReadonlyArray<ReadonlyArray<string>>): boolean =>
+    minimizePaths(outers.filter(outer => outer.length > 0)).some(outer => covers(outer, path))
+  if (coveredBy(plan.state.dependencies)) return 'state'
+  if (coveredBy(plan.restored.map(({ path: outer }) => outer))) return 'restored'
+  if (coveredBy(plan.local)) return 'local'
+  if (
+    plan.parts.some(
+      part => coveredBy(part.restores ?? []) && part.covers.some(name => reads.includes(name)),
+    )
+  )
+    return 'part'
   return 'missing'
 }
 
@@ -505,29 +537,30 @@ const coverRow = <Model, Fields extends Schema.Struct.Fields>(
   },
   served: Projection<Model, unknown> | undefined,
   browserServed: Projection<Model, unknown> | undefined,
-): SurfaceCoverage => ({
-  name: entry.name,
-  active: served !== undefined,
-  ...(entry.key === undefined ? {} : { key: entry.key }),
-  ...(entry.via === undefined ? {} : { via: entry.via }),
-  ...(entry.activation === undefined
-    ? {}
-    : {
-        activation: {
-          path: pathOf(entry.activation.path),
-          cover: coverOf(entry.activation.path, plan),
-        },
-      }),
-  reads: (served?.dependencies ?? []).map(path => ({
-    path: pathOf(path),
-    cover: coverOf(path, plan),
-  })),
-  unresumed:
-    served === undefined
-      ? []
-      : Metadata.summarize(served.metadata).filter(summary => !covered.has(summary.name)),
-  sameInBrowser: readsKey(served) === readsKey(browserServed),
-})
+): SurfaceCoverage => {
+  const carried = served === undefined ? [] : Metadata.summarize(served.metadata)
+  const names = carried.map(summary => summary.name)
+  return {
+    name: entry.name,
+    active: served !== undefined,
+    ...(entry.key === undefined ? {} : { key: entry.key }),
+    ...(entry.via === undefined ? {} : { via: entry.via }),
+    ...(entry.activation === undefined
+      ? {}
+      : {
+          activation: {
+            path: pathOf(entry.activation.path),
+            cover: coverOf(entry.activation.path, plan),
+          },
+        }),
+    reads: (served?.dependencies ?? []).map(path => ({
+      path: pathOf(path),
+      cover: coverOf(path, plan, names),
+    })),
+    unresumed: carried.filter(summary => !covered.has(summary.name)),
+    sameInBrowser: readsKey(served) === readsKey(browserServed),
+  }
+}
 
 /**
  * A Surface's coverage rows: its own row, then, while it is active, one row
@@ -1845,36 +1878,42 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       headers: page.headers.map(([name, value]): [string, string] => [name, value]),
     })
   }
-  const renderPage = async (request: Request): Promise<EntryResult> => {
-    if (prerendering(request)) return prerender(request)
-    const method = request.method.toUpperCase()
-    if (method !== 'GET' && method !== 'HEAD') return unkept(await answer(request))
-    const key = await Effect.runPromise(pageKey(options.buildId, request.url))
-    const kept = Option.filter(
-      Option.flatMap(await Effect.runPromise(store.match(key)), decodeKept),
-      page => fits(request, page.vary),
-    )
-    if (Option.isSome(kept)) {
-      if (check !== true) return served(kept.value)
-      const again = await answer(request)
-      if (again._tag === 'Rendered' && samePage(again, kept.value, Date.now()))
-        return served(kept.value)
-      await Effect.runPromise(reportTo(request)(Diagnostics.report(cachedPageDiffers(request.url))))
-      return unkept(again)
-    }
-    const watched: Watched = { read: { names: new Set(), all: false }, reads: [] }
-    const result = await answer(request, watched)
-    return Option.match(keepable(request, result, watched), {
-      onNone: () => unkept(result),
-      onSome: ({ page, maxAge, tags }) =>
-        Effect.runPromise(
+  const renderPageEffect = (request: Request): Effect.Effect<EntryResult> =>
+    Effect.gen(function* () {
+      if (prerendering(request)) return yield* Effect.promise(() => prerender(request))
+      const method = request.method.toUpperCase()
+      if (method !== 'GET' && method !== 'HEAD') {
+        return unkept(yield* Effect.promise(() => answer(request)))
+      }
+      const key = yield* pageKey(options.buildId, request.url)
+      const matched = yield* store.match(key)
+      const kept = Option.filter(Option.flatMap(matched, decodeKept), page =>
+        fits(request, page.vary),
+      )
+      if (Option.isSome(kept)) {
+        if (check !== true) return served(kept.value)
+        const again = yield* Effect.promise(() => answer(request))
+        const now = yield* Clock.currentTimeMillis
+        if (again._tag === 'Rendered' && samePage(again, kept.value, now)) {
+          return served(kept.value)
+        }
+        yield* reportTo(request)(Diagnostics.report(cachedPageDiffers(request.url)))
+        return unkept(again)
+      }
+      const watched: Watched = { read: { names: new Set(), all: false }, reads: [] }
+      const result = yield* Effect.promise(() => answer(request, watched))
+      return yield* Option.match(keepable(request, result, watched), {
+        onNone: () => Effect.succeed(unkept(result)),
+        onSome: ({ page, maxAge, tags }) =>
           Effect.as(
             store.put(key, JSON.stringify(page), { maxAge: maxAge.maxAge, tags }),
             served(page),
           ),
-        ),
-    })
-  }
+      })
+    }).pipe(Effect.withSpan('ssr.renderPage'))
+
+  const renderPage = (request: Request): Promise<EntryResult> =>
+    Effect.runPromise(renderPageEffect(request))
   return { renderPage }
 }
 
@@ -2323,6 +2362,19 @@ export const SSR = {
   robots,
   requestContext,
 }
+
+/**
+ * Effect `Config` for SSR page caching (`SSR_BUILD_ID`, `SSR_CACHE_CHECK`).
+ * Load via any `ConfigProvider` and pass to `cachedPages` / `renderPage`.
+ */
+export const ssrCacheConfig: Config.Config<{
+  readonly buildId: string
+  readonly check: boolean
+}> = /*#__PURE__*/ (() =>
+  Config.all({
+    buildId: Config.String('SSR_BUILD_ID').pipe(Config.withDefault('dev')),
+    check: Config.Boolean('SSR_CACHE_CHECK').pipe(Config.withDefault(false)),
+  }))()
 
 export type { RequestContext } from './requestContext.js'
 

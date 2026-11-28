@@ -30,7 +30,16 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   // each commit built in its own tree: +367 and +389 from `style.ts` (+454 minified: `recipe.add` is a
   // member of every recipe) and the shadows' and tints' knob data; api-cache +314 more from #593's
   // `runtimeJson` (Remote's Model schema, 1.7 kB minified). No module was added to either page.
-  ['api-cache', 204_500], // 204,404 bytes
+  // api-cache, auth, form and job-application on 2026-11-22, after Phase 1 of the metakit unification
+  // plan (208,461; 155,879; 151,553; 190,870): each reaches foldkit-entity, whose in-memory judge is now
+  // metakit's evaluator and judge, as on every Remote page (see examples/cloudflare and the ledger,
+  // docs/design/metakit-unification-LEDGER.md). Not measured step by step; the growth matches the other
+  // entity pages' 4.5 to 5.6 kB, accepted by the maintainer on 2026-11-21. Ceilings: the reading plus 300.
+  // api-cache (210,696), auth (157,421) and form (153,087) on 2026-11-26 (CI): metakit's core
+  // evaluator and judge grew with Sets, Domain.Id/Ordinal and Pipeable/Inspectable (+1.2 kB brotli
+  // on entity pages), and foldkit-remote gained IVM coverage/reparenting fixes and Effect Clock/Random
+  // integration (+0.7 kB on api-cache). Ceilings: CI's reading plus ~400, rounded up.
+  ['api-cache', 211_100], // 210,696 bytes
   // 2026-11-18: auth, form, routing, shopping-cart, weather and websocket-chat each grew past their
   // ceiling: 151,886, 147,400, 135,620, 122,513, 126,693 and 129,129. The six draw Input, Textarea
   // or Field, and the Input recipe (`recipes/field.ts`) gained the grouped start and end sides and
@@ -38,7 +47,7 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   // the pages without a text field moved by under 20 bytes. Their first chunks hold no mixins-ui module
   // the pages do not draw (none of bundles, choice, configure, calendar, combobox, fileUpload or
   // rowContent). Each ceiling is the reading plus about 0.5%, rounded up to 500.
-  ['auth', 152_500], // 151,886 bytes
+  ['auth', 157_800], // 157,421 bytes
   // counter was 115,953 on origin/main (1bbd87d15), 47 under its ceiling; 115,981 here.
   // counter +193 and kanban +171 on 2026-11-18 from themed text selection (90ab7073e), measured in
   // one tree with `defaults.ts` and `theme/oklch.ts` swapped back (115,942 and 137,346): the
@@ -48,9 +57,11 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   ['domains', 191_000], // 187,092 bytes
   // form +65 over 148,000 on 2026-11-19 (148,065, down from 153,234 once `expr.ts` stopped
   // pulling `jsonSchema.ts` via `Law`): `Expr.add`/`sub`/`implies`, `in:` and `Entity.transition` (#600).
-  ['form', 148_500], // 148,065 bytes
-  ['job-application', 188_500], // 187,831 bytes
-  ['kanban', 137_600], // 137,517 bytes
+  ['form', 153_500], // 153,087 bytes
+  ['job-application', 192_900], // 192,461 bytes (CI 2026-11-26, metakit core ops)
+  // kanban +350 on 2026-11-22: CI on Linux read 137,650 after Phase 1 (its Surface module and the
+  // evaluator modules the gate fixes touched). Ceiling: CI's reading plus 300.
+  ['kanban', 137_950], // 137,650 bytes
   // pixel-art +200 on 2026-11-15 (#560 review): 155,275 without the review's focus fixes and 155,637
   // with them in one tree, +362 (its dialogs' FocusReturn: the way back split from the trail, a
   // frame's own trail held weakly, the realm check); ceiling raised to the reading, rounded up.
@@ -61,7 +72,7 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   ['shopping-cart', 123_500], // 122,513 bytes
   ['snake', 117_500], // 114,955 bytes
   ['ssg', 125_500], // 122,802 bytes
-  ['ssr', 130_500], // 127,784 bytes
+  ['ssr', 131_000], // 130,618 bytes (CI 2026-11-26, foldkit-ssr updates)
   ['todo', 131_000], // 128,027 bytes
   ['ui-showcase', 202_000], // 201,331 bytes
   ['weather', 127_500], // 126,693 bytes

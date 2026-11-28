@@ -80,15 +80,13 @@ const operators = {
 }
 
 const target = Expr.input('target', Schema.Int)
-const sort = Expr.input(
-  'sort',
-  Schema.NullOr(
-    Schema.Struct({
-      by: Schema.Literals(['near', 'code']),
-      direction: Schema.Literals(['asc', 'desc']),
-    }),
-  ),
+const Sort = Schema.NullOr(
+  Schema.Struct({
+    by: Schema.Literals(['near', 'code']),
+    direction: Schema.Literals(['asc', 'desc']),
+  }),
 )
+const sort = Expr.input('sort', Sort)
 const bodies = {
   Nearest: Relational.from(Part).pipe(Relational.orderBy(Order.asc(distance(fields.rank, target)))),
   Farthest: Relational.from(Part).pipe(
@@ -111,7 +109,7 @@ const bodies = {
     ),
   ),
 }
-const Input = { target: Schema.Int, sort: sort.schema }
+const Input = { target: Schema.Int, sort: Sort }
 const descriptorOf = (name: keyof typeof bodies) => ({
   ...Query.make(name, { Input, Result: Query.connection(Part) }),
   body: bodies[name],
@@ -287,7 +285,17 @@ describe('A call order compiled', () => {
     )
     const [first] = orderByTerms(terms, 'forward')
     expect(new PgDialect().sqlToQuery(first!).sql).toBe(
-      'lower(("parts"."code" || $1) collate "C") asc nulls last',
+      'lower(("parts"."code" || $1) COLLATE "C") asc nulls last',
+    )
+  })
+
+  it('names the binary collation of a text call, which a database in a locale would not give', () => {
+    const [pg] = orderByTerms(
+      compileOrderBy(bodies.Joined, entity('Part', pgParts, { operators }), {}, 'Joined'),
+      'forward',
+    )
+    expect(new PgDialect().sqlToQuery(pg!).sql).toBe(
+      '(("parts"."code" || $1) collate "C") asc nulls last',
     )
   })
 

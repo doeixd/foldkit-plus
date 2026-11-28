@@ -9,14 +9,23 @@
     "paths": {
       "foldkit-agent": ["../agent/src/index.ts"],
       "foldkit-agent-mcp": ["./src/index.ts"],
+      "foldkit-agent/metakit": ["../agent/src/metakit.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"]
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-surface/declared": ["../surface/src/declared.ts"],
+      "foldkit-surface/writes": ["../surface/src/writes.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
   "references": [
-    { "path": "../agent/tsconfig.build.json" },
-    { "path": "../metadata/tsconfig.build.json" },
-    { "path": "../surface/tsconfig.build.json" }
+    {
+      "path": "../agent/tsconfig.build.json"
+    },
+    {
+      "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../surface/tsconfig.build.json"
+    }
   ]
 }

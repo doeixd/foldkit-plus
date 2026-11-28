@@ -9,12 +9,14 @@ import * as ManagedResource from 'foldkit/managedResource'
 import type * as Submodel from 'foldkit/submodel'
 import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
+import type * as Machine from 'metakit/machine'
 import type { AnyMessage, Link } from './link.js'
-import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
+import type { AnyMachine, BundleSpec, Helper, ResourceEntries } from './bundle.js'
 import { helpersFor, readsArgs } from './helpers.js'
 import { keptDrawing } from './memo.js'
 
 const PlacedTypeId: unique symbol = Symbol.for('foldkit-bundle/Placed')
+const MACHINE_LIFT = Symbol.for('metakit/Machine.lift')
 
 declare const NoViewTypeId: unique symbol
 
@@ -182,6 +184,14 @@ export interface PlaceConfig<
    * its Model (a clock, a module's mutable state).
    */
   readonly memo?: false
+  /**
+   * Optional epoch reader driven by declared write paths (#586, e.g.
+   * `writes.epochFor` from `foldkit-surface/writes`), given the parent's Model
+   * at each draw so it can tell a Model no tracked `update` made. When
+   * provided, the kept drawing keys on this epoch rather than child Model
+   * reference identity.
+   */
+  readonly pathEpoch?: ((parent: Parent) => unknown) | undefined
 }
 
 /** A lifted resource record: each child entry in parent terms, keyed by the placement. */
@@ -218,6 +228,17 @@ export type PlacedHelpers<Parent, ParentMessage, R, Helpers> = {
     : never
 }
 
+export type AnyLifted = {
+  readonly transitions: Readonly<Record<string, unknown>>
+}
+
+export type LiftedOf<Parent, M> =
+  M extends Machine.Machine<any, infer Transitions>
+    ? Machine.Lifted<Parent, Transitions>
+    : M extends AnyMachine
+      ? AnyLifted
+      : undefined
+
 export interface Placed<
   Name extends string,
   Parent,
@@ -231,6 +252,7 @@ export interface Placed<
   Helpers,
   Field extends string = string,
   Claimed extends string = string,
+  Lifted = AnyLifted | undefined,
 > {
   readonly [PlacedTypeId]: typeof PlacedTypeId
   /** Types only: the top-level Model field this placement owns, or `string` when unknown. */
@@ -279,6 +301,12 @@ export interface Placed<
    */
   readonly viewIn: (slot: string) => PlacedView<Parent, ParentMessage, ViewInputs>
   readonly helpers: PlacedHelpers<Parent, ParentMessage, R, Helpers>
+  /**
+   * The bundle's declarative machine lifted at this placement's `link.path`
+   * (`Machine.lift`), ready for `Machine.compose`, or `undefined` when none.
+   * Requires a direct struct path (not an `Option`-wrapped or custom-lens link).
+   */
+  readonly machine: Lifted
 }
 
 /**
@@ -342,13 +370,26 @@ export type Place = <
   ViewInputs,
   Resources extends ResourceEntries<Model, Message>,
   Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
+  M,
   Parent,
   LinkMessage,
   Field extends string,
   OutStepMessage,
   R2,
 >(
-  bundle: BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
+  bundle: BundleSpec<
+    Name,
+    Args,
+    Model,
+    Message,
+    OutMessage,
+    R,
+    S,
+    ViewInputs,
+    Resources,
+    Helpers,
+    M
+  >,
   link: Link<Parent, LinkMessage, Model, Message, Field>,
   config?: PlaceConfig<
     Args,
@@ -373,7 +414,8 @@ export type Place = <
   Resources,
   Helpers,
   Field,
-  TagOf<LinkMessage>
+  TagOf<LinkMessage>,
+  LiftedOf<Parent, M>
 >
 
 // Inside the implementation the child's and parent's types are unknowable, so
@@ -491,12 +533,16 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
   const childView: ErasedView | undefined = bundle.view
   // One kept drawing per slot: a lazy slot belongs to one position in the tree.
   const kept = new Map<string, (model: unknown, h: HtmlBuilder<any>) => Html>()
+  // The parent being drawn, set just before a kept drawing runs, for `pathEpoch`.
+  let drawnParent: unknown
+  const pathEpoch = config.pathEpoch
   const keptIn = (slotId: string, view: ErasedView) => {
     const known = kept.get(slotId)
     if (known !== undefined) return known
     const made = keptDrawing(
       (model, h) => h.submodel({ slotId, model, view, toParentMessage: link.toParentMessage }),
       view,
+      pathEpoch === undefined ? undefined : { pathEpoch: () => pathEpoch(drawnParent) },
     )
     kept.set(slotId, made)
     return made
@@ -507,8 +553,14 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
       childView === undefined
         ? null
         : Option.match(link.read(parent), {
-            onNone: () => null,
+            onNone: () => {
+              // Drop any kept drawing while absent so a later Some(m2) at the
+              // same pathEpoch never serves the pre-hide VNode (#586).
+              kept.delete(slotId)
+              return null
+            },
             onSome: model => {
+              drawnParent = parent
               // A view drawn without inputs takes none: handing it some would
               // shift its builder to the third argument.
               const viewInputs =
@@ -601,6 +653,15 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
             foldStep(model => helper(model, ...input)),
       )
     },
+    ...(bundle.machine === undefined
+      ? {}
+      : {
+          machine: (
+            bundle.machine as unknown as {
+              readonly [MACHINE_LIFT]: (segments: ReadonlyArray<string>) => unknown
+            }
+          )[MACHINE_LIFT](link.path),
+        }),
   }
 }
 

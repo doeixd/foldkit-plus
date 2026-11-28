@@ -1,0 +1,282 @@
+import { PGlite } from '@electric-sql/pglite'
+import { and, eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/pglite'
+import { integer, pgTable, text } from 'drizzle-orm/pg-core'
+import { Option, Result, Schema } from 'effect'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { Eq, Expr, Num, Ord, Transition, Verdict } from 'metakit'
+import { CalendarDay, Money, OrderedEnum } from 'metakit/domain'
+import * as Drizzle from 'metakit/drizzle'
+import * as Inspect from 'metakit/inspect'
+import * as Machine from 'metakit/machine'
+
+const accountsTable = pgTable('accounts', {
+  id: text('id').primaryKey(),
+  balance: integer('balance').notNull(),
+  reserved: integer('reserved').notNull(),
+  status: text('status').notNull(),
+})
+
+const Account = Schema.Struct({
+  id: Schema.String,
+  balance: Schema.Int,
+  reserved: Schema.Int,
+  status: Schema.Literals(['open', 'frozen']),
+}).pipe(
+  Expr.refine($ =>
+    Expr.all(Ord.gte($.balance, 0), Ord.gte($.reserved, 0), Ord.lte($.reserved, $.balance)),
+  ),
+)
+type Account = typeof Account.Type
+
+const Principal = Schema.Struct({
+  userId: Schema.String,
+  role: Schema.Literals(['owner', 'admin', 'guest']),
+})
+
+const CanWithdraw = Expr.in({ row: Account, principal: Principal }, ({ row, principal }) =>
+  Expr.all(
+    Eq.is(row.status, 'open'),
+    Expr.any(Eq.is(principal.role, 'admin'), Eq.is(row.id, principal.userId)),
+  ),
+)
+
+const Withdraw = Transition.make({
+  state: Account,
+  input: Schema.Struct({ amount: Schema.Int.pipe(Expr.refine($ => Ord.gt($, 0))) }),
+  when: ({ state, input }) =>
+    Expr.all(
+      Eq.is(state.status, 'open'),
+      Ord.lte(input.amount, Num.sub(state.balance, state.reserved)),
+    ),
+  apply: ({ state, input }) => [
+    Transition.set(state.balance, Num.sub(state.balance, input.amount)),
+  ],
+  emits: ({ state, input }) => [Transition.emit('Debited', { id: state.id, amount: input.amount })],
+})
+
+const Freeze = Transition.make({
+  state: Account,
+  input: Schema.Struct({}),
+  when: ({ state }) => Eq.is(state.status, 'open'),
+  apply: ({ state }) => [Transition.set(state.status, 'frozen')],
+})
+
+const Unfreeze = Transition.make({
+  state: Account,
+  input: Schema.Struct({}),
+  when: ({ state }) => Eq.is(state.status, 'frozen'),
+  apply: ({ state }) => [Transition.set(state.status, 'open')],
+})
+
+let client: PGlite
+
+beforeAll(async () => {
+  client = new PGlite()
+  await client.exec(`
+    CREATE TABLE "accounts" (
+      "id" TEXT PRIMARY KEY,
+      "balance" INTEGER NOT NULL,
+      "reserved" INTEGER NOT NULL,
+      "status" TEXT NOT NULL
+    );
+    INSERT INTO "accounts" ("id", "balance", "reserved", "status") VALUES
+      ('u1', 100, 20, 'open'),
+      ('u2', 50, 10, 'frozen');
+  `)
+})
+
+afterAll(async () => {
+  await client.close()
+})
+
+describe('Phase 3: metakit/drizzle against PGlite', () => {
+  it('executes Drizzle.toWhere and guarded Drizzle.toUpdate end to end', async () => {
+    const db = drizzle({ client })
+
+    const checkRes = Drizzle.toCheck(Account, accountsTable)
+    expect(Result.isSuccess(checkRes)).toBe(true)
+
+    const whereRes = Drizzle.toWhere(CanWithdraw, accountsTable, {
+      env: { principal: { userId: 'u1', role: 'owner' } },
+    })
+    expect(Result.isSuccess(whereRes)).toBe(true)
+    if (Result.isFailure(whereRes)) return
+
+    const rows = await db.select().from(accountsTable).where(whereRes.success)
+    expect(rows.map(r => r.id)).toEqual(['u1'])
+
+    const updRes = Drizzle.toUpdate(Withdraw, { amount: 30 }, accountsTable)
+    expect(Result.isSuccess(updRes)).toBe(true)
+    if (Result.isFailure(updRes)) return
+
+    const updated = await db
+      .update(accountsTable)
+      .set(updRes.success.set)
+      .where(and(eq(accountsTable.id, 'u1'), updRes.success.where))
+      .returning()
+    expect(updated.length).toBe(1)
+    expect(updated[0]!.balance).toBe(70)
+
+    // Guard prevents overdraft
+    const badUpd = Drizzle.toUpdate(Withdraw, { amount: 60 }, accountsTable)
+    expect(Result.isSuccess(badUpd)).toBe(true)
+    if (Result.isSuccess(badUpd)) {
+      const none = await db
+        .update(accountsTable)
+        .set(badUpd.success.set)
+        .where(and(eq(accountsTable.id, 'u1'), badUpd.success.where))
+        .returning()
+      expect(none.length).toBe(0)
+    }
+  })
+})
+
+describe('Phase 3: metakit/machine (TEA / Sync host)', () => {
+  const AccountMachine = Machine.make({
+    state: Account,
+    transitions: { Withdraw, Freeze, Unfreeze },
+  })
+
+  it('uses the registered withdrawal for admission and message construction', () => {
+    const withdraw = Machine.intent(AccountMachine, 'Withdraw')
+    const open: Account = { id: 'u1', balance: 100, reserved: 20, status: 'open' }
+    const frozen: Account = { ...open, status: 'frozen' }
+    expect(Verdict.isUnknown(withdraw.can({ state: open }))).toBe(true)
+    expect(Verdict.isFalse(withdraw.can({ state: frozen }))).toBe(true)
+    const message = withdraw.message({ amount: 25 })
+    expect(message).toEqual({ _tag: 'Withdraw', input: { amount: 25 } })
+    expect(Result.getOrThrow(AccountMachine.dispatch(open, message)).state.balance).toBe(75)
+    expect(Result.isFailure(AccountMachine.dispatch(frozen, message))).toBe(true)
+  })
+
+  it('judges supplied facts independently of the client intent', () => {
+    const Approve = Transition.make({
+      state: Account,
+      input: Schema.Struct({ amount: Schema.Int }),
+      supplied: { threshold: Schema.Int },
+      when: ({ supplied, input }) => Num.gte(supplied.threshold, input.amount),
+      apply: ({ state, input }) => [Transition.add(state.reserved, input.amount)],
+    })
+    const machine = Machine.make({ state: Account, transitions: { Approve } })
+    const approve = Machine.intent(machine, 'Approve')
+    const input = { amount: 5 }
+    expect(Verdict.isUnknown(approve.can({ input }))).toBe(true)
+    expect(Verdict.isTrue(approve.can({ input, supplied: { threshold: 5 } }))).toBe(true)
+    expect(
+      Verdict.isFalse(
+        Machine.canDispatch(machine, 'Approve', {
+          input,
+          supplied: { threshold: 4 },
+        }),
+      ),
+    ).toBe(true)
+    const message = approve.message(input)
+    expect(message).toEqual({ _tag: 'Approve', input })
+    const open: Account = { id: 'u1', balance: 100, reserved: 20, status: 'open' }
+    const applied = machine.dispatch(open, { ...message, supplied: { threshold: 5 } })
+    expect(Result.getOrThrow(applied).state.reserved).toBe(25)
+  })
+
+  it('derives affordances, footprints, and preserves identity on refused update', () => {
+    const open: Account = { id: 'u1', balance: 100, reserved: 20, status: 'open' }
+    const frozen: Account = { id: 'u1', balance: 100, reserved: 20, status: 'frozen' }
+
+    expect(Machine.affordances(AccountMachine, open)).toEqual({
+      available: ['Freeze'],
+      disabled: ['Unfreeze'],
+      pending: ['Withdraw'],
+    })
+    expect(Machine.affordances(AccountMachine, frozen)).toEqual({
+      available: ['Unfreeze'],
+      disabled: ['Withdraw', 'Freeze'],
+      pending: [],
+    })
+    expect(
+      Verdict.isTrue(
+        Machine.canDispatch(AccountMachine, 'Withdraw', { state: open, input: { amount: 50 } }),
+      ),
+    ).toBe(true)
+
+    expect(AccountMachine.footprints.Freeze.writes).toEqual([['status']])
+
+    const [next, emitted] = AccountMachine.update(open, {
+      _tag: 'Withdraw',
+      input: { amount: 25 },
+    })
+    expect(next.balance).toBe(75)
+    expect(emitted).toEqual([{ _tag: 'Debited', id: 'u1', amount: 25 }])
+
+    // Refused update returns the exact same state reference
+    const [same, noEmit] = AccountMachine.update(frozen, {
+      _tag: 'Withdraw',
+      input: { amount: 10 },
+    })
+    expect(same).toBe(frozen)
+    expect(noEmit).toEqual([])
+  })
+
+  // An agent's tool call names the tag: a member of `Object.prototype` is not a transition.
+  it.each(['constructor', '__proto__', 'toString', 'Nope'])(
+    'refuses the tag %s, which names no transition of its own',
+    tag => {
+      const open: Account = { id: 'u1', balance: 100, reserved: 20, status: 'open' }
+      // The tag is outside the Message union on purpose.
+      const stray = { _tag: tag, input: {} } as unknown as Machine.MessageOf<
+        typeof AccountMachine.transitions
+      >
+      const refused = AccountMachine.dispatch(open, stray)
+      expect(Result.isFailure(refused) && refused.failure.reason).toBe(`unknown message "${tag}"`)
+      expect(AccountMachine.update(open, stray)[0]).toBe(open)
+      expect(
+        Verdict.isFalse(Machine.canDispatch(AccountMachine, tag as 'Withdraw', { state: open })),
+      ).toBe(true)
+      expect(() => Machine.intent(AccountMachine, tag as 'Withdraw')).toThrow(
+        `unknown message "${tag}"`,
+      )
+    },
+  )
+})
+
+describe('Phase 4: metakit/inspect (Forms & Agent JSON Schema)', () => {
+  it('extracts field specs, Expr.refine bounds, domain metadata, and JSON Schema', () => {
+    const OrderStatus = OrderedEnum.make(['draft', 'paid'] as const)
+    const Invoice = Schema.Struct({
+      amount: Money.make('USD'),
+      dueDate: CalendarDay.schema,
+      status: OrderStatus.schema,
+      memo: Schema.NullOr(Schema.String),
+    }).pipe(Expr.refine($ => Money.gte($.amount, Money.minor('USD', 0))))
+
+    const specs = Inspect.fieldSpecs(Invoice)
+    const amountSpec = specs.find(s => s.name === 'amount')!
+    expect(amountSpec.min).toEqual(Option.some(0))
+    expect(amountSpec.domain).toEqual(Option.some({ kind: 'money', currency: 'USD', scale: 2 }))
+
+    const json = Inspect.toJsonSchema(Invoice) as {
+      readonly properties: Readonly<Record<string, Readonly<Record<string, unknown>>>>
+    }
+    expect(json.properties['amount']!['minimum']).toBe(0)
+    expect(json.properties['dueDate']).toEqual({
+      type: 'integer',
+      'x-metakit-domain': { kind: 'calendarDay' },
+    })
+    expect(json.properties['status']!['enum']).toEqual(['draft', 'paid'])
+    expect(json.properties['memo']!['type']).toEqual(['string', 'null'])
+  })
+
+  it('lists null among a nullable enum, which JSON Schema checks beside its type', () => {
+    const Ticket = Schema.Struct({
+      priority: Schema.NullOr(Schema.Literals(['low', 'high'])),
+      state: Schema.Literals(['open', 'done']),
+    })
+    const json = Inspect.toJsonSchema(Ticket) as {
+      readonly properties: Readonly<Record<string, Readonly<Record<string, unknown>>>>
+    }
+    expect(json.properties['priority']).toEqual({
+      type: ['string', 'null'],
+      enum: ['low', 'high', null],
+    })
+    expect(json.properties['state']).toEqual({ type: 'string', enum: ['open', 'done'] })
+  })
+})

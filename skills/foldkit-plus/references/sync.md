@@ -1,6 +1,6 @@
 # foldkit-sync + foldkit-durable
 
-Checked against `foldkit-sync` 0.18.0 and `foldkit-durable` 0.15.0.
+Checked against `foldkit-sync` 0.20.0 and `foldkit-durable` 0.15.0.
 
 Local-first replication of part of a Foldkit Model. `foldkit-sync` is the client
 replica, and `foldkit-durable` is the optional SQLite server journal that owns
@@ -134,7 +134,9 @@ const program = Effect.gen(function* () {
   (`sessionStorage` key, IndexedDB `${name}/${key}`; a duplicated tab mints its
   own); `Sync.indexedDb(name, factory?)` opens a database by name (pass
   `fake-indexeddb` in Node). Its submit writes only the new operation, through
-  the optional `Storage.append`. A test `Storage` needs just three members:
+  the optional `Storage.append`. A test `Storage` needs four members: `store`, which says what the
+  store guarantees of concurrent writes (a replica's is `eventual`: it accepts writes apart and the
+  journal's order merges them later), and `load`, `save` and `close`:
 
 ```ts
 import { Effect } from 'effect'
@@ -143,6 +145,7 @@ import type { Storage } from 'foldkit-sync'
 const memoryStorage = (): Storage => {
   let state: unknown
   return {
+    store: { name: 'memory replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next => Effect.sync(() => { state = structuredClone(next) }),   // ignores the CAS revision
     close: Effect.void,
@@ -279,13 +282,100 @@ const Capped = forApplication(App).make({
   durable: MessageSet.make(App, [Message.CreatedTodo]),
   laws: {
     atMost100Todos: {
-      holds: ({ after }) => after.todos.length <= 100, // `before` too; shared fields only
+      holds: ({ after }) => after.todos.length <= 100,
       message: 'A list holds 100 todos',
       path: ['todos'],
     },
   },
 })
 ```
+
+`holds` sees the snapshot before the operation and the one after it. To write
+it as a metakit expression instead, wrap the expression in `SyncDeclared.holds`
+from `foldkit-sync/metakit`; it sees the snapshot after as `model` (never
+`before`, so a cap that lets an over-full document shrink stays a callback), and holds
+only where the expression is true: a snapshot it is null over, or cannot be
+evaluated over (an integer result past ±(2^53−1)), breaks the law. That
+subpath is the only part of `foldkit-sync` that imports metakit, so a page
+that writes its laws as callbacks carries none of it.
+
+To replay an edit from a single declaration, wrap a metakit `Transition.make`
+in `SyncDeclared.transition` and put it under its Message tag in
+`make({ transitions })`. Use `Schema.Struct({ model: shared.schema })` for its
+state and the variant constructor, such as `CounterMessage.Incremented`, for
+its input. A counter that stops at 10:
+
+```ts
+import { Num, Path, Transition } from 'metakit'
+import { SyncDeclared } from 'foldkit-sync/metakit'
+
+const Counter = Schema.Struct({ count: Schema.Number })
+const CounterMessage = defineMessageUnion({ Incremented: {} })
+const CounterApp = Surface.application({
+  Model: Counter,
+  Message: CounterMessage,
+  initial: { count: 0 },
+  update: (counter: typeof Counter.Type) => ({ model: { count: counter.count + 1 } }),
+})
+const counted = Projection.pick(CounterApp.model.count)
+const { model } = Path.forEnv({ model: counted.schema })
+const Bounded = forApplication(CounterApp).make({
+  documentId: DocumentId.make('bounded'),
+  shared: counted,
+  durable: MessageSet.make(CounterApp, [CounterMessage.Incremented]),
+  laws: {
+    atMost10: { holds: SyncDeclared.holds(Num.lte(model.count, 10)), message: 'It stops at 10' },
+  },
+  transitions: {
+    Incremented: SyncDeclared.transition(
+      Transition.make({
+        state: Schema.Struct({ model: counted.schema }),
+        input: CounterMessage.Incremented,
+        when: ({ state }) => Num.lt(state.model.count, 10),
+        apply: ({ state }) => [Transition.set(state.model.count, Num.add(state.model.count, 1))],
+      }),
+    ),
+  },
+})
+```
+
+The mount applies a declared transition to the shared projection in place of
+your `update`, and the journal uses it for replay. A Message whose guard
+(`when`) is false is refused: the replica's `submit` fails and the journal
+rejects the operation. Tags without a declaration follow the existing reducer.
+`SyncDeclared.transition` returns a `DeclaredTransition`, whose `bind` `make`
+calls once; the check, its messages and the replay by tag live in that object,
+so a document with no `transitions` carries none of them. The document then
+has `live(model, message)` (the Model after a declared Message, the same Model
+where it is refused, `Option.none()` for a tag with no declaration) and
+`footprints` (each declared tag's read and written paths).
+At definition time, `make` rejects a guard proved unreachable under the laws
+written with `SyncDeclared.holds`, or a transition proved to break one. The
+errors read `Sync.make: "<tag>" has an unreachable guard` and `… violates a
+shared-state invariant`; a transition that emits a Command, or one under a tag
+the document does not record, throws too. A law written as a callback is run,
+never read by this check. An undecided check lets the declaration proceed. The
+journal still checks each document law on admission. To take the durable tags
+from an application's metakit `Machine` instead, use
+`SyncDeclared.fromMachine(machine, tags, shared, initial)` (`initial` is the
+application's initial Model; a replay writes the shared slice into it): one
+transition per tag. It throws at definition, naming the tag, for a transition
+that is not the Machine's, emits a Command, declares supplied values (a replay
+passes none), has a read it does not bound, or reads or writes a path not
+inside a shared path (a write to a parent of the slice included). It does not
+check laws or an unreachable guard: use `SyncDeclared.transition` for those. A
+Message whose guard is false is refused, so `replica.submit` fails with
+`ReplayError`; do not submit a durable Message the application's own guard
+refuses.
+
+To see what the server's order can change, `convergence(machine, tags)` from
+`foldkit-sync/metakit` reads the declared transitions: per pair of durable
+Messages where one writes a path the other reads or writes, `rebase: 'never'` (`Transition.commutes` true) or
+`'possible'`; per Message, `copy: 'harmless'` (an immediate back-to-back copy is
+idempotent, by `Transition.idempotent`; interleaved copies still rely on id deduplication) or `'removed by id'`.
+`settleConvergence(machine, tags, { owner, walkPair, walkRedelivery })` files
+each `possible` pair and each copy as a `metakit/temporal` obligation and
+discharges it with the two-replica walks you pass. A `possible` pair closes when its walk is `Held`, answering "the order matters" if `orderMatters` is true; a `Broken` walk (the replicas ended on different documents) leaves it open even where `orderMatters`, and a `never` pair whose orders differ is refuted. Development and test only.
 
 The journal judges every operation after `reduce` (`journalContract()` carries
 `judge`), `appendAsServer` and reactions included; a broken law is
@@ -482,6 +572,9 @@ Server side, `Sync.presence.serve(socket, hub, { peerId, opens? })` stamps the
 connection's id and joins only a connection `opens` lets (the exchange's own).
 `Sync.lww.register` (experimental) makes one field last-writer-wins. Allocate
 stamps with `Sync.lww.openClock` before dispatch, never in `update`.
+At one logical time the greater replica id wins, so replicas agree whichever
+reaches the server first. No example application uses it; a two-replica
+walk checks that on a fixture.
 
 ## Server-only Messages and reactions
 

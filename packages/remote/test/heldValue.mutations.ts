@@ -90,8 +90,8 @@ export default [
   edit(
     'a refresh forgets a deleted entity it asks about',
     store,
-    'next[key] = { ...previous, stale: asked }',
-    'delete next[key]',
+    'edit.set(key, { ...previous, stale: asked })',
+    'edit.set(key, { ...previous, stale: asked, tombstone: false })',
   ),
   edit(
     'a refresh forgets every entity it asks about',

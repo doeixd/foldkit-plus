@@ -31,8 +31,8 @@ export default [
   edit(
     'a bound value is assigned',
     write,
-    'held => put(values, field.key, encoded(field, held))',
-    'held => void (values[field.key] = encoded(field, held))',
+    'value => put(values, field.key, value))',
+    'value => void (values[field.key] = value))',
   ),
   edit(
     'a bound increment is assigned',
@@ -49,14 +49,14 @@ export default [
   edit(
     'a bound assignment is assigned',
     write,
-    'put(assignments, field.key, computationOf(write, expr, input))',
-    'assignments[field.key] = computationOf(write, expr, input)',
+    'put(assignments, field.key, computationOf(write, expr.node, input))',
+    'assignments[field.key] = computationOf(write, expr.node, input)',
   ),
   edit(
     'a computed field is assigned to the row after',
     write,
-    'onSome: value => put(after, field, value),',
-    'onSome: value => void (after[field] = value),',
+    'onSome: node => put(after, field, valueOf(node)),',
+    'onSome: node => void (after[field] = valueOf(node)),',
   ),
   edit(
     'a context value is assigned',
@@ -73,8 +73,8 @@ export default [
   edit(
     'an input key is read with what it inherits',
     write,
-    'Option.map(given(own(input, key)), held => put(values',
-    'Option.map(given(input[key]), held => put(values',
+    'setValue(field, own(input, key))',
+    'setValue(field, input[key])',
   ),
   edit(
     'a key a write names is read with what the members inherit',
@@ -91,13 +91,13 @@ export default [
   // ---- the sweep
   edit(
     'an input is read with what it inherits',
-    '../src/evaluate.ts',
-    'return own(scope.input, node.key)',
-    'return scope.input[node.key]',
+    '../src/environment.ts',
+    'put(given, key, own(input, key) ?? null)',
+    'put(given, key, input[key] ?? null)',
   ),
   edit(
     'a sort input is read with what it inherits',
-    '../src/expr.ts',
+    '../src/expr/query.ts',
     'const sort = own(input, chosen.sort.key)',
     'const sort = input[chosen.sort.key]',
   ),

@@ -15,14 +15,10 @@ import {
   Expr,
   Query,
   Text,
-  type CallExpr,
-  type ComparePredicate,
-  type ContainsPredicate,
-  type EqPredicate,
-  type InPredicate,
+  type Expr as ExprOf,
   type InputExpr,
+  type Predicate,
   type Reads,
-  type TestPredicate,
 } from '../src/index.js'
 import { Blog } from './blogFixture.js'
 
@@ -41,28 +37,24 @@ const Task = Entity.define(
 )
 
 // eq: a literal, an input and a literal of a union keep reads exact.
-expectTypeOf(pipe(Post.fields.title, Expr.eq.step('x'))).toEqualTypeOf<
-  EqPredicate & Reads<'Post'>
->()
+expectTypeOf(pipe(Post.fields.title, Expr.eq.step('x'))).toEqualTypeOf<Predicate & Reads<'Post'>>()
 expectTypeOf(pipe(Task.fields.status, Expr.eq.step('open'))).toEqualTypeOf<
-  EqPredicate & Reads<'Task'>
+  Predicate & Reads<'Task'>
 >()
 const slug: InputExpr<string> = Expr.input('slug', Schema.String)
-expectTypeOf(pipe(Post.fields.title, Expr.eq.step(slug))).toEqualTypeOf<
-  EqPredicate & Reads<'Post'>
->()
+expectTypeOf(pipe(Post.fields.title, Expr.eq.step(slug))).toEqualTypeOf<Predicate & Reads<'Post'>>()
 // A predicate against a boolean field.
 expectTypeOf(
   pipe(Post.fields.published, Expr.eq.step(Expr.eq(Post.fields.published, true))),
-).toEqualTypeOf<EqPredicate & Reads<'Post'>>()
+).toEqualTypeOf<Predicate & Reads<'Post'>>()
 // Reads of the value are the node's too: a field of another Entity on the right of a step.
 expectTypeOf(pipe(Post.fields.title, Expr.eq.step(Expr.field(Author.fields.name)))).toEqualTypeOf<
-  EqPredicate & Reads<'Post' | 'Author'>
+  Predicate & Reads<'Post' | 'Author'>
 >()
 
 // flow: the step's subject arrives when the flow is applied.
 const isOpen = flow(Expr.eq.step('open'))
-expectTypeOf(isOpen(Task.fields.status)).toEqualTypeOf<EqPredicate & Reads<'Task'>>()
+expectTypeOf(isOpen(Task.fields.status)).toEqualTypeOf<Predicate & Reads<'Task'>>()
 expectTypeOf(flow(Expr.isNull, Expr.not)(Post.fields.title)).toExtend<Reads<'Post'>>()
 
 // @ts-expect-error a title is text, not a number
@@ -84,24 +76,14 @@ Expr.eq(Post.fields.title)
 Expr.eq(Post.fields.title, 42)
 
 // Comparisons: reads exact, options accepted.
-expectTypeOf(pipe(Task.fields.rank, Expr.lt.step(3))).toEqualTypeOf<
-  ComparePredicate & Reads<'Task'>
->()
-expectTypeOf(pipe(Task.fields.rank, Expr.lte.step(3))).toEqualTypeOf<
-  ComparePredicate & Reads<'Task'>
->()
-expectTypeOf(pipe(Task.fields.rank, Expr.gt.step(3))).toEqualTypeOf<
-  ComparePredicate & Reads<'Task'>
->()
-expectTypeOf(pipe(Task.fields.rank, Expr.gte.step(3))).toEqualTypeOf<
-  ComparePredicate & Reads<'Task'>
->()
+expectTypeOf(pipe(Task.fields.rank, Expr.lt.step(3))).toEqualTypeOf<Predicate & Reads<'Task'>>()
+expectTypeOf(pipe(Task.fields.rank, Expr.lte.step(3))).toEqualTypeOf<Predicate & Reads<'Task'>>()
+expectTypeOf(pipe(Task.fields.rank, Expr.gt.step(3))).toEqualTypeOf<Predicate & Reads<'Task'>>()
+expectTypeOf(pipe(Task.fields.rank, Expr.gte.step(3))).toEqualTypeOf<Predicate & Reads<'Task'>>()
 expectTypeOf(
   pipe(Post.fields.title, Expr.lt.step('m', { collation: Collation.binary })),
-).toEqualTypeOf<ComparePredicate & Reads<'Post'>>()
-expectTypeOf(flow(Expr.gte.step(1))(Task.fields.rank)).toEqualTypeOf<
-  ComparePredicate & Reads<'Task'>
->()
+).toEqualTypeOf<Predicate & Reads<'Post'>>()
+expectTypeOf(flow(Expr.gte.step(1))(Task.fields.rank)).toEqualTypeOf<Predicate & Reads<'Task'>>()
 
 // @ts-expect-error a number orders against a number, not text
 pipe(Task.fields.rank, Expr.lt.step('a'))
@@ -118,13 +100,13 @@ pipe(Task.fields.done, Expr.lte.step(true))
 
 // contains
 expectTypeOf(pipe(Post.fields.title, Expr.contains.step('a'))).toEqualTypeOf<
-  ContainsPredicate & Reads<'Post'>
+  Predicate & Reads<'Post'>
 >()
 expectTypeOf(
   pipe(Task.fields.note, Expr.contains.step(Expr.input('q', Schema.String))),
-).toEqualTypeOf<ContainsPredicate & Reads<'Task'>>()
+).toEqualTypeOf<Predicate & Reads<'Task'>>()
 expectTypeOf(flow(Expr.contains.step('a'))(Post.fields.title)).toEqualTypeOf<
-  ContainsPredicate & Reads<'Post'>
+  Predicate & Reads<'Post'>
 >()
 // @ts-expect-error a number is not text
 pipe(Task.fields.rank, Expr.contains.step('a'))
@@ -135,12 +117,12 @@ pipe(Post.fields.title, Expr.contains.step(Post.fields.title))
 
 // in
 expectTypeOf(pipe(Task.fields.status, Expr.in.step(['open', 'closed']))).toEqualTypeOf<
-  InPredicate & Reads<'Task'>
+  Predicate & Reads<'Task'>
 >()
 expectTypeOf(
   pipe(Post.fields.id, Expr.in.step(Expr.input('ids', Schema.Array(Schema.String)))),
-).toEqualTypeOf<InPredicate & Reads<'Post'>>()
-expectTypeOf(flow(Expr.in.step(['a']))(Post.fields.id)).toEqualTypeOf<InPredicate & Reads<'Post'>>()
+).toEqualTypeOf<Predicate & Reads<'Post'>>()
+expectTypeOf(flow(Expr.in.step(['a']))(Post.fields.id)).toEqualTypeOf<Predicate & Reads<'Post'>>()
 // @ts-expect-error a status is one of its literals
 pipe(Task.fields.status, Expr.in.step(['open', 'deleted']))
 // @ts-expect-error numbers against text
@@ -157,10 +139,10 @@ Query.from(Post).pipe(Query.where(pipe(Author.fields.name, Expr.eq.step('x'))))
 
 // An operator's step: the arguments past the first, then the first.
 expectTypeOf(pipe(Post.fields.title, Text.startsWith.step('a'))).toExtend<
-  TestPredicate & Reads<'Post'>
+  Predicate & Reads<'Post'>
 >()
 expectTypeOf(pipe(Post.fields.title, Text.startsWith.step('a'))).toEqualTypeOf<
-  TestPredicate & Reads<'Post'>
+  Predicate & Reads<'Post'>
 >()
 Query.from(Post).pipe(Query.where(pipe(Post.fields.title, Text.startsWith.step('a'))))
 // @ts-expect-error a predicate over Author does not belong to a query from Post
@@ -193,17 +175,17 @@ const concat = Expr.operator('acme.concat', {
 })
 // A unary operator's step takes nothing, and chains in flow and pipe with reads exact.
 expectTypeOf(pipe(Post.fields.title, trim.step(), lower.step())).toExtend<
-  CallExpr<string> & Reads<'Post'>
+  ExprOf<string> & Reads<'Post'>
 >()
 expectTypeOf(flow(trim.step(), lower.step())(Post.fields.title)).toEqualTypeOf<
-  CallExpr<string> & Reads<'Post'>
+  ExprOf<string> & Reads<'Post'>
 >()
 expectTypeOf(flow(trim.step(), concat.step('-'))(Post.fields.title)).toEqualTypeOf<
-  CallExpr<string> & Reads<'Post'>
+  ExprOf<string> & Reads<'Post'>
 >()
 // A step given a field of another Entity reads both.
 expectTypeOf(pipe(Post.fields.title, concat.step(Expr.field(Author.fields.name)))).toEqualTypeOf<
-  CallExpr<string> & Reads<'Post' | 'Author'>
+  ExprOf<string> & Reads<'Post' | 'Author'>
 >()
 // @ts-expect-error a unary operator's step takes no argument
 trim.step('a')

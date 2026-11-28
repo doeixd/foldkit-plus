@@ -5,6 +5,7 @@
  * (`languagePage.ts`) read the same bodies, rows and readers.
  */
 import { Effect, Layer, Option, Result, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import {
   Expr,
   Held,
@@ -246,9 +247,7 @@ export const judgedIn = (
   holder: HeldRows,
 ): ReadonlyArray<string> =>
   judged(question, rows, holder)
-    .filter(({ verdict }) =>
-      Judge.match(verdict, { onKnown: truth => truth, onUnknown: () => false }),
-    )
+    .filter(({ verdict }) => Verdict.isTrue(verdict))
     .map(({ row }) => row)
     .sort((left, right) =>
       compareRows(Query.orderFor(question.body, question.input), left, right, question.name, {

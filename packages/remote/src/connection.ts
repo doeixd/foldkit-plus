@@ -194,7 +194,11 @@ const orderSegments = (segments: readonly Segment[]): Segment[] => {
 
 /** Visible edges, segment by segment. */
 export const items = (connection: Connection): ReadonlyArray<Edge> =>
-  connection.segments.flatMap(value => value.edges)
+  connection.segments.length === 0
+    ? []
+    : connection.segments.length === 1
+      ? connection.segments[0]!.edges
+      : connection.segments.flatMap(value => value.edges)
 
 /** There is more before the known region. Derived from boundaries, never row count. */
 export const hasPrevious = (connection: Connection): boolean => {

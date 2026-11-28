@@ -10,7 +10,8 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Option, Result } from 'effect'
-import { Expr, Judge, Query } from 'foldkit-entity'
+import { Verdict } from 'metakit'
+import { Expr, Query } from 'foldkit-entity'
 import { databaseLayer } from 'foldkit-remote-drizzle'
 import { ddl } from './tables.js'
 import {
@@ -69,7 +70,7 @@ export const runLanguage = async (): Promise<ReadonlyArray<string>> => {
           .split('\n')
           .map(line => `  ${line}`),
         `  given ${JSON.stringify(question.input)}, asked by ${Option.match(question.viewer, { onNone: () => 'a visitor', onSome: ref => `${ref.entity} ${ref.id}` })}`,
-        `  reads its own row's ${dependencies.fields.map(field => field.key).join(', ')}${dependencies.reaches.length === 0 ? '' : `, and other rows through ${dependencies.reaches.map(reach => Expr.show(reach)).join(', ')}`}`,
+        `  reads its own row's ${dependencies.fields.map(field => field.key).join(', ')}${dependencies.reaches.length === 0 ? '' : `, and other rows through ${dependencies.reaches.map(reach => Expr.show(reach.expr)).join(', ')}`}`,
         ...answer.statements.map(
           statement => `  SQLite ran: ${statement.sql} ${JSON.stringify(statement.params)}`,
         ),
@@ -79,9 +80,10 @@ export const runLanguage = async (): Promise<ReadonlyArray<string>> => {
         `  Judge, a page holding Ada and one comment: ${judged(question, world, page)
           .map(
             ({ id, verdict }) =>
-              `${id} ${Judge.match(verdict, {
-                onKnown: truth => (truth ? 'in' : 'out'),
-                onUnknown: reason => `unknown (${reason})`,
+              `${id} ${Verdict.match(verdict, {
+                True: () => 'in',
+                False: () => 'out',
+                Unknown: ({ reason }) => `unknown (${reason})`,
               })}`,
           )
           .join(', ')}`,

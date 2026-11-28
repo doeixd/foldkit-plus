@@ -25,8 +25,11 @@
  * about — which is whether the query means the same thing.
  */
 import { absurd } from 'effect/Function'
-import { Expr, Query as Relational, isPredicate } from 'foldkit-entity'
+import { Query as Relational } from 'foldkit-entity'
 import type { AnyExpr, AnyQuery, Operation } from 'foldkit-entity'
+
+/** An expression's node: what this engine reads. */
+type ExprNode = AnyExpr['node']
 
 export class LiveStoreCompileError extends Error {
   constructor(message: string) {
@@ -51,34 +54,41 @@ export const supported: ReadonlyArray<Operation> = ['eq']
 
 /** A column name, or the value an operand stands for at this request. */
 const operand = (
-  node: AnyExpr,
+  node: ExprNode,
   input: Readonly<Record<string, unknown>>,
 ): { readonly column: string } | { readonly value: unknown } => {
   switch (node._tag) {
-    case 'Field':
-      return { column: node.key }
-    case 'Literal':
+    case 'Lit':
       return { value: node.value }
-    case 'Input':
-      return { value: input[node.key] }
-    case 'Next':
-      // Refused above as unsupported: this engine reads stored rows, never a row a write would leave.
-      throw new LiveStoreCompileError('this engine judges stored rows only')
-    // Expanded before compiling: a call left is an operator with no definition.
-    case 'Call':
-      throw new LiveStoreCompileError(`the operator "${node.operator.id}" has no definition to run`)
-    case 'Viewer':
-    case 'Now':
+    case 'Path': {
+      const [slice, key] = node.segments
+      if (slice === 'row' && node.segments.length === 2) return { column: key! }
+      if (slice === 'input' && node.segments.length === 2) return { value: input[key!] }
+      // Refused before compiling, as unsupported: this engine reads stored rows, never a row a write would leave.
+      if (slice === 'next') throw new LiveStoreCompileError('this engine judges stored rows only')
       // Refused before compiling, as unsupported: this engine is given no context.
-      throw new LiveStoreCompileError('this engine reads no viewer and no clock')
-    case 'Path':
-    case 'ViewerPath':
+      if (slice === 'now' || (slice === 'viewer' && node.segments.length === 3)) {
+        throw new LiveStoreCompileError('this engine reads no viewer and no clock')
+      }
       // Refused before compiling, as unsupported: this engine reads one table.
+      throw new LiveStoreCompileError('this engine reads no other row')
+    }
+    // A defined operator is already its body, so a call left is an operator with no definition.
+    case 'Call':
+      throw new LiveStoreCompileError(`the operator "${node.op.id}" has no definition to run`)
+    case 'If':
+    case 'Match':
+    case 'Opaque':
+    case 'Rows':
       throw new LiveStoreCompileError('this engine reads no other row')
     default:
       return absurd(node)
   }
 }
+
+/** Whether `node` is a predicate (a call that gives a truth), which `where` has no place for as an operand. */
+const isPredicateNode = (node: ExprNode): boolean =>
+  node._tag === 'Call' && node.op.returns === 'boolean'
 
 /**
  * The body as a LiveStore query over `table`, rendered to SQL and its bound
@@ -99,16 +109,21 @@ export const compile = (
 
   let built = table
   for (const written of body.where) {
-    // A defined operator runs as what it means.
-    const node = Expr.expanded(written)
-    if (node._tag !== 'Eq') throw new LiveStoreCompileError('only equality is compiled here')
-    if (isPredicate(node.left) || isPredicate(node.right)) {
+    const node = written.node
+    if (node._tag !== 'Call' || node.op.id !== 'eq.equals') {
+      throw new LiveStoreCompileError('only equality is compiled here')
+    }
+    const [leftNode, rightNode] = node.args
+    if (leftNode === undefined || rightNode === undefined) {
+      throw new LiveStoreCompileError('only equality is compiled here')
+    }
+    if (isPredicateNode(leftNode) || isPredicateNode(rightNode)) {
       throw new LiveStoreCompileError(
         'this engine compares a column to a value, so a predicate cannot stand on either side',
       )
     }
-    const left = operand(node.left, input)
-    const right = operand(node.right, input)
+    const left = operand(leftNode, input)
+    const right = operand(rightNode, input)
     const column = 'column' in left ? left.column : 'column' in right ? right.column : undefined
     const value =
       'column' in left ? (right as { value: unknown }).value : (left as { value: unknown }).value
@@ -128,16 +143,22 @@ export const compile = (
   }
 
   for (const term of Relational.orderFor(body, input)) {
-    if (term.expr._tag !== 'Field') {
+    const termNode = term.expr.node
+    if (
+      termNode._tag !== 'Path' ||
+      termNode.segments[0] !== 'row' ||
+      termNode.segments.length !== 2
+    ) {
       throw new LiveStoreCompileError('this interpreter orders by fields only')
     }
+    const key = termNode.segments[1]!
     // This engine's `orderBy` cannot say where rows without a value go, so it
     // gets SQLite's: first ascending, last descending. A term asking otherwise
     // is refused, except over the id, which no row is without.
     const sqlitePlaces = term.direction === 'asc' ? 'first' : 'last'
-    if (term.nulls !== sqlitePlaces && term.expr.key !== 'id') {
+    if (term.nulls !== sqlitePlaces && key !== 'id') {
       throw new LiveStoreCompileError(
-        `this engine cannot put rows without "${term.expr.key}" ${term.nulls}, where the query asks`,
+        `this engine cannot put rows without "${key}" ${term.nulls}, where the query asks`,
       )
     }
     // Its order is SQLite's own, `BINARY`: a declared `binary` is what it does
@@ -145,10 +166,10 @@ export const compile = (
     // This example resolves its own `effect`, so the Option is read by its tag.
     if (term.collation._tag === 'Some' && term.collation.value._tag !== 'Binary') {
       throw new LiveStoreCompileError(
-        `this engine cannot order "${term.expr.key}" by any collation but SQLite's binary one`,
+        `this engine cannot order "${key}" by any collation but SQLite's binary one`,
       )
     }
-    built = built.orderBy(term.expr.key, term.direction)
+    built = built.orderBy(key, term.direction)
   }
 
   return built.asSql()

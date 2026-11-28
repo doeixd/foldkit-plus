@@ -1,5 +1,7 @@
 import { Effect, Layer, Option, Schema, Stream } from 'effect'
-import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
+import { Entity as DomainEntity, Expr, Order, Query as Relational } from 'foldkit-entity'
+import type { OrderTerm } from 'foldkit-entity'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
@@ -191,17 +193,21 @@ describe('Query.define declares a query by what it means', () => {
 
   it('carries the body, over the Entity it reads', () => {
     expect(PostsBySlug.body?.entity).toBe(Post)
-    expect(PostsBySlug.body?.orderBy).toEqual([Order.asc(Post.fields.id)])
+    // Two builds of one term are two objects: compare what their nodes say.
+    const terms = (ordering: ReadonlyArray<OrderTerm>) =>
+      ordering.map(term => ({ ...term, expr: Node.key(term.expr.node) }))
+    expect(terms(Relational.orderFor(PostsBySlug.body!, {}))).toEqual(
+      terms([Order.asc(Post.fields.id)]),
+    )
   })
 
   it('builds the body once, with placeholders and not values', () => {
     const [predicate] = PostsBySlug.body!.where
 
-    expect(predicate).toEqual({
-      _tag: 'Eq',
-      left: Expr.field(Post.fields.slug),
-      right: { _tag: 'Input', key: 'slug', schema: Schema.String },
-    })
+    expect(Node.key(predicate!.node)).toBe(
+      Node.key(Expr.eq(Post.fields.slug, Expr.input('slug', Schema.String)).node),
+    )
+    expect(Node.key(predicate!.node)).not.toBe(Node.key(Expr.eq(Post.fields.slug, 'hello').node))
   })
 
   it('says what it reads, which is the whole point of carrying the body', () => {

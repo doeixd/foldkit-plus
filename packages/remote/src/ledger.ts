@@ -19,15 +19,23 @@ export interface NormalizedPatch {
   readonly revision?: number | undefined
 }
 
+/** A pending `combine` write on one field: the operation's `id@version` name and its right-hand operand. */
+export interface PendingCombine {
+  readonly op: string
+  readonly value: unknown
+}
+
 /**
- * A patch a pending request shows, the amounts it moves fields by, and the
- * fields it computes: each worked out, whenever the store is read, over the
- * row as it then is, so a change that reaches the store meanwhile is added
- * to or computed from, not hidden. A computation is data (operators by name),
- * never a descriptor, since a pending patch sits in the Model.
+ * A patch a pending request shows, the amounts it moves fields by, the
+ * custom operations it combines fields with, and the fields it computes: each
+ * worked out, whenever the store is read, over the row as it then is, so a
+ * change that reaches the store meanwhile is added to, combined with or
+ * computed from, not hidden. A computation is data (operators by name), never
+ * a descriptor, since a pending patch sits in the Model.
  */
 export interface PendingPatch extends NormalizedPatch {
   readonly adds?: Readonly<Record<string, number>>
+  readonly combines?: Readonly<Record<string, PendingCombine>>
   readonly computes?: Readonly<Record<string, Computation>>
   /**
    * The row whose create moves `adds` (a count of the rows pointing here). A
@@ -221,6 +229,8 @@ export const mutationStatus = (state: MutationState, requestId: string): Mutatio
 export interface Reconciled {
   readonly store: EntityStore
   readonly state: MutationState
+  /** The entities and fields actually written (not dropped as repeated or superseded). */
+  readonly applied: ReadonlyArray<NormalizedPatch>
 }
 
 /** What a settled mutation wrote, as `MutationSucceeded` carries it. */
@@ -268,25 +278,41 @@ export const reconcileMutation = (
 ): Reconciled => {
   const repeated = state.applied.has(requestId)
   if (repeated && !state.pending.has(requestId) && !state.failed.has(requestId))
-    return { store, state }
+    return { store, state, applied: [] }
   const { newer, rewritten } = settledLater(state, requestId)
+  const appliedEntities: Array<NormalizedPatch> = []
   const writes = repeated
     ? []
     : answer.entities.flatMap(entity => {
         const key = entityKey(entity.entity, entity.id)
         if (newer(key)) return []
+        const held = store[key]
         const values = Object.fromEntries(
-          Object.entries(entity.values).filter(([field]) => !newer(`${key}\u0000${field}`)),
+          Object.entries(entity.values).filter(([field]) => {
+            // A strictly higher row revision is newer than every revisioned field in `held`,
+            // even after an intervening partial write on another field reset `revisionFields`.
+            if (entity.revision !== undefined && held?.revision !== undefined) {
+              if (entity.revision > held.revision) return true
+              if (entity.revision < held.revision && held.revisionFields?.has(field) === true)
+                return false
+            }
+            return !newer(`${key}\u0000${field}`)
+          }),
         )
-        return Object.keys(values).length === 0
-          ? []
-          : [
-              {
-                key,
-                values,
-                ...(entity.revision === undefined ? {} : { revision: entity.revision }),
-              },
-            ]
+        if (Object.keys(values).length === 0) return []
+        appliedEntities.push({
+          entity: entity.entity,
+          id: entity.id,
+          values,
+          ...(entity.revision === undefined ? {} : { revision: entity.revision }),
+        })
+        return [
+          {
+            key,
+            values,
+            ...(entity.revision === undefined ? {} : { revision: entity.revision }),
+          },
+        ]
       })
   const deleted = repeated
     ? []
@@ -307,6 +333,7 @@ export const reconcileMutation = (
   // A retry that applies is no longer a failure to list.
   return {
     store: next,
+    applied: appliedEntities,
     state: {
       ...forgetFailure(state, requestId),
       applied,

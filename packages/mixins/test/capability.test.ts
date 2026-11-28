@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Capability } from '../src/index.js'
 
 describe('Capability', () => {
@@ -33,6 +33,23 @@ describe('Capability', () => {
       name: 'SelectTrigger',
       extends: ['Focusable'],
     })
+  })
+
+  it('answers from a token made by another copy of the package', async () => {
+    vi.resetModules()
+    const other = await import('../src/capability.js')
+    const Foreign = other.make('Foreign', { extends: [other.Focusable] })
+
+    expect(Capability.satisfies(Foreign, other.Focusable)).toBe(true)
+    expect(Capability.satisfies(Foreign, other.Interactive)).toBe(true)
+    expect(Capability.names(Foreign)).toEqual(['Foreign', 'Focusable', 'Interactive', 'Base'])
+  })
+
+  it('resolves a bare-name parent through the registry', () => {
+    const Named = Capability.make('Named', { extends: ['Container'] })
+
+    expect(Capability.satisfies(Named, Capability.Interactive)).toBe(true)
+    expect(Capability.names(Named)).toEqual(['Named', 'Container', 'Interactive', 'Base'])
   })
 
   it('stores __proto__ as a custom name without losing the registry entry', () => {

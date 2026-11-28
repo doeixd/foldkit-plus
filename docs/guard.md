@@ -114,7 +114,7 @@ When deleting a parent row cascades to child rows, `GuardServer.writer` checks e
 
 A browser holds only the rows it has fetched and never runs `guard.principal()` functions. Treating unknown permission as "no" locks buttons the user can click; treating it as "yes" misleads the UI.
 
-Piping `Guards.may` onto an Entity adds a server-computed `may` field per row. Reading it with `May.answer(may, 'Update')` (imported from `foldkit-guard`) returns three values: `Option.some(true)` (allowed), `Option.some(false)` (denied), or `Option.none()` (undecided). Use `May.refused(may, 'Update')` to disable controls only on a known "no", leaving undecided actions live for the server to judge.
+Piping `Guards.may` onto an Entity adds a server-computed `may` field per row. Reading it with `May.answer(may, 'Update')` (imported from `foldkit-guard`) returns a metakit `Verdict`: `True` (allowed), `False` (denied), or `Unknown` (undecided). Use `May.refused(may, 'Update')` to disable controls only on a known "no", leaving undecided actions live for the server to judge.
 
 ## Real scenarios you can model today
 
@@ -259,13 +259,14 @@ When only some values are known, Guard and `Judge` (the in-memory expression eva
 
 ### 3. Static constraint propagation with `Laws.check`
 
-Because invariants and declared writes are `Expr` data, `Laws.check` (from `foldkit-entity`) runs a built-in, synchronous constraint solver over your declarations with no database. It enumerates finite fields (booleans and literal unions) and propagates numeric intervals from Schema bounds, `when` conditions, and assumed invariants through write operations using their declared monotonic laws.
+Because invariants and declared writes are `Expr` data, `Laws.check` (from `foldkit-entity/laws`) runs metakit's synchronous checker over your declarations with no database. It enumerates finite fields (booleans and literal unions) and reasons about numbers from Schema bounds, `when` conditions, and assumed invariants through the operations a write applies.
 
 This example defines an `Account` invariant (`balance >= 0`) and a fee write (`Write.update` with `Entity.input` for the write's arguments), then proves statically that the fee can never overdraw an account:
 
 ```ts standalone
 import { Schema } from 'effect'
-import { Entity, Expr, Laws, Write } from 'foldkit-entity'
+import { Entity, Expr, Write } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 
 const Account = Entity.define(
   'Account',
@@ -294,14 +295,14 @@ const report = Laws.check({ writes: [{ name: 'ChargeFee', write: ChargeFee }] })
 report.pairs[0]?.verdict._tag // 'Kept'
 ```
 
-`Laws.check` narrows `balance` from `when` to `[5, ∞)`, subtracts `5` through `Expr.sub`'s monotonic law (a larger input gives a larger result) to get `[0, ∞)`, and records one verdict in `report.pairs` for each write-and-invariant pair (`Kept`, `Refused`, or `Undecided`). Here `ChargeFee` is `Kept` for every valid account. If the narrowed range is empty, `Laws.check` reports `Unmeetable` (a dead write). If a rule can fail, it prints a concrete failing `before`, `input`, and `after` example checked by `Judge`.
+`Laws.check` narrows `balance` from `when` to `[5, ∞)`, subtracts `5` to get `[0, ∞)`, and records one verdict in `report.pairs` for each write-and-invariant pair (`Kept`, `Refused`, or `Undecided`). Here `ChargeFee` is `Kept` for every valid account. If the narrowed range is empty, `Laws.check` reports `Unmeetable` (a dead write). If a rule can fail, it prints a concrete failing `before`, `input`, and `after` example checked by `Judge`.
 
 ## Where the boundary sits: authority vs. validity, and limits
 
 Two boundaries keep this model sound:
 
 - **Authority never excuses an invalid row, and a valid row never grants access.** Guards are alternatives (`[G.isAssignee, G.isAdmin]`) that change whenever roles change, while invariants hold for everyone, admins included. That is why `Laws.check` reads only your writes and Entity invariants — never your Guards, not even `always` — and why refusals stay distinct: `Forbidden` (not allowed), `Unmet` (precondition not met), and `Invalid` (result breaks an invariant).
-- **Runtime guards check one request; intervals track one variable at a time.** Running a guard guarantees that *this* request obeyed the rules, not that *every* future input will. Likewise, `Laws.check`'s interval pass tracks each number independently, so a `when` comparing two unknowns (such as `amount <= balance`) reports `Undecided` instead of guessing, leaving relational rules to runtime checks, multi-step tests, or an external solver.
+- **Runtime guards check one request; intervals track one variable at a time.** Running a guard guarantees that *this* request obeyed the rules, not that *every* future input will. Likewise, `Laws.check` reports `Undecided` instead of guessing where its checker cannot decide: a plain `Schema.Number` (which may be NaN), a rule over another row, or text. Those are left to `Schema.Finite` or `Schema.Int`, runtime checks, multi-step tests, or an external solver.
 
 ## Where to go next
 

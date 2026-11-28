@@ -43,8 +43,8 @@ export default [
   edit(
     'an update names only where its row points after',
     '../../remote-server/src/index.ts',
-    'return naming(yield* answered(bound, written.value), [\n                    ...before,\n',
-    'return naming(yield* answered(bound, written.value), [\n',
+    'return naming(yield* answered(bound, written.value, revisionOf(written.value)), [\n                    ...before,\n',
+    'return naming(yield* answered(bound, written.value, revisionOf(written.value)), [\n',
   ),
   edit(
     'an update names only where its row pointed before',

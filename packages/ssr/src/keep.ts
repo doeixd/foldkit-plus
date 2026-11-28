@@ -10,8 +10,10 @@
  * holding its value and writes nothing. A checkbox or radio keeps its
  * `checked` the same way, against its `defaultChecked`.
  */
-import { Result } from 'effect'
+import { Option, Result } from 'effect'
 import { typedMessage, type DecodedBinding } from './listen.js'
+import { BINDER_TOUCHED_ATTRIBUTE } from './marks.js'
+export { BINDER_TOUCHED_ATTRIBUTE } from './marks.js'
 import { KEEP_ATTRIBUTE } from './resumable.js'
 
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -141,48 +143,169 @@ export interface Held {
   readonly selection?: readonly [number, number, 'forward' | 'backward' | 'none'] | undefined
 }
 
+const holdField = (element: Field): Held => {
+  if (isCheckable(element)) return { element, value: element.value, checked: element.checked }
+  if (element instanceof HTMLSelectElement) {
+    return element.multiple
+      ? {
+          element,
+          value: element.value,
+          selected: indicesOf(element, option => option.selected),
+        }
+      : { element, value: element.value }
+  }
+  // An input type with no selection (`email`, `number`) reads null.
+  const { selectionStart: start, selectionEnd: end } = element
+  return {
+    element,
+    value: element.value,
+    ...(start === null || end === null
+      ? {}
+      : { selection: [start, end, element.selectionDirection ?? 'none'] as const }),
+  }
+}
+
+const restoreField = ({ element, value, checked, selected, selection }: Held): void => {
+  if (element instanceof HTMLInputElement && element.type === 'file') return
+  if (checked !== undefined && element instanceof HTMLInputElement) {
+    element.checked = checked
+  } else if (element instanceof HTMLSelectElement && selected !== undefined) {
+    const chosen = new Set(selected)
+    Array.from(element.options).forEach((option, index) => {
+      option.selected = chosen.has(index)
+    })
+  } else {
+    element.value = value
+  }
+  if (
+    selection !== undefined &&
+    !(element instanceof HTMLSelectElement) &&
+    element.selectionStart !== null
+  ) {
+    element.setSelectionRange(...selection)
+  }
+}
+
 /** Each changed field's state, to put back once hydration has re-asserted the served value. */
 export const hold = (fields: ReadonlyArray<KeptField>): ReadonlyArray<Held> =>
-  fields.filter(changed).map(({ element }): Held => {
-    if (isCheckable(element)) return { element, value: element.value, checked: element.checked }
-    if (element instanceof HTMLSelectElement) {
-      return element.multiple
-        ? {
-            element,
-            value: element.value,
-            selected: indicesOf(element, option => option.selected),
-          }
-        : { element, value: element.value }
-    }
-    // An input type with no selection (`email`, `number`) reads null.
-    const { selectionStart: start, selectionEnd: end } = element
-    return {
-      element,
-      value: element.value,
-      ...(start === null || end === null
-        ? {}
-        : { selection: [start, end, element.selectionDirection ?? 'none'] as const }),
-    }
-  })
+  fields.filter(changed).map(({ element }) => holdField(element))
 
 /**
  * Puts each held field back as it was. The first render adopted it, so it is
  * the same element, which the person may still be typing into.
  */
 export const restore = (held: ReadonlyArray<Held>): void => {
-  for (const { element, value, checked, selected, selection } of held) {
-    if (checked !== undefined && element instanceof HTMLInputElement) {
-      element.checked = checked
-    } else if (element instanceof HTMLSelectElement && selected !== undefined) {
-      const chosen = new Set(selected)
-      Array.from(element.options).forEach((option, index) => {
-        option.selected = chosen.has(index)
-      })
-    } else {
-      element.value = value
+  for (const entry of held) restoreField(entry)
+}
+
+const FALLBACK_TOUCHED_ATTRIBUTES: ReadonlyArray<string> = ['aria-pressed', 'aria-expanded', 'open']
+
+/** A scrolled element and the offsets it held before hydration. */
+export interface HeldScroll {
+  readonly element: Element
+  readonly scrollTop: number
+  readonly scrollLeft: number
+}
+
+/** A `<details>` element and whether it was open before hydration. */
+export interface HeldDetails {
+  readonly element: HTMLDetailsElement
+  readonly open: boolean
+}
+
+/** A binder-touched control and the DOM state it held before hydration. */
+export interface HeldBinderControl {
+  readonly element: Element
+  readonly field?: Held | undefined
+  readonly attributes: ReadonlyArray<readonly [string, Option.Option<string>]>
+}
+
+/**
+ * Page state outside `KeepTyped` fields that hydration would reset: scroll
+ * offsets, `<details>` open state, and controls updated by the pre-boot binder.
+ */
+export interface HeldPageState {
+  readonly scrolls: ReadonlyArray<HeldScroll>
+  readonly windowScroll: Option.Option<{ readonly scrollX: number; readonly scrollY: number }>
+  readonly details: ReadonlyArray<HeldDetails>
+  readonly binderTouched: ReadonlyArray<HeldBinderControl>
+}
+
+const readTouchedAttributes = (
+  element: Element,
+): ReadonlyArray<readonly [string, Option.Option<string>]> => {
+  const raw = element.getAttribute(BINDER_TOUCHED_ATTRIBUTE)?.trim() ?? ''
+  const names = raw.length > 0 ? raw.split(/\s+/) : FALLBACK_TOUCHED_ATTRIBUTES
+  return names.map(name => [name, Option.fromNullishOr(element.getAttribute(name))] as const)
+}
+
+/**
+ * Captures scroll offsets, `<details>` open states, and binder-touched control
+ * state under `root` before hydration re-asserts the server-rendered DOM.
+ */
+export const holdPageState = (root: Element): HeldPageState => {
+  const scrolls: Array<HeldScroll> = []
+  const details: Array<HeldDetails> = []
+  const binderTouched: Array<HeldBinderControl> = []
+  const docEl = typeof document !== 'undefined' ? document.documentElement : null
+
+  const visit = (element: Element): void => {
+    if (element !== docEl && (element.scrollTop !== 0 || element.scrollLeft !== 0)) {
+      scrolls.push({ element, scrollTop: element.scrollTop, scrollLeft: element.scrollLeft })
     }
-    if (selection !== undefined && !(element instanceof HTMLSelectElement)) {
-      element.setSelectionRange(...selection)
+    if (element instanceof HTMLDetailsElement) {
+      details.push({ element, open: element.open })
+    }
+    if (element.hasAttribute(BINDER_TOUCHED_ATTRIBUTE)) {
+      const holdableField =
+        isField(element) && !(element instanceof HTMLInputElement && element.type === 'file')
+      binderTouched.push({
+        element,
+        ...(holdableField ? { field: holdField(element) } : {}),
+        attributes: readTouchedAttributes(element),
+      })
     }
   }
+
+  visit(root)
+  for (const element of root.querySelectorAll('*')) {
+    visit(element)
+  }
+
+  const windowScroll =
+    typeof window !== 'undefined' && (window.scrollX !== 0 || window.scrollY !== 0)
+      ? Option.some({ scrollX: window.scrollX, scrollY: window.scrollY })
+      : Option.none()
+  return { scrolls, windowScroll, details, binderTouched }
+}
+
+/**
+ * Restores held scroll offsets, `<details>` open states, and binder-touched
+ * controls after hydration's first commit.
+ */
+export const restorePageState = (held: HeldPageState): void => {
+  for (const { element, open } of held.details) {
+    if (element.open !== open) element.open = open
+  }
+  for (const { element, field, attributes } of held.binderTouched) {
+    if (field !== undefined) restoreField(field)
+    for (const [name, value] of attributes) {
+      Option.match(value, {
+        onNone: () => element.removeAttribute(name),
+        onSome: v => element.setAttribute(name, v),
+      })
+    }
+  }
+  for (const { element, scrollTop, scrollLeft } of held.scrolls) {
+    element.scrollTop = scrollTop
+    element.scrollLeft = scrollLeft
+  }
+  Option.match(held.windowScroll, {
+    onNone: () => {},
+    onSome: ({ scrollX, scrollY }) => {
+      if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+        window.scrollTo({ left: scrollX, top: scrollY, behavior: 'instant' })
+      }
+    },
+  })
 }

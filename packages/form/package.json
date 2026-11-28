@@ -31,6 +31,11 @@
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./metakit": {
+      "foldkit-plus:source": "./src/metakit.ts",
+      "types": "./dist/metakit.d.ts",
+      "import": "./dist/metakit.js"
     }
   },
   "files": [
@@ -45,7 +50,8 @@
   "dependencies": {
     "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
-    "foldkit-metadata": "workspace:*"
+    "foldkit-metadata": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

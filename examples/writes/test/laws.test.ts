@@ -6,7 +6,7 @@
  * test fails until the change is looked at (`vitest -u` writes it).
  */
 import { Option } from 'effect'
-import { Laws } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { Graph } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { report } from '../src/laws.js'

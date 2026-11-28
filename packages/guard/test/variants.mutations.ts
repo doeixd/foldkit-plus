@@ -3,12 +3,18 @@
  * `pnpm mutate packages/guard/test/variants.mutations.ts`.
  */
 const tests = ['packages/guard/test/variants.test.ts']
-const file = '../../entity/src/expr.ts'
+const file = '../../entity/src/expr/relation.ts'
 
 export default [
   {
     name: 'a case rule reads no _tag',
-    edits: [{ file, find: '  return Expr.and(is, asked)\n', replace: '  return asked\n' }],
+    edits: [
+      {
+        file,
+        find: '  return and(is, asked as Predicate)\n',
+        replace: '  return asked as Predicate\n',
+      },
+    ],
     tests,
   },
   {
@@ -16,8 +22,8 @@ export default [
     edits: [
       {
         file,
-        find: 'const is = Expr.eq(read(stored._tag!) as AnyExpr, tag as never)',
-        replace: "const is = Expr.eq(read(stored._tag!) as AnyExpr, 'Available' as never)",
+        find: 'const is = eq(exprOf(toNode(read(stored._tag!))), tag as never)',
+        replace: "const is = eq(exprOf(toNode(read(stored._tag!))), 'Available' as never)",
       },
     ],
     tests,

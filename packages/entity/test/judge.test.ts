@@ -12,9 +12,9 @@ import {
   RowsMissingError,
   evaluate,
   truthOver,
-  type PredicateTruth,
-  type Verdict,
+  type PredicateVerdict,
 } from '../src/index.js'
+import { Verdict } from 'metakit'
 import {
   Relational,
   heldWorlds,
@@ -44,10 +44,8 @@ const [everything, ...partial] = heldWorlds
 describe('Judge over everything the reader may see', () => {
   it.each(relationalCases)('answers every row, as SQL does: $what', c => {
     const answers = judged(c, everything!)
-    expect(answers.every(({ judgement }) => judgement._tag === 'Known')).toBe(true)
-    const kept = answers.filter(({ judgement }) =>
-      Judge.match(judgement, { onKnown: truth => truth, onUnknown: () => false }),
-    )
+    expect(answers.every(({ judgement }) => !Verdict.isUnknown(judgement))).toBe(true)
+    const kept = answers.filter(({ judgement }) => Verdict.isTrue(judgement))
     expect(kept.map(({ id }) => id)).toEqual(c.expected)
   })
 })
@@ -58,9 +56,10 @@ describe('Judge over less: unknown, or what SQL answers', () => {
   )
   it.each(pairs)('$name', ({ c, world }) => {
     for (const { id, judgement } of judged(c, world)) {
-      Judge.match(judgement, {
-        onKnown: truth => expect([id, truth]).toEqual([id, c.expected.includes(id)]),
-        onUnknown: () => undefined,
+      Verdict.match(judgement, {
+        True: () => expect([id, true]).toEqual([id, c.expected.includes(id)]),
+        False: () => expect([id, false]).toEqual([id, c.expected.includes(id)]),
+        Unknown: () => undefined,
       })
     }
   })
@@ -68,7 +67,7 @@ describe('Judge over less: unknown, or what SQL answers', () => {
   it('leaves something unknown in every partial world, so the check above checks', () => {
     for (const world of partial) {
       const unknowns = relationalCases.flatMap(c =>
-        judged(c, world).filter(({ judgement }) => judgement._tag === 'Unknown'),
+        judged(c, world).filter(({ judgement }) => Verdict.isUnknown(judgement)),
       )
       expect([world.what, unknowns.length > 0]).toEqual([world.what, true])
     }
@@ -77,7 +76,7 @@ describe('Judge over less: unknown, or what SQL answers', () => {
   it('still knows some rows in every partial world, so it does not just give up', () => {
     for (const world of partial) {
       const knowns = relationalCases.flatMap(c =>
-        judged(c, world).filter(({ judgement }) => judgement._tag === 'Known'),
+        judged(c, world).filter(({ judgement }) => !Verdict.isUnknown(judgement)),
       )
       expect([world.what, knowns.length > 0]).toEqual([world.what, true])
     }
@@ -88,15 +87,18 @@ const Thing = Entity.define(
   'Thing',
   Schema.Struct({ id: Schema.String, label: Schema.NullOr(Schema.String), rank: Schema.Number }),
 )
+const Counted = Entity.define('Counted', Schema.Struct({ id: Schema.String, rank: Schema.Int }))
 const one = (values: Readonly<Record<string, unknown>>, hidden: ReadonlyArray<string> = []) =>
   Option.getOrThrow(
     Held.rows([{ entity: Thing, rows: [{ id: 'x', ...values }], hidden }]).row(Thing, 'x'),
   )
 const given = Expr.input('given', Schema.Number)
-const truth = (verdict: Verdict): unknown =>
-  Judge.match<PredicateTruth, unknown>(verdict, {
-    onKnown: each => each,
-    onUnknown: () => 'unheld',
+const truth = (verdict: PredicateVerdict): unknown =>
+  Verdict.match<'null', unknown>(verdict, {
+    True: () => true,
+    // SQL's null is a `False` whose witness says so.
+    False: ({ witness }) => (Option.isSome(witness) ? 'unknown' : false),
+    Unknown: () => 'unheld',
   })
 
 describe('Judge, operator by operator', () => {
@@ -127,14 +129,27 @@ describe('Judge, operator by operator', () => {
   })
 
   it.each([
+    { what: 'eq', predicate: Expr.eq(Counted.fields.rank, given) },
+    { what: 'compare', predicate: Expr.lt(Counted.fields.rank, given) },
+  ])(
+    '$what of a null beside an unheld integer is null, as SQL is whatever the other holds',
+    ({ predicate }) => {
+      const noRank = Option.getOrThrow(
+        Held.rows([{ entity: Counted, rows: [{ id: 'x' }] }]).row(Counted, 'x'),
+      )
+      expect(truth(Judge.predicate(predicate, noRank, { input: { given: null } }))).toBe('unknown')
+      expect(truth(Judge.predicate(predicate, noRank, { input: { given: 1 } }))).toBe('unheld')
+    },
+  )
+
+  it.each([
     { what: 'eq', predicate: Expr.eq(Thing.fields.rank, given) },
     { what: 'compare', predicate: Expr.lt(Thing.fields.rank, given) },
   ])(
-    '$what of a null beside an unheld value is null, as SQL is whatever the other holds',
+    '$what of a null beside an unheld plain number is unknown: the number may be NaN, which refuses before null',
     ({ predicate }) => {
       const noRank = one({ label: 'a' })
-      expect(truth(Judge.predicate(predicate, noRank, { input: { given: null } }))).toBe('unknown')
-      expect(truth(Judge.predicate(predicate, noRank, { input: { given: 1 } }))).toBe('unheld')
+      expect(truth(Judge.predicate(predicate, noRank, { input: { given: null } }))).toBe('unheld')
     },
   )
 
@@ -160,7 +175,7 @@ describe('Judge, operator by operator', () => {
     expect(truth(Judge.predicate(falseOr, unheld))).toBe('unheld')
   })
 
-  it('a strict operator given a null beside an unheld argument is null, not unknown', () => {
+  it('a primitive operator given a null beside an unheld argument is unknown: its implementation may refuse', () => {
     const both = Expr.operator('test.both', {
       input: [Schema.NullOr(Schema.String), Schema.NullOr(Schema.String)],
       output: Schema.Boolean,
@@ -180,7 +195,7 @@ describe('Judge, operator by operator', () => {
         operators,
       },
     )
-    expect(truth(judged)).toBe('unknown')
+    expect(truth(judged)).toBe('unheld')
   })
 
   it('an operator the holder does not run is unknown, where evaluate refuses it', () => {
@@ -188,7 +203,9 @@ describe('Judge, operator by operator', () => {
       input: [Schema.NullOr(Schema.String)],
       output: Schema.Boolean,
     })
-    expect(Judge.predicate(serverOnly(label), one({ label: 'a', rank: 1 }))._tag).toBe('Unknown')
+    expect(
+      Verdict.isUnknown(Judge.predicate(serverOnly(label), one({ label: 'a', rank: 1 }))),
+    ).toBe(true)
     expect(() => truthOver(serverOnly(label), { label: 'a' })).toThrow(QueryEvaluateError)
   })
 
@@ -196,12 +213,13 @@ describe('Judge, operator by operator', () => {
     const body = Query.from(Thing).pipe(Query.where(Expr.eq(Thing.fields.rank, 1)))
     const admitted = one({ label: 'a', rank: 1 })
     const refused = one({ label: 'a', rank: 2 })
-    expect(Judge.query(body, {}, admitted, { serverOnly: 'its Read rule' })._tag).toBe('Unknown')
-    expect(Judge.query(body, {}, admitted)).toEqual({ _tag: 'Known', truth: true })
-    expect(Judge.query(body, {}, refused, { serverOnly: 'its Read rule' })).toEqual({
-      _tag: 'Known',
-      truth: false,
-    })
+    expect(
+      Verdict.isUnknown(Judge.query(body, {}, admitted, { serverOnly: 'its Read rule' })),
+    ).toBe(true)
+    expect(Verdict.isTrue(Judge.query(body, {}, admitted))).toBe(true)
+    expect(Verdict.isFalse(Judge.query(body, {}, refused, { serverOnly: 'its Read rule' }))).toBe(
+      true,
+    )
   })
 })
 
@@ -220,7 +238,18 @@ describe('the two-valued interpreter, given one row', () => {
   })
 
   it('still decides what does not rest on the other row', () => {
-    const settled = Expr.or(Expr.eq(M.fields.rank, 1), Expr.exists(B.relations.member))
-    expect(truthOver(settled, { id: 'm1', rank: 1 })).toBe(true)
+    expect(
+      truthOver(Expr.or(Expr.eq(M.fields.rank, 1), Expr.isNull(M.fields.rank)), {
+        id: 'm1',
+        rank: 1,
+      }),
+    ).toBe(true)
+  })
+
+  it('settles an or by its own row beside an exists that cannot be refused, without its rows', () => {
+    const beside = Expr.or(Expr.eq(M.fields.rank, 1), Expr.exists(B.relations.member))
+    expect(truthOver(beside, { id: 'm1', rank: 1 })).toBe(true)
+    // Its other side false, the exists decides, and its rows are not held.
+    expect(() => truthOver(beside, { id: 'm1', rank: 2 })).toThrow(RowsMissingError)
   })
 })

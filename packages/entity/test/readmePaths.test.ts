@@ -1,5 +1,6 @@
 /** The README's paths and `Judge` snippets, run: what they say they answer. */
 import { Option, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import { expect, it } from 'vitest'
 import { Entity, Expr, Held, Judge, Order, Query, Relation, evaluate } from '../src/index.js'
 
@@ -68,11 +69,10 @@ it('judges a post whose author is not held as unknown, and one whose author is a
   ])
   const p1 = Option.getOrThrow(holder.row(Post, 'p1'))
   const p2 = Option.getOrThrow(holder.row(Post, 'p2'))
-  expect(Judge.query(ByHandle, { handle: 'ada' }, p1)).toEqual({ _tag: 'Known', truth: true })
-  expect(Judge.query(ByHandle, { handle: 'ada' }, p2)).toEqual({
-    _tag: 'Unknown',
-    reason: 'User u2 is not held',
-  })
+  expect(Judge.query(ByHandle, { handle: 'ada' }, p1)).toEqual(Verdict.True())
+  expect(Judge.query(ByHandle, { handle: 'ada' }, p2)).toEqual(
+    Verdict.Unknown('User u2 is not held'),
+  )
 })
 
 it('places a post in the home feed when the follows that decide it are held', () => {
@@ -87,6 +87,6 @@ it('places a post in the home feed when the follows that decide it are held', ()
     },
   ])
   const p1 = Option.getOrThrow(holder.row(Post, 'p1'))
-  expect(Judge.query(Home, { me: 'me' }, p1)).toEqual({ _tag: 'Known', truth: true })
-  expect(Judge.query(Home, { me: 'someone' }, p1)._tag).toBe('Unknown')
+  expect(Judge.query(Home, { me: 'me' }, p1)).toEqual(Verdict.True())
+  expect(Verdict.isUnknown(Judge.query(Home, { me: 'someone' }, p1))).toBe(true)
 })

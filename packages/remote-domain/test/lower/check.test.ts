@@ -65,6 +65,13 @@ describe('Lower.check', () => {
     ])
   })
 
+  it('refuses a write over the descriptor without the guards, whose rule it would miss', () => {
+    const { Note, G } = domainOf('Bare')
+    Note.pipe(Guards.attach(G, { row: { Update: [G.inOrg] } }))
+    const write = Write.update(Entity.input(Note, Retitled), { id: 'id', expect: 'revision' })
+    expect(() => Lower.check(write)).toThrow('Bare carries guards on another descriptor of it')
+  })
+
   it('names an invariant that reads through a relation', () => {
     const { Note, inOrg } = domainOf('Held')
     const Held = Note.pipe(

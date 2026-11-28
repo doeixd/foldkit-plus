@@ -18,3 +18,5 @@ Read before writing code that awaits, forks, subscribes, or depends on the order
   An un-awaited reconcile turned a failure into an unhandled rejection; `Effect.result` captures failures, not defects.
 - **Settle subscriptions before advancing TestClock.**
   A forked stream fiber registers window listeners on the real scheduler and `TestClock.adjust` moves virtual time without yielding to it, so events dispatched right after the fork hit nothing and a debounce test observed the un-reset timer. Yield (a hundred `yieldNow`) after the fork before the first adjust.
+- **Keep interrupting a cold Z3 context until its check settles.**
+  The WASM worker can enter `check` after the first interrupt and run to its timeout (#627). Retain the solver permit and retry the context interrupt until that check returns.

@@ -14,18 +14,9 @@ import {
   Write,
   dependenciesOf,
   type WriteCondition,
-  type AndPredicate,
-  type CallExpr,
   type Expr as ExprOf,
-  type TestPredicate,
-  type ComparePredicate,
-  type EqPredicate,
-  type InPredicate,
-  type NotPredicate,
-  type OrPredicate,
   type InputExpr,
   type Predicate,
-  type FieldExpr,
   type Reads,
   type ReadsOf,
 } from '../src/index.js'
@@ -34,17 +25,16 @@ import { Blog } from './blogFixture.js'
 const { Post } = Blog
 
 // A field against a literal of its own type.
-expectTypeOf(Expr.eq(Post.fields.title, 'hello')).toEqualTypeOf<EqPredicate & Reads<'Post'>>()
-expectTypeOf(Expr.eq(Post.fields.published, true)).toEqualTypeOf<EqPredicate & Reads<'Post'>>()
+expectTypeOf(Expr.eq(Post.fields.title, 'hello')).toEqualTypeOf<Predicate & Reads<'Post'>>()
+expectTypeOf(Expr.eq(Post.fields.published, true)).toEqualTypeOf<Predicate & Reads<'Post'>>()
 
 // A field against an input of its own type.
 const slug: InputExpr<string> = Expr.input('slug', Schema.String)
-expectTypeOf(Expr.eq(Post.fields.title, slug)).toEqualTypeOf<EqPredicate & Reads<'Post'>>()
+expectTypeOf(Expr.eq(Post.fields.title, slug)).toEqualTypeOf<Predicate & Reads<'Post'>>()
 
 // A field carries its own value type out of the Entity's schema.
-expectTypeOf(Expr.field(Post.fields.published).schema).toEqualTypeOf<
-  Schema.Codec<boolean, unknown>
->()
+expectTypeOf(Expr.field(Post.fields.published)).toExtend<ExprOf<boolean>>()
+expectTypeOf(Expr.field(Post.fields.title)).toExtend<ExprOf<string>>()
 
 // @ts-expect-error a title is a string, not a number
 Expr.eq(Post.fields.title, 42)
@@ -162,10 +152,10 @@ Order.chosen(sortBy, { title: Post.fields.title })
 // `in` takes a list of what the value holds
 // ---------------------------------------------------------------------------
 
-expectTypeOf(Expr.in(Doc.fields.rank, [1, 2])).toEqualTypeOf<InPredicate & Reads<'Doc'>>()
+expectTypeOf(Expr.in(Doc.fields.rank, [1, 2])).toEqualTypeOf<Predicate & Reads<'Doc'>>()
 expectTypeOf(
   Expr.in(Doc.fields.title, Expr.input('titles', Schema.Array(Schema.String))),
-).toEqualTypeOf<InPredicate & Reads<'Doc'>>()
+).toEqualTypeOf<Predicate & Reads<'Doc'>>()
 
 // @ts-expect-error a rank is a number, so its list holds numbers
 Expr.in(Doc.fields.rank, ['1'])
@@ -179,11 +169,11 @@ Expr.in(Doc.fields.rank, 1)
 // and, or and not take predicates, and need at least one.
 const titled = Expr.eq(Post.fields.title, 'hello')
 const live = Expr.eq(Post.fields.published, true)
-expectTypeOf(Expr.or(titled, live)).toEqualTypeOf<OrPredicate & Reads<'Post'>>()
-expectTypeOf(Expr.and(titled, live)).toEqualTypeOf<AndPredicate & Reads<'Post'>>()
-expectTypeOf(Expr.not(titled)).toEqualTypeOf<NotPredicate & Reads<'Post'>>()
+expectTypeOf(Expr.or(titled, live)).toEqualTypeOf<Predicate & Reads<'Post'>>()
+expectTypeOf(Expr.and(titled, live)).toEqualTypeOf<Predicate & Reads<'Post'>>()
+expectTypeOf(Expr.not(titled)).toEqualTypeOf<Predicate & Reads<'Post'>>()
 // One operand is that operand, typed as itself.
-expectTypeOf(Expr.or(titled)).toEqualTypeOf<EqPredicate & Reads<'Post'>>()
+expectTypeOf(Expr.or(titled)).toEqualTypeOf<Predicate & Reads<'Post'>>()
 // A list known non-empty spreads in; its result is some predicate.
 declare const terms: readonly [Predicate, ...Array<Predicate>]
 expectTypeOf(Expr.or(...terms)).toEqualTypeOf<Predicate>()
@@ -192,22 +182,25 @@ declare const maybeNone: ReadonlyArray<Predicate>
 Expr.or(...maybeNone)
 // @ts-expect-error an or of nothing
 Expr.or()
-// @ts-expect-error a field is a value, not a predicate: compare it with eq first
-Expr.and(titled, Post.fields.published)
-// @ts-expect-error not of a value is not a question
-Expr.not(Post.fields.published)
+// A boolean field is a predicate itself.
+Expr.and(titled, Expr.field(Post.fields.published))
+Expr.not(Expr.field(Post.fields.published))
+// @ts-expect-error a text field is a value, not a predicate: compare it with eq first
+Expr.and(titled, Expr.field(Post.fields.title))
+// @ts-expect-error not of a text value is not a question
+Expr.not(Expr.field(Post.fields.title))
 
 // whenGiven hands the predicate its input as never null, which eq requires.
 const chosen = Expr.input('title', Schema.NullOr(Schema.String))
 expectTypeOf(Expr.whenGiven(chosen, title => Expr.eq(Post.fields.title, title))).toEqualTypeOf<
   Predicate & Reads<'Post'>
 >()
-// @ts-expect-error without it, a nullable input against a field that is never null
+// A nullable expression of the left's type is a right side: it compares as null does.
 Expr.eq(Post.fields.title, chosen)
 
 // A comparison orders numbers, text and dates, typed like eq on its other side.
 expectTypeOf(Expr.lt(Post.fields.title, 'm', { collation: Collation.binary })).toEqualTypeOf<
-  ComparePredicate & Reads<'Post'>
+  Predicate & Reads<'Post'>
 >()
 // @ts-expect-error a boolean does not order
 Expr.lt(Post.fields.published, true)
@@ -239,7 +232,7 @@ Query.from(Post).pipe(Query.where(Expr.isNull(Expr.input('given', Schema.NullOr(
 // name it is unioned with and lose the refusal below.
 expectTypeOf<ReadsOf<Predicate>>().toEqualTypeOf<never>()
 expectTypeOf<ReadsOf<ExprOf<string>>>().toEqualTypeOf<never>()
-expectTypeOf<ReadsOf<FieldExpr<string>>>().toEqualTypeOf<never>()
+expectTypeOf<ReadsOf<InputExpr<string>>>().toEqualTypeOf<never>()
 // Combined with a marked node, the marked node's name survives.
 const mixed = Expr.and(Expr.eq(Blog.Author.fields.name, 'a'), somePredicate)
 expectTypeOf<ReadsOf<typeof mixed>>().toEqualTypeOf<'Author'>()
@@ -304,7 +297,7 @@ const isX = Expr.operator('acme.isX', {
     return Expr.eq(title, 'x')
   },
 })
-expectTypeOf(isX(Post.fields.title)).toExtend<TestPredicate & Reads<'Post'>>()
+expectTypeOf(isX(Post.fields.title)).toExtend<Predicate & Reads<'Post'>>()
 // A boolean result is a predicate, with no cast.
 Expr.and(isX(Post.fields.title), Expr.eq(Post.fields.published, true))
 Query.from(Post).pipe(Query.where(isX(Post.fields.title)))
@@ -331,7 +324,7 @@ const sameTitle = Expr.operator('acme.sameTitle', {
   output: Schema.String,
   definedAs: title => title,
 })
-expectTypeOf(sameTitle(Post.fields.title)).toExtend<CallExpr<string>>()
+expectTypeOf(sameTitle(Post.fields.title)).toExtend<ExprOf<string>>()
 // A scalar result compares as its type does.
 Expr.eq(sameTitle(Post.fields.title), 'x')
 // @ts-expect-error a string result is not compared with a number

@@ -13,7 +13,7 @@ import {
   type LawTotals,
   type Obligation,
   type Witness,
-} from '../src/index.js'
+} from '../src/laws.js'
 
 declare const report: LawReport
 expectTypeOf(report.totals).toEqualTypeOf<LawTotals>()
@@ -31,10 +31,10 @@ if (verdict._tag === 'Undecided')
   expectTypeOf(verdict.obligation).toEqualTypeOf<Option.Option<Obligation>>()
 if (verdict._tag === 'Kept') expectTypeOf(verdict.over).toEqualTypeOf<ReadonlyArray<string>>()
 
+LawVerdict.Kept({ by: 'interval', rows: 0, over: [] })
+LawVerdict.Kept({ by: 'zone', rows: 0, over: ['balance'] })
+// @ts-expect-error a kept pair names how it was kept, and a proof names the tier of the checker's verdict
 LawVerdict.Kept({ by: 'bounds', rows: 0, over: [] })
-LawVerdict.Kept({ by: 'vacuous', rows: 1, over: ['balance'] })
-// @ts-expect-error a kept pair names how it was kept, and an interval is `bounds`
-LawVerdict.Kept({ by: 'intervals', rows: 0, over: [] })
 // @ts-expect-error a refusal carries its witness
 LawVerdict.Refused({ steps: [], hint: Option.none() })
 // @ts-expect-error an undecided pair carries an obligation, none for a footprint

@@ -26,6 +26,7 @@ import {
 } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
 import type { Diagnostic, ReportDiagnostic } from 'foldkit-surface'
+import { mount, type Requirement, type StoreCapabilities } from 'metakit/store'
 import {
   Cursor,
   DocumentId as JournalDocumentId,
@@ -69,6 +70,34 @@ export {
   type ServerJournalOptions,
   type Trigger,
 } from './serverJournal.js'
+
+/**
+ * Throws `StoreRefused` (`metakit/store`) where `journal`'s store cannot hold
+ * the document's laws. A law judges the document an operation leaves
+ * (`journalContract().judge`), so it holds only where that judgement and the
+ * append are one step. A durable journal appends only at the sequence after
+ * the snapshot it judged, and its store's uniqueness constraint on that
+ * sequence refuses a second writer, who decides again over the new snapshot:
+ * a constraint holds the laws, on any store but one whose replicas accept
+ * appends apart and merge them later.
+ */
+const holdsLaws = <Message, Shared>(
+  sync: Sync<Message, Shared>,
+  journal: { readonly store: StoreCapabilities },
+): void => {
+  const laws: ReadonlyArray<Requirement> =
+    sync.journalContract().judge === undefined
+      ? []
+      : [
+          {
+            rule: `the laws of document "${sync.documentId}"`,
+            needs: 'row-atomic',
+            because: 'each judges the document an operation leaves, before it is appended',
+            judged: 'constraint',
+          },
+        ]
+  mount(journal.store, laws)
+}
 
 export interface JournalExchangeOptions<Message, Shared, Principal> {
   /** The document's contract: its codecs, and the snapshot a checkpoint encodes. */
@@ -202,6 +231,7 @@ export const journalExchange = <Message, Shared, Principal>(
   options: JournalExchangeOptions<Message, Shared, Principal>,
 ): TransportClient => {
   const { sync, journal, principal } = options
+  holdsLaws(sync, journal)
   const limit = options.limit ?? 500
   const key = JournalDocumentId.make(sync.documentId)
   const contract = sync.journalContract()
@@ -443,6 +473,45 @@ export const journalExchange = <Message, Shared, Principal>(
  * the next commit; a commit stream that breaks is reported as `HostDefect`
  * (`Changes`), since no notice follows it.
  */
+const journalChangesEffect = <Shared, Principal>(
+  journal: Journal<Operation, Shared, Principal, WrittenOperation>,
+  documentId: string,
+  listener: () => void,
+  diagnostics?: ReportDiagnostic | undefined,
+): Effect.Effect<void> => {
+  const report = (diagnostic: SyncDiagnostic) => reportTo(diagnostics, diagnostic)
+  return Stream.runForEach(
+    Stream.filter(journal.subscribe, key => key === documentId),
+    () =>
+      Effect.try(listener).pipe(
+        Effect.catch(thrown => report(listenerFailed('Notice', thrown.cause))),
+      ),
+  ).pipe(
+    // A journal shutting down may end its stream by interrupting it, as it
+    // may end it; any other cause ends every later notice unannounced.
+    Effect.catchCause(cause =>
+      Cause.hasInterruptsOnly(cause) ? Effect.void : report(hostDefect('Changes', cause)),
+    ),
+  )
+}
+
+/**
+ * `Scope`-managed version of `journalChanges`: forks the document commit
+ * listener into the caller's `Scope` via `Effect.forkScoped` so cleanup is
+ * automatic when the scope closes.
+ */
+export const journalChangesScoped = <Shared, Principal>(
+  journal: Journal<Operation, Shared, Principal, WrittenOperation>,
+  documentId: string,
+  listener: () => void,
+  options: {
+    readonly diagnostics?: ReportDiagnostic | undefined
+  } = {},
+): Effect.Effect<void, never, Scope.Scope> =>
+  Effect.asVoid(
+    Effect.forkScoped(journalChangesEffect(journal, documentId, listener, options.diagnostics)),
+  )
+
 export const journalChanges =
   <Shared, Principal>(
     journal: Journal<Operation, Shared, Principal, WrittenOperation>,
@@ -453,21 +522,8 @@ export const journalChanges =
     } = {},
   ): ((listener: () => void) => () => void) =>
   listener => {
-    const report = (diagnostic: SyncDiagnostic) => reportTo(options.diagnostics, diagnostic)
     const fiber = Effect.runFork(
-      Stream.runForEach(
-        Stream.filter(journal.subscribe, key => key === documentId),
-        () =>
-          Effect.try(listener).pipe(
-            Effect.catch(thrown => report(listenerFailed('Notice', thrown.cause))),
-          ),
-      ).pipe(
-        // A journal shutting down may end its stream by interrupting it, as it
-        // may end it; any other cause ends every later notice unannounced.
-        Effect.catchCause(cause =>
-          Cause.hasInterruptsOnly(cause) ? Effect.void : report(hostDefect('Changes', cause)),
-        ),
-      ),
+      journalChangesEffect(journal, documentId, listener, options.diagnostics),
     )
     return () => Effect.runSync(Fiber.interrupt(fiber))
   }
@@ -683,6 +739,14 @@ export interface HostSocket extends SocketLike {
  * what the upgrade built.
  */
 export interface Accepted {
+  /**
+   * What the store under this host's journal guarantees of concurrent writes:
+   * the host is the authoritative replica, and takes its declaration from the
+   * journal it runs on (`Journal.store`), serializable over SQLite per
+   * transaction and over D1 per statement. The host refuses a store that
+   * cannot hold the document's laws before it accepts (a 500).
+   */
+  readonly store: StoreCapabilities
   readonly serve: (socket: HostSocket) => void
   readonly abandon: () => void
 }
@@ -861,6 +925,8 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
     // An application's `opens` or `settle` may throw: a 500, before any socket opens.
     let exchange: JournalExchangeOptions<Message, Shared, Principal>
     try {
+      // A store that cannot hold the document's laws is refused before any socket opens.
+      holdsLaws(options.sync, journal.success)
       const { admit, settle, opens } = options
       exchange = {
         sync: options.sync,
@@ -876,6 +942,7 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
       return defect('Exchange', Cause.die(error))
     }
     return Result.succeed({
+      store: journal.success.store,
       abandon: release,
       serve: socket => {
         const stop = serveJournal(socket, { ...exchange, diagnostics: reporter })

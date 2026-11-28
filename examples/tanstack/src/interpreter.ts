@@ -16,8 +16,11 @@
 import { eq, inArray, isNull, not, type Collection } from '@tanstack/db'
 import { Option } from 'effect'
 import { absurd } from 'effect/Function'
-import { Expr, Query as Relational, isPredicate } from 'foldkit-entity'
-import type { AnyExpr, AnyQuery, Operandish, Operation, Predicate } from 'foldkit-entity'
+import { Query as Relational } from 'foldkit-entity'
+import type { AnyExpr, AnyQuery, Operation } from 'foldkit-entity'
+
+/** An expression's node: what this engine reads. */
+type ExprNode = AnyExpr['node']
 
 /** A row as this engine holds one. */
 export type Row = Record<string, unknown> & { readonly id: string }
@@ -46,88 +49,108 @@ export class TanstackCompileError extends Error {
 export const supported: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull', 'in']
 
 /** What an operand contributes: a row reference, or the value it stands for. */
-const operand = (node: AnyExpr, row: any, input: Readonly<Record<string, unknown>>): unknown => {
+const operand = (node: ExprNode, row: any, input: Readonly<Record<string, unknown>>): unknown => {
   switch (node._tag) {
-    case 'Field':
-      return row[node.key]
-    case 'Literal':
+    case 'Lit':
       return node.value
-    case 'Input':
-      return input[node.key]
-    case 'Next':
+    case 'Path': {
+      const [slice, key] = node.segments
+      if (slice === 'row' && node.segments.length === 2) return row[key!]
+      if (slice === 'input' && node.segments.length === 2) return input[key!]
       // Refused before compiling, as unsupported: this engine reads stored rows only.
-      throw new TanstackCompileError('this engine judges stored rows only')
-    // Expanded before compiling: a call left is an operator with no definition.
-    case 'Call':
-      throw new TanstackCompileError(`the operator "${node.operator.id}" has no definition to run`)
-    case 'Viewer':
-    case 'Now':
+      if (slice === 'next') throw new TanstackCompileError('this engine judges stored rows only')
       // Refused before compiling, as unsupported: this engine is given no context.
-      throw new TanstackCompileError('this engine reads no viewer and no clock')
-    case 'Path':
-    case 'ViewerPath':
+      if (slice === 'now' || (slice === 'viewer' && node.segments.length === 3)) {
+        throw new TanstackCompileError('this engine reads no viewer and no clock')
+      }
       // Refused before compiling, as unsupported: this engine reads one collection.
+      throw new TanstackCompileError('this engine reads no other row')
+    }
+    // A defined operator is already its body, so a call left is an operator with no definition.
+    case 'Call':
+      throw new TanstackCompileError(`the operator "${node.op.id}" has no definition to run`)
+    case 'If':
+    case 'Match':
+    case 'Opaque':
+    case 'Rows':
       throw new TanstackCompileError('this engine reads no other row')
     default:
       return absurd(node)
   }
 }
 
-const side = (node: Operandish, row: any, input: Readonly<Record<string, unknown>>): unknown =>
-  isPredicate(node) ? predicate(node, row, input) : operand(node, row, input)
+/** Whether `node` is a predicate: a call that gives a truth. */
+const isPredicateNode = (node: ExprNode): boolean =>
+  node._tag === 'Call' && node.op.returns === 'boolean'
 
-const predicate = (
-  node: Predicate,
-  row: any,
-  input: Readonly<Record<string, unknown>>,
-): unknown => {
-  switch (node._tag) {
-    case 'Eq': {
+const side = (node: ExprNode, row: any, input: Readonly<Record<string, unknown>>): unknown =>
+  isPredicateNode(node) ? predicate(node, row, input) : operand(node, row, input)
+
+const predicate = (node: ExprNode, row: any, input: Readonly<Record<string, unknown>>): unknown => {
+  if (node._tag !== 'Call') {
+    throw new TanstackCompileError(`${node._tag} is not run by this interpreter as a predicate`)
+  }
+  const [first, second] = node.args
+  const missing = (): never => {
+    throw new TanstackCompileError(`${node.op.id} is called with too few arguments`)
+  }
+  switch (node.op.id) {
+    case 'eq.equals': {
+      if (first === undefined || second === undefined) return missing()
       // A predicate compared to a boolean is that predicate or its negation,
       // settled here rather than asked of the engine — the same reason the SQL
       // compiler settles it: the value is known at query time.
-      const [asked, against] = isPredicate(node.left)
-        ? [node.left, node.right]
-        : isPredicate(node.right)
-          ? [node.right, node.left]
+      const [asked, against] = isPredicateNode(first)
+        ? [first, second]
+        : isPredicateNode(second)
+          ? [second, first]
           : [undefined, undefined]
-      if (asked !== undefined && against !== undefined && !isPredicate(against)) {
+      if (asked !== undefined && against !== undefined && !isPredicateNode(against)) {
         const value = operand(against, row, input)
         if (typeof value === 'boolean') {
           const built = predicate(asked, row, input)
           return value ? built : not(built as never)
         }
       }
-      return eq(side(node.left, row, input) as never, side(node.right, row, input) as never)
+      return eq(side(first, row, input) as never, side(second, row, input) as never)
     }
-    case 'Null': {
-      const absent = isNull(operand(node.operand, row, input) as never)
-      return node.present ? not(absent as never) : absent
+    case 'null.isNull':
+      if (first === undefined) return missing()
+      return isNull(operand(first, row, input) as never)
+    case 'bool.not': {
+      // `isNotNull` is a `not` of `isNull`; any other `not` is refused.
+      if (first !== undefined && first._tag === 'Call' && first.op.id === 'null.isNull') {
+        return not(predicate(first, row, input) as never)
+      }
+      throw new TanstackCompileError('bool.not is not run by this interpreter')
     }
-    case 'Contains':
+    case 'str.contains':
       throw new TanstackCompileError(
         'contains is not run by this interpreter: ilike has no escape, so a search containing % or _ would match as a wildcard',
       )
-    case 'In': {
-      const among = operand(node.among, row, input)
+    case 'eq.among': {
+      if (first === undefined || second === undefined) return missing()
+      const among = operand(second, row, input)
       // An empty list is false whatever the value, as in SQL; this engine
       // reads a null against one as unknown, so it is settled here, where the
       // list is known.
       if (Array.isArray(among) && among.length === 0) return eq(0 as never, 1 as never)
-      return inArray(operand(node.value, row, input) as never, among as never)
+      return inArray(operand(first, row, input) as never, among as never)
     }
-    case 'And':
-    case 'Or':
-    case 'Not':
-    case 'Compare':
+    case 'bool.and':
+    case 'bool.or':
+    case 'ord.lt':
+    case 'ord.lte':
+    case 'ord.gt':
+    case 'ord.gte':
+    case 'str.lt':
+    case 'str.lte':
+    case 'str.gt':
+    case 'str.gte':
       // Refused before compiling, as unsupported, so never reached; said rather than dropped.
-      throw new TanstackCompileError(`${node._tag} is not run by this interpreter`)
-    case 'Test':
-      throw new TanstackCompileError(`the operator "${node.operator.id}" has no definition to run`)
-    case 'Exists':
-      throw new TanstackCompileError('this engine reads no other row')
+      throw new TanstackCompileError(`${node.op.id} is not run by this interpreter`)
     default:
-      return absurd(node)
+      throw new TanstackCompileError(`the operator "${node.op.id}" has no definition to run`)
   }
 }
 
@@ -153,18 +176,22 @@ export const run = (
 
   let built = query.from({ row: collection })
   for (const written of body.where) {
-    // A defined operator runs as what it means.
-    const node = Expr.expanded(written)
+    const node = written.node
     built = built.where(({ row }: { row: any }) => predicate(node, row, input))
   }
   // One `orderBy` per term, chained: this engine takes a single expression and
   // a direction, and reads an earlier call as the more significant sort — the
   // same rule `Query.orderBy` composes by.
   for (const term of Relational.orderFor(body, input)) {
-    if (term.expr._tag !== 'Field') {
+    const termNode = term.expr.node
+    if (
+      termNode._tag !== 'Path' ||
+      termNode.segments[0] !== 'row' ||
+      termNode.segments.length !== 2
+    ) {
       throw new TanstackCompileError('this interpreter orders by fields only')
     }
-    const key = term.expr.key
+    const key = termNode.segments[1]!
     // A declared collation is honoured or refused. `binary` is this engine's
     // `lexical`, JavaScript's `<`: by UTF-16 code unit, which is code point
     // order except for a character past U+FFFF against one from U+E000 to

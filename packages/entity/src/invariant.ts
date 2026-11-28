@@ -24,15 +24,12 @@ import { kernelOperators } from './memoryTable.js'
 import type { MemoryOperators } from './operators.js'
 import { put } from './record.js'
 import { linkId, oneRelations } from './rows.js'
-import {
-  Expr,
-  Query,
-  dependenciesOf,
-  type FieldExpr,
-  type NextExpr,
-  type Predicate,
-  type Reads,
-} from './expr.js'
+import { dependenciesOf } from './expr/dependencies.js'
+import { and, eq, implies, isNotNull, isNull, not, or } from './expr/logic.js'
+import { exprOf, toNode, type Expr, type Predicate, type Reads } from './expr/operand.js'
+import { next } from './expr/value.js'
+import { unsupportedIn } from './expr/table.js'
+import { dependencies as queryDependencies, from, where } from './expr/query.js'
 import { extend, invariantsOfIdentity, variantBases } from './descriptor.js'
 import type { AnyEntity, EntityField, EntityIdentity, EntityInput, InputMember } from './index.js'
 import type { AnyRefinement, RefinementOf } from './refine.js'
@@ -75,19 +72,15 @@ type LinkOf<
  * date as its ISO text).
  */
 export type BeforeRow<E extends AnyEntity> = {
-  readonly [K in keyof E['fields'] & string]: FieldExpr<
-    Schema.Codec.Encoded<E['fields'][K]['schema']>
-  > &
+  readonly [K in keyof E['fields'] & string]: Expr<Schema.Codec.Encoded<E['fields'][K]['schema']>> &
     Reads<E['name']>
-} & { readonly [K in LinkKeys<E>]: FieldExpr<LinkOf<E, K>> & Reads<E['name']> }
+} & { readonly [K in LinkKeys<E>]: Expr<LinkOf<E, K>> & Reads<E['name']> }
 
 /** Each field, and each `one` relation's id, as the row after a write holds it: `after`. */
 export type AfterRow<E extends AnyEntity> = {
-  readonly [K in keyof E['fields'] & string]: NextExpr<
-    Schema.Codec.Encoded<E['fields'][K]['schema']>
-  > &
+  readonly [K in keyof E['fields'] & string]: Expr<Schema.Codec.Encoded<E['fields'][K]['schema']>> &
     Reads<E['name']>
-} & { readonly [K in LinkKeys<E>]: NextExpr<LinkOf<E, K>> & Reads<E['name']> }
+} & { readonly [K in LinkKeys<E>]: Expr<LinkOf<E, K>> & Reads<E['name']> }
 
 /** A row, or a change from one row to another, as an invariant is judged over it. */
 export interface Change {
@@ -172,7 +165,7 @@ const boundTo = (
       `"${id}" is in ${entity.name}.${state.name}, which reaches another row, and a rule is judged over its own row`,
       step,
     )
-  return Expr.implies(state.after, predicate)
+  return implies(state.after, predicate)
 }
 
 /** The invariant `build` declares over `entity`'s rows, refused where it could judge nothing. */
@@ -186,18 +179,20 @@ const declareOn = <E extends AnyEntity>(
   const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
   // A `one` relation reads as the id it points at.
   const links = oneRelations(entity)
-  const nexts = [
-    ...Object.entries(fields).map(([key, field]) => [key, Expr.next(field)] as const),
-    ...links.map(link => [link.key, Expr.next(link)] as const),
-  ]
-  const after = Object.fromEntries(nexts) as unknown as AfterRow<E>
-  // Before a write, each is what its `after` reads after it: the same operand, unmoved.
+  const members = [
+    ...Object.entries(fields),
+    ...links.map(link => [link.key, link] as const),
+  ] as ReadonlyArray<readonly [string, AnyField | (typeof links)[number]]>
+  const after = Object.fromEntries(
+    members.map(([key, member]) => [key, next(member as AnyField)]),
+  ) as unknown as AfterRow<E>
+  // Before a write, each is what its `after` reads after it: the same member, unmoved.
   const before = Object.fromEntries(
-    nexts.map(([key, next]) => [key, next.field]),
+    members.map(([key, member]) => [key, exprOf(toNode(member))]),
   ) as unknown as BeforeRow<E>
   const said = build({ before, after }) as Predicate
   // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
-  const dependencies = Query.dependencies(Query.from(entity).pipe(Query.where(said)))
+  const dependencies = queryDependencies(from(entity).pipe(where(said)))
   if (dependencies.inputs.length > 0) {
     fail(
       entity,
@@ -344,15 +339,12 @@ const caseInvariants = (identity: EntityIdentity<string>): ReadonlyArray<Invaria
         base,
         `variant_${tag}`,
         ({ after }) => {
-          const row = after as Readonly<Record<string, NextExpr<unknown>>>
+          const row = after as Readonly<Record<string, Expr<unknown>>>
           const checks = [
-            ...held.map(key => Expr.isNotNull(row[key]!)),
-            ...foreign.map(key => Expr.isNull(row[key]!)),
+            ...held.map(key => isNotNull(row[key]!)),
+            ...foreign.map(key => isNull(row[key]!)),
           ]
-          return Expr.or(
-            Expr.not(Expr.eq(row._tag!, tag)),
-            Expr.and(checks[0]!, ...checks.slice(1)),
-          )
+          return or(not(eq(row._tag!, tag)), and(checks[0]!, ...checks.slice(1)))
         },
         {
           message: `A ${name} that is ${tag} ${[
@@ -559,10 +551,11 @@ export const check = <E extends AnyEntity>(
 ): SchemaAST.Filter<Schema.Schema.Type<E['schema']>> => {
   const predicates = invariantsOf(entity).map(held => held.predicate)
   // The judge runs every operation an invariant reads; an operator alone can be missing.
-  const missing = Expr.unsupported(predicates, {
-    operations: dependenciesOf(...predicates).operations,
-    operators: options.operators ?? kernelOperators,
-  })
+  const missing = unsupportedIn(
+    predicates,
+    dependenciesOf(...predicates).operations,
+    options.operators ?? kernelOperators,
+  )
   if (missing.length > 0) {
     throw new Error(
       `[foldkit-entity] Entity.check of ${entity.name}: its invariants call ${missing.join(', ')}, which the operator table does not run; pass one that does as \`operators\``,

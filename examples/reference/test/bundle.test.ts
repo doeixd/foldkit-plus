@@ -41,7 +41,32 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // this page's Remote carries. Ceiling: the reading, rounded up.
 // +850 on 2026-11-19: 251,780 measured after `Expr.add`/`sub`/`implies`, `Entity.transition`,
 // `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600) in `foldkit-entity` / `foldkit-remote`.
-const CEILING = 252_000
+// +300 on 2026-11-21: CI read 252,242. What this page's Remote gained since v0.43.0 and runs: a read
+// answered under a pending write is read again when the late answer disagrees (6782b2e93, +109 here,
+// measured by its author), the store's key bookkeeping and the read-entry plan reuse (30d7a5fe0), and
+// reads naming their store's field. The opt-in parts (aggregates, the declared-writes skip, declared
+// forms, sync transitions) were moved to subpaths first and are not in the page.
+// +8,108 on 2026-11-21 (step 5 of the metakit unification plan: entity's judge on metakit through a
+// translation layer), -532 the same day (the lean judge), +370 after step 9 (guard's conditions as one
+// metakit expression).
+// -2,338 on 2026-11-22, permanent: 257,608 measured (260,376 before, in one tree) after step 10. Entity's
+// constructors build metakit nodes, the translation layer is deleted, `Expr`, `Query` and `Order` are
+// namespaces, and metakit's reading of related rows arrives only with an `Expr.exists` (foldkit-entity
+// 83,509 to 76,566 minified, metakit 20,857 to 16,074). What stays over the pre-step-5 252,300 (5,308) is
+// metakit's evaluator and judge on every page that reaches entity (16.1 kB minified, `node`,
+// `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
+// 2026-11-21. Ceiling: the reading plus 300.
+// +1,152 on 2026-11-22: CI on Linux read 258,760 after the Phase 1 gate fixes (an operand past the safe
+// range refused by every reader, 63fac3ae0; ops/integerTerm and guard's condition), part of the
+// accepted Phase 1 cost. Ceiling: CI's reading plus 300.
+// +306 on 2026-11-22 (Phase 5 item 10 of the unification plan): 259,066 measured (258,511 before).
+// One rule replays a pending write over a newer value (`foldkit-remote/replay.js`, which replaces
+// `keeping.js`, and metakit's `ops/ways.js` rows for `set` and `add`): about 710 bytes minified,
+// on every page with writes. Ceiling: the reading plus 300.
+// +3,034 on 2026-11-26 (CI read 261,974): metakit's core evaluator and judge grew with Sets,
+// Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote gained IVM fixes and Effect
+// Clock/Random integration. Ceiling: CI's reading plus ~400, rounded up.
+const CEILING = 262_400
 
 clientBudget({
   name: 'reference',

@@ -148,8 +148,15 @@ const pgTables = (() => {
   )
 })()
 
+/** Postgres runs this test's statements serializable, as a guard reading another row needs. */
+const serializable = "set default_transaction_isolation = 'serializable'"
+
 const serverFor = (Db: typeof sqliteTables | typeof pgTables) => {
-  const guarded = GuardServer.writer(Note, Policy, writer(Db.Note))
+  const guarded = GuardServer.writer(
+    Note,
+    Policy,
+    writer(Db.Note, Db === pgTables ? { isolation: 'serializable' } : {}),
+  )
   return RemoteServer.make<Option.Option<{ readonly id: string }>, DrizzleDatabase>({
     entities: [source(Db.Note, { filter: GuardServer.filter(Note, Policy) })],
     mutations: [
@@ -183,6 +190,8 @@ const dialects = [
     open: async () => {
       const client = new PGlite()
       const db = drizzlePg({ client })
+      // What the writer is said to run at: a rule reading another row needs it there.
+      await db.execute(sql.raw(serializable))
       for (const statement of create) await db.execute(sql.raw(statement))
       return {
         layer: databaseLayer(db),
@@ -506,7 +515,11 @@ describe.each(['SQLite', 'Postgres'])('a write rule over a path from the viewer,
             },
           )
         })()
-  const guarded = GuardServer.writer(Member, MemberPolicy, writer(Db.Member))
+  const guarded = GuardServer.writer(
+    Member,
+    MemberPolicy,
+    writer(Db.Member, name === 'Postgres' ? { isolation: 'serializable' } : {}),
+  )
   const server = RemoteServer.make<Option.Option<{ readonly id: string }>, DrizzleDatabase>({
     entities: [source(Db.Member)],
     mutations: [
@@ -541,6 +554,7 @@ describe.each(['SQLite', 'Postgres'])('a write rule over a path from the viewer,
     } else {
       const client = new PGlite()
       const db = drizzlePg({ client })
+      await db.execute(sql.raw(serializable))
       for (const statement of statements) await db.execute(sql.raw(statement))
       database = {
         layer: databaseLayer(db),

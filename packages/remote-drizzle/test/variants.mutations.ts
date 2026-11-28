@@ -10,8 +10,8 @@ export default [
     edits: [
       {
         file: '../../entity/src/invariant.ts',
-        find: 'foreign.map(key => Expr.isNull(row[key]!))',
-        replace: 'foreign.map(key => Expr.or(Expr.isNull(row[key]!), Expr.isNotNull(row[key]!)))',
+        find: 'foreign.map(key => isNull(row[key]!))',
+        replace: 'foreign.map(key => or(isNull(row[key]!), isNotNull(row[key]!)))',
       },
     ],
     tests,
@@ -21,8 +21,8 @@ export default [
     edits: [
       {
         file: '../../entity/src/invariant.ts',
-        find: 'held.map(key => Expr.isNotNull(row[key]!))',
-        replace: 'held.map(key => Expr.or(Expr.isNull(row[key]!), Expr.isNotNull(row[key]!)))',
+        find: 'held.map(key => isNotNull(row[key]!))',
+        replace: 'held.map(key => or(isNull(row[key]!), isNotNull(row[key]!)))',
       },
     ],
     tests,
@@ -31,9 +31,9 @@ export default [
     name: 'Expr.is compiles without its tag',
     edits: [
       {
-        file: '../../entity/src/expr.ts',
-        find: '  return Expr.and(is, asked)\n',
-        replace: '  return asked\n',
+        file: '../../entity/src/expr/relation.ts',
+        find: '  return and(is, asked as Predicate)\n',
+        replace: '  return asked as Predicate\n',
       },
     ],
     tests,

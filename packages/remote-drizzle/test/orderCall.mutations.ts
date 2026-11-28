@@ -13,19 +13,8 @@ export default [
     edits: [
       {
         file: compile,
-        find: 'return { key: collateFor(term.collation, dialectOf(target))(compiled), direction, nulls }',
-        replace: 'return { key: compiled, direction, nulls }',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a defined operator is ordered by unexpanded',
-    edits: [
-      {
-        file: compile,
-        find: 'const call = Expr.expanded(term.expr)',
-        replace: 'const call = term.expr',
+        find: 'const key = reading.keys[0]!',
+        replace: 'const key = reading.nodes[0]!',
       },
     ],
     tests,

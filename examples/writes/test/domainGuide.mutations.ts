@@ -19,13 +19,13 @@ export default [
   edit(
     'a page with no row answers Yes',
     '../../../packages/remote/src/canOf.ts',
-    'if (Option.isNone(found)) return Can.Undecided({ reasons: [`${entity.name} ${id} is not held`] })',
-    'if (Option.isNone(found)) return Can.Yes()',
+    'if (Option.isNone(found)) return Can.undecided([`${entity.name} ${id} is not held`])',
+    'if (Option.isNone(found)) return Verdict.True()',
   ),
   edit(
     'the reference interpreter orders a descending term ascending',
-    '../../../packages/entity/src/expr.ts',
-    "term('desc', orderOperand(expr, 'desc'), options),",
-    "term('asc', orderOperand(expr, 'desc'), options),",
+    '../../../packages/entity/src/expr/order.ts',
+    "term('desc', orderOperand(expr, 'desc'), options)",
+    "term('asc', orderOperand(expr, 'desc'), options)",
   ),
 ]

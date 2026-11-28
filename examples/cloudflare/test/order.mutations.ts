@@ -12,7 +12,7 @@ export default [
     name: 'text is compared as UTF-16 units',
     edits: [
       {
-        file: '../../../packages/entity/src/evaluate.ts',
+        file: '../../../packages/entity/src/rowOrder.ts',
         find: 'return fold ? byCodePoint(foldAscii(left), foldAscii(right)) : byCodePoint(left, right)',
         replace: 'return left < right ? -1 : left > right ? 1 : 0',
       },
@@ -45,9 +45,9 @@ export default [
     name: 'id does not break a tie',
     edits: [
       {
-        file: '../../../packages/entity/src/expr.ts',
-        find: 'return endsOnId ? terms : [...terms, id]',
-        replace: 'return endsOnId || id !== undefined ? terms : [...terms, id]',
+        file: '../../../packages/entity/src/expr/query.ts',
+        find: 'return endsOnId ? terms : [...terms, idTermOf(self.entity)]',
+        replace: 'return terms',
       },
     ],
     tests,

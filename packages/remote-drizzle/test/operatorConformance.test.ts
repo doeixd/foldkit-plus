@@ -13,7 +13,8 @@ import { PgDialect, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { SQLiteDialect, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Schema } from 'effect'
 import { Conformance, type Runner } from 'foldkit-entity/conformance'
-import { Expr, Law, Operators, Text, isPredicate } from 'foldkit-entity'
+import { Expr, Operators, Text } from 'foldkit-entity'
+import { Node } from 'metakit'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { DrizzleOperators, compileCall, entity, type CompileTarget } from '../src/index.js'
 
@@ -24,7 +25,7 @@ const concat = Expr.operator('acme.concat', {
   input: [Schema.String, Schema.String],
   output: Schema.String,
   collation: 'operands',
-  laws: [Law.associative, Law.identity('')],
+  claims: { associative: true, identity: { value: '', side: 'both' } },
 })
 const operators = {
   memory: Operators.merge(
@@ -60,7 +61,8 @@ const selecting =
     const query = render(sql`select ${compileCall(call, binding, 'conformance')} as value`)
     const value = await run(query.sql, query.params)
     // SQLite answers a truth as 1 or 0.
-    return isPredicate(call) && typeof value === 'number' ? value === 1 : value
+    const truth = Node.$is('Call')(call.node) && call.node.op.returns === 'boolean'
+    return truth && typeof value === 'number' ? value === 1 : value
   }
 
 const databases = {
@@ -112,14 +114,6 @@ describe.each(Object.entries(databases))('Operators run by %s', (_, database) =>
     expect(report.disagreements).toEqual([])
   })
 
-  it.each([
-    ['Expr.add', Expr.add],
-    ['Expr.sub', Expr.sub],
-  ] as const)('%s keeps the laws it declares, run by the database', async (name, op) => {
-    const verdict = await Conformance.lawsBy(op, database, { implementation: name })
-    expect(verdict._tag).toBe('Holds')
-  })
-
   it('an application’s concat answers every generated call as memory does', async () => {
     const report = await Conformance.operator(concat, { implementations })
     expect(report.cases).toBeGreaterThan(100)
@@ -128,21 +122,20 @@ describe.each(Object.entries(databases))('Operators run by %s', (_, database) =>
 })
 
 describe('The helper over a database', () => {
-  it('finds a Postgres startsWith that reads its prefix as a like pattern', async () => {
+  it('finds a Postgres concat that reads its second text as a like pattern', async () => {
     const liking = entity('Thing', pgThings, {
       operators: {
         ...operators,
         sql: DrizzleOperators.override(
           operators.sql,
           DrizzleOperators.implement(
-            Text.startsWith,
-            ({ args: [text, prefix], collate }) =>
-              sql`${collate(text!)} like (${collate(prefix!)} || '%')`,
+            concat,
+            ({ args: [left, right] }) => sql`replace(${left} || ${right}, '%', '')`,
           ),
         ),
       },
     })
-    const report = await Conformance.operator(Text.startsWith, {
+    const report = await Conformance.operator(concat, {
       implementations: {
         memory: Conformance.memory(operators.memory),
         postgres: selecting(
@@ -152,9 +145,18 @@ describe('The helper over a database', () => {
             (await pglite.query<{ value: unknown }>(text, [...params])).rows[0]!.value,
         ),
       },
+      cases: [
+        ['a', '%'],
+        ['a', 'b'],
+      ],
     })
-    expect(report.disagreements.map(each => each.args)).toContainEqual(['ab', '%'])
-    expect(report.disagreements.map(each => each.args)).toContainEqual(['a', '_'])
+    expect(new Set(report.disagreements.map(each => each.args.join('')))).toEqual(new Set(['a%']))
+  })
+
+  it('refuses an SQL implementation of a kernel operator, whose SQL is metakit’s own', () => {
+    expect(() =>
+      DrizzleOperators.implement(Text.startsWith, ({ args: [text] }) => sql`${text}`),
+    ).toThrow('text.startsWith is a kernel operator')
   })
 
   it('finds an SQL implementation that folds case where memory does not', async () => {

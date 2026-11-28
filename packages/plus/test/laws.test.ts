@@ -5,7 +5,7 @@
  * `tsx`, run the built CLI in `cli.test.ts`.
  */
 import { Option } from 'effect'
-import { Laws } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -36,6 +36,23 @@ describe('lawsReport', () => {
     expect(printed).toEqual({ text: `${Laws.show(Laws.check(writes))}\n`, isError: false })
     expect(printed.text).toContain('Recount')
   })
+
+  it('prints an obligations report as it formats itself, and an open obligation does not fail the command', async () => {
+    expect(await lawsReport('laws/obligations.ts#report', import.meta.dirname)).toEqual({
+      text: 'open (1)\n  stub A/B (declared at here): no walk has covered it\n',
+      isError: false,
+    })
+  })
+
+  it("prints the todo app's obligations: every pair walked, the decided pair with its rule", async () => {
+    const result = await lawsReport('examples/todo-app/test/pairs.obligations.ts#report', root)
+    expect(result.isError).toBe(false)
+    expect(result.text).toContain('open (0)')
+    expect(result.text).toContain('todo-app ToggledTodo/ClearedCompleted: the order matters')
+    expect(result.text).toContain(
+      'todo-app ClearedCompleted/ClearedCompleted: a removeWhere and a removeWhere of "todos"',
+    )
+  }, 60_000)
 
   it.each([
     ['a missing file', 'laws/absent.ts', /^No such file: .*absent\.ts\n$/],

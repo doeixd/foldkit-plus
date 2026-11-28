@@ -1,5 +1,6 @@
-import { Match, Option, Schema, SchemaAST } from 'effect'
-import type { OrderTerm } from './expr.js'
+import { Option, Schema, SchemaAST } from 'effect'
+import { fieldRead } from './expr/operand.js'
+import type { OrderTerm } from './expr/order.js'
 
 /**
  * Whether values encoded by `ast` order the same everywhere: numbers and
@@ -20,13 +21,10 @@ const ordersIntrinsically = (ast: SchemaAST.AST): boolean =>
  * so `Query.placement` and `evaluate` both refuse it, for this reason.
  */
 export const uncollatedText = (orderTerm: OrderTerm): Option.Option<string> =>
-  Match.value(orderTerm.expr).pipe(
-    Match.tag('Field', field =>
-      Option.isNone(orderTerm.collation) && !ordersIntrinsically(Schema.toEncoded(field.schema).ast)
-        ? Option.some(
-            `it orders by ${field.owner.name}.${field.key}, text with no declared collation`,
-          )
-        : Option.none<string>(),
-    ),
-    Match.orElse(() => Option.none<string>()),
+  Option.flatMap(fieldRead(orderTerm.expr.node), ({ field }) =>
+    Option.isNone(orderTerm.collation) && !ordersIntrinsically(Schema.toEncoded(field.schema).ast)
+      ? Option.some(
+          `it orders by ${field.owner.name}.${field.key}, text with no declared collation`,
+        )
+      : Option.none<string>(),
   )

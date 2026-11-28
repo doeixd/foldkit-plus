@@ -1,16 +1,19 @@
 /**
  * `Laws.check`: each transition against each invariant of its Entity, and
- * the arrows its writes make between the Entity's states, by enumeration over
- * finite fields and nothing cleverer. Pure: it reads declarations and returns
- * a report, which is data; `Laws.show` prints it.
+ * the arrows its writes make between the Entity's states: by enumeration over
+ * finite fields where the members it reads are few, and by metakit's checker
+ * over the write's transition (`pairCheck.ts`) where they are not. Pure: it
+ * reads declarations and returns a report, which is data; `Laws.show` prints
+ * it. Its own entry, `foldkit-entity/laws`: a page never carries the checker.
  */
 import { Data, Match, Option, type Schema } from 'effect'
 import { Evidence } from 'foldkit-metadata'
-import { Bounded, judgeBounded, meetable, witnessOf, type Witness } from './bounds.js'
+import type { Verdict } from 'metakit'
 import { Steps, finiteValues, steps, type Step } from './enumerate.js'
+import { Decision, decide, meetable, type Witness } from './pairCheck.js'
 import { judgeAgainst, readsBefore, invariantsOf, type Invariant } from './invariant.js'
 import { declaredOwner, Footprint } from './footprint.js'
-import { dependenciesOf } from './expr.js'
+import { dependenciesOf } from './expr/dependencies.js'
 import { lawId, transitionId } from './lawIds.js'
 import type { AnyEntity, EntityField } from './index.js'
 import { kernelOperators } from './memoryTable.js'
@@ -70,11 +73,10 @@ export type LawVerdict = Data.TaggedEnum<{
   /**
    * It cannot break it. `by`: it writes nothing the (state) invariant reads,
    * its author says so, every row it can start from was enumerated, there is
-   * no row to judge (a create and a transition, a delete), the rule holds
-   * whatever the members it cannot enumerate hold (`vacuous`: a write
-   * leaving the row where the rule does not bind), or the numbers' declared
-   * bounds decide it for every row and input within them (`bounds`). `over`:
-   * the members a `vacuous` or `bounds` keep holds over.
+   * no row to judge (a create and a transition, a delete), or metakit's
+   * checker proved it for every row and input the declarations allow, and
+   * `by` names the tier that did (its `Verdict.ProofTier`; the checker gives
+   * `concrete`, `interval` or `zone`). `over`: the members a proof holds over.
    */
   Kept: {
     readonly by:
@@ -83,8 +85,7 @@ export type LawVerdict = Data.TaggedEnum<{
       | 'enumeration'
       | 'create'
       | 'delete'
-      | 'vacuous'
-      | 'bounds'
+      | Verdict.ProofTier
     readonly rows: number
     readonly over: ReadonlyArray<string>
   }
@@ -111,6 +112,22 @@ const kept = (
   over: ReadonlyArray<string> = [],
 ): LawVerdict => LawVerdict.Kept({ by, rows, over })
 
+/** The witness one enumerated step makes. */
+const witnessOf = (write: AnyWrite, held: Invariant, step: Step): Witness => ({
+  before: Match.valueTags(write, {
+    Insert: () => Option.none(),
+    Update: () => Option.some(step.before),
+    Delete: () => Option.some(step.before),
+  }),
+  input: step.input,
+  after: step.after,
+  invariant: held.id,
+  message: held.message,
+  path: held.path,
+})
+
+export type { Witness } from './pairCheck.js'
+
 /** One transition against one invariant of its Entity. */
 export interface LawPair {
   readonly write: string
@@ -130,7 +147,7 @@ export interface LawPair {
   readonly postcondition: boolean
   /**
    * A record for a pair the check kept by reading the declarations:
-   * `Bounded` for one the numbers' bounds decided, `Enumerated` for the rest;
+   * `Bounded` for one metakit's checker proved, `Enumerated` for the rest;
    * none for an author's word (`declared`), a refusal, or an undecided pair.
    */
   readonly evidence: Option.Option<Evidence>
@@ -245,12 +262,27 @@ const evidenceOf = (name: string, held: Invariant, verdict: LawVerdict): Option.
       if (by === 'declared') return Option.none()
       const pair = { transition: transition({ name }), law: law(held) }
       return Option.some(
-        issuer.issue(by === 'bounds' ? Evidence.Bounded(pair) : Evidence.Enumerated(pair)),
+        issuer.issue(
+          by === 'concrete' || by === 'interval' || by === 'zone' || by === 'z3'
+            ? Evidence.Bounded(pair)
+            : Evidence.Enumerated(pair),
+        ),
       )
     },
     Refused: () => Option.none(),
     Undecided: () => Option.none(),
   })
+
+/** The members a rule reads that enumeration cannot list: what a proof by the checker holds over. */
+const unenumerated = (write: AnyWrite, held: Invariant): ReadonlyArray<string> => {
+  const fields = write.input.entity.fields as Readonly<Record<string, AnyField>>
+  return [...new Set([...held.before, ...held.after])].filter(key =>
+    Option.match(Option.fromUndefinedOr(own(fields, key)), {
+      onNone: () => true,
+      onSome: field => Option.isNone(finiteValues(field.schema as unknown as Schema.Top)),
+    }),
+  )
+}
 
 /** One declared write against one invariant. */
 const judgeWrite = (
@@ -278,13 +310,12 @@ const judgeWrite = (
       cases,
     })
   return Steps.$match(steps(write, reads, { operators }), {
-    // Past what enumeration reaches: the members it cannot list, unknown or bounded.
+    // Past what enumeration reaches: the members it cannot list, left to metakit's checker.
     Undecided: () =>
-      Bounded.$match(judgeBounded(write, held, invariants, operators), {
-        Kept: ({ by, rows, over }) => kept(by, rows, over),
+      Decision.$match(decide(write, held, invariants, operators), {
+        Kept: ({ tier }) => kept(tier, 0, unenumerated(write, held)),
         Refused: ({ witness }) => LawVerdict.Refused({ steps: [], witness, hint: Option.none() }),
-        Undecided: ({ reason, cases }) =>
-          LawVerdict.Undecided({ reason, obligation: obligation(cases) }),
+        Undecided: ({ reason }) => LawVerdict.Undecided({ reason, obligation: obligation([]) }),
       }),
     Steps: ({ steps: each }) => {
       const refused: Array<Step> = []
@@ -482,7 +513,7 @@ const check = <const W extends ReadonlyArray<LawEntry>>(options: {
     if (!entities.some(known => known.identity === entity.identity)) entities.push(entity)
     const footprint = footprintOf(entry)
     const invariants = invariantsOf(entity)
-    if (isWriteEntry(entry) && !meetable(entry.write, invariants, operators))
+    if (isWriteEntry(entry) && !meetable(entry.write, invariants))
       unmeetable.push(Finding.Unmeetable({ entity: entity.name, write: entry.name }))
     // A write's own postcondition is judged as an invariant of that write alone.
     const ensured = isWriteEntry(entry) ? Option.toArray(entry.write.ensures) : []
@@ -637,8 +668,11 @@ const shownVerdict = (verdict: LawVerdict): string =>
         enumeration: `kept: ${plural(rows, 'row')} enumerated`,
         create: 'kept: a create has no row before',
         delete: 'kept: a delete leaves no row',
-        vacuous: `kept: holds whatever ${over.join(' and ')} hold${over.length === 1 ? 's' : ''}, over ${plural(rows, 'row')} enumerated`,
-        bounds: `kept: proved from the bounds on ${over.join(' and ')}, for every row and input within them`,
+        concrete: `kept: decided by evaluation, over ${over.join(' and ')}`,
+        interval: `kept: proved from the intervals on ${over.join(' and ')}, for every row and input within them`,
+        zone: `kept: proved from the bounds and differences of ${over.join(' and ')}, for every row and input within them`,
+        z3: `kept: proved by the solver over ${over.join(' and ')}`,
+        solver: `kept: proved by the solver over ${over.join(' and ')}`,
       })[by],
     Refused: ({ witness }) => `refused: ${witness.message}`,
     Undecided: ({ reason }) => `undecided: ${reason}`,

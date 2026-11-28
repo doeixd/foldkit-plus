@@ -4,6 +4,7 @@
  * kernel's own operators, read by every reader as any primitive call is.
  */
 import { Schema } from 'effect'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Computation,
@@ -36,7 +37,9 @@ const covered = Expr.gte(balance, 0)
 
 describe('Expr.implies', () => {
   it('is the or of the condition negated and the consequence, as nodes', () => {
-    expect(Expr.implies(open, covered)).toEqual(Expr.or(Expr.not(open), covered))
+    expect(Node.key(Expr.implies(open, covered).node)).toBe(
+      Node.key(Expr.or(Expr.not(open), covered).node),
+    )
   })
 
   // The condition: open is true, false, or unknown for a null status; the
@@ -96,17 +99,7 @@ describe('Expr.add and Expr.sub', () => {
           'Subtraction over numbers, of two arguments: the first minus the second (left - right); null when either is null.',
       },
     ])
-    expect(described.map(({ laws }) => laws.map(law => law.kind))).toEqual([
-      ['commutative', 'monotonic', 'monotonic'],
-      ['monotonic', 'monotonic'],
-    ])
-  })
-
-  it.each([
-    ['Expr.add', Expr.add],
-    ['Expr.sub', Expr.sub],
-  ] as const)('%s keeps the laws it declares in memory', (_, op) => {
-    expect(Conformance.laws(op, Operators.kernel)._tag).toBe('Holds')
+    expect(described.map(({ claims }) => claims)).toEqual([{}, {}])
   })
 
   const rows = [
@@ -153,7 +146,6 @@ describe('A computed assignment over arithmetic', () => {
       cents: Computation.Call({
         operator: 'number.subtract',
         args: [Computation.Field({ key: 'cents' }), Computation.Value({ value: 3 })],
-        collation: null,
       }),
     })
     expect(

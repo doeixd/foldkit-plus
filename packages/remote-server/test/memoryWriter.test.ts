@@ -5,7 +5,7 @@
  */
 import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity, Expr, Operators, Relation, Write } from 'foldkit-entity'
+import { Entity, Expr, Operators, Relation, Write, type AnyEntity } from 'foldkit-entity'
 import { Mutation, Refusal, Remote } from 'foldkit-remote'
 import { Law } from 'foldkit-remote/testing'
 import { Surface } from 'foldkit-surface'
@@ -264,6 +264,17 @@ describe('RemoteServer.memoryWriter', () => {
     expect([stock('s1'), stock('s2')]).toEqual(before)
   })
 
+  it('answers a sum past the safe integer range as a server error, and writes nothing', async () => {
+    const { send, stock } = fresh()
+    const before = stock('s1')
+    const answer = await send('Reserve', { id: 's1', revision: 1, quantity: 2 ** 53 })
+    // Not one of the mutation's own refusals, and nothing of the evaluator's message.
+    expect(answer).toMatchObject({ failure: { _tag: 'RemoteMutationError' } })
+    expect(answer).not.toHaveProperty('failure.refusal')
+    expect(JSON.stringify(answer)).not.toContain('safe')
+    expect(stock('s1')).toEqual(before)
+  })
+
   it('lands a write its postcondition holds of, and names the postcondition it refuses by', async () => {
     const { send, stock } = fresh()
     expect(await send('Take', { id: 's1', revision: 1, quantity: -4 })).toMatchObject({
@@ -341,6 +352,87 @@ describe('RemoteServer.memoryWriter', () => {
   })
 })
 
+describe('a memory writer given the row’s revision', () => {
+  /** Sets the label with no revision to expect. */
+  const Mark = Mutation.write(
+    'Mark',
+    Write.update(Entity.input(Stock, Schema.Struct({ id: Schema.String, label: Schema.String })), {
+      id: 'id',
+    }),
+  )
+  const marking = [Mark, Relabel] as const
+  /** A server over s1 at revision 1, read by `principal` under `authorize` and `readable`. */
+  const serving = (
+    options: { readonly revision?: 'revision' },
+    principal: string,
+    authorize?: (who: string, fields: ReadonlyArray<string>) => ReadonlyArray<string>,
+  ) => {
+    const backend = RemoteServer.memory<string>({
+      domain: Remote.define({ entities: [Owner, Stock], mutations: [...marking] }),
+      rows: { Owner: [{ id: 'o1', name: 'Ada' }], Stock: [row('s1', 'published', 10, 5)] },
+      mutations: (store: MemoryStore) =>
+        marking.map(mutation =>
+          RemoteServer.write(mutation, RemoteServer.memoryWriter(store, Stock, options)),
+        ),
+      ...(authorize === undefined ? {} : { authorize: { Stock: authorize } }),
+      // Eve may read no Stock row.
+      readable: who => Effect.succeed(() => who !== 'eve'),
+    })
+    const send = (mutation: string, input: unknown) =>
+      Effect.runPromise(
+        RemoteServer.handlers(backend.server, principal).FoldkitRemoteMutate({
+          requestId: 'r',
+          mutation,
+          input,
+        }),
+      )
+    return { send, stock: () => backend.rows('Stock')[0] }
+  }
+
+  it.each([
+    ['an update that expects none', 'Mark', { id: 's1', label: 'nut' }],
+    ['an update that expects it', 'Relabel', { id: 's1', revision: 1, label: 'nut' }],
+  ])('moves it on once through %s, and answers the row at it', async (_, mutation, input) => {
+    const { send, stock } = serving({ revision: 'revision' }, 'ada')
+    expect((await send(mutation, input)).entities).toEqual([
+      { entity: 'Stock', id: 's1', values: { id: 's1', label: 'nut', revision: 2 }, revision: 2 },
+    ])
+    expect(stock()).toMatchObject({ label: 'nut', revision: 2 })
+  })
+
+  it('answers no revision when given none, and leaves the field where a write expects none', async () => {
+    const { send, stock } = serving({}, 'ada')
+    expect((await send('Mark', { id: 's1', label: 'nut' })).entities).toEqual([
+      { entity: 'Stock', id: 's1', values: { id: 's1', label: 'nut' } },
+    ])
+    expect(stock()).toMatchObject({ revision: 1 })
+  })
+
+  it('answers the revision of a row whose revision field the caller may not read, as a read does', async () => {
+    const { send } = serving({ revision: 'revision' }, 'ada', (_who, fields) =>
+      fields.filter(field => field !== 'revision'),
+    )
+    expect((await send('Mark', { id: 's1', label: 'nut' })).entities).toEqual([
+      { entity: 'Stock', id: 's1', values: { id: 's1', label: 'nut' }, revision: 2 },
+    ])
+  })
+
+  it('answers nothing of a row the caller may not read, its revision included', async () => {
+    const { send } = serving({ revision: 'revision' }, 'eve')
+    const answer = await send('Mark', { id: 's1', label: 'nut' })
+    expect(answer.entities).toEqual([])
+  })
+
+  it('refuses a revision that names no field', () => {
+    const store: MemoryStore = { rows: () => [], write: () => {}, remove: () => {} }
+    // Typed as any Entity, a name its fields lack reaches the check where the writer is made.
+    const unnamed: AnyEntity = Stock
+    expect(() => RemoteServer.memoryWriter(store, unnamed, { revision: 'version' })).toThrow(
+      'Stock has no field "version" for its revision',
+    )
+  })
+})
+
 describe('a declared write over a memory backend, through Law.check', () => {
   const Model = Schema.Struct({ remote: Remote.Model })
   const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
@@ -362,5 +454,46 @@ describe('a declared write over a memory backend, through Law.check', () => {
     )
     expect(report.disagreed).toEqual([])
     expect(report.agreed).toEqual(expect.arrayContaining(['Stock:s1.reserved']))
+  })
+})
+
+describe('a memory writer over a relation declared onDelete', () => {
+  const ShelfFields = Entity.define('Shelf', Schema.Struct({ id: Schema.String }))
+  const BookFields = Entity.define('Book', Schema.Struct({ id: Schema.String }))
+  const { Shelf, Book } = Entity.relate(
+    { Shelf: ShelfFields, Book: BookFields },
+    { Book: { shelf: Relation.one(ShelfFields, { onDelete: 'restrict' }) } },
+  )
+  const Shelved = Entity.input(Book, Schema.Struct({ id: Schema.String, shelf: Schema.String }), {
+    shelf: Relation.input(Book.relations.shelf),
+  })
+  const Shelve = Mutation.write('Shelve', Write.insert(Shelved, { id: 'id' }))
+  const Move = Mutation.write('Move', Write.update(Shelved, { id: 'id' }))
+  const sent = () => {
+    const backend = RemoteServer.memory({
+      domain: Remote.define({ entities: [Shelf, Book], mutations: [Shelve, Move] }),
+      rows: { Shelf: [{ id: 'f1' }], Book: [{ id: 'b1', shelf: 'Shelf:f1' }] },
+      mutations: (store: MemoryStore) =>
+        [Shelve, Move].map(mutation =>
+          RemoteServer.write(mutation, RemoteServer.memoryWriter(store, Book)),
+        ),
+    })
+    const handlers = RemoteServer.handlers(backend.server, undefined)
+    return (mutation: string, input: unknown) =>
+      Effect.runPromise(
+        handlers.FoldkitRemoteMutate({ requestId: 'r1', mutation, input }).pipe(Effect.result),
+      )
+  }
+
+  it('writes a link only to a row that is there', async () => {
+    const send = sent()
+    expect(await send('Shelve', { id: 'b2', shelf: 'f1' })).toMatchObject({ _tag: 'Success' })
+    const gone = refused({ _tag: 'Invalid', path: ['shelf'] })
+    expect(await send('Shelve', { id: 'b3', shelf: 'f9' })).toMatchObject(gone)
+    expect(await send('Move', { id: 'b1', shelf: 'f9' })).toMatchObject(gone)
+    // A taken id is answered as taken, whatever its link points at.
+    expect(await send('Shelve', { id: 'b1', shelf: 'f9' })).toMatchObject(
+      refused({ _tag: 'Taken' }),
+    )
   })
 })

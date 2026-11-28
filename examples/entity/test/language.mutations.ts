@@ -17,27 +17,21 @@ const guide = (name: string, file: string, find: string, replace: string) => ({
 export default [
   edit(
     'in memory, not of an unknown holds, so a post with no editor is kept',
-    '../../../packages/entity/src/evaluate.ts',
-    "return truth === 'unknown' || isUnheld(truth) ? truth : !truth",
-    'return isUnheld(truth) ? truth : truth !== true',
+    '../../../packages/entity/src/expr/logic.ts',
+    'return exprOf(call(Bool.notOp, [node]))',
+    'return exprOf(call(Bool.notOp, [call(Null.coalesceOp, [node, Node.Lit({ value: false })])]))',
   ),
   edit(
     'in memory, contains is exact about case',
-    '../../../packages/entity/src/evaluate.ts',
-    'return foldAscii(value).includes(foldAscii(search))',
-    'return value.includes(search)',
+    '../../../packages/entity/src/expr/text.ts',
+    'args: [lowered(text), lowered(sought)]',
+    'args: [lowered(text), sought]',
   ),
   edit(
     'SQL searches a title from its start only',
-    '../../../packages/remote-drizzle/src/compile.ts',
-    'const pattern = `%${escapeLike(search)}%`',
-    'const pattern = `${escapeLike(search)}%`',
-  ),
-  edit(
-    'SQL reads like wildcards in what was typed',
-    '../../../packages/remote-drizzle/src/compile.ts',
-    'const pattern = `%${escapeLike(search)}%`',
-    'const pattern = `%${search}%`',
+    '../../../packages/metakit/src/sqlLowering.ts',
+    '(${s}, ${sub}) > 0)',
+    '(${s}, ${sub}) = 1)',
   ),
   edit(
     'a page says it holds every comment when it holds some',
@@ -59,20 +53,21 @@ export default [
   ),
   guide(
     'the guide: not of an unknown comparison keeps the draft',
-    '../../../packages/entity/src/evaluate.ts',
-    "return truth === 'unknown' || isUnheld(truth) ? truth : !truth",
-    'return isUnheld(truth) ? truth : truth !== true',
+    '../../../packages/entity/src/expr/logic.ts',
+    'return exprOf(call(Bool.notOp, [node]))',
+    'return exprOf(call(Bool.notOp, [call(Null.coalesceOp, [node, Node.Lit({ value: false })])]))',
   ),
   guide(
+    // The judge reads the viewer through the environment it builds.
     'the guide: a viewer of any Entity reads as an author',
-    '../../../packages/entity/src/context.ts',
-    'Option.filter(context.viewer, ref => ref.entity === entity.name),',
+    '../../../packages/entity/src/environment.ts',
+    'Option.filter(context.viewer, ref => ref.entity === name),',
     'Option.filter(context.viewer, () => true),',
   ),
   guide(
     'the guide: a visitor reads as the first author',
-    '../../../packages/entity/src/context.ts',
-    'Option.some(Option.getOrNull(viewerIdOf(entity, context))),',
-    "Option.some(Option.getOrElse(viewerIdOf(entity, context), () => 'a1')),",
+    '../../../packages/entity/src/environment.ts',
+    '// A visitor, or a viewer of another Entity.\n          onNone: () => null,',
+    "// A visitor, or a viewer of another Entity.\n          onNone: () => ({ '#asker': 'a1' }),",
   ),
 ]

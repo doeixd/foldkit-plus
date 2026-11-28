@@ -54,7 +54,8 @@
   },
   "dependencies": {
     "foldkit-entity": "workspace:*",
-    "foldkit-remote": "workspace:*"
+    "foldkit-remote": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0"

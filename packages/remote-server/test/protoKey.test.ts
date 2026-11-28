@@ -117,6 +117,7 @@ describe.each(['label', '__proto__', 'constructor', 'toString'])(
         mutations: [
           RemoteServer.write(AddNote, {
             entity: 'Note',
+            store: { name: 'test double', isolation: 'serializable', parentRowLock: false },
             insert: ({ id, values }) => {
               written.push(values)
               return Effect.succeed({ id, ...values })

@@ -25,17 +25,17 @@ export default [
   },
   {
     name: "the bindings' markers stay",
-    edits: [{ file: client, find: 'name.startsWith(BINDING_ATTRIBUTE) || ', replace: '' }],
+    edits: [{ file: client, find: '        name.startsWith(BINDING_ATTRIBUTE) ||\n', replace: '' }],
     tests,
   },
   {
     name: "a kept field's marker stays",
-    edits: [{ file: client, find: ' || name === KEEP_ATTRIBUTE', replace: '' }],
+    edits: [{ file: client, find: '        name === KEEP_ATTRIBUTE ||\n', replace: '' }],
     tests,
   },
   {
     name: "a placement's slot stays",
-    edits: [{ file: client, find: ' || name === SLOT_ATTRIBUTE', replace: '' }],
+    edits: [{ file: client, find: '        name === SLOT_ATTRIBUTE ||\n', replace: '' }],
     tests,
   },
   {

@@ -26,9 +26,15 @@ export {
   type MetadataKey,
   type MetadataSummary,
 } from 'foldkit-metadata'
-export { Closure, type ClosureProjection, ClosureViolation } from './closure.js'
+export {
+  Closure,
+  type ClosureProjection,
+  ClosureViolation,
+  ownedFields,
+  type OwnedFields,
+} from './closure.js'
 import type { ContractLaws } from './graph.js'
-import { labelOf, pathText, tableCell } from './text.js'
+import { isPrefix, labelOf, pathText, tableCell } from './text.js'
 export {
   Graph,
   GraphEdge,
@@ -36,10 +42,14 @@ export {
   type Breaker,
   type ContractLaws,
   type GraphFacts,
+  type GraphMachine,
   type GraphOptions,
+  type GraphReaderId,
   type GraphSpace,
+  type GraphWriterId,
 } from './graph.js'
 import { hasTagIn, messageTag, messageTags } from './messageTags.js'
+import { getRootViewHook } from './rootViewRegistry.js'
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnostics.js'
 export {
   CachedRead,
@@ -476,6 +486,9 @@ export interface ModeledDerived<Root, Value> extends Derived<Root, Value> {
 const valueAt = (root: unknown, path: ReadonlyArray<string>): unknown => {
   let value = root
   for (const key of path) {
+    // Wildcard segment: compare the container holding the matched elements
+    // rather than indexing literal `'*'` (which is always `undefined`).
+    if (key === '*') return value
     if (typeof value !== 'object' || value === null) return undefined
     value = (value as Record<string, unknown>)[key]
   }
@@ -529,7 +542,8 @@ export const Projection = {
         } else {
           const nested = choice as Projection<unknown, unknown>
           picked[key] = nested.Model
-          dependencies.push(...nested.dependencies)
+          // The nested projection reads from the field's value, so its paths start under the key.
+          dependencies.push(...nested.dependencies.map(path => [key, ...path]))
           metadata.push(nested.metadata)
           parts.push(nested)
           readers.push([key, root => nested.read(propertyReader(root, key))])
@@ -699,6 +713,7 @@ export const Projection = {
     options: {
       readonly verify?: boolean | undefined
       readonly Model?: Schema.Codec<Value, unknown>
+      readonly pathEpoch?: ((root: Root) => number) | undefined
     } = {},
   ): Derived<Root, Value> => {
     if (on.length === 0) {
@@ -712,13 +727,25 @@ export const Projection = {
     const dependencies = mergeDependencies(parts.flatMap(part => part.dependencies))
     // No path changes when what such a read reads does, so none can skip it.
     const always = parts.some(unnamed)
-    let last: { readonly values: ReadonlyArray<unknown>; readonly value: Value } | undefined
+    let last:
+      | { readonly values: ReadonlyArray<unknown>; readonly value: Value; readonly epoch?: number }
+      | undefined
     const derived: Derived<Root, Value> & { Model?: Schema.Codec<Value, unknown> } = {
       ...(options.Model === undefined ? {} : { Model: options.Model }),
       dependencies,
       read: root => {
-        const values = dependencies.map(path => valueAt(root, path))
         const before = last
+        const nextEpoch =
+          !always && options.pathEpoch !== undefined ? options.pathEpoch(root) : undefined
+        if (before !== undefined && nextEpoch !== undefined && nextEpoch === before.epoch) {
+          if (options.verify === true && !Equal.equals(derive(root), before.value)) {
+            throw new Error(
+              `Projection.derive: nothing it names changed (${dependencies.map(path => path.join('.')).join(', ')}), yet working the value out again gives another. It reads something its \`on\` does not name: add it there.`,
+            )
+          }
+          return before.value
+        }
+        const values = dependencies.map(path => valueAt(root, path))
         const hit =
           before !== undefined &&
           !always &&
@@ -734,7 +761,7 @@ export const Projection = {
             : hit
               ? before.value
               : keepAlike(before.value, derive(root))
-        last = { values, value }
+        last = nextEpoch === undefined ? { values, value } : { values, value, epoch: nextEpoch }
         return value
       },
     }
@@ -747,12 +774,16 @@ export const Projection = {
       options: {
         readonly verify?: boolean | undefined
         readonly Model: Schema.Codec<Value, unknown>
+        readonly pathEpoch?: ((root: Root) => number) | undefined
       },
     ): ModeledDerived<Root, Value>
     <Root, Value>(
       on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
       derive: (root: Root) => Value,
-      options?: { readonly verify?: boolean | undefined },
+      options?: {
+        readonly verify?: boolean | undefined
+        readonly pathEpoch?: ((root: Root) => number) | undefined
+      },
     ): Derived<Root, Value>
   },
 
@@ -914,8 +945,8 @@ export type ParamsSchema<Params> = unknown extends Params
  */
 type ParamsArgument<Params> = undefined extends Params ? [params?: Params] : [params: Params]
 
-export interface Surface<Root, Model, Message, Params> {
-  readonly name: string
+export interface Surface<Root, Model, Message, Params, Name extends string = string> {
+  readonly name: Name
   /** Identity token of the application this Surface belongs to. */
   readonly owner: object
   readonly Params: ParamsSchema<Params>
@@ -1096,6 +1127,12 @@ type ViewBuilder<Message> = Omit<HtmlBuilder<Message>, keyof HtmlBuilder<never> 
 /** A renderer for a Surface's projected Model, with its Message set narrowed. */
 export type Renderer<Model, Message> = (model: Model, h: ViewBuilder<Message>) => Html
 
+/** The Model paths a Projection reads, or none when it reads something no path names (a `fromReader`, a raw optic). */
+export const pathsRead = (projection: {
+  readonly dependencies: DependencyTree
+}): Option.Option<DependencyTree> =>
+  unnamed(projection) ? Option.none() : Option.some(projection.dependencies)
+
 /** `unknown` when `Sub` is a subtype of `Super`, `never` otherwise. */
 type Subset<Sub, Super> = [Sub] extends [Super] ? unknown : never
 
@@ -1150,11 +1187,12 @@ export interface Application<
    * object of Projections and refs, which becomes `Projection.struct`.
    */
   readonly surface: <
+    const Name extends string = string,
     const Params extends ParamsShape | undefined = undefined,
     Shape extends ModelShape<Root> = Projection<Root, unknown>,
     const Ms extends readonly MessageConstructor<Cases>[] = readonly [],
   >(
-    name: string,
+    name: Name,
     config: {
       readonly params?: Params
       readonly model: (context: {
@@ -1164,7 +1202,7 @@ export interface Application<
       readonly messages?: Ms
       readonly closed?: boolean
     },
-  ) => Surface<Root, ModelOf<Root, Shape>, MsgOf<Ms>, ParamsOf<Params>>
+  ) => Surface<Root, ModelOf<Root, Shape>, MsgOf<Ms>, ParamsOf<Params>, Name>
   /**
    * This application made runnable, once its update exists: the same
    * references and the same owner, with the initial Model and the transition
@@ -1663,12 +1701,13 @@ export const Surface = {
     Root,
     F extends Schema.Struct.Fields,
     Cases extends Record<string, Schema.Struct.Fields>,
+    const Name extends string = string,
     Params = void,
     Model = unknown,
     const Ms extends readonly MessageConstructor<Cases>[] = readonly [],
   >(
     app: AppScope<Root, F, Cases>,
-    name: string,
+    name: Name,
     config: {
       readonly Params?: Schema.Codec<Params, unknown>
       readonly model: (context: {
@@ -1682,7 +1721,7 @@ export const Surface = {
        */
       readonly closed?: boolean
     },
-  ): Surface<Root, Model, MsgOf<Ms>, Params> => {
+  ): Surface<Root, Model, MsgOf<Ms>, Params, Name> => {
     // Deliberately no eager `projection(undefined)`: a parameterized Surface's
     // projection may read `params`.
     const projection = (params: Params): Projection<Root, Model> => {
@@ -1738,13 +1777,37 @@ export const Surface = {
     root: Root,
     h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
   ) => Html) => {
-    const projection = surface.projection(params)
+    let activeHook = getRootViewHook(surface.owner)
+    let hookedView =
+      activeHook === undefined
+        ? undefined
+        : (activeHook(surface, params, render) as <AppMessage>(
+            root: Root,
+            h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
+          ) => Html)
+    let plainProjection: Projection<Root, Model> | undefined =
+      activeHook === undefined ? surface.projection(params) : undefined
     // Sound narrowing: the renderer can only construct this Surface's Messages,
     // and `Subset` guarantees the application builder accepts them.
     return <AppMessage>(
       root: Root,
       h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
-    ): Html => render(projection.read(root), h as unknown as ViewBuilder<Message>)
+    ): Html => {
+      const currentHook = getRootViewHook(surface.owner)
+      if (currentHook !== activeHook) {
+        activeHook = currentHook
+        hookedView =
+          currentHook === undefined
+            ? undefined
+            : (currentHook(surface, params, render) as <AppMessage>(
+                root: Root,
+                h: HtmlBuilder<AppMessage> & Subset<Message, AppMessage>,
+              ) => Html)
+      }
+      if (hookedView !== undefined) return hookedView(root, h)
+      plainProjection ??= surface.projection(params)
+      return render(plainProjection.read(root), h as unknown as ViewBuilder<Message>)
+    }
   },
 
   /**
@@ -1764,13 +1827,13 @@ export const Surface = {
    * A Surface as a `Contract` for `Module`: what it observes, requires, and may
    * emit. A parameterized Surface needs its `params` to build the projection.
    */
-  contract: <Root, Model, Message, Params>(
-    surface: Surface<Root, Model, Message, Params>,
+  contract: <Root, Model, Message, Params, Name extends string = string>(
+    surface: Surface<Root, Model, Message, Params, Name>,
     ...params: ParamsArgument<Params>
-  ): Contract => {
+  ): Contract<Name> & { readonly kind: 'surface' } => {
     const projection = surface.projection(params[0] as Params)
     return {
-      kind: 'surface',
+      kind: 'surface' as const,
       name: surface.name,
       owner: surface.owner,
       owns: [],
@@ -1778,6 +1841,7 @@ export const Surface = {
       messages: messageTags(surface),
       metadata: Metadata.summarize(projection.metadata),
       ...(surface.closed ? { closed: true as const } : {}),
+      ...(unnamed(projection) ? { unnamed: true as const } : {}),
     }
   },
 
@@ -1813,9 +1877,9 @@ export const Surface = {
  * from a Surface. `owns` are the Model paths the contract is the authority for
  * (a replicated projection, a remote store); `observes` are the paths it reads.
  */
-export interface Contract {
+export interface Contract<Name extends string = string> {
   readonly kind: string
-  readonly name: string
+  readonly name: Name
   /** The application's identity token; absent when the value cannot know it. */
   readonly owner?: object | undefined
   readonly owns: DependencyTree
@@ -1826,6 +1890,8 @@ export interface Contract {
   readonly metadata: readonly MetadataSummary[]
   /** A Surface declared `closed: true`; absent for any other contract. */
   readonly closed?: true
+  /** A Surface whose projection reads something no path names; absent when all reads are named. */
+  readonly unnamed?: true | undefined
   /**
    * The laws the contract holds and the transitions that can break them, as
    * the declarations themselves: `Graph.of` derives their nodes and edges
@@ -1874,14 +1940,35 @@ export interface Wiring<Model, Message, R = never, Claims extends string = strin
   readonly contract?: Contract | undefined
 }
 
+/** Extract literal Surface names from a tuple/array of `ModuleItem`s. */
+type SurfaceNameOf<Item> =
+  Item extends Surface<any, any, any, any, infer Name>
+    ? string extends Name
+      ? never
+      : Name
+    : Item extends { readonly kind: 'surface'; readonly name: infer Name extends string }
+      ? string extends Name
+        ? never
+        : Name
+      : never
+
+type ModuleSurfaces<Items extends readonly unknown[]> = [SurfaceNameOf<Items[number]>] extends [
+  never,
+]
+  ? string
+  : SurfaceNameOf<Items[number]>
+
 /** Contracts of one application, in declaration order. Data, not a runtime. */
 export interface Module<
   Root,
   F extends Schema.Struct.Fields,
   Cases extends Record<string, Schema.Struct.Fields>,
+  Surfaces extends string = string,
 > {
   readonly app: AppScope<Root, F, Cases>
   readonly contracts: readonly Contract[]
+  /** Phantom carrier for the literal names of Surfaces registered in this Module. */
+  readonly _surfaces?: Surfaces | undefined
 }
 
 export interface Finding {
@@ -1924,8 +2011,6 @@ export type ModuleItem<Root> =
 
 const label = labelOf
 const pathKey = pathText
-const isPrefix = (prefix: readonly string[], path: readonly string[]): boolean =>
-  prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])
 
 // A carried contract wins: a sync contract also has a `projection` (writable, not a function).
 const toContract = <Root>(item: ModuleItem<Root>): Contract =>
@@ -1955,16 +2040,39 @@ const owners = (module: Module<any, any, any>) =>
  * ```
  */
 export const Module = {
-  make: <Root, F extends Schema.Struct.Fields, Cases extends Record<string, Schema.Struct.Fields>>(
+  make: <
+    Root,
+    F extends Schema.Struct.Fields,
+    Cases extends Record<string, Schema.Struct.Fields>,
+    const Items extends readonly ModuleItem<Root>[] = readonly [],
+  >(
     app: AppScope<Root, F, Cases>,
-    items: readonly ModuleItem<Root>[] = [],
-  ): Module<Root, F, Cases> => ({ app, contracts: items.map(toContract) }),
+    items: Items = [] as unknown as Items,
+  ): Module<Root, F, Cases, ModuleSurfaces<Items>> => ({
+    app,
+    contracts: items.map(toContract),
+  }),
 
   /** A new Module with more contracts; the input is unchanged. */
-  add: <Root, F extends Schema.Struct.Fields, Cases extends Record<string, Schema.Struct.Fields>>(
-    module: Module<Root, F, Cases>,
-    ...items: readonly ModuleItem<Root>[]
-  ): Module<Root, F, Cases> => ({
+  add: <
+    Root,
+    F extends Schema.Struct.Fields,
+    Cases extends Record<string, Schema.Struct.Fields>,
+    Surfaces extends string,
+    const Items extends readonly ModuleItem<Root>[],
+  >(
+    module: Module<Root, F, Cases, Surfaces>,
+    ...items: Items
+  ): Module<
+    Root,
+    F,
+    Cases,
+    [SurfaceNameOf<Items[number]>] extends [never]
+      ? Surfaces
+      : string extends Surfaces
+        ? SurfaceNameOf<Items[number]>
+        : Surfaces | SurfaceNameOf<Items[number]>
+  > => ({
     app: module.app,
     contracts: [...module.contracts, ...items.map(toContract)],
   }),

@@ -21,6 +21,7 @@ export type { RuntimeResult } from './assembly.js'
 export type { Declared, DeclaredEach } from './declare.js'
 export { isPlaced, isArgsFactory, UnresolvedArgsError, follow } from './placed.js'
 export type {
+  AnyLifted,
   AnyPlaced,
   ArgsSource,
   Invalid,

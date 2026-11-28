@@ -7,8 +7,8 @@ export default [
     name: 'a search a row decides is accepted',
     edits: [
       {
-        file: '../src/expr.ts',
-        find: "if (operand._tag !== 'Literal' && operand._tag !== 'Input') {",
+        file: '../src/expr/text.ts',
+        find: "if (!Node.$is('Lit')(sought) && Option.isNone(inputKeyOf(sought))) {",
         replace: 'if (false) {',
       },
     ],

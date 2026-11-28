@@ -176,16 +176,14 @@ describe('A primitive operator in SQL', () => {
       {},
       'Ordered',
     )
-    expect(renderedPg(ordered!).sql).toBe('(("items"."code" || $1) collate "C") < ($2 collate "C")')
+    expect(renderedPg(ordered!).sql).toBe('("items"."code" || $1) < $2 COLLATE "C"')
     const [folded] = compilePredicates(
       [Expr.lt(joined(Item.fields.code, '!', { collation: Collation.asciiFold }), 'b')],
       onSqlite,
       {},
       'Folded',
     )
-    expect(renderedSqlite(folded!).sql).toBe(
-      '(("items"."code" || ?) collate nocase) < (? collate nocase)',
-    )
+    expect(renderedSqlite(folded!).sql).toBe('lower(("items"."code" || ?)) COLLATE BINARY < ?')
   })
 
   it('refuses text holding NUL given to an operator', () => {
@@ -196,7 +194,7 @@ describe('A primitive operator in SQL', () => {
         { s: `a${String.fromCharCode(0)}` },
         'Nul',
       ),
-    ).toThrow('gives an operator text holding a NUL character')
+    ).toThrow('text literal holds a NUL character')
   })
 
   // `evaluate` refuses NaN once a call over it is compared; SQLite binds it as null (#296).
@@ -211,18 +209,17 @@ describe('A primitive operator in SQL', () => {
         { n: Number.NaN },
         'Ranked',
       ),
-    ).toThrow('query "Ranked" gives an operator NaN')
+    ).toThrow('query "Ranked": non-finite number literal: NaN')
     expect(() =>
       computationSql(
         Computation.Call({
           operator: 'acme.sum',
           args: [Computation.Field({ key: 'rank' }), Computation.Value({ value: Number.NaN })],
-          collation: null,
         }),
         binding,
         `Item's "rank"`,
       ),
-    ).toThrow(`Item's "rank" computes from NaN`)
+    ).toThrow(`Item's "rank": non-finite number literal: NaN`)
   })
 
   it('is refused by name where the binding lacks it, compiling or registering', () => {
@@ -263,22 +260,20 @@ describe('A primitive operator in SQL', () => {
     const Localized = Item.pipe(
       Entity.annotateMembers({ code: Collation.of(Collation.locale('en_US')) }),
     )
-    const sort = Expr.input(
-      'sort',
-      Schema.NullOr(
-        Schema.Struct({
-          by: Schema.Literals(['code']),
-          direction: Schema.Literals(['asc', 'desc']),
-        }),
-      ),
+    const Sort = Schema.NullOr(
+      Schema.Struct({
+        by: Schema.Literals(['code']),
+        direction: Schema.Literals(['asc', 'desc']),
+      }),
     )
+    const sort = Expr.input('sort', Sort)
     for (const ordering of [
       Order.asc(Localized.fields.code),
       Order.chosen(sort, { code: Localized.fields.code }),
     ]) {
       const descriptor = {
         ...Query.make('ByCode', {
-          Input: { sort: sort.schema },
+          Input: { sort: Sort },
           Result: Query.connection(Localized),
         }),
         body: Relational.from(Localized).pipe(Relational.orderBy(ordering)),

@@ -41,6 +41,7 @@ export {
   type Cursors,
   type EffectRecord,
   type EffectStatus,
+  type JournalStore,
   type JournalStoreOptions,
   type JudgeDecision,
   type JudgeRequest,

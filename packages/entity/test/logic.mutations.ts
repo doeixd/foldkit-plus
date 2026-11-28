@@ -1,10 +1,13 @@
 /**
- * `and`, `or` and `not` in the IR and the evaluator, broken in turn:
- * `pnpm mutate packages/entity/test/logic.mutations.ts` checks that a test
- * fails for every one.
+ * `and`, `or` and `not` as metakit calls and the comparison checks, broken in
+ * turn: `pnpm mutate packages/entity/test/logic.mutations.ts` checks that a
+ * test fails for every one.
  */
-const expr = '../src/expr.ts'
-const evaluate = '../src/evaluate.ts'
+const logic = '../src/expr/logic.ts'
+const compare = '../src/expr/compare.ts'
+const dependencies = '../src/expr/dependencies.ts'
+const show = '../src/expr/show.ts'
+const query = '../src/expr/query.ts'
 const ir = ['packages/entity/test/expr.test.ts', 'packages/entity/test/query-values.test.ts']
 const semantics = [
   'packages/remote-server/test/evaluate.test.ts',
@@ -17,9 +20,10 @@ export default [
     name: 'an or nested in an or is kept as a node',
     edits: [
       {
-        file: expr,
-        find: "        Or: or => (kind === 'Or' ? or.operands : [or]),",
-        replace: '        Or: or => [or],',
+        file: logic,
+        find: "Node.$is('Call')(node) && node.op === op && Option.isNone(originOf(node))",
+        replace:
+          "Node.$is('Call')(node) && node.op === op && op.id !== 'bool.or' && Option.isNone(originOf(node))",
       },
     ],
     tests: ir,
@@ -28,9 +32,10 @@ export default [
     name: 'an and nested in an and is kept as a node',
     edits: [
       {
-        file: expr,
-        find: "        And: and => (kind === 'And' ? and.operands : [and]),",
-        replace: '        And: and => [and],',
+        file: logic,
+        find: "Node.$is('Call')(node) && node.op === op && Option.isNone(originOf(node))",
+        replace:
+          "Node.$is('Call')(node) && node.op === op && op.id !== 'bool.and' && Option.isNone(originOf(node))",
       },
     ],
     tests: ir,
@@ -39,54 +44,38 @@ export default [
     name: 'one operand is wrapped in a node',
     edits: [
       {
-        file: expr,
-        find: 'operands.length === 1 ? operands[0] :',
-        replace: 'false ? operands[0] :',
-      },
-    ],
-    tests: ir,
-  },
-  {
-    name: 'no operands are taken',
-    edits: [
-      {
-        file: expr,
-        find: 'if (!Arr.isReadonlyArrayNonEmpty(operands)) {',
+        file: logic,
+        find: "if (only !== undefined && rest.length === 0 && kindOf(only.node) === 'boolean') {",
         replace: 'if (false) {',
       },
     ],
     tests: ir,
   },
   {
-    name: 'a flattened list has no cap',
-    edits: [
-      { file: expr, find: 'if (operands.length > maxQueryNodes) {', replace: 'if (false) {' },
-    ],
+    name: 'no operands are taken',
+    edits: [{ file: logic, find: 'if (operands.length === 0) {', replace: 'if (false) {' }],
     tests: ir,
   },
   {
-    name: 'the ownership check does not look under a connective',
+    name: 'a flattened list has no cap',
     edits: [
-      {
-        file: expr,
-        find: '      for (const operand of expr.operands) yield* fieldsIn(operand, seen)\n',
-        replace: '',
-      },
+      { file: logic, find: 'if (operands.length > maxQueryNodes) {', replace: 'if (false) {' },
     ],
     tests: ir,
   },
   {
     name: 'a not is not named among the operations',
-    edits: [{ file: expr, find: "found.operations.add('not')", replace: 'void 0' }],
+    edits: [{ file: dependencies, find: "  'bool.not': 'not',\n", replace: '' }],
     tests: ir,
   },
   {
     name: 'the budget counts a not as one node',
     edits: [
       {
-        file: expr,
-        find: "      return [expr.operand]\n    case 'Compare':",
-        replace: "      return []\n    case 'Compare':",
+        file: dependencies,
+        find: "  if (Node.$is('Rows')(node)) return []\n  return childrenOf(node)",
+        replace:
+          "  if (Node.$is('Rows')(node)) return []\n  if (Node.$is('Call')(node) && node.op.id === 'bool.not') return []\n  return childrenOf(node)",
       },
     ],
     tests: ir,
@@ -94,62 +83,27 @@ export default [
   {
     name: 'an or inside an and is shown ungrouped',
     edits: [
-      { file: expr, find: 'Or: () => `(${showExpr(node)})`', replace: 'Or: () => showExpr(node)' },
+      {
+        file: show,
+        find: 'Option.isSome(connective(node)) ? `(${showNode(node)})` : showNode(node)',
+        replace:
+          'Option.isSome(connective(node)) && !isOr(node) ? `(${showNode(node)})` : showNode(node)',
+      },
     ],
     tests: ir,
   },
   {
     name: 'an or among several wheres is shown ungrouped',
     edits: [
-      {
-        file: expr,
-        find: 'self.where.length > 1 ? `(${Expr.show(or)})` : Expr.show(or)',
-        replace: 'Expr.show(or)',
-      },
+      { file: query, find: 'isOr(predicate.node) && self.where.length > 1', replace: 'false' },
     ],
     tests: ir,
-  },
-  {
-    name: 'an and with a false operand is only unknown',
-    edits: [
-      { file: evaluate, find: '      if (truths.includes(false)) return false\n', replace: '' },
-    ],
-    tests: semantics,
-  },
-  {
-    name: 'an or with a true operand is only unknown',
-    edits: [
-      { file: evaluate, find: '      if (truths.includes(true)) return true\n', replace: '' },
-    ],
-    tests: semantics,
-  },
-  {
-    name: 'lt holds where the two order together',
-    edits: [
-      {
-        file: evaluate,
-        find: "Match.when('lt', () => order < 0)",
-        replace: "Match.when('lt', () => order <= 0)",
-      },
-    ],
-    tests: comparisons,
-  },
-  {
-    name: 'a comparison ignores its collation',
-    edits: [
-      {
-        file: evaluate,
-        find: 'const order = compare(left, right, node.collation)',
-        replace: 'const order = compare(left, right, Option.none())',
-      },
-    ],
-    tests: comparisons,
   },
   {
     name: 'text with no collation is compared anyway',
     edits: [
       {
-        file: expr,
+        file: compare,
         find: "  if (!kinds.has('text')) return Option.none()",
         replace: '  return Option.none()',
       },
@@ -158,45 +112,28 @@ export default [
   },
   {
     name: 'a locale is taken for a comparison',
-    edits: [
-      {
-        file: expr,
-        find: '      Locale: ({ locale }) => {\n        throw new Error(',
-        replace: '      Locale: ({ locale }) => {\n        if (locale !== locale) throw new Error(',
-      },
-    ],
+    edits: [{ file: compare, find: "if (collation._tag === 'Locale') {", replace: 'if (false) {' }],
     tests: comparisons,
   },
   {
     name: 'a value that does not order is compared anyway',
     edits: [
       {
-        file: expr,
-        find: "  if (kinds.has('none') || kinds.size > 1) {",
-        replace: '  if (false) {',
+        file: compare,
+        find: "if (kinds.has('boolean') || kinds.has('other') || kinds.size > 1) {",
+        replace: 'if (false) {',
       },
     ],
     tests: comparisons,
   },
   {
     name: 'text compared with no field is taken',
-    edits: [{ file: expr, find: '  if (first === undefined) {', replace: '  if (false) {' }],
+    edits: [{ file: compare, find: '  if (first === undefined) {', replace: '  if (false) {' }],
     tests: comparisons,
   },
   {
     name: 'a comparison is not named among the operations',
-    edits: [{ file: expr, find: "found.operations.add('compare')", replace: 'void 0' }],
+    edits: [{ file: dependencies, find: "found.operations.add('compare')", replace: 'void 0' }],
     tests: comparisons,
-  },
-  {
-    name: 'not of an unknown is true',
-    edits: [
-      {
-        file: evaluate,
-        find: "return truth === 'unknown' || isUnheld(truth) ? truth : !truth",
-        replace: 'return isUnheld(truth) ? truth : truth !== true',
-      },
-    ],
-    tests: semantics,
   },
 ]

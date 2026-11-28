@@ -25,6 +25,7 @@ import {
   ProductEntity,
   Reserve,
   ShopApi,
+  StaffFields,
   StaffProduct,
 } from './fixture.js'
 import { world as makeWorld, type World } from './transport.js'
@@ -596,6 +597,8 @@ describe('a binding', () => {
   it.each([
     { entity: StaffProduct, refused: /StaffProduct has a Read rule its Update rules do not imply/ },
     { entity: NotedProduct, refused: /NotedProduct\.note has a Read rule/ },
+    // The descriptor without the guards: read as unguarded, its reply would go to anyone.
+    { entity: StaffFields, refused: /StaffProduct carries guards on another descriptor of it/ },
   ])(
     'refuses written where who may write $entity.name may not read all of it',
     ({ entity, refused }) => {

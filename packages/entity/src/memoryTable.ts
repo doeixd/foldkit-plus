@@ -1,16 +1,15 @@
 /**
- * The in-memory operator table and the kernel's own operators. Apart from
- * `Operators` so evaluating a body keeps none of what describes an operator.
+ * The in-memory operator table. Apart from `Operators` so evaluating a body
+ * keeps none of what describes an operator.
+ *
+ * The kernel's primitive operators (`Text.startsWith`, `Expr.add`,
+ * `Expr.sub`) are metakit's own operations, which every reader runs
+ * (`expr/operator.ts`): every table runs them, and none implements them.
  */
 import { Option } from 'effect'
-import { Collation } from './collation.js'
-import { Expr, type OperatorDescriptor } from './expr.js'
-import type {
-  Evidence,
-  MemoryImplementation,
-  MemoryOperators,
-  OperatorContext,
-} from './operators.js'
+import { add, sub } from './expr/arithmetic.js'
+import type { OperatorDescriptor } from './expr/operator.js'
+import type { MemoryImplementation, MemoryOperators, OperatorContext } from './operators.js'
 import { Text } from './text.js'
 
 /** An operator by its id, and its version when that is not the first. */
@@ -21,14 +20,25 @@ export const fail = (what: string): never => {
   throw new Error(`[foldkit-entity] Operators: ${what}`)
 }
 
+/** The kernel's primitive operators, by name. */
+const kernel: ReadonlyMap<string, OperatorDescriptor> = new Map(
+  [add.descriptor, sub.descriptor, Text.startsWith.descriptor].map(
+    operator => [nameOf(operator), operator] as const,
+  ),
+)
+
 export const table = (
   implementations: ReadonlyArray<MemoryImplementation>,
   checked: boolean,
-  evidence: ReadonlyArray<Evidence>,
 ): MemoryOperators => {
   const byOperator = new Map<OperatorDescriptor, MemoryImplementation['run']>()
-  const byName = new Map<string, OperatorDescriptor>()
+  const byName = new Map<string, OperatorDescriptor>(kernel)
   for (const { operator, run } of implementations) {
+    if (kernel.get(nameOf(operator)) === operator) {
+      fail(
+        `${nameOf(operator)} is metakit's own operation, which every reader runs; no table implements it`,
+      )
+    }
     if (byOperator.has(operator)) {
       fail(`${nameOf(operator)} is implemented twice; replace one with Operators.override`)
     }
@@ -42,16 +52,14 @@ export const table = (
   }
   return Object.freeze({
     _tag: 'MemoryOperators',
-    has: (operator: OperatorDescriptor) => byOperator.has(operator),
+    has: (operator: OperatorDescriptor) =>
+      byOperator.has(operator) || kernel.get(nameOf(operator)) === operator,
     versions: (id: string) =>
-      implementations
-        .filter(({ operator }) => operator.id === id)
-        .map(({ operator }) => operator.version),
+      [...byName.values()].filter(operator => operator.id === id).map(({ version }) => version),
     get: (operator: OperatorDescriptor) => Option.fromUndefinedOr(byOperator.get(operator)),
     named: (name: string) => Option.fromUndefinedOr(byName.get(name)),
     checked,
     implementations: Object.freeze([...implementations]),
-    evidence: Object.freeze([...evidence]),
   })
 }
 
@@ -81,47 +89,5 @@ export const implementation = (
   })
 }
 
-const REPLACEMENT = String.fromCharCode(0xfffd)
-
-/**
- * Text's characters as a database holds them: a lone surrogate, which UTF-8
- * cannot encode, as U+FFFD, which SQLite's and Postgres's drivers send instead.
- */
-const charactersOf = (text: string): ReadonlyArray<string> =>
-  Array.from(text, each => {
-    const code = each.codePointAt(0)!
-    return code >= 0xd800 && code <= 0xdfff ? REPLACEMENT : each
-  })
-
-/**
- * Whether `text` begins with `prefix` by character, as SQL's `substr` and
- * `left` count: `String.prototype.startsWith` compares UTF-16 units, so half
- * of an astral character would begin the text that holds all of it.
- */
-const beginsWith = (text: string, prefix: string): boolean => {
-  const [characters, start] = [charactersOf(text), charactersOf(prefix)]
-  return start.length <= characters.length && start.every((each, i) => each === characters[i])
-}
-
-const startsWith = implementation(Text.startsWith.descriptor, 'strict', (...given) => {
-  const [text, prefix, { collation }] = given as [string, string, OperatorContext]
-  const folded = Option.exists(collation, each => each._tag === 'AsciiFold')
-  return folded
-    ? beginsWith(Collation.foldAscii(text), Collation.foldAscii(prefix))
-    : beginsWith(text, prefix)
-})
-
-/** Addition and subtraction as a double does them, which SQL's `+` and `-` match within range. */
-const add = implementation(
-  Expr.add.descriptor,
-  'strict',
-  (left, right) => (left as number) + (right as number),
-)
-const sub = implementation(
-  Expr.sub.descriptor,
-  'strict',
-  (left, right) => (left as number) - (right as number),
-)
-
-/** The kernel's own operators (`Text.startsWith`, `Expr.add`, `Expr.sub`): every memory interpreter's default. */
-export const kernelOperators = table([startsWith, add, sub], false, [])
+/** A table implementing nothing: it runs the kernel's operators, as every table does. */
+export const kernelOperators = table([], false)

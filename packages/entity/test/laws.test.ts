@@ -6,22 +6,16 @@
 import { Option, Schema } from 'effect'
 import { Evidence } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
+import { Entity, Expr, Footprint, Relation, Write, lawId, transitionId } from '../src/index.js'
 import {
-  Entity,
-  Expr,
   Finding,
-  Footprint,
   LawEdge,
   LawNode,
   Laws,
-  Relation,
-  Write,
   lawFactsOf,
-  lawId,
-  transitionId,
   type LawReport,
   type LawVerdict,
-} from '../src/index.js'
+} from '../src/laws.js'
 
 const Fields = Entity.define(
   'Product',
@@ -31,7 +25,8 @@ const Fields = Entity.define(
     status: Schema.Literals(['draft', 'published', 'archived']),
     stock: Schema.Number,
     reserved: Schema.Number,
-    sold: Schema.Number,
+    // Finite: a comparison of a number that may be NaN is refused, so no write is proved to keep it.
+    sold: Schema.Finite,
   }),
 )
 const reservedWithinStock = Entity.invariant<typeof Fields>(
@@ -120,7 +115,7 @@ describe('Laws.check: a write against an invariant', () => {
   it('never keeps a transition invariant by disjointness: over a number it leaves, it reads that number against itself', () => {
     expect(verdict(report, 'Rename', 'soldNeverFalls')).toMatchObject({
       _tag: 'Kept',
-      by: 'bounds',
+      by: 'zone',
       over: ['sold'],
     })
   })
@@ -225,9 +220,10 @@ describe('Laws.check: a write expecting a revision', () => {
   }
 
   it('moves the revision on, so an invariant over it is not kept by disjointness', () => {
+    // The checker reads the new revision as the store's to choose; a row at 99 shows it breaking.
     expect(verdict(Laws.check({ writes: [Edit] }), 'Edit', 'fewRevisions')).toMatchObject({
-      _tag: 'Undecided',
-      reason: 'revision is the revision it expects, moved on where it lands',
+      _tag: 'Refused',
+      witness: { before: Option.some({ revision: 99 }), input: { revision: 99 } },
     })
     expect(Write.footprint(Edit.write)).toEqual(
       Footprint.Derived({ reads: ['revision'], writes: ['name', 'revision'] }),
@@ -476,19 +472,19 @@ describe('Laws.check: states', () => {
         '',
         'Publish   x reservedWithinStock       kept: writes no member it reads',
         'Publish   x publishedStaysPublished   kept: 1 row enumerated',
-        'Publish   x soldNeverFalls            kept: proved from the bounds on sold, for every row and input within them',
+        'Publish   x soldNeverFalls            kept: proved from the bounds and differences of sold, for every row and input within them',
         'Revert    x reservedWithinStock       kept: writes no member it reads',
         'Revert    x publishedStaysPublished   refused: A published product does not go back to draft',
         '    before   status: "published"',
         '    input    status: "draft"',
         '    after    status: "draft"',
-        'Revert    x soldNeverFalls            kept: proved from the bounds on sold, for every row and input within them',
+        'Revert    x soldNeverFalls            kept: proved from the bounds and differences of sold, for every row and input within them',
         'Sell      x reservedWithinStock       refused: Reserved stock cannot exceed the stock',
         '    before   reserved: 0, stock: 0',
         '    input    quantity: -1',
         '    after    reserved: 0, stock: -1',
         'Sell      x publishedStaysPublished   kept: 3 rows enumerated',
-        'Sell      x soldNeverFalls            kept: proved from the bounds on sold, for every row and input within them',
+        'Sell      x soldNeverFalls            kept: proved from the bounds and differences of sold, for every row and input within them',
         '',
         '1 entity, 4 states, 3 writes, 3 rules: 9 pairs, 7 kept, 2 refused, 0 undecided',
       ].join('\n'),

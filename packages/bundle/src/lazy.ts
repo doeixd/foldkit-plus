@@ -51,7 +51,7 @@ export type LazySpec<
   Helpers extends HelperRecord<Model, Message, OutMessage>,
 > = Omit<
   MakeSpec<Name, Args, Model, Message, OutMessage, RInit, never, S, ViewInputs, Resources, Helpers>,
-  'update' | 'view'
+  'update' | 'view' | 'machine'
 > & {
   /** Rendered until the bodies load; nothing by default. */
   readonly while?: Submodel.View<NoInfer<Model>, NoInfer<Message>, ViewInputs>
@@ -68,7 +68,19 @@ export interface Lazy<
   ViewInputs,
   Resources extends ResourceEntries<Model, Message>,
   Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
-> extends Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers> {
+> extends Bundle<
+  Name,
+  Args,
+  Model,
+  Message,
+  OutMessage,
+  R,
+  S,
+  ViewInputs,
+  Resources,
+  Helpers,
+  undefined
+> {
   /** Loads the bodies, once; later calls return the same promise. */
   readonly load: () => Promise<void>
   readonly isLoaded: () => boolean

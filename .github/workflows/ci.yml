@@ -50,7 +50,7 @@ jobs:
                   *) code=true ;;
                 esac
                 case "$file" in
-                  packages/entity/* | packages/remote-drizzle/* | packages/remote/* | packages/guard/* | pnpm-lock.yaml | package.json | vitest* | .github/*)
+                  packages/entity/* | packages/remote-drizzle/* | packages/remote/* | packages/remote-server/* | packages/metakit/* | packages/guard/* | pnpm-lock.yaml | package.json | vitest* | .github/*)
                     postgres=true
                     ;;
                 esac
@@ -175,11 +175,8 @@ jobs:
       - run: pnpm exec vitest run --project unit examples/site/test packages/plus/test
 
   # What jsdom cannot check: layout, focus, the caret, in headless Chromium.
-  # Each shard runs ONE browser project (never `browser` + `browser-touch`
-  # together, which opens two Chromium instances in one runner) and stays under
-  # ~60 files so Chromium's renderer never hits its ~75-file memory wall
-  # (`VITEST_BROWSER_CONNECTION_CLOSED`). The light `touch` shard also runs the
-  # two Node unit files that launch Playwright themselves.
+  # Run the desktop tests in shorter batches with fresh Chromium instances.
+  # The touch job also runs the two Node tests that launch Playwright directly.
   browser:
     needs: changes
     if: needs.changes.outputs.browser == 'true'
@@ -190,13 +187,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: 1/6, args: --project browser --shard=1/6, pw_unit: '' }
-          - { name: 2/6, args: --project browser --shard=2/6, pw_unit: '' }
-          - { name: 3/6, args: --project browser --shard=3/6, pw_unit: '' }
-          - { name: 4/6, args: --project browser --shard=4/6, pw_unit: '' }
-          - { name: 5/6, args: --project browser --shard=5/6, pw_unit: '' }
-          - { name: 6/6, args: --project browser --shard=6/6, pw_unit: '' }
-          - { name: touch, args: --project browser-touch, pw_unit: '1' }
+          - { name: 1/6, project: browser, batches: '1/24 2/24 3/24 4/24', pw_unit: '' }
+          - { name: 2/6, project: browser, batches: '5/24 6/24 7/24 8/24', pw_unit: '' }
+          - { name: 3/6, project: browser, batches: '9/24 10/24 11/24 12/24', pw_unit: '' }
+          - { name: 4/6, project: browser, batches: '13/24 14/24 15/24 16/24', pw_unit: '' }
+          - { name: 5/6, project: browser, batches: '17/24 18/24 19/24 20/24', pw_unit: '' }
+          - { name: 6/6, project: browser, batches: '21/24 22/24 23/24 24/24', pw_unit: '' }
+          - { name: touch, project: browser-touch, batches: '', pw_unit: '1' }
     steps:
       - uses: actions/checkout@v7
 
@@ -204,8 +201,58 @@ jobs:
 
       - uses: ./.github/actions/setup-playwright
 
-      # Cap workers at 2 per runner so Chromium stays well within memory.
-      - run: pnpm test ${{ matrix.args }} --maxWorkers=2
+      # Desktop shards can lose the browser connection mid-run (#582).
+      # Restart Chromium between batches. Retry only for that connection error
+      # and only when it contains no failed test.
+      - name: Browser tests (one re-run when the browser connection closes)
+        env:
+          BROWSER_PROJECT: ${{ matrix.project }}
+          BROWSER_BATCHES: ${{ matrix.batches }}
+        run: |
+          set -o pipefail
+
+          # pipefail makes the pipeline's status pnpm's, not tee's.
+          run_tests() {
+            local log="$1"
+            shift
+            pnpm test --project "$BROWSER_PROJECT" --maxWorkers=1 --no-color "$@" 2>&1 | tee "$log"
+          }
+
+          run_batch() {
+            local label="$1" status=0
+            shift
+            local first_log="$RUNNER_TEMP/browser-first.log"
+            local second_log="$RUNNER_TEMP/browser-second.log"
+            run_tests "$first_log" "$@" || status=$?
+            if [ "$status" -eq 0 ]; then
+              return 0
+            fi
+
+            if grep -q 'VITEST_BROWSER_CONNECTION_CLOSED' "$first_log" \
+              && ! grep -Eq '(^|[[:space:]])FAIL[[:space:]]|Failed Tests|[1-9][0-9]* failed' "$first_log"; then
+              local file
+              file=$(grep -o 'Failed to run the test [^ ]*' "$first_log" | head -n 1 || true)
+              echo "::warning title=browser ($label) re-run::The browser connection closed (VITEST_BROWSER_CONNECTION_CLOSED); retrying this batch. ${file}"
+              {
+                echo "### browser ($label): re-run once"
+                echo
+                echo "The first run lost the browser connection and had no failed test (${file:-no file named}). See #582."
+              } >> "$GITHUB_STEP_SUMMARY"
+
+              status=0
+              run_tests "$second_log" "$@" || status=$?
+              echo "The re-run exited with status $status." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            return "$status"
+          }
+
+          if [ -z "$BROWSER_BATCHES" ]; then
+            run_batch touch
+          else
+            for batch in $BROWSER_BATCHES; do
+              run_batch "$batch" "--shard=$batch"
+            done
+          fi
 
       - if: matrix.pw_unit == '1'
         env:
@@ -268,6 +315,8 @@ jobs:
           packages/remote-drizzle/test/law.test.ts
           packages/remote-drizzle/test/orderCall.test.ts
           packages/remote-drizzle/test/ledgerRace.test.ts
+          packages/remote-drizzle/test/storeRace.test.ts
+          packages/remote-drizzle/test/restrictRace.test.ts
         env:
           FOLDKIT_LOCALE_PG: postgres://postgres:ci@localhost:5432/postgres
 
@@ -321,6 +370,7 @@ jobs:
           pnpm build:packages
           node -e "import('node:fs').then(async ({ readdirSync, existsSync }) => { const { canonicalizeDist } = await import('./scripts/bundle-report.mjs'); for (const d of readdirSync('packages')) { const dist = 'packages/' + d + '/dist'; if (existsSync(dist)) canonicalizeDist(dist); } })"
           node scripts/published-types.mjs
+          pnpm --filter foldkit-successor test:declarations
           pnpm -r --filter "./packages/*" exec pnpm pack --pack-destination "$GITHUB_WORKSPACE/tarballs"
           tar -cf packages-dist.tar packages/*/dist
 

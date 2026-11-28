@@ -22,6 +22,15 @@ import type { ResumableConfig, ResumePlan } from './shared.js'
 export type { Head }
 
 export { runtimeChunk } from './runtimeChunk.js'
+export {
+  defineManifest,
+  manifestFromChunks,
+  manifestPlugin,
+  type Manifest,
+  type ManifestEntry,
+  type ManifestPluginOptions,
+  type UniqueTuple,
+} from './vite/manifest.js'
 
 /** A path the site generates, with the date its sitemap names when it has one. */
 export type SitePath = string | { readonly path: string; readonly modified?: string | undefined }

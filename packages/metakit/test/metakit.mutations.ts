@@ -1,0 +1,291 @@
+/**
+ * Mutation suite proving `metakit`'s tests catch broken folds, NULL/Unknown
+ * conflation, Zone checks, and SQL lowering:
+ *   `pnpm mutate packages/metakit/test/metakit.mutations.ts`
+ */
+const partial = '../src/ops/partial.ts'
+const transition = '../src/transition.ts'
+const zone = '../src/abstract/zone.ts'
+const sql = '../src/sqlLowering.ts'
+const proveLower = '../src/prove/lower.ts'
+const proveMachine = '../src/prove/machine.ts'
+const proveShape = '../src/prove/shape.ts'
+const proveSolve = '../src/prove/solve.ts'
+const graph = '../src/graph/match.ts'
+const graphStructure = '../src/graph/structure.ts'
+const abstractState = '../src/abstract/state.ts'
+const matches = '../src/abstract/matches.ts'
+const str = '../src/ops/str.ts'
+const coreTests = ['packages/metakit/test/core.test.ts']
+const sqlTests = ['packages/metakit/test/sql.test.ts']
+const proveTests = ['packages/metakit/test/prove.test.ts']
+const graphTests = ['packages/metakit/test/graph.test.ts']
+const domainTests = ['packages/metakit/test/domain.test.ts']
+const strArrTests = ['packages/metakit/test/str-arr.test.ts']
+const policyTests = ['packages/metakit/test/policy.test.ts']
+
+const policy = (name: string, file: string, find: string, replace: string) => ({
+  name,
+  edits: [{ file, find, replace }],
+  tests: policyTests,
+})
+const unordered = (name: string, file: string, find: string, replace: string) => ({
+  name,
+  edits: [{ file, find, replace }],
+  tests: ['packages/metakit/test/unordered.test.ts'],
+})
+
+export default [
+  policy(
+    'the Zone proves an implication over a number that may be NaN',
+    '../src/policy.ts',
+    'return ordered(verdict, slicesOf(policy), [fromRule.node, toRule.node])',
+    'return verdict',
+  ),
+  policy(
+    'the Zone calls dead a rule that NaN passes',
+    '../src/policy.ts',
+    'ordered(Verdict.False<never>(), slicesOf(policy), [target.node])',
+    'Verdict.False<never>()',
+  ),
+  policy(
+    'the solver proves a policy goal over a number that may be NaN',
+    proveSolve,
+    "if (nanReads.size > 0 && status === 'unsat') {",
+    'if (false) {',
+  ),
+  unordered(
+    'the Zone proves an invariant over a number that may be NaN',
+    '../src/abstract/values.ts',
+    "onSome: info => info.kind !== 'number' || info.finite,",
+    'onSome: () => true,',
+  ),
+  unordered(
+    'the solver proves an invariant over a number that may be NaN',
+    proveSolve,
+    "if (nanReads.size > 0 && status === 'unsat') {",
+    'if (false) {',
+  ),
+  unordered(
+    'the solver proves a transition over a number that may be NaN',
+    proveSolve,
+    "if (nanReads.size > 0 && status === 'unsat') {",
+    'if (false) {',
+  ),
+  {
+    ...unordered(
+      'a counterexample over a number that may be NaN is thrown away',
+      '../src/abstract/unordered.ts',
+      '(Verdict.isFalse(verdict) && Option.isNone(verdict.witness))',
+      'Verdict.isFalse(verdict)',
+    ),
+    survives:
+      'only the synchronous policy checks call `ordered`, and the Zone never gives a witness, so a False it sees has none',
+  },
+  policy(
+    'a refutation with no witness stands over a number that may be NaN',
+    '../src/abstract/unordered.ts',
+    'Verdict.isTrue(verdict) || (Verdict.isFalse(verdict) && Option.isNone(verdict.witness))',
+    'Verdict.isTrue(verdict)',
+  ),
+  policy(
+    'a null that a rule compares is ordered',
+    '../src/abstract/unordered.ts',
+    ': compared && nullableNumber(current)',
+    ': false',
+  ),
+  policy(
+    'a null that no rule compares stops a proof',
+    '../src/abstract/unordered.ts',
+    ': compared && nullableNumber(current)',
+    ': nullableNumber(current)',
+  ),
+  policy(
+    'a number whose key may be absent is ordered',
+    '../src/abstract/unordered.ts',
+    '? absent || Schema.is(Schema.make(current))(NaN)',
+    '? Schema.is(Schema.make(current))(NaN)',
+  ),
+  policy(
+    'a path of no known sort is an integer to the solver',
+    proveShape,
+    "return info('real', { nan, finite: !nan && !is(Infinity) && !is(-Infinity) })",
+    "return info('int', { nan, finite: !nan && !is(Infinity) && !is(-Infinity) })",
+  ),
+  {
+    name: 'mixed literal sorts silently alias text with numbers',
+    edits: [
+      {
+        file: proveLower,
+        find: "if (info.sort === 'other' && info.literals.length > 0) {",
+        replace: 'if (false) {',
+      },
+    ],
+    tests: ['packages/metakit/test/policy.test.ts'],
+  },
+  {
+    name: 'a policy implication is refuted without showing the update is reachable',
+    edits: [
+      {
+        file: '../src/policy.ts',
+        find: 'if (Verdict.isFalse(verdict))',
+        replace: 'if (false)',
+      },
+    ],
+    tests: ['packages/metakit/test/policy.test.ts'],
+  },
+  {
+    name: 'a satisfiable policy model skips concrete validation',
+    edits: [
+      {
+        file: proveSolve,
+        find: 'valid(slices, env) && given.every(rule => holdsOf(rule, env)) && reproduces(env)',
+        replace: 'true',
+      },
+    ],
+    tests: ['packages/metakit/test/policy.test.ts'],
+  },
+  {
+    name: 'lookupPartial conflates null with missing (Unknown)',
+    edits: [
+      {
+        file: partial,
+        find: 'if (next === undefined) return Option.none()',
+        replace: 'if (next === undefined || next === null) return Option.none()',
+      },
+    ],
+    tests: coreTests,
+  },
+  {
+    name: 'Transition.step skips when guard',
+    edits: [
+      {
+        file: transition,
+        find: 'if (evalNode(transition.when.node, env, options?.foreign) !== true) {',
+        replace: 'if (false && evalNode(transition.when.node, env, options?.foreign) !== true) {',
+      },
+    ],
+    tests: coreTests,
+  },
+  {
+    name: 'Transition.make allows duplicate write targets',
+    edits: [
+      {
+        file: transition,
+        find: 'if (seenTargets.has(targetKey)) {',
+        replace: 'if (false && seenTargets.has(targetKey)) {',
+      },
+    ],
+    tests: coreTests,
+  },
+  {
+    name: 'Zone.impliesDiff always returns false',
+    edits: [
+      {
+        file: zone,
+        find: 'return this.m[i]![j]! <= bound',
+        replace: 'return false',
+      },
+    ],
+    tests: coreTests,
+  },
+  {
+    name: 'SQL is uses plain = instead of NULL-safe IS NOT DISTINCT FROM',
+    edits: [
+      {
+        file: sql,
+        find: "'eq.is': textEqual(byDialect('IS NOT DISTINCT FROM', 'IS')),",
+        replace: "'eq.is': textEqual(() => '='),",
+      },
+    ],
+    tests: sqlTests,
+  },
+  {
+    name: 'SQL refuses nothing for Opaque',
+    edits: [
+      {
+        file: sql,
+        find: 'Opaque: ({ name }) => unsupported(`cannot lower opaque term "${name}" to SQL`),',
+        replace: 'Opaque: () => unsupported("wrong"),',
+      },
+    ],
+    tests: sqlTests,
+  },
+  {
+    name: 'Prove returns bogus False instead of Unknown on sat with Opaque term',
+    edits: [
+      {
+        file: proveSolve,
+        find: 'if (opaque.size > 0) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: proveTests,
+  },
+  {
+    name: 'Prove.machine accepts blank allowUnknown reason',
+    edits: [
+      {
+        file: proveMachine,
+        find: 'if (reason.trim().length === 0) {',
+        replace: 'if (reason.length < 0) {',
+      },
+    ],
+    tests: proveTests,
+  },
+  {
+    name: 'Prove.machine ignores broken pin',
+    edits: [
+      {
+        file: proveMachine,
+        find: "const pinBroken = pinned && status !== 'proved'",
+        replace: 'const pinBroken = false',
+      },
+    ],
+    tests: proveTests,
+  },
+  {
+    name: 'Graph.analyze drops reverse Path.isPrefix overlap (child write -> parent read)',
+    edits: [
+      {
+        file: graph,
+        find: 'Path.isPrefix(a, b) || Path.isPrefix(b, a)',
+        replace: 'Path.isPrefix(b, a)',
+      },
+    ],
+    tests: graphTests,
+  },
+  {
+    name: 'AbstractState.matchCandidates drops null branch on nullable enum',
+    edits: [
+      {
+        file: matches,
+        find: '...(state.fields.get(pk)!.nullable && known !== false ? [null] : []),',
+        replace: '',
+      },
+    ],
+    tests: domainTests,
+  },
+  {
+    name: 'Str.len uses UTF-16 .length instead of Unicode code-point count',
+    edits: [
+      {
+        file: str,
+        find: "textual('str.len', ([text]) => codePointLength(text!))",
+        replace: "textual('str.len', ([text]) => text!.length)",
+      },
+    ],
+    tests: strArrTests,
+  },
+  {
+    name: 'Graph.build treats unknown reader as empty in affectedBy',
+    edits: [
+      {
+        file: graphStructure,
+        find: '    const hit = new Set<R>(unknownReaders)\n    const bridged = new Set<RowToModelLink>()',
+        replace: '    const hit = new Set<R>()\n    const bridged = new Set<RowToModelLink>()',
+      },
+    ],
+    tests: graphTests,
+  },
+]

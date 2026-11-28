@@ -3,7 +3,7 @@
  * `pnpm mutate packages/entity/test/describe.mutations.ts`.
  */
 const tests = ['packages/entity/test/describe.test.ts']
-const expr = '../src/expr.ts'
+const expr = '../src/expr/table.ts'
 const operators = '../src/operators.ts'
 const memoryTable = '../src/memoryTable.ts'
 const evaluate = '../src/evaluate.ts'
@@ -20,14 +20,14 @@ export default [
   edit(
     'a memory table holds no version of anything',
     memoryTable,
-    '.filter(({ operator }) => operator.id === id)',
+    '.filter(operator => operator.id === id)',
     '.filter(() => false)',
   ),
   edit(
     'a run names the missing operator alone',
-    evaluate,
-    'throw new OperatorMissingError(call.operator, scope.operators)',
-    'throw new OperatorMissingError(call.operator)',
+    '../src/judgeRun.ts',
+    'throw new OperatorMissingError(operator, over.operators)',
+    'throw new OperatorMissingError(operator)',
   ),
   edit(
     'an operator over stored values names the missing operator alone',
@@ -69,10 +69,10 @@ export default [
     'output: {},',
   ),
   edit(
-    'a description drops its laws',
+    'a description drops its claims',
     operators,
-    'laws: operator.laws.map(Law.describe),',
-    'laws: [],',
+    'claims: describeClaims(operator.claims),',
+    'claims: {},',
   ),
   edit(
     'a defined operator is described as primitive',

@@ -103,8 +103,9 @@ export default [
     edits: [
       {
         file,
-        find: 'Exit.isSuccess(exit) && exit.value.live ? Effect.void : Scope.close(scope, exit)',
-        replace: 'Scope.close(scope, exit)',
+        find: 'Effect.flatMap(context => Effect.provide(respond(request, env, scope), context)),\n                Effect.onExit(exit =>\n                  Exit.isSuccess(exit) && exit.value.live ? Effect.void : Scope.close(scope, exit),\n                ),',
+        replace:
+          'Effect.flatMap(context => Effect.provide(respond(request, env, scope), context)),\n                Effect.onExit(exit => Scope.close(scope, exit)),',
       },
     ],
     tests,

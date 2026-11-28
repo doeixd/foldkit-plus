@@ -51,7 +51,8 @@
   "dependencies": {
     "foldkit-entity": "workspace:*",
     "foldkit-remote": "workspace:*",
-    "foldkit-remote-server": "workspace:*"
+    "foldkit-remote-server": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5",

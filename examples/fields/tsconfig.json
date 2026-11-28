@@ -11,12 +11,16 @@
       "foldkit-crud": ["../../packages/crud/src/index.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-entity/laws": ["../../packages/entity/src/laws.ts"],
+      "foldkit-entity/lowering": ["../../packages/entity/src/lowering.ts"],
+      "foldkit-entity/transition": ["../../packages/entity/src/writeTransition.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
       "foldkit-form-recipes": ["../../packages/form-recipes/src/index.ts"],
       "foldkit-form-recipes/file": ["../../packages/form-recipes/src/file.ts"],
       "foldkit-form-recipes/html": ["../../packages/form-recipes/src/html.ts"],
       "foldkit-form-recipes/image": ["../../packages/form-recipes/src/image.ts"],
       "foldkit-form-recipes/ui": ["../../packages/form-recipes/src/ui.ts"],
+      "foldkit-form/metakit": ["../../packages/form/src/metakit.ts"],
       "foldkit-media": ["../../packages/media/src/index.ts"],
       "foldkit-media/browser": ["../../packages/media/src/browser/index.ts"],
       "foldkit-media/client": ["../../packages/media/client.d.ts"],
@@ -28,6 +32,7 @@
       "foldkit-media/vite": ["../../packages/media/src/vite/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"],
+      "foldkit-mixins-form/declared": ["../../packages/mixins-form/src/declared.ts"],
       "foldkit-mixins-form/recipes": ["../../packages/mixins-form/src/recipes.ts"],
       "foldkit-mixins-form/ui": ["../../packages/mixins-form/src/ui.ts"],
       "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
@@ -42,7 +47,36 @@
       "foldkit-mixins/theme/knob-data": ["../../packages/mixins/src/theme/knobData.ts"],
       "foldkit-mixins/theme/runtime": ["../../packages/mixins/src/theme/runtime.ts"],
       "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
-      "foldkit-mixins/vite": ["../../packages/mixins/src/vite.ts"]
+      "foldkit-mixins/vite": ["../../packages/mixins/src/vite.ts"],
+      "metakit": ["../../packages/metakit/src/index.ts"],
+      "metakit/aggregates": ["../../packages/metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../../packages/metakit/src/aggregatesSql.ts"],
+      "metakit/artifact": ["../../packages/metakit/src/artifact.ts"],
+      "metakit/build": ["../../packages/metakit/src/build.ts"],
+      "metakit/conformance": ["../../packages/metakit/src/conformance.ts"],
+      "metakit/domain": ["../../packages/metakit/src/domain.ts"],
+      "metakit/drizzle": ["../../packages/metakit/src/drizzle.ts"],
+      "metakit/fn": ["../../packages/metakit/src/fn.ts"],
+      "metakit/graph": ["../../packages/metakit/src/graph.ts"],
+      "metakit/graph/match": ["../../packages/metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../../packages/metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../../packages/metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../../packages/metakit/src/inspect.ts"],
+      "metakit/interpreter": ["../../packages/metakit/src/interpreter.ts"],
+      "metakit/language": ["../../packages/metakit/src/language.ts"],
+      "metakit/machine": ["../../packages/metakit/src/machine.ts"],
+      "metakit/operation": ["../../packages/metakit/src/operation.ts"],
+      "metakit/operation/sql": ["../../packages/metakit/src/operationSql.ts"],
+      "metakit/pairs": ["../../packages/metakit/src/pairs.ts"],
+      "metakit/policy": ["../../packages/metakit/src/policy.ts"],
+      "metakit/prove": ["../../packages/metakit/src/prove.ts"],
+      "metakit/relation": ["../../packages/metakit/src/relation.ts"],
+      "metakit/sql": ["../../packages/metakit/src/sql.ts"],
+      "metakit/store": ["../../packages/metakit/src/store.ts"],
+      "metakit/store/check": ["../../packages/metakit/src/storeCheck.ts"],
+      "metakit/syntax": ["../../packages/metakit/src/syntax.ts"],
+      "metakit/temporal": ["../../packages/metakit/src/temporal.ts"],
+      "metakit/tooling": ["../../packages/metakit/src/tooling.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
@@ -73,6 +107,9 @@
     },
     {
       "path": "../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/metakit/tsconfig.build.json"
     }
   ]
 }

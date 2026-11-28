@@ -10,7 +10,8 @@ Suppose a `Product` entity forbids reserving more stock than is on hand, and a `
 
 ```ts
 import { Schema } from 'effect'
-import { Entity, Expr, Laws, Write } from 'foldkit-entity'
+import { Entity, Expr, Write } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { Mutation } from 'foldkit-remote'
 
 const Product = Entity.define(
@@ -306,7 +307,7 @@ Each status in the report tells you whether a pair or state transition is settle
 
 | Result | Meaning | Next step |
 | --- | --- | --- |
-| `kept` | Proved safe by footprint, bounds, or cases | None; emits `Enumerated` or `Bounded` |
+| `kept` | Proved safe by footprint, cases, or metakit's checker | None; emits `Enumerated` or `Bounded` |
 | `refused` (pair) | Found valid state + input breaking rule | Bound input, narrow `from`, or mark `runtimeOnly` |
 | `undecided` | Uses text, links, or unknown-vs-unknown | Cover with `Walk`, `Scenario`, or `runtimeOnly` |
 | `unmeetable` | No valid row matches `from` + `when` | Fix contradictory precondition |
@@ -327,7 +328,7 @@ Whenever a transition writes a field read by a law, `Graph.validate` (`foldkit-s
 | Evidence | Producer | Proves |
 | --- | --- | --- |
 | `Enumerated` | `Laws.check` (`kept`) | All finite cases or disjoint fields checked |
-| `Bounded` | `Laws.check` (`bounds`) | Numeric interval arithmetic proved safe |
+| `Bounded` | `Laws.check` (metakit's checker) | Numeric bounds and differences proved safe |
 | `Walked` | `Walk.run` (`foldkit-remote/testing`) | Seeded message walks never broke the law |
 | `Scenario` | `Scenario.run` (`foldkit-remote/testing`) | Cross-backend case agreed on all runners |
 | `RuntimeOnly` | `Evidence.runtimeOnly` with `why` | Server writer or journal rejects violations |
@@ -388,10 +389,10 @@ const Data = Remote.make({
 })
 
 Data.can({ remote: Remote.initial }, Release, { id: 'p1', status: 'published' })
-// Can.Undecided: Product p1 is not held
+// Unknown: Product p1 is not held
 ```
 
-`Data.can` returns `Can.Yes`, `Can.No({ refusal })`, or `Can.Undecided({ reasons })`. Use it as a UI hint (for example, to disable a button). `Data.mutate` still sends writes when invoked because local rows can be stale or missing fields. See [Asking before sending](./declared-writes.md#asking-before-sending-datacan) and [Agent capabilities over declared writes](./agents.md#a-capability-over-a-declared-write).
+`Data.can` returns a metakit `Verdict`: `True`, `False` with the refusal as its witness, or `Unknown` with the reasons. Use it as a UI hint (for example, to disable a button). `Data.mutate` still sends writes when invoked because local rows can be stale or missing fields. See [Asking before sending](./declared-writes.md#asking-before-sending-datacan) and [Agent capabilities over declared writes](./agents.md#a-capability-over-a-declared-write).
 
 ## Who owns the final decision
 
@@ -460,7 +461,7 @@ For cross-row rules such as aggregate totals across a list, enforce them in your
 - Rules read at most one step back (`before` and `after`); store historical facts as fields.
 - Cross-row aggregates belong in server handlers; see [Declared writes](./declared-writes.md#who-owns-what).
 - States reaching across relations (`Expr.exists`, `Expr.path`) apply to queries and guards, not `from` or `becomes`.
-- `Laws.check` decides finite enums, booleans, and single-variable numeric intervals; text rules or multi-variable comparisons report `undecided` until covered by walks, scenarios, or `runtimeOnly`.
+- `Laws.check` decides finite enums, booleans, and numbers by metakit's checker, which relates two numbers (`amount <= balance`). It leaves a plain `Schema.Number` (which may be NaN), text rules and rules over another row `undecided` until covered by `Schema.Finite` or `Schema.Int`, walks, scenarios, or `runtimeOnly`.
 - Local `modifyFields` updates emit no graph `writes` edges yet, though `Walk` tests still cover them.
 
 ## Next

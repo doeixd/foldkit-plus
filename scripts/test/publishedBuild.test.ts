@@ -9,7 +9,7 @@
  * member (#241).
  */
 import { rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterAll, expect, test } from 'vitest'
 import { buildPublished, packages, pageModules, scratchIn } from './pageBuild.js'
 
@@ -43,6 +43,7 @@ const keptFrom = async (
 const cases: ReadonlyArray<readonly [name: string, page: string]> = [
   ['mixins', `import { Behaviors } from 'pkg'\nexport const used = Behaviors.Disclosure`],
   ['metadata', `import { Metadata } from 'pkg'\nexport const used = Metadata.combine`],
+  ['metakit', `import { Transition } from 'pkg'\nexport const used = Transition.run`],
   ['bundle', `import { Resource } from 'pkg'\nexport const used = Resource.lazy`],
   ['media', `import { Icon } from 'pkg'\nexport const used = Icon.draw`],
   ['entity', `import { Collation } from 'pkg'\nexport const used = Collation.binary`],
@@ -223,4 +224,446 @@ test('a page reading only Metadata keeps no Evidence module, built or source', a
   expect(built.some(id => id.endsWith('/dist/index.js'))).toBe(true)
   expect(source.some(id => id.endsWith('/metadata/src/index.ts'))).toBe(true)
   expect([...built, ...source].filter(id => /\/evidence\.(js|ts)$/.test(id))).toEqual([])
+}, 120_000)
+
+/**
+ * Rule 3 of the unification plan's byte rules: a page carries the node
+ * constructors and the operation modules it names, and nothing else of
+ * metakit. So this is the list of what a page may keep, and any other module
+ * fails: one renamed or added is off a page until it is named here. A page
+ * that reaches entity keeps `node`, `verdict`, `path` and the evaluator and
+ * judge of a partly known environment (`ops/*`; never `ops/residualize`,
+ * which builds the expression left over, nor `ops/textChecks`, which the
+ * checker and the prover read); the reading of related rows (`ops/rows`,
+ * `ops/partialRows`, `ops/rowsLoad`) comes only with an `Expr.exists`, which a
+ * test below holds. Of the graph, only the path matcher (`graph/match`); of
+ * the domains, those a page names. `foldkit-*`'s own `metakit` adapter
+ * entries are also off a page. Broken by hand: a module-level read of
+ * `metakit/prove` in guard's `src/index.ts`, and a new module imported and
+ * read at the top of metakit's `src/verdict.ts`, each turned the guard row red.
+ */
+const ON_A_PAGE: ReadonlyArray<RegExp> = [
+  /^(node|verdict|path)$/,
+  /^ops\/(?!(residualize|textChecks)$)[^/]+$/,
+  /^graph\/match$/,
+  /^domain\/[^/]+$/,
+]
+const metakitKeptOffAPage = (id: string) => {
+  const inMetakit = /\/metakit\/(?:src|dist)\/(.+)\.(?:js|ts)$/.exec(id)
+  return (
+    (inMetakit !== null && !ON_A_PAGE.some(pattern => pattern.test(inMetakit[1]!))) ||
+    /\/metakit\.(js|ts)$/.test(id)
+  )
+}
+
+/**
+ * Form, Guard, Sync, Agent and the form view read metakit through a subpath of their own
+ * (`foldkit-form/metakit`, `foldkit-guard/check`, `foldkit-sync/metakit`,
+ * `foldkit-agent/metakit`, `foldkit-mixins-form/declared`), so
+ * a page using the main entry keeps none of it beyond the `Verdict` entity
+ * answers with, built or source. Broken by
+ * hand: a module-level `console.log(fieldSpecs)` in form's `src/index.ts`
+ * turned it red (a bare re-export of `Declared` there does not: the page drops
+ * it unread), as did putting `check` back on `Guards` or an `Expr.eval` back
+ * in sync's `make.ts`.
+ */
+test.each([
+  ['form', `import { Form } from 'pkg'\nexport const used = Form.make`, 'index.js'],
+  ['guard', `import { Guards } from 'pkg'\nexport const used = Guards.attach`, 'index.mjs'],
+  ['sync', `import { Sync } from 'pkg'\nexport const used = Sync.forApplication`, 'index.js'],
+  ['agent', `import { Agent } from 'pkg'\nexport const used = Agent.forApplication`, 'index.mjs'],
+  [
+    'mixins-form',
+    `import { FormView } from 'pkg'\nexport const used = FormView.define`,
+    'index.mjs',
+  ],
+] as const)(
+  'a page reading the main entry of foldkit-%s keeps no metakit module the plan keeps off a page, built or source',
+  async (name, page, index) => {
+    const root = scratchIn(name, 'published-')
+    made.push(root)
+    const kept = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const built = await kept(await buildPublished(name, root))
+    const source = await kept(join(packages, name, 'src', 'index.ts'))
+    expect(built.some(id => id.endsWith(`/dist/${index}`))).toBe(true)
+    // `foldkit-agent`'s index only re-exports its namespace, so a page keeps its modules, not the index.
+    expect(source.some(id => id.includes(`/${name}/src/`))).toBe(true)
+    expect([...built, ...source].filter(metakitKeptOffAPage)).toEqual([])
+  },
+  120_000,
+)
+
+/**
+ * The date and amount renderers and the declared attrs live in
+ * `foldkit-mixins-form/declared`: a page that draws a form with the main entry
+ * keeps none of that module, built or source.
+ */
+test('a page drawing a form keeps none of foldkit-mixins-form/declared, built or source', async () => {
+  const root = scratchIn('mixins-form', 'published-')
+  made.push(root)
+  const page = `import { FormView } from 'pkg'\nexport const used = FormView.define`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('mixins-form', root))
+  const source = await kept(join(packages, 'mixins-form', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/index\.m?js$/.test(id))).toBe(true)
+  expect(source.some(id => id.endsWith('/mixins-form/src/index.ts'))).toBe(true)
+  expect([...built, ...source].filter(id => /\/declared\.(m?js|ts)$/.test(id))).toEqual([])
+}, 240_000)
+
+/**
+ * An Entity's write is read as a metakit transition through
+ * `foldkit-entity/transition`: a page that declares writes and binds them
+ * with the main entry keeps none of `writeTransition`, built or source.
+ */
+test('a page reaching the main entry of foldkit-entity keeps no writeTransition module, built or source', async () => {
+  const root = scratchIn('entity', 'published-')
+  made.push(root)
+  const page = `import { Write } from 'pkg'\nexport const used = Write.update`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('entity', root))
+  const source = await kept(join(packages, 'entity', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/write\.js$/.test(id))).toBe(true)
+  expect(source.some(id => id.endsWith('/entity/src/write.ts'))).toBe(true)
+  expect([...built, ...source].filter(id => /\/writeTransition\.(m?js|ts)$/.test(id))).toEqual([])
+}, 240_000)
+
+/**
+ * `Expr` is a namespace and the reading of a `Rows` node arrives with its
+ * constructor: a page that judges an `eq` keeps no related-rows constructor
+ * (`expr/relation`) and none of metakit's folds (`ops/rows`, `ops/partialRows`);
+ * a page that builds an `Expr.exists` keeps all three.
+ */
+test.each([
+  ['judges an eq', 'Expr.eq(Item.fields.name, "a")', false],
+  ['builds an exists', 'Expr.exists(Item.relations.parent)', true],
+] as const)(
+  'a page that %s keeps the reading of related rows only with its constructor, built or source',
+  async (_, built_, keeps) => {
+    const root = scratchIn('entity', 'published-')
+    made.push(root)
+    const page = [
+      `import { Schema } from 'effect'`,
+      `import { Entity, Expr, Relation, truthOver } from 'pkg'`,
+      `const Plain = Entity.define('Item', Schema.Struct({ id: Schema.String, name: Schema.String }))`,
+      `const { Item } = Entity.relate({ Item: Plain }, { Item: { parent: Relation.one(Plain) } })`,
+      `export const used = () => truthOver(${built_}, {})`,
+    ].join('\n')
+    const kept = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const ids = [
+      ...(await kept(await buildPublished('entity', root))),
+      ...(await kept(join(packages, 'entity', 'src', 'index.ts'))),
+    ]
+    const reading = ids.filter(id =>
+      /\/(entity\/(src|dist)\/expr\/relation|metakit\/(src|dist)\/ops\/(rows|partialRows))\.(m?js|ts)$/.test(
+        id,
+      ),
+    )
+    expect(reading.length > 0).toBe(keeps)
+  },
+  240_000,
+)
+
+/**
+ * `Laws.check` runs metakit's checker, so it is `foldkit-entity/laws`: a
+ * page reaching the main entry keeps neither the check nor its witness
+ * search, built or source.
+ */
+test('a page reaching the main entry of foldkit-entity keeps no laws or pairCheck module, built or source', async () => {
+  const root = scratchIn('entity', 'published-')
+  made.push(root)
+  const page = `import { Write } from 'pkg'\nexport const used = Write.update`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('entity', root))
+  const source = await kept(join(packages, 'entity', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/write\.js$/.test(id))).toBe(true)
+  expect(source.some(id => id.endsWith('/entity/src/write.ts'))).toBe(true)
+  expect(
+    [...built, ...source].filter(id =>
+      /\/entity\/(src|dist)\/(laws|pairCheck)\.(m?js|ts)$/.test(id),
+    ),
+  ).toEqual([])
+}, 240_000)
+
+/**
+ * Declared writes are read through `foldkit-surface/writes`, so a page with a
+ * Surface and no declared writes keeps no metakit and no lazy slot; and the
+ * development check is a file of its own, which a page that reaches it only
+ * in a branch the build folds away drops, built or source. The last page
+ * reaches the check outright and keeps it, so the one before can fail.
+ */
+test('a page keeps no metakit for a Surface without declared writes, and no write check outside development', async () => {
+  const root = scratchIn('surface', 'published-')
+  made.push(root)
+  const index = await buildPublished('surface', root)
+  const entries = {
+    index: [index, join(packages, 'surface', 'src', 'index.ts')],
+    writes: [join(dirname(index), 'writes.js'), join(packages, 'surface', 'src', 'writes.ts')],
+  } as const
+  // One build at a time: each writes the page it bundles into `root`.
+  const kept = async (entry: keyof typeof entries, page: string) => {
+    const [built, source] = entries[entry]
+    const ids = async (file: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: file }])).map(({ id }) => id)
+    return [await ids(built), await ids(source)]
+  }
+  const holds = (ids: ReadonlyArray<string>, file: RegExp) => ids.some(id => file.test(id))
+  const metakit = /\/metakit\/(src|dist)\//
+  const writes = /\/writes\.(js|ts)$/
+  const check = /\/writesCheck\.(js|ts)$/
+
+  for (const ids of await kept(
+    'index',
+    `import { Surface } from 'pkg'\nexport const used = Surface.rootView`,
+  )) {
+    expect(holds(ids, /\/(dist\/index\.js|src\/index\.ts)$/)).toBe(true)
+    expect(ids.filter(id => metakit.test(id) || writes.test(id) || check.test(id))).toEqual([])
+  }
+  for (const ids of await kept(
+    'writes',
+    // What a production build makes of `import.meta.env.DEV ? … : …`; this build runs as a test's.
+    `import { Writes, WritesCheck } from 'pkg'\nexport const used = false ? WritesCheck.verify : Writes.of`,
+  )) {
+    expect(holds(ids, writes)).toBe(true)
+    expect(ids.filter(id => check.test(id))).toEqual([])
+  }
+  for (const ids of await kept(
+    'writes',
+    `import { WritesCheck } from 'pkg'\nexport const used = WritesCheck.verify`,
+  )) {
+    expect(holds(ids, check)).toBe(true)
+  }
+}, 240_000)
+
+/**
+ * Remote keeps its maintained values behind a separate entry. Both entries
+ * keep the page's metakit module budget, including when a page keeps a list
+ * without supplying an aggregate from `metakit/aggregates`.
+ */
+test.each([
+  ['index', `import { Remote } from 'pkg'\nexport const used = Remote.make`, 'remote'],
+  [
+    'maintained/index',
+    `import { Maintained } from 'pkg'\nexport const used = Maintained.value`,
+    'maintained/definition',
+  ],
+] as const)(
+  'a page reading foldkit-remote/%s keeps no metakit module the plan keeps off a page, built or source',
+  async (file, page, kept) => {
+    const root = scratchIn('remote', 'published-')
+    made.push(root)
+    const modules = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const index = await buildPublished('remote', root)
+    const built = await modules(join(dirname(index), `${file}.js`))
+    const source = await modules(join(packages, 'remote', 'src', `${file}.ts`))
+    expect(built.some(id => id.endsWith(`/dist/${kept}.js`))).toBe(true)
+    expect(source.some(id => id.endsWith(`/remote/src/${kept}.ts`))).toBe(true)
+    const maintained = /\/(dist|remote\/src)\/maintained\//
+    const forbidden = (id: string) =>
+      metakitKeptOffAPage(id) || (file === 'index' && maintained.test(id))
+    expect([...built, ...source].filter(forbidden)).toEqual([])
+  },
+  120_000,
+)
+
+test('a page reading only Expr.eval and Num.lte from metakit keeps no sql, prove, conformance, z3, or zone modules', async () => {
+  const root = scratchIn('metakit', 'published-')
+  made.push(root)
+  const page = `import { Expr, Num, Path } from 'pkg'\nexport const used = (row: { balance: number }) => Expr.eval(Num.lte(Path.field('balance'), 100), row)`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('metakit', root))
+  const source = await kept(join(packages, 'metakit', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/ops\/ord\.js$/.test(id))).toBe(true)
+  expect(source.some(id => /\/src\/ops\/ord\.ts$/.test(id))).toBe(true)
+  const forbidden =
+    /\/(sql|sqlLowering|drizzle|prove|conformance|domain|aggregates|aggregatesSql|machine|inspect|graph|policy|store|temporal|abstract\/(zone|interval|check)|ops\/(num|null|eq|str|arr))\.(js|ts)$|z3-solver|drizzle-orm/
+  expect([...built, ...source].filter(id => forbidden.test(id))).toEqual([])
+}, 120_000)
+
+/**
+ * The subpaths of metakit a page may import carry no SQL lowering, no Drizzle
+ * and no solver, built or source. Broken by hand: `import './sqlLowering.js'`
+ * with a module-level read of `sqlOps` in `src/aggregates.ts` turned the
+ * `aggregates` row red.
+ */
+test.each([
+  [
+    'domain',
+    'domain',
+    `import { Money } from 'pkg'\nexport const used = Money.add`,
+    'domain/money',
+  ],
+  ['machine', 'machine', `import { make } from 'pkg'\nexport const used = make`, 'machine'],
+  [
+    'inspect',
+    'inspect',
+    `import { fieldSpecs } from 'pkg'\nexport const used = fieldSpecs`,
+    'inspect',
+  ],
+  ['aggregates', 'aggregates', `import { sum } from 'pkg'\nexport const used = sum`, 'aggregates'],
+  [
+    'graph/match',
+    'graph/match',
+    `import { affectedTags } from 'pkg'\nexport const used = affectedTags`,
+    'graph/match',
+  ],
+])(
+  'a page reading metakit/%s keeps no SQL lowering, Drizzle or solver module',
+  async (_, file, page, kept) => {
+    const root = scratchIn('metakit', 'published-')
+    made.push(root)
+    const modules = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const index = await buildPublished('metakit', root)
+    const built = await modules(join(dirname(index), `${file}.js`))
+    const source = await modules(join(packages, 'metakit', 'src', `${file}.ts`))
+    expect(built.some(id => id.endsWith(`/dist/${kept}.js`))).toBe(true)
+    expect(source.some(id => id.endsWith(`/src/${kept}.ts`))).toBe(true)
+    const server =
+      /\/(sql|sqlLowering|aggregatesSql|drizzle|prove|graph|conformance)\.(js|ts)$|z3-solver|drizzle-orm/
+    expect([...built, ...source].filter(id => server.test(id))).toEqual([])
+  },
+  120_000,
+)
+
+/**
+ * A page that runs transitions through a machine and reads their footprints
+ * keeps no partial evaluation: `can`, `canDispatch` and `affordances` are a
+ * module of their own, and the reads walker is `ops/reads`. The second page
+ * asks `Machine.canDispatch` and keeps it, so the first can fail.
+ */
+test('a page running transitions keeps no judge unless it asks what a partial state allows, and never ops/residualize', async () => {
+  const root = scratchIn('metakit', 'published-')
+  made.push(root)
+  const index = await buildPublished('metakit', root)
+  const page = (asked: string) =>
+    [
+      `import { Schema } from 'effect'`,
+      `import { Bool, Transition } from 'pkg'`,
+      `import * as Machine from 'pkg/machine'`,
+      `const State = Schema.Struct({ n: Schema.Int, todos: Schema.Array(Schema.Struct({ id: Schema.String, done: Schema.Boolean })) })`,
+      `const Added = Transition.make({ state: State, input: Schema.Struct({ id: Schema.String }), apply: ({ state, input }) => [Transition.add(state.n, 1), Transition.patch(state.todos, input.id, todo => ({ done: Bool.not(todo.done) }))], emits: ({ input }) => [Transition.emit('Added', { id: input.id })] })`,
+      `const machine = Machine.make({ state: State, transitions: { Added } })`,
+      `export const used = [machine.update, machine.footprints, Transition.footprint(Added)${asked}]`,
+    ].join('\n')
+  const kept = async (source: string, entries: readonly [string, string]) =>
+    (
+      await pageModules(root, source, [
+        { find: 'pkg/machine', replacement: entries[1] },
+        { find: 'pkg', replacement: entries[0] },
+      ])
+    )
+      .filter(({ length }) => length > 0)
+      .map(({ id }) => id)
+  const built = [index, join(dirname(index), 'machine.js')] as const
+  const source = [
+    join(packages, 'metakit', 'src', 'index.ts'),
+    join(packages, 'metakit', 'src', 'machine.ts'),
+  ] as const
+  const residualize = /\/ops\/residualize\.(js|ts)$/
+  for (const entries of [built, source]) {
+    const running = await kept(page(''), entries)
+    expect(running.some(id => /\/transition\.(js|ts)$/.test(id))).toBe(true)
+    expect(
+      running.filter(id => residualize.test(id) || /\/(can|ops\/judge)\.(js|ts)$/.test(id)),
+    ).toEqual([])
+    // Asking judges with the lean judge (`ops/judge`, since 103e5f790), which builds no residual.
+    const asking = await kept(page(', Machine.canDispatch'), entries)
+    expect(asking.some(id => /\/ops\/judge\.(js|ts)$/.test(id))).toBe(true)
+    expect(asking.filter(id => residualize.test(id))).toEqual([])
+  }
+}, 240_000)
+
+/**
+ * `num.mulScaled` is one module (`ops/mulScaled`): a page that names no decimal
+ * multiplication keeps none of it, from the main entry or from `metakit/domain`,
+ * which holds `Decimal.mul` and `Money.mul` beside `Money.add`. The pages that
+ * name it keep it, so the others can fail. Broken by hand: a call of
+ * `isShift` from `./mulScaled.js` inside the evaluator of `num.add` turned
+ * the first three rows red.
+ */
+test.each([
+  [
+    'Num.add from the main entry',
+    'index',
+    `import { Num } from 'pkg'\nexport const used = Num.add`,
+    false,
+  ],
+  [
+    'Money.add from metakit/domain',
+    'domain',
+    `import { Money } from 'pkg'\nexport const used = Money.add`,
+    false,
+  ],
+  [
+    'Decimal.add from metakit/domain',
+    'domain',
+    `import { Decimal } from 'pkg'\nexport const used = Decimal.add`,
+    false,
+  ],
+  [
+    'Num.mulScaled from the main entry',
+    'index',
+    `import { Num } from 'pkg'\nexport const used = Num.mulScaled`,
+    true,
+  ],
+  [
+    'Money.mul from metakit/domain',
+    'domain',
+    `import { Money } from 'pkg'\nexport const used = Money.mul`,
+    true,
+  ],
+  [
+    'Decimal.mul from metakit/domain',
+    'domain',
+    `import { Decimal } from 'pkg'\nexport const used = Decimal.mul`,
+    true,
+  ],
+])(
+  'a page naming %s keeps the decimal product only if it names one',
+  async (_, file, page, keeps) => {
+    const root = scratchIn('metakit', 'published-')
+    made.push(root)
+    const index = await buildPublished('metakit', root)
+    const modules = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const built = await modules(
+      index.endsWith(`${file}.js`) ? index : join(dirname(index), `${file}.js`),
+    )
+    const source = await modules(
+      join(packages, 'metakit', 'src', file === 'index' ? 'index.ts' : `${file}.ts`),
+    )
+    const product = (ids: ReadonlyArray<string>) =>
+      ids.filter(id => /\/ops\/mulScaled\.(js|ts)$/.test(id))
+    expect(product(built).length > 0).toBe(keeps)
+    expect(product(source).length > 0).toBe(keeps)
+  },
+  120_000,
+)
+
+/**
+ * `foldkit-remote-server` checks a writer's store on every server, so
+ * `metakit/store` is that one module: no expression, transition or walk code.
+ * Broken by hand: a read of `rulesOf` from `./expr.js` inside `mount` turned
+ * it red, built and source.
+ */
+test('a server reading metakit/store keeps no other metakit module, built or source', async () => {
+  const root = scratchIn('metakit', 'published-')
+  made.push(root)
+  const page = `import { mount } from 'pkg'\nexport const used = mount`
+  const modules = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const index = await buildPublished('metakit', root)
+  const built = await modules(join(dirname(index), 'store.js'))
+  const source = await modules(join(packages, 'metakit', 'src', 'store.ts'))
+  const metakit = (ids: ReadonlyArray<string>) =>
+    ids.filter(id => /\/(src|dist)\//.test(id) && !id.includes('node_modules'))
+  expect(metakit(built).map(id => id.slice(id.lastIndexOf('/') + 1))).toEqual(['store.js'])
+  expect(metakit(source).map(id => id.slice(id.lastIndexOf('/') + 1))).toEqual(['store.ts'])
 }, 120_000)

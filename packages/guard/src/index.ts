@@ -5,14 +5,15 @@
  * A **principal guard** is declared by name and implemented only on the
  * server (`G.implement`), so its logic never ships. A **row guard** is an
  * `Expr` over one Entity's fields with the principal's fields as inputs: data,
- * which the SQL compiler and `evaluate` both run. See `guard-DESIGN.md`.
+ * which the SQL compiler and metakit's evaluator both run. See `guard-DESIGN.md`.
  */
 import { Context, Effect, Match, Option, Schema } from 'effect'
-import { Attaching, attached, type InteractionKey } from './attach.js'
+import { Attaching, enforced, type InteractionKey } from './attach.js'
 import {
+  Condition,
   deciding,
+  readingOfGuard,
   readsPrincipal,
-  type Condition,
   type MemberRead,
   type RowRule,
 } from './condition.js'
@@ -23,7 +24,6 @@ import {
   Expr,
   Operators,
   Query,
-  evaluate,
   type AnyEntity,
   type EntityRef,
   type ExprContext,
@@ -437,8 +437,8 @@ export const Guards = {
       guards[guard] = Match.valueTags(spec, {
         PrincipalSpec: (): AnyGuard<User> =>
           Object.freeze({ _tag: 'PrincipalGuard', name: guard, set: name }),
-        RowSpec: ({ entity, body }): AnyGuard<User> =>
-          Object.freeze({
+        RowSpec: ({ entity, body }): AnyGuard<User> => {
+          const made: RowGuard<User, AnyEntity> = Object.freeze({
             _tag: 'RowGuard',
             name: guard,
             set: name,
@@ -446,7 +446,11 @@ export const Guards = {
             body,
             // Checks the body reads only this Entity's fields, where it is declared.
             query: Query.from(entity).pipe(Query.where(body)),
-          }),
+          })
+          // Read here, so a body no reader in memory can hold refuses where it is written.
+          readingOfGuard(made)
+          return made
+        },
       })
     }
     const principalNames = Object.keys(guards).filter(
@@ -514,20 +518,19 @@ export const Guards = {
           RowGuard: rowGuard =>
             Effect.succeed(
               row !== undefined &&
-                Option.match(principal, {
-                  // A visitor has no fields: only a guard over the row alone can hold.
-                  onNone: () =>
-                    !readsPrincipal(rowGuard) &&
-                    evaluate(rowGuard.query, {}, [row], {
-                      operators,
-                      context: contextOf(principal),
-                    }).length === 1,
-                  onSome: user =>
-                    evaluate(rowGuard.query, inputOf(user), [row], {
-                      operators,
-                      context: contextOf(principal),
-                    }).length === 1,
-                }),
+                // A visitor has no fields: only a guard over the row alone can hold.
+                !(Option.isNone(principal) && readsPrincipal(rowGuard)) &&
+                Condition.holds(
+                  Object.freeze({
+                    _tag: 'Row' as const,
+                    guard: rowGuard,
+                    context: contextOf(principal),
+                  }),
+                  row,
+                  Option.match(principal, { onNone: () => ({}), onSome: inputOf }),
+                  () => false,
+                  operators,
+                ),
             ),
         })
       }
@@ -536,7 +539,7 @@ export const Guards = {
         principal: Option.Option<User>,
         interaction: string,
       ) => {
-        Option.map(attached(entity), ({ set }) => {
+        Option.map(enforced(entity), ({ set }) => {
           if (set !== name) {
             throw new Error(`[foldkit-guard] ${name}: ${entity.name} carries the guards of ${set}`)
           }

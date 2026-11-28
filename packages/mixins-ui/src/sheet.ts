@@ -53,6 +53,8 @@ import {
   update as updateDialog,
   type ResolvedDialog,
 } from './dialog.js'
+import { Arr, Bool, Eq, Ord, Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
 import type { MixinList } from './resolve.js'
 import {
   CLOSE_SHARE,
@@ -220,6 +222,111 @@ export const settle = (release: {
   return Option.some(nearest)
 }
 
+/**
+ * The Sheet's declarative state machine: `GotDialog`, `Grabbed`, `Dragged`,
+ * `Released`, and `SnappedTo` with exact read/write footprints, ready for
+ * `Machine.lift` in an application's composed machine.
+ */
+export const machine = /* @__PURE__ */ Machine.make({
+  state: Model,
+  transitions: {
+    GotDialog: /* @__PURE__ */ Transition.opaque({
+      name: 'Sheet.GotDialog',
+      state: Model,
+      input: Schema.Struct({ message: UiDialog.Message }),
+      reads: ({ state, input }) => [
+        state.dialog,
+        state.opensAt,
+        state.drag,
+        state.at,
+        input.message,
+      ],
+      writes: ({ state }) => [state.dialog, state.drag, state.at],
+      run: (model, { message }) =>
+        dialogStep(
+          model,
+          updateDialog(model.dialog, message),
+          Match.value(message).pipe(
+            Match.tag('RequestedOpen', () => (model.dialog.isOpen ? {} : { at: model.opensAt })),
+            Match.orElse(() => ({})),
+          ),
+        ).model,
+    }),
+    Grabbed: /* @__PURE__ */ Transition.opaque({
+      name: 'Sheet.Grabbed',
+      state: Model,
+      input: Schema.Struct({ size: Schema.Number }),
+      reads: ({ input }) => [input.size],
+      writes: ({ state }) => [state.drag],
+      run: (model, { size }) =>
+        modifyFields(model, { drag: () => Option.some({ size, delta: 0 }) }),
+    }),
+    Dragged: /* @__PURE__ */ Transition.opaque({
+      name: 'Sheet.Dragged',
+      state: Model,
+      input: Schema.Struct({ delta: Schema.Number }),
+      reads: ({ state, input }) => [state.drag, input.delta],
+      writes: ({ state }) => [state.drag],
+      run: (model, { delta }) =>
+        Option.match(model.drag, {
+          onNone: () => model,
+          onSome: drag =>
+            drag.delta === delta
+              ? model
+              : modifyFields(model, { drag: () => Option.some({ ...drag, delta }) }),
+        }),
+    }),
+    Released: /* @__PURE__ */ Transition.opaque({
+      name: 'Sheet.Released',
+      state: Model,
+      input: Schema.Struct({
+        delta: Schema.Number,
+        velocity: Schema.Number,
+        completed: Schema.Boolean,
+      }),
+      reads: ({ state, input }) => [
+        state.drag,
+        state.at,
+        state.points,
+        state.dismissible,
+        state.flickSpeed,
+        state.closeShare,
+        state.dialog,
+        input.delta,
+        input.velocity,
+        input.completed,
+      ],
+      writes: ({ state }) => [state.drag, state.at, state.dialog],
+      run: (model, { delta, velocity, completed }) =>
+        Option.match(model.drag, {
+          onNone: () => model,
+          onSome: ({ size }) => {
+            const resting = modifyFields(model, { drag: () => Option.none() })
+            if (!completed) return resting
+            if (Math.abs(delta) < PRESS_SLOP && Math.abs(velocity) <= model.flickSpeed) {
+              const next = (model.at + 1) % model.points.length
+              return next === model.at ? resting : modifyFields(resting, { at: () => next })
+            }
+            return Option.match(settle({ ...model, size, delta, velocity }), {
+              onNone: () => close(resting).model,
+              onSome: at => (at === model.at ? resting : modifyFields(resting, { at: () => at })),
+            })
+          },
+        }),
+    }),
+    SnappedTo: /* @__PURE__ */ Transition.make({
+      state: Model,
+      input: Schema.Struct({ at: Schema.Int }),
+      when: ({ state, input }) =>
+        Bool.and(
+          Bool.and(Ord.gte(input.at, 0), Ord.lt(input.at, Arr.count(state.points))),
+          Eq.isNot(input.at, state.at),
+        ),
+      apply: ({ state, input }) => [Transition.set(state.at, input.at)],
+    }),
+  },
+})
+
 /** The Sheet after `message`; the same Model when nothing changes. */
 export const update = (model: Model, message: Message): Return =>
   Message.match(message, {
@@ -234,16 +341,11 @@ export const update = (model: Model, message: Message): Return =>
         ),
       ),
     Grabbed: ({ size }) => ({
-      model: modifyFields(model, { drag: () => Option.some({ size, delta: 0 }) }),
+      model: machine.update(model, { _tag: 'Grabbed', input: { size } })[0],
     }),
-    Dragged: ({ delta }) =>
-      Option.match(model.drag, {
-        onNone: () => ({ model }),
-        onSome: drag =>
-          drag.delta === delta
-            ? { model }
-            : { model: modifyFields(model, { drag: () => Option.some({ ...drag, delta }) }) },
-      }),
+    Dragged: ({ delta }) => ({
+      model: machine.update(model, { _tag: 'Dragged', input: { delta } })[0],
+    }),
     Released: ({ delta, velocity, completed }) =>
       Option.match(model.drag, {
         onNone: () => ({ model }),
@@ -251,23 +353,27 @@ export const update = (model: Model, message: Message): Return =>
           const resting = modifyFields(model, { drag: () => Option.none() })
           if (!completed) return { model: resting }
           if (Math.abs(delta) < PRESS_SLOP && Math.abs(velocity) <= model.flickSpeed) {
-            const next = (model.at + 1) % model.points.length
             return {
-              model: next === model.at ? resting : modifyFields(resting, { at: () => next }),
+              model: machine.update(model, {
+                _tag: 'Released',
+                input: { delta, velocity, completed },
+              })[0],
             }
           }
           return Option.match(settle({ ...model, size, delta, velocity }), {
             onNone: () => close(resting),
-            onSome: at => ({
-              model: at === model.at ? resting : modifyFields(resting, { at: () => at }),
+            onSome: () => ({
+              model: machine.update(model, {
+                _tag: 'Released',
+                input: { delta, velocity, completed },
+              })[0],
             }),
           })
         },
       }),
-    SnappedTo: ({ at }) =>
-      at === model.at || !Number.isInteger(at) || at < 0 || at >= model.points.length
-        ? { model }
-        : { model: modifyFields(model, { at: () => at }) },
+    SnappedTo: ({ at }) => ({
+      model: machine.update(model, { _tag: 'SnappedTo', input: { at } })[0],
+    }),
   })
 
 /** Whether the Sheet is open, for a parent's `covered` or its own reading. */

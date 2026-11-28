@@ -80,15 +80,9 @@ export default [
     "path: [key], issue: 'invalid'",
   ),
   edit(
-    'a value the write sets is not read after',
-    'Object.hasOwn(values, field.key) ? literal(values[field.key]) : operand',
-    'operand',
-    '../src/expr.ts',
-  ),
-  edit(
     'the evaluator reads the row after as the row',
-    'return scope.next.field(node.field.key)',
-    'return scope.row.field(node.field.key)',
+    'truthOf(valueOver(node, node, { row: flatRow(row), next: flatRow(next), input, operators }))',
+    'truthOf(valueOver(node, node, { row: flatRow(row), next: flatRow(row), input, operators }))',
     '../src/evaluate.ts',
   ),
   edit(
@@ -99,43 +93,21 @@ export default [
   ),
   edit(
     'the compiler reads the row after as the row before',
-    'Object.hasOwn(target.next ?? {}, node.field.key)',
+    'Object.hasOwn(target.next ?? {}, key)',
     'false',
-    '../../remote-drizzle/src/compile.ts',
+    '../../remote-drizzle/src/render.ts',
   ),
-  edit('a field after needs no operation', "found.operations.add('next')", '', '../src/expr.ts'),
+  edit(
+    'a field after needs no operation',
+    "found.operations.add('next')",
+    '',
+    '../src/expr/dependencies.ts',
+  ),
   // Dropping the read instead fails every declaration as reading nothing after, before a test runs.
   edit(
     'a field after is recorded under another key',
-    'found.nextOrder.push(read)',
-    "found.nextOrder.push({ ...read, key: 'id' })",
-    '../src/expr.ts',
-  ),
-  ...[
-    ['Eq', 'left: substitutedSide(predicate.left, rewrite),', 'left: predicate.left,'],
-    [
-      'Null',
-      'operand: substitutedScalar(predicate.operand, rewrite) })',
-      'operand: predicate.operand })',
-    ],
-    [
-      'Contains',
-      'value: substitutedScalar(predicate.value, rewrite),\n        search:',
-      'value: predicate.value,\n        search:',
-    ],
-    [
-      'In',
-      'value: substitutedScalar(predicate.value, rewrite),\n        among:',
-      'value: predicate.value,\n        among:',
-    ],
-    [
-      'And and Or',
-      'operands: Arr.map(predicate.operands, operand => substituted(operand, rewrite)),',
-      'operands: predicate.operands,',
-    ],
-    ['Not', 'operand: substituted(predicate.operand, rewrite) })', 'operand: predicate.operand })'],
-    ['Compare', 'left: substitutedScalar(predicate.left, rewrite),', 'left: predicate.left,'],
-  ].map(([what, find, replace]) =>
-    edit(`${what} is not substituted`, find!, replace!, '../src/expr.ts'),
+    'addField(found.next, found.nextOrder, origin.field)',
+    "addField(found.next, found.nextOrder, { ...origin.field, key: 'id' })",
+    '../src/expr/dependencies.ts',
   ),
 ]

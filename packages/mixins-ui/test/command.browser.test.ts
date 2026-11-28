@@ -463,6 +463,23 @@ const mountList = (options: {
   )
 }
 
+// Park before mounting. A stale pointer over the list selects a row as it appears.
+const park = async () => {
+  const corner = document.createElement('div')
+  Object.assign(corner.style, {
+    position: 'fixed',
+    right: '0',
+    bottom: '0',
+    width: '8px',
+    height: '8px',
+  })
+  document.body.append(corner)
+  try {
+    await userEvent.hover(corner)
+  } finally {
+    corner.remove()
+  }
+}
 const activeRow = () => document.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')
 /** Presses ArrowDown `count` times, each once the one before is drawn: a key meets the last frame's view. */
 const down = async (count: number) => {
@@ -478,6 +495,7 @@ const inView = (row: HTMLElement) => {
 }
 
 test('the highlighted row is scrolled into the list as the keys move it, with keepActiveInView', async () => {
+  await park()
   const handle = mountList({ mixins: Command.keepActiveInView })
   try {
     const input = await vi.waitFor(() => {
@@ -497,6 +515,7 @@ test('the highlighted row is scrolled into the list as the keys move it, with ke
 })
 
 test('without keepActiveInView the list stays where it was', async () => {
+  await park()
   const handle = mountList({})
   try {
     const input = await vi.waitFor(() => {
@@ -513,6 +532,7 @@ test('without keepActiveInView the list stays where it was', async () => {
 })
 
 test('PageDown and PageUp move the highlight; typing and the caret keys, Home and End included, stay the field’s', async () => {
+  await park()
   const handle = mountList({
     routes: [
       Behaviors.Keys.route('Clear', {
@@ -583,6 +603,7 @@ test('keys pressed before the next frame each move the highlight from where the 
       expect(found).not.toBeNull()
       return found!
     })
+    await park()
     input.focus()
     await vi.waitFor(() => expect(activeRow()?.textContent).toContain('Row 0'))
     const release = holdFrames()

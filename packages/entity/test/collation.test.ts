@@ -4,6 +4,7 @@
  * `Query.placement`.
  */
 import { Option, Schema } from 'effect'
+import { Node, Str } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import { Collation, Entity, Expr, Order, Query, evaluate } from '../src/index.js'
 
@@ -23,7 +24,14 @@ const ids = (body: ReturnType<typeof Query.from>, rows: ReadonlyArray<Record<str
 describe('a field expression passed on', () => {
   it('keeps the collation its field declared, as an invariant over `before` passes it', () => {
     const before = Expr.field(Named.fields.name)
-    expect(Expr.lt(before, 'b').collation).toEqual(Option.some(Collation.asciiFold))
+    // The comparison folds both sides, which is how asciiFold reaches the node.
+    const lt = Expr.lt(before, 'b')
+    expect(Node.$is('Call')(lt.node) && lt.node.op.id).toBe('str.lt')
+    expect(Node.$is('Call')(lt.node) && lt.node.args.map(Node.key)).toEqual(
+      [before.node, Expr.literal('b').node].map(each =>
+        Node.key(Node.Call({ op: Str.lowerAsciiOp, args: [each] })),
+      ),
+    )
     expect(Order.asc(before).collation).toEqual(Option.some(Collation.asciiFold))
     expect(() =>
       Named.pipe(

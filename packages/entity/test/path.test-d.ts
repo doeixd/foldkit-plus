@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { describe, expectTypeOf, it } from 'vitest'
-import { Expr, Query, type ExistsPredicate, type PathExpr, type Reads } from '../src/index.js'
+import { Expr, Query, type Expr as ExprOf, type Predicate, type Reads } from '../src/index.js'
 import { Relational } from '../src/conformance/index.js'
 
 const { Team, Member, Badge, Pin } = Relational
@@ -8,14 +8,14 @@ const { Team, Member, Badge, Pin } = Relational
 describe('Expr.path types', () => {
   it("reads the end field's type, or null when no row is reached", () => {
     const name = Expr.path(Member.relations.team, Team.fields.name)
-    expectTypeOf(name).toExtend<PathExpr<string | null> & Reads<'Member'>>()
+    expectTypeOf(name).toExtend<ExprOf<string | null> & Reads<'Member'>>()
     const twice = Expr.path(
       Badge.relations.member,
       Expr.path(Member.relations.team, Team.fields.region),
     )
-    expectTypeOf(twice).toExtend<PathExpr<string | null>>()
+    expectTypeOf(twice).toExtend<ExprOf<string | null>>()
     expectTypeOf(Expr.path(Badge.relations.member, Member.fields.rank)).toExtend<
-      PathExpr<number | null>
+      ExprOf<number | null>
     >()
   })
 
@@ -29,7 +29,7 @@ describe('Expr.path types', () => {
 
   it('is an exists when it ends at one, read from the row it starts on', () => {
     const asked = Expr.path(Member.relations.team, Expr.exists(Pin.relations.team))
-    expectTypeOf(asked).toExtend<ExistsPredicate & Reads<'Member'>>()
+    expectTypeOf(asked).toExtend<Predicate & Reads<'Member'>>()
     Query.from(Member).pipe(Query.where(asked))
   })
 
@@ -43,7 +43,7 @@ describe('Expr.path types', () => {
 
 describe('Expr.exists types', () => {
   it('is asked of the Entity its relation points at', () => {
-    expectTypeOf(Expr.exists(Badge.relations.member)).toExtend<ExistsPredicate & Reads<'Member'>>()
+    expectTypeOf(Expr.exists(Badge.relations.member)).toExtend<Predicate & Reads<'Member'>>()
     Query.from(Member).pipe(Query.where(Expr.exists(Badge.relations.member)))
   })
 

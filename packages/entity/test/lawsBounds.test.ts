@@ -6,19 +6,20 @@
  * leaves. Seeded; a failure prints its seed.
  */
 import { Option, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
   Expr,
   Held,
   Judge,
-  Laws,
   Operators,
   Write,
   type AnyWrite,
   type InputExpr,
   type Predicate,
 } from '../src/index.js'
+import { Laws } from '../src/laws.js'
 
 /** The kernel's table, which runs `Expr.add` and `Expr.sub`. */
 const operators = Operators.kernel
@@ -154,7 +155,7 @@ const breaks = (
     onNone: () => true,
     onSome: body => {
       const verdict = Judge.query(body, given, heldRow(Thing, before), { operators })
-      return verdict._tag === 'Known' && verdict.truth
+      return Verdict.isTrue(verdict)
     },
   })
   if (!meets) return 'outside'
@@ -196,7 +197,7 @@ describe('An interval’s closed end', () => {
       _tag: 'Refused',
       witness: { input: { level: 0 }, after: { level: 0 } },
     })
-    expect(verdictOf('atLeastZero')).toMatchObject({ _tag: 'Kept', by: 'bounds' })
+    expect(verdictOf('atLeastZero')).toMatchObject({ _tag: 'Kept', by: 'zone' })
   })
 })
 

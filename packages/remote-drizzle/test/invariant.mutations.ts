@@ -25,7 +25,7 @@ export default [
   edit(
     'the statement judges the row before the write',
     drizzle,
-    '[Expr.substituteNext(held.predicate, values)],',
+    '[wrap<EntityEnv, boolean | null>(setValues(held.predicate.node))],',
     '[held.predicate],',
   ),
   edit(

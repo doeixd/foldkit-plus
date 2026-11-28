@@ -12,15 +12,23 @@ export default [
     edits: [
       {
         file: compile,
-        find: "call._tag === 'Test' ||",
-        replace: 'false ||',
+        find: 'if (!callsAnOperator(call)) {',
+        replace:
+          "if (!callsAnOperator(call) || (Node.$is('Call')(call.node) && call.node.op.returns === 'boolean')) {",
       },
     ],
     tests,
   },
   {
     name: 'a scalar call is refused',
-    edits: [{ file: compile, find: "|| call._tag === 'Call'", replace: '|| false' }],
+    edits: [
+      {
+        file: compile,
+        find: 'if (!callsAnOperator(call)) {',
+        replace:
+          "if (!callsAnOperator(call) || (Node.$is('Call')(call.node) && call.node.op.returns !== 'boolean')) {",
+      },
+    ],
     tests,
   },
   {
@@ -32,25 +40,6 @@ export default [
         replace: '  return sql`null`',
       },
     ],
-    tests,
-  },
-  {
-    name: 'no sample text holds a like wildcard',
-    edits: [
-      { file: '../../entity/src/conformance/operator.ts', find: "  '%',\n  '_',\n", replace: '' },
-    ],
-    tests,
-  },
-  {
-    name: 'startsWith compares UTF-16 units',
-    edits: [
-      { file: kernel, find: ': beginsWith(text, prefix)', replace: ': text.startsWith(prefix)' },
-    ],
-    tests,
-  },
-  {
-    name: 'a lone surrogate compares as itself',
-    edits: [{ file: kernel, find: '? REPLACEMENT : each', replace: '? each : each' }],
     tests,
   },
 ]

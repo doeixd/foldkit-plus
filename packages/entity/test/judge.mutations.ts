@@ -4,8 +4,12 @@
  * fails for every one.
  */
 const evaluate = '../src/evaluate.ts'
+const judgeRun = '../src/judgeRun.ts'
+const lowerEnv = '../src/environment.ts'
 const held = '../src/held.ts'
-const expr = '../src/expr.ts'
+const relation = '../src/expr/relation.ts'
+const dependencies = '../src/expr/dependencies.ts'
+const order = '../src/expr/order.ts'
 const judge = ['packages/entity/test/judge.test.ts']
 const path = ['packages/entity/test/path.test.ts']
 
@@ -14,77 +18,13 @@ export default [
     name: 'a field the holder lacks reads as null',
     edits: [
       {
-        file: evaluate,
-        find: 'Held.match(row.field(key), { onHeld: value => value, onUnheld: reason => new Unheld(reason) }),',
-        replace: 'Held.match(row.field(key), { onHeld: value => value, onUnheld: () => null }),',
-      },
-    ],
-    tests: judge,
-  },
-  {
-    name: "and lets SQL's unknown win over an unheld operand",
-    edits: [
-      {
-        file: evaluate,
-        find: [
-          '      // operand could still make the whole false.',
-          '      const unheld = truths.find(isUnheld)',
-          '      if (unheld !== undefined) return unheld',
-          "      return truths.includes('unknown') ? 'unknown' : true",
-        ].join('\n'),
+        file: lowerEnv,
+        find: ['        Held.match(row.field(segment), {', '          onUnheld: left(here),'].join(
+          '\n',
+        ),
         replace: [
-          '      // operand could still make the whole false.',
-          "      if (truths.includes('unknown')) return 'unknown'",
-          '      return truths.find(isUnheld) ?? true',
-        ].join('\n'),
-      },
-    ],
-    tests: judge,
-  },
-  {
-    name: 'or reads an unheld operand as false',
-    edits: [
-      {
-        file: evaluate,
-        find: [
-          '      if (truths.includes(true)) return true',
-          '      const unheld = truths.find(isUnheld)',
-          '      if (unheld !== undefined) return unheld',
-        ].join('\n'),
-        replace: '      if (truths.includes(true)) return true',
-      },
-    ],
-    tests: judge,
-  },
-  {
-    name: 'not of an unheld operand is decided',
-    edits: [
-      {
-        file: evaluate,
-        find: "      return truth === 'unknown' || isUnheld(truth) ? truth : !truth",
-        replace: "      return truth === 'unknown' ? truth : !truth",
-      },
-    ],
-    tests: judge,
-  },
-  {
-    name: 'eq asks what is held before a null decides',
-    edits: [
-      {
-        file: evaluate,
-        find: [
-          "      if (isNull(left) || isNull(right)) return 'unknown'",
-          '      if (isUnheld(left)) return left',
-          '      if (isUnheld(right)) return right',
-          '      if (holdsNul(left) || holdsNul(right)) throw new QueryEvaluateError(nul)',
-          "      if (isNaNValue(left) || isNaNValue(right)) throw refusedNaN('an equality')",
-        ].join('\n'),
-        replace: [
-          '      if (isUnheld(left)) return left',
-          '      if (isUnheld(right)) return right',
-          "      if (isNull(left) || isNull(right)) return 'unknown'",
-          '      if (holdsNul(left) || holdsNul(right)) throw new QueryEvaluateError(nul)',
-          "      if (isNaNValue(left) || isNaNValue(right)) throw refusedNaN('an equality')",
+          '        Held.match(row.field(segment), {',
+          '          onUnheld: () => put(record, segment, null),',
         ].join('\n'),
       },
     ],
@@ -92,59 +32,29 @@ export default [
   },
   {
     name: 'an exists is false where pointing rows may be missing',
-    edits: [
-      {
-        file: evaluate,
-        find: '  let unheld = Option.map(missing, reason => new Unheld(reason))',
-        replace: '  let unheld = Option.none<Unheld>()',
-      },
-    ],
-    tests: judge,
-  },
-  {
-    name: 'an exists through a path that reaches no row is false',
-    edits: [
-      {
-        file: evaluate,
-        find: "  if (anchor === null) return 'unknown'",
-        replace: '  if (anchor === null) return false',
-      },
-    ],
+    edits: [{ file: lowerEnv, find: 'whole: Option.isNone(missing),', replace: 'whole: true,' }],
     tests: judge,
   },
   {
     name: 'a path that reaches no row is unknown rather than null',
     edits: [
       {
-        file: evaluate,
+        file: lowerEnv,
         find: [
-          '      const row = reached(scope.row, node.via)',
-          '      return row === null || isUnheld(row) ? row : row.field(node.field.key)',
+          '                onNone: () => null,',
+          '                onSome: reached => fill(',
         ].join('\n'),
         replace: [
-          '      const row = reached(scope.row, node.via)',
-          "      return row === null ? new Unheld('no row') : isUnheld(row) ? row : row.field(node.field.key)",
+          '                onNone: () => undefined,',
+          '                onSome: reached => fill(',
         ].join('\n'),
-      },
-    ],
-    tests: judge,
-  },
-  {
-    name: 'a strict operator beside an unheld argument ignores a null',
-    edits: [
-      {
-        file: evaluate,
-        find: "    return call.operator.nulls === 'strict' && values.some(isNull) ? null : unheld",
-        replace: '    return unheld',
       },
     ],
     tests: judge,
   },
   {
     name: 'Judge refuses an operator the holder does not run',
-    edits: [
-      { file: evaluate, find: '          if (scope.judging) {', replace: '          if (false) {' },
-    ],
+    edits: [{ file: judgeRun, find: '  if (!over.judging) {', replace: '  if (true) {' }],
     tests: judge,
   },
   {
@@ -152,8 +62,20 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: "    if (truths.some(truth => truth === false || truth === 'unknown')) return known(false)",
-        replace: '    if (truths.some(truth => truth === false)) return known(false)',
+        find: '    if (verdicts.some(Verdict.isFalse)) return Verdict.False()',
+        replace:
+          '    if (verdicts.some(each => Verdict.isFalse(each) && Option.isNone(each.witness))) return Verdict.False()',
+      },
+    ],
+    tests: judge,
+  },
+  {
+    name: "Judge.predicate answers SQL's null as a plain false",
+    edits: [
+      {
+        file: evaluate,
+        find: "if (truth === 'unknown') return Verdict.False(Option.some('null' as const))",
+        replace: "if (truth === 'unknown') return Verdict.False<'null'>()",
       },
     ],
     tests: judge,
@@ -174,8 +96,15 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: '  if (isUnheld(judged)) throw new RowsMissingError(judged.reason)',
-        replace: '  if (isUnheld(judged)) return false',
+        find: [
+          '    onUnheld: reason => {',
+          '      throw new RowsMissingError(reason)',
+          '    },',
+          '  })',
+          '',
+          '/** One operand',
+        ].join('\n'),
+        replace: ['    onUnheld: () => false,', '  })', '', '/** One operand'].join('\n'),
       },
     ],
     tests: judge,
@@ -213,7 +142,11 @@ export default [
   {
     name: "a path's end is not checked to be on the row reached",
     edits: [
-      { file: expr, find: '    if (owner.token !== target.token) {', replace: '    if (false) {' },
+      {
+        file: relation,
+        find: '    if (owner.token !== target.token) {',
+        replace: '    if (false) {',
+      },
     ],
     tests: path,
   },
@@ -221,9 +154,9 @@ export default [
     name: 'a path may follow any number of relations',
     edits: [
       {
-        file: expr,
-        find: '    if (path.via.length > maxPathLength) {',
-        replace: '    if (path.via.length > maxPathLength + 1) {',
+        file: relation,
+        find: '    if (via.length > maxPathLength) {',
+        replace: '    if (via.length > maxPathLength + 1) {',
       },
     ],
     tests: path,
@@ -232,7 +165,7 @@ export default [
     name: "an exists' filter may reach past its row",
     edits: [
       {
-        file: expr,
+        file: relation,
         find: '    if (foreign !== undefined || read.next.length > 0 || read.reaches.length > 0) {',
         replace: '    if (foreign !== undefined || read.next.length > 0) {',
       },
@@ -241,15 +174,21 @@ export default [
   },
   {
     name: 'a path claims no row of the query it is in',
-    edits: [{ file: expr, find: '      yield expr.via[0]', replace: '' }],
+    edits: [
+      {
+        file: dependencies,
+        find: "          yield origin.via[0]\n          return\n        // It starts at the viewer's row",
+        replace: "          return\n        // It starts at the viewer's row",
+      },
+    ],
     tests: path,
   },
   {
     name: "an exists' filter's inputs are not read",
     edits: [
       {
-        file: expr,
-        find: '        inner.inputs.forEach(key => found.inputs.add(key))',
+        file: dependencies,
+        find: '          inner.inputs.forEach(key => found.inputs.add(key))',
         replace: '',
       },
     ],
@@ -259,10 +198,9 @@ export default [
     name: 'a list may order by a path',
     edits: [
       {
-        file: expr,
-        find: '      Path: (path): Option.Option<Collation> => {\n        throw new Error(',
-        replace:
-          '      Path: (path): Option.Option<Collation> => {\n        if (path) return path.field.collation\n        throw new Error(',
+        file: order,
+        find: "        Hop: () => Option.some('a path'),",
+        replace: '        Hop: () => Option.none<string>(),',
       },
     ],
     tests: path,

@@ -5,15 +5,19 @@
 const tests = ['packages/remote-drizzle/test/operators.test.ts']
 const conformance = ['packages/remote-drizzle/test/conformance.test.ts']
 const compile = '../src/compile.ts'
+const lowering = '../src/lowering.ts'
+const sqlLowering = '../../metakit/src/sqlLowering.ts'
 const index = '../src/index.ts'
 const operators = '../src/operators.ts'
+
+const render = '../src/render.ts'
 
 export default [
   {
     name: 'a numeric literal input is left untyped (#323)',
     edits: [
       {
-        file: compile,
+        file: render,
         find: "SchemaAST.isNumber(ast) || (SchemaAST.isLiteral(ast) && typeof ast.literal === 'number')",
         replace: 'SchemaAST.isNumber(ast)',
       },
@@ -24,7 +28,7 @@ export default [
     name: 'an integer literal input is cast as a real number (#323)',
     edits: [
       {
-        file: compile,
+        file: render,
         find: 'SchemaAST.isLiteral(ast) ? Number.isInteger(ast.literal) : SchemaShape.holdsIntegers(ast)',
         replace: 'SchemaShape.holdsIntegers(ast)',
       },
@@ -32,17 +36,12 @@ export default [
     tests,
   },
   {
-    name: 'NaN given to an operator is bound (#296)',
-    edits: [{ file: compile, find: 'if (isNaNValue(value)) {', replace: 'if (false) {' }],
-    tests,
-  },
-  {
-    name: 'a computed value of NaN is bound (#296)',
+    name: 'NaN given to an operator or a computation is bound (#296)',
     edits: [
       {
-        file: compile,
-        find: 'if (isNaNValue(value)) throw new QueryCompileError(`${query} computes from NaN',
-        replace: 'if (false) throw new QueryCompileError(`${query} computes from NaN',
+        file: sqlLowering,
+        find: "if (typeof value === 'number' && !Number.isFinite(value)) {",
+        replace: 'if (false) {',
       },
     ],
     tests,
@@ -51,9 +50,9 @@ export default [
     name: 'SQLite casts its parameters too',
     edits: [
       {
-        file: compile,
-        find: "dialectOf(target) === 'sqlite'\n    ? sql`${bindable(value, target)}`",
-        replace: 'false\n    ? sql`${bindable(value, target)}`',
+        file: render,
+        find: "if (dialectOf(frame.target) === 'sqlite' || schema === undefined)",
+        replace: 'if (schema === undefined)',
       },
     ],
     tests,
@@ -62,7 +61,7 @@ export default [
     name: 'every number is cast as a real number',
     edits: [
       {
-        file: compile,
+        file: render,
         find: "if (!present.every(holdsIntegers)) return Option.some(sql.raw('double precision'))",
         replace: "return Option.some(sql.raw('double precision'))",
       },
@@ -73,7 +72,7 @@ export default [
     name: 'a boolean is not cast',
     edits: [
       {
-        file: compile,
+        file: render,
         find: 'present.length > 0 && present.every(SchemaAST.isBoolean)',
         replace: 'false',
       },
@@ -84,9 +83,9 @@ export default [
     name: 'text holding NUL reaches an operator',
     edits: [
       {
-        file: compile,
-        find: 'return sql`${value}`\n  if (holdsNul(value)) {',
-        replace: 'return sql`${value}`\n  if (false) {',
+        file: sqlLowering,
+        find: "if (typeof value === 'string' && value.includes('\\u0000')) {",
+        replace: 'if (false) {',
       },
     ],
     tests,
@@ -95,50 +94,45 @@ export default [
     name: "a call's binary text is compared uncollated on Postgres",
     edits: [
       {
-        file: compile,
-        find: 'dialect === \'postgres\' ? sql`(${text} collate "C")` : sql`(${text} collate binary)`,',
-        replace: "dialect === 'postgres' ? text : sql`(${text} collate binary)`,",
+        file: sqlLowering,
+        find: '? q`(${left} ${operator} ${right} COLLATE "C")`',
+        replace: '? q`(${left} ${operator} ${right})`',
       },
     ],
     tests,
   },
   {
     name: "a call's folded text is compared unfolded on SQLite",
-    edits: [{ file: compile, find: ': sql`(${text} collate nocase)`,', replace: ': text,' }],
-    tests,
-  },
-  {
-    name: "a comparison with a call ignores the call's collation",
     edits: [
       {
-        file: compile,
-        find: 'if (!is(left, Column) || (isColumn(second) && !is(right, Column))) {',
-        replace: 'if (false) {',
+        file: sqlLowering,
+        find: '(ctx.dialect === \'postgres\' ? q`lower(${s} COLLATE "C")` : q`lower(${s})`)',
+        replace: '(ctx.dialect === \'postgres\' ? q`lower(${s} COLLATE "C")` : s)',
       },
     ],
     tests,
   },
   {
-    name: 'an implementation is given no collation to apply',
+    name: 'an operator over a column is run in memory, past the SQL its table writes',
     edits: [
       {
-        file: compile,
-        find: 'collate: collateFor(call.collation, dialect),',
-        replace: 'collate: collateFor(Option.none(), dialect),',
+        file: lowering,
+        find: 'readsStored(node) ? {} : foreignOf(',
+        replace: 'false ? {} : foreignOf(',
       },
     ],
-    tests: conformance,
+    tests,
   },
   {
-    name: 'startsWith compares its prefix uncollated on Postgres',
+    name: 'an SQL implementation of a kernel operator is taken',
     edits: [
       {
         file: operators,
-        find: '? sql`${collate(sql`left(${text}, length(${prefix}))`)} = ${collate(prefix!)}`',
-        replace: '? sql`${collate(sql`left(${text}, length(${prefix}))`)} = ${prefix}`',
+        find: 'if (isKernelOperator(operator.descriptor)) {',
+        replace: 'if (false) {',
       },
     ],
-    tests: conformance,
+    tests: ['packages/remote-drizzle/test/operatorConformance.test.ts'],
   },
   {
     name: 'a query is registered without its operators checked',

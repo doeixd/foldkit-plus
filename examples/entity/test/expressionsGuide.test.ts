@@ -1,6 +1,7 @@
 // @vitest-environment node
 /** `docs/expressions.md`'s snippets, run: what the guide says each answers. */
 import { Option, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import {
   Collation,
   ContextMissingError,
@@ -189,7 +190,7 @@ describe('related Entities: links, paths, exists, Judge, and the other declarati
 
   it('a path and an exists are reaches, not fields; evaluate refuses them, and an order refuses a path', () => {
     expect(Query.dependencies(ByAuthorName).predicate).toEqual([])
-    expect(Query.dependencies(ByAuthorName).reaches.map(reach => Expr.show(reach))).toEqual([
+    expect(Query.dependencies(ByAuthorName).reaches.map(reach => Expr.show(reach.expr))).toEqual([
       'Post.author.name',
     ])
     expect(Query.unsupported(Discussed, ['eq', 'viewer'])).toEqual(['exists'])
@@ -207,8 +208,8 @@ describe('related Entities: links, paths, exists, Judge, and the other declarati
     ])
     const verdict = (id: string) =>
       Option.map(page.row(Post, id), row => Judge.query(ByAuthorName, { name: 'Ada' }, row))
-    expect(verdict('p1')).toEqual(Option.some({ _tag: 'Known', truth: true }))
-    expect(verdict('p3')).toEqual(Option.some({ _tag: 'Unknown', reason: 'Author a2 is not held' }))
+    expect(verdict('p1')).toEqual(Option.some(Verdict.True()))
+    expect(verdict('p3')).toEqual(Option.some(Verdict.Unknown('Author a2 is not held')))
   })
 
   it('an invariant, a state and a precondition are predicates too', () => {

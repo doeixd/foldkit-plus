@@ -151,3 +151,20 @@ test('the app sits centred at the top of the page, on a surface of its own', asy
   expect(errors).toEqual([])
   await page.close()
 })
+
+// A blank title is dropped before it is a durable Message, so the footer shows no refusal.
+test('clearing the list title keeps it, shows no error, and a real rename is saved', async () => {
+  const carol = await open('owner')
+  const title = carol.page.locator('input[aria-label="List title"]')
+  await title.fill('   ')
+  await title.press('Enter')
+  await carol.page.waitForTimeout(500)
+  expect(await carol.page.locator('[role="status"]').first().textContent()).not.toContain('Refused')
+  await title.fill('Errands')
+  await title.press('Enter')
+  await expect
+    .poll(() => journal.snapshot(documentId).model.listTitle, { timeout: 10_000 })
+    .toBe('Errands')
+  expect(carol.errors).toEqual([])
+  await carol.page.close()
+})

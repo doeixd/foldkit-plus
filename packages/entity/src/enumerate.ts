@@ -6,8 +6,9 @@
  * input, makes the question undecided, with the reason.
  */
 import { Data, Match, Option, Schema, SchemaAST } from 'effect'
+import { Verdict } from 'metakit'
 import { Judge, type Row } from './evaluate.js'
-import { Query } from './expr.js'
+import { dependencies } from './expr/query.js'
 import type { AnyEntity, EntityField } from './index.js'
 import { kernelOperators } from './memoryTable.js'
 import type { MemoryOperators } from './operators.js'
@@ -159,7 +160,7 @@ export const steps = (
   if (infinite !== undefined) return Steps.Undecided({ reason: `${infinite} is not finite` })
   // What the `when` reads joins the rows when it is finite, so a row it refuses is dropped.
   const condition = Option.filter(write.when, () => !insert)
-  const read = Option.map(condition, body => Query.dependencies(body))
+  const read = Option.map(condition, body => dependencies(body))
   const whenKeys = Option.match(read, {
     onNone: () => [],
     onSome: dependencies =>
@@ -212,7 +213,7 @@ export const steps = (
         onSome: ({ body }) => {
           const row = heldRow(entity, before)
           const verdict = Judge.query(body, input, row, { operators })
-          return verdict._tag === 'Known' && !verdict.truth
+          return Verdict.isFalse(verdict)
         },
       })
       if (refused) continue

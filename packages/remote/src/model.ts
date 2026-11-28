@@ -1963,6 +1963,7 @@ const reduceRemote = (
           message.generation,
         ),
         entities: read.store,
+        kept: capabilities.keeps(model, message.result.entities, held, message.now),
         echoes: answeredSince(
           model.echoes,
           held.size === 0
@@ -2201,7 +2202,8 @@ const reduceRemote = (
     case 'MutationSucceeded': {
       // Settling is release-the-layer-and-overlays, so overlapping optimistic
       // layers rebase instead of needing inverse patches.
-      const settled = layersIn(capabilities).settleSuccess(
+      const layers = layersIn(capabilities)
+      const settled = layers.settleSuccess(
         model.entities,
         model.optimistic,
         model.mutations,
@@ -2215,36 +2217,42 @@ const reduceRemote = (
         message.read === undefined || model.mutations.applied.has(message.requestId)
           ? undefined
           : unsettledRead(message.read, settledLater(model.mutations, message.requestId))
+      const answered = [...message.entities, ...(read?.result.entities ?? [])]
+      const applied = [...settled.applied, ...(read?.result.entities ?? [])]
       // A live stream may still send what was committed before this write;
       // until it sends the answer's values back, it does not overwrite them.
+      // Only fields actually applied by reconcileMutation await echoes.
       const echoes = model.mutations.applied.has(message.requestId)
         ? model.echoes
         : Option.match(capabilities.live, {
             onNone: () => model.echoes,
-            onSome: live =>
-              live.awaitEchoes(
-                model.echoes,
-                [...message.entities, ...(read?.result.entities ?? [])],
-                message.now,
-              ),
+            onSome: live => live.awaitEchoes(model.echoes, applied, message.now),
           })
-      // What a stream wrote while this was pending ends here; one that disagrees with
-      // the answer is read again, as only a read says which is the newer (#499).
-      const answered = [...message.entities, ...(read?.result.entities ?? [])]
+      // What a patch or a read moved while this was pending ends here; one that
+      // disagrees with the answer, and is not the write replayed over it, is read
+      // again, as only a read says which is the newer (#499, #480).
+      const settledAt = model.mutations.order.get(message.requestId)
+      const earlier =
+        settledAt === undefined
+          ? undefined
+          : new Set(
+              [...settled.state.pending].filter(
+                id => (model.mutations.order.get(id) ?? Infinity) < settledAt,
+              ),
+            )
       const { kept, again } = model.mutations.applied.has(message.requestId)
         ? { kept: model.kept, again: [] }
-        : Option.match(capabilities.live, {
-            onNone: () => ({ kept: model.kept, again: [] }),
-            onSome: live =>
-              live.settleKept(
-                model.kept,
-                model.entities,
-                message.requestId,
-                answered,
-                settled.state.pending,
-                message.now,
-              ),
-          })
+        : layers.settleReplayed(
+            model.kept,
+            model.entities,
+            model.optimistic.layers.find(layer => layer.id === message.requestId),
+            message.requestId,
+            answered,
+            settled.state.pending,
+            message.now,
+            earlier,
+            applied,
+          )
       const repeated = model.mutations.applied.has(message.requestId)
       const written =
         read === undefined
@@ -2444,16 +2452,17 @@ const reduceRemote = (
               .map(edge => ({ ...message.select!, id: edge.ref.id }))
       const payloadRead = { entities: [...payload], settled: [...settled] }
       // A page is read with no token: a floored row on it may be older than the write.
-      const entities =
+      const read =
         requests.length === 0
-          ? model.entities
+          ? { store: model.entities, held: noRows }
           : readAfterIn(capabilities).read(
               model.entities,
               requests,
               payloadRead,
               message.now ?? 0,
               undefined,
-            ).store
+            )
+      const entities = read.store
       // Like `ReadReceived`: the answer settles what it was asked, whether
       // with values or as settled, so a prior failure does not outlive it.
       const failures = withoutFieldFailures(
@@ -2464,6 +2473,10 @@ const reduceRemote = (
         ...model,
         ...checkedPlacement(model, message.connection, message.page, message.refreshes === true),
         entities,
+        kept:
+          requests.length === 0
+            ? model.kept
+            : capabilities.keeps(model, payload, read.held, message.now ?? 0),
         connections: {
           ...model.connections,
           [message.connection]:

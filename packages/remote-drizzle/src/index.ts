@@ -23,8 +23,9 @@ import {
   lt,
   lte,
   sql,
+  SQL,
   type AnyColumn,
-  type SQL,
+  type Column,
   type Table,
 } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
@@ -38,17 +39,18 @@ import {
   Write,
   dependenciesOf,
   evaluate,
-  isPredicate,
   viewerIdOf,
   type AnyQuery,
   type Computation,
+  type EntityEnv,
   type EntityIdentity,
   type EntityRef,
   type Change,
-  type Evidence,
   type Invariant,
   type WriteAssignment,
 } from 'foldkit-entity'
+import { Node } from 'metakit'
+import { wrap } from 'metakit/build'
 import type { ConnectionSpec, NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Diagnostics, Entity } from 'foldkit-remote'
 import {
@@ -62,9 +64,11 @@ import {
   type EntityRecord,
   type EntityWriter,
   type LiveHub,
+  type LinkRelation,
   type EntitySource,
   type EntitySourceContext,
   type QuerySource,
+  type StoreCapabilities,
   type WriteRequirement,
   type WriteWhen,
 } from 'foldkit-remote-server'
@@ -85,6 +89,7 @@ import {
   requireOperators,
   supported,
 } from './compile.js'
+import { ownFieldKey } from './nodes.js'
 import {
   cursorSelection,
   idCursor,
@@ -101,6 +106,7 @@ import {
   drizzleWrites,
   type DrizzleDatabaseService,
   type DrizzleWrites,
+  type InsertSelect,
 } from './database.js'
 import { toQueryPage } from './page.js'
 import { cascadePlan, type CascadePlan, type CascadeStep } from './cascade.js'
@@ -108,6 +114,13 @@ import { declarations, ObservedStatements } from './observed.js'
 import { quoted } from './quoted.js'
 import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
+import {
+  lockParents,
+  sortParentIds,
+  withParentLock,
+  type ParentLock,
+  type ParentLockTransaction,
+} from './parentLock.js'
 
 export * from './bind.js'
 export { checkConstraints, entityChecks, type EntityCheckOptions } from './checks.js'
@@ -120,6 +133,13 @@ export * from './operators.js'
 export * from './database.js'
 export * from './page.js'
 export * from './pagination.js'
+export {
+  lockParents,
+  sortParentIds,
+  withParentLock,
+  type ParentLock,
+  type ParentLockTransaction,
+} from './parentLock.js'
 export { queryPlans, type PlanVerdict, type QueryPlan } from './plans.js'
 export * from './window.js'
 export * from './poll.js'
@@ -1351,11 +1371,105 @@ const holdsIntegers = (column: AnyColumn | undefined): boolean =>
  */
 const writeOperations = supported.filter(operation => operation !== 'viewer' && operation !== 'now')
 
-export const writer = <P = unknown>(
-  binding: AnyEntityBinding,
-  options: { readonly ledger?: WriteLedger<P> } = {},
+/**
+ * What the database behind `table` guarantees of concurrent writes, as the
+ * writer uses it. SQLite runs one writing transaction at a time. A SQLite
+ * table may be D1's, which the writer learns only per request: D1 is SQLite
+ * behind one writer, so a statement, and a batch, which is one transaction,
+ * runs as if alone: serializable. But D1 has no transaction a read and a
+ * later write share, so that isolation reaches one statement or batch, and
+ * nothing spans two round trips. That is all the writer uses: it judges every
+ * rule in the statement, or the batch, that writes (`judgesInStatement`). The
+ * durable journal declares D1 the same way. Postgres runs transactions at
+ * once under READ COMMITTED unless it is set otherwise, each transaction one
+ * unit, and the writer locks no row but the one it writes.
+ */
+const storeOf = (table: Table, serializable: boolean, parentRowLock: boolean): StoreCapabilities =>
+  is(table, SQLiteTable)
+    ? { name: 'SQLite', isolation: 'serializable', isolates: 'statement', parentRowLock: false }
+    : {
+        name: 'Postgres',
+        isolation: serializable ? 'serializable' : 'read-committed',
+        isolates: 'transaction',
+        parentRowLock,
+      }
+
+export const writer = <P = unknown, B extends AnyEntityBinding = AnyEntityBinding>(
+  binding: B,
+  options: {
+    readonly ledger?: WriteLedger<P>
+    /**
+     * Say `'serializable'` only when the Postgres database runs this writer's
+     * statements at that level (`default_transaction_isolation`): the writer
+     * does not set it. `RemoteServer.write` then lets a rule that reads other
+     * rows through, which it refuses on Postgres otherwise. SQLite needs none.
+     */
+    readonly isolation?: 'serializable'
+    /**
+     * Postgres-only parent-row lock (`SELECT ... FOR UPDATE` in ascending id
+     * order) and optional transactional stored-total update (`onWrite`). When
+     * set, the writer declares `store.parentRowLock = true`.
+     */
+    readonly parentLock?: ParentLock<keyof B['fields'] & string> | undefined
+    /**
+     * The column holding the row's revision, a number: every update moves it
+     * on by one in its statement, whatever it `expect`s, and answers it
+     * (`EntityWriter.revision`). Beside `revisionTrigger` it moves once: the
+     * trigger leaves an update that moved the revision itself.
+     */
+    readonly revision?: (keyof B['fields'] & string) | undefined
+  } = {},
 ): EntityWriter<P, DrizzleDatabase> => {
   const ledger = options.ledger
+  const parentLock = options.parentLock
+  if (parentLock !== undefined && is(binding.table, SQLiteTable)) {
+    throw new Error(
+      `[foldkit-remote-drizzle] writer: parentLock on ${binding.name} is supported on Postgres only; SQLite/D1 has no SELECT ... FOR UPDATE.`,
+    )
+  }
+  const existingParentIds = async (tx: unknown, id: string): Promise<ReadonlyArray<string>> => {
+    if (parentLock === undefined) return []
+    const cols: Record<string, AnyColumn> = {}
+    for (const field of parentLock.by) {
+      const col = binding.columns[field]
+      if (col !== undefined) cols[field] = col
+      else {
+        const rel = binding.relations[field]
+        if (rel !== undefined && rel.kind === 'one') cols[field] = rel.field
+      }
+    }
+    if (Object.keys(cols).length === 0) return []
+    const rows = await (tx as ParentLockTransaction)
+      .select(cols)
+      .from(binding.table as unknown as PgTable)
+      .where(eq(idColumn(binding), id))
+    const row = rows[0]
+    if (row === undefined) return []
+    const ids: Array<string> = []
+    for (const field of Object.keys(cols)) {
+      const val = row[field]
+      if (val !== null && val !== undefined) ids.push(String(val))
+    }
+    return ids
+  }
+
+  const parentIdsFrom = (
+    values: Readonly<Record<string, unknown>>,
+    links: Readonly<Record<string, Option.Option<EntityRef>>>,
+  ): ReadonlyArray<string> => {
+    if (parentLock === undefined) return []
+    const ids: Array<string> = []
+    for (const field of parentLock.by) {
+      if (Object.hasOwn(links, field)) {
+        const ref = links[field]
+        if (ref !== undefined && Option.isSome(ref)) ids.push(ref.value.id)
+      } else if (Object.hasOwn(values, field)) {
+        const val = values[field]
+        if (val !== null && val !== undefined) ids.push(String(val))
+      }
+    }
+    return sortParentIds(ids)
+  }
   // `set` is keyed by the table's own property names, not by its columns' SQL names.
   const keys = new Map<unknown, string>(
     Object.entries(getTableColumns(binding.table)).map(([key, column]) => [column, key]),
@@ -1364,6 +1478,23 @@ export const writer = <P = unknown>(
     const column = binding.columns[field]
     return column === undefined ? undefined : keys.get(column)
   }
+  const revisionField = options.revision
+  const revisionColumn = revisionField === undefined ? undefined : binding.columns[revisionField]
+  const revisionKey = revisionField === undefined ? undefined : keyOf(revisionField)
+  if (revisionField !== undefined && (revisionColumn === undefined || revisionKey === undefined)) {
+    throw new Error(
+      `[foldkit-remote-drizzle] writer: ${binding.name} has no column for its revision "${revisionField}"`,
+    )
+  }
+  if (revisionColumn !== undefined && !String(revisionColumn.dataType).startsWith('number')) {
+    throw new Error(
+      `[foldkit-remote-drizzle] writer: ${binding.name}'s revision "${revisionField}" is not a number column`,
+    )
+  }
+  const movesOn: Record<string, SQL> =
+    revisionColumn === undefined || revisionKey === undefined
+      ? {}
+      : { [revisionKey]: sql`${revisionColumn} + 1` }
   const missing = (what: string) =>
     new RemoteServerError({ message: `${binding.name} has no ${what}` })
   // The rows as a principal may read them, under the binding's `visible`. A
@@ -1417,9 +1548,16 @@ export const writer = <P = unknown>(
         next,
         operators: binding.operators,
       }
+      // A field the write sets is its value; any other `next` field is the target's `next`.
+      const setValues = (node: Node.Node): Node.Node =>
+        Node.substitutePaths(node, segments =>
+          segments[0] === 'next' && segments.length === 2 && Object.hasOwn(values, segments[1]!)
+            ? Option.some(Node.Lit({ value: values[segments[1]!] }))
+            : Option.none(),
+        )
       return judged.flatMap(held =>
         compilePredicates(
-          [Expr.substituteNext(held.predicate, values)],
+          [wrap<EntityEnv, boolean | null>(setValues(held.predicate.node))],
           target,
           {},
           invariantName(held),
@@ -1447,28 +1585,23 @@ export const writer = <P = unknown>(
    */
   const commutes = (assignment: WriteAssignment): boolean => {
     const { expr, field } = assignment
-    if (expr._tag !== 'Call' || expr.args.length !== 2) return false
-    const [own, amount] = expr.args
-    if (own === undefined || amount === undefined || isPredicate(own) || own._tag !== 'Field') {
-      return false
-    }
-    if (own.key !== field.key || dependenciesOf(amount).fields.length > 0) return false
-    const name =
-      expr.operator.version === 1
-        ? expr.operator.id
-        : `${expr.operator.id}@${expr.operator.version}`
-    const tested = (evidence: ReadonlyArray<Evidence>, kind: string) =>
-      evidence.some(
-        record =>
-          record._tag === 'Tested' &&
-          record.operator === name &&
-          record.law.kind === kind &&
-          record.law.domain === null,
-      )
-    return ['commutative', 'associative'].every(
-      kind =>
-        tested(binding.operators.memory.evidence, kind) &&
-        tested(binding.operators.sql.evidence, kind),
+    const { node } = expr
+    if (!Node.$is('Call')(node) || node.args.length !== 2) return false
+    const [own, amount] = node.args
+    if (own === undefined || amount === undefined) return false
+    if (!Option.contains(ownFieldKey(own), field.key)) return false
+    const amountReads = dependenciesOf(wrap<EntityEnv, unknown>(amount))
+    if (amountReads.fields.length > 0) return false
+    // The operator the call is of: the one it calls that its amount does not, when one is.
+    const [operator, ...others] = dependenciesOf(expr).operators.filter(
+      each => !amountReads.operators.includes(each),
+    )
+    if (operator === undefined || others.length > 0) return false
+    return (
+      binding.operators.memory.has(operator) &&
+      binding.operators.sql.has(operator) &&
+      operator.claims.commutative === true &&
+      operator.claims.associative === true
     )
   }
 
@@ -1503,6 +1636,111 @@ export const writer = <P = unknown>(
       edge,
       exists: sql`exists (select 1 from ${edge.owner.table} where ${edge.column} = ${id})`,
     }))
+
+  /**
+   * For each link a write sets through a relation declared `onDelete`, to a
+   * row: whether that row is there. The statement that writes holds each, so
+   * a link never points at a row that is gone (`EntityWriter.checksTargets`).
+   */
+  const targetsOf = (links: Readonly<Record<string, Option.Option<EntityRef>>>) =>
+    (binding.guards ?? []).flatMap(key => {
+      const relation = binding.relations[key]
+      const link = Object.hasOwn(links, key) ? links[key] : undefined
+      if (relation?.kind !== 'one' || link === undefined || Option.isNone(link)) return []
+      const target = relation.entity
+      const at = eq(idColumn(target), link.value.id)
+      return [{ key, target, at, exists: sql`exists (select 1 from ${target.table} where ${at})` }]
+    })
+
+  /**
+   * The row `set` makes, selected from the row its first link points at and
+   * only while every link's row is there: an insert that lands with its links
+   * pointing at rows, or lands nothing, in one statement. A column `set` leaves
+   * out gets what Drizzle's own insert computes for it (`$defaultFn`,
+   * `$onUpdate`, and on SQLite a declared `default`); any other is left out of
+   * the insert, so the database gives it its own default (a serial, an
+   * identity, a default only the table declares), as Drizzle's `default` does
+   * on Postgres.
+   */
+  const insertedWhile =
+    (
+      set: Readonly<Record<string, unknown>>,
+      [first, ...rest]: Arr.NonEmptyReadonlyArray<ReturnType<typeof targetsOf>[number]>,
+    ) =>
+    (query: InsertSelect) => {
+      const columns: Readonly<Record<string, Column>> = getTableColumns(binding.table as Table)
+      const sqlite = is(binding.table, SQLiteTable)
+      const fields: Record<string, SQL> = {}
+      for (const [key, column] of Object.entries(columns)) {
+        const value =
+          set[key] !== undefined
+            ? set[key]
+            : column.defaultFn !== undefined
+              ? column.defaultFn()
+              : sqlite && column.default !== null && column.default !== undefined
+                ? column.default
+                : column.onUpdateFn !== undefined && (sqlite || !column.default)
+                  ? column.onUpdateFn()
+                  : undefined
+        if (value !== undefined)
+          fields[key] = is(value, SQL) ? value : sql`${sql.param(value, column)}`
+      }
+      return query
+        .select(fields)
+        .from(first.target.table)
+        .where(and(first.at, ...rest.map(({ exists }) => exists)))
+    }
+
+  /**
+   * Read after a write of row `id` missed: refuses the first link of `targets`
+   * whose row is not there, named by the relation alone.
+   */
+  const refuseGone = (id: string, targets: ReturnType<typeof targetsOf>) =>
+    Effect.gen(function* () {
+      const database = yield* DrizzleDatabase
+      for (const { key, target, at } of targets) {
+        const found = yield* selectRows(
+          database,
+          target.table,
+          { id: idColumn(target) },
+          { where: at, limit: 1 },
+        )
+        if (found.length === 0) return yield* goneRefusal(id, key)
+      }
+    })
+
+  /** Row `id`'s link `key` points at a row that is not there: named by the relation alone. */
+  const goneRefusal = (id: string, key: string) =>
+    RemoteServer.invalid(
+      `${binding.name} ${id} links "${key}" to a row that is not there`,
+      Option.none(),
+      [key],
+    )
+
+  /**
+   * Whether a foreign key holds the links of `relation` (`EntityWriter.foreignKey`):
+   * its table declares one on the link's column, and is Postgres's, which always
+   * enforces one. SQLite enforces one only under a pragma the writer cannot see.
+   */
+  const foreignKey = (relation: LinkRelation): boolean => {
+    const reached = new Set<AnyEntityBinding>([binding])
+    const reach = (at: AnyEntityBinding): void => {
+      for (const { owner } of at.cascades ?? [])
+        if (!reached.has(owner)) {
+          reached.add(owner)
+          reach(owner)
+        }
+    }
+    reach(binding)
+    for (const { owner } of [...(binding.restricts ?? []), ...(binding.clears ?? [])])
+      reached.add(owner)
+    const owner = [...reached].find(at => at.name === relation.owner.name)
+    return (
+      owner !== undefined &&
+      !is(owner.table, SQLiteTable) &&
+      (owner.keyed ?? []).includes(relation.key)
+    )
+  }
 
   // What a delete takes with it (`onDelete: 'cascade'`), worked out once: a cycle is refused here.
   const plan =
@@ -1613,32 +1851,97 @@ export const writer = <P = unknown>(
           .returning({ id: idColumn(binding) }),
       ]
       const failed = 'Database write failed'
-      const results: ReadonlyArray<ReadonlyArray<Record<string, unknown>>> = isD1(database)
+      const rootIndex = seen.length + 2 * clearing.length + steps.length
+      const rolledBack = Symbol('withCascade.rollback')
+      const lockedCount = (result: unknown): number =>
+        Array.isArray(result)
+          ? result.length
+          : typeof result === 'object' &&
+              result !== null &&
+              'rows' in result &&
+              Array.isArray(result.rows)
+            ? result.rows.length
+            : 0
+      const results: ReadonlyArray<ReadonlyArray<Record<string, unknown>>> | undefined = isD1(
+        database,
+      )
         ? yield* runStatement(() => database.batch(statements(database)), failed)
         : database.resultKind === 'sync'
           ? // A synchronous driver's transaction commits as its body returns: no await in it.
+            // Throw `rolledBack` if the root delete missed so any prior child statements roll back.
             yield* runStatement(
               () =>
-                Promise.resolve(database.transaction(tx => statements(tx).map(each => each.all()))),
+                Promise.resolve().then(() => {
+                  try {
+                    return database.transaction(tx => {
+                      const done = statements(tx).map(each => each.all())
+                      if ((done[rootIndex] ?? []).length === 0) throw rolledBack
+                      return done
+                    })
+                  } catch (error) {
+                    if (error === rolledBack) return undefined
+                    throw error
+                  }
+                }),
               failed,
             )
           : yield* runStatement(
               () =>
-                database.transaction(async tx => {
-                  // Postgres: hold the row named until this transaction ends, so
-                  // what the leaf gate read is what the root delete sees.
-                  if (!is(binding.table, SQLiteTable)) {
-                    await tx.execute(
-                      sql`select 1 from ${binding.table} where ${rootWhere ?? sql`1 = 1`} for update`,
-                    )
-                  }
-                  const done: Array<ReadonlyArray<Record<string, unknown>>> = []
-                  for (const each of statements(tx)) done.push(await each)
-                  return done
-                }),
+                database
+                  .transaction(async tx => {
+                    // Postgres: lock the root row first, then every row the cascade takes
+                    // (parents before children) and every row whose link it clears, all
+                    // `for update`, before any statement reads or writes. With a foreign key
+                    // on each edge, locking a parent blocks new children from linking to it;
+                    // locking children blocks concurrent updates to non-FK columns checked
+                    // by `cascading`, `clearing`, or `clearBreaks`.
+                    if (!is(binding.table, SQLiteTable)) {
+                      const rootLocked = lockedCount(
+                        await tx.execute(
+                          sql`select 1 from ${binding.table} where ${eq(idColumn(binding), id)} for update`,
+                        ),
+                      )
+                      if (rootLocked === 0) throw rolledBack
+                      for (const step of [...steps].reverse()) {
+                        const lockStep = () =>
+                          tx.execute(
+                            sql`select 1 from ${step.binding.table} where ${idColumn(step.binding)} in (${removedBy(step)}) order by ${idColumn(step.binding)} for update`,
+                          )
+                        if (step.self.length === 0) {
+                          await lockStep()
+                        } else {
+                          // A self-cascade can grow while deeper rows are not yet locked; repeat
+                          // until the locked set stops growing (locked rows cannot be modified
+                          // or deleted, so the count is monotonically non-decreasing).
+                          let locked = lockedCount(await lockStep())
+                          while (locked > 0) {
+                            const next = lockedCount(await lockStep())
+                            if (next === locked) break
+                            locked = next
+                          }
+                        }
+                      }
+                      for (const edges of Object.values(Arr.groupBy(clears, edge => edge.entity))) {
+                        const owner = edges[0].owner
+                        const pointing = or(...edges.map(edge => sql`${edge.column} = ${id}`))
+                        await tx.execute(
+                          sql`select 1 from ${owner.table} where ${pointing} order by ${idColumn(owner)} for update`,
+                        )
+                      }
+                    }
+                    const done: Array<ReadonlyArray<Record<string, unknown>>> = []
+                    for (const each of statements(tx)) done.push(await each)
+                    // Roll back prior child clears/deletes if the root delete missed under READ COMMITTED.
+                    if ((done[rootIndex] ?? []).length === 0) throw rolledBack
+                    return done
+                  })
+                  .catch(error => {
+                    if (error === rolledBack) return undefined
+                    throw error
+                  }),
               failed,
             )
-      const deleted = (results[seen.length + 2 * clearing.length + steps.length] ?? []).length > 0
+      const deleted = results !== undefined && (results[rootIndex] ?? []).length > 0
       if (!deleted) return { deleted, cascaded: [], cleared: [] }
       const cascaded = seen.flatMap(({ step }, at) =>
         (results[at] ?? [])
@@ -2219,6 +2522,11 @@ export const writer = <P = unknown>(
     increments: true,
     assignments: true,
     requires: true,
+    revision: revisionField,
+    store: storeOf(binding.table, options.isolation === 'serializable', parentLock !== undefined),
+    // `when`, `requires`, invariants and the postcondition are clauses of the UPDATE or
+    // DELETE; what a cascade or a cleared link must hold gates each statement of its batch.
+    judgesInStatement: true,
     operators: binding.operators.memory,
     commutes,
     invariants: true,
@@ -2226,6 +2534,9 @@ export const writer = <P = unknown>(
     cascades: true,
     restricts: true,
     clears: true,
+    // A link through a relation declared onDelete is written only while its row is there.
+    ...(binding.guards === undefined ? {} : { checksTargets: true }),
+    foreignKey,
     // A fraction added to an integer column splits the dialects: Postgres refuses the
     // statement, SQLite stores the fraction. A field declared Schema.Number hides the column.
     refuses: write => [
@@ -2316,9 +2627,11 @@ export const writer = <P = unknown>(
         const judged = judging(ensures)
         const at = yield* rowOf(id, expect, when)
         const required = yield* requiredOf(requires)
+        const targets = targetsOf(links)
         const where = and(
           at.where,
           ...required,
+          ...targets.map(({ exists }) => exists),
           ...(yield* holdingInvariants(
             judged,
             { ...values, ...linkIds(links) },
@@ -2331,6 +2644,8 @@ export const writer = <P = unknown>(
           ...(yield* setOf(values, links)),
           ...(yield* incrementsOf(increments)),
           ...(yield* assignmentsOf(assignments)),
+          // An `expect` of the same column moves it by the same `+ 1`: once.
+          ...movesOn,
           ...bump,
         }
         // A row a revision on could be another's increment or computation: only the
@@ -2342,6 +2657,7 @@ export const writer = <P = unknown>(
           ...Object.keys(assignments),
           ...Object.keys(links),
           ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
+          ...(revisionField === undefined ? [] : [revisionField]),
         ]
         const answered = returning(binding, answeredFields)
         const writes = yield* drizzleWrites
@@ -2358,18 +2674,42 @@ export const writer = <P = unknown>(
         }
         let rows: ReadonlyArray<Record<string, unknown>>
         if (Option.isSome(book)) {
+          const runUpdate = (tx: unknown) =>
+            (tx as DrizzleWrites)
+              .update(binding.table)
+              .set(set)
+              .where(where)
+              .returning(answered.columns)
           const done = yield* inLedger(
             book.value.ledger,
             book.value.ledger.scope(principal),
             book.value.op,
             request,
             id,
-            tx =>
-              (tx as DrizzleWrites)
-                .update(binding.table)
-                .set(set)
-                .where(where)
-                .returning(answered.columns),
+            parentLock === undefined
+              ? runUpdate
+              : async tx => {
+                  const allParentIds = sortParentIds([
+                    ...(await existingParentIds(tx, id)),
+                    ...parentIdsFrom(values, links),
+                  ])
+                  const lockedIds = await lockParents(
+                    tx,
+                    parentLock.table,
+                    parentLock.id,
+                    allParentIds,
+                  )
+                  const updated = (await (runUpdate(tx) as PromiseLike<
+                    ReadonlyArray<Record<string, unknown>>
+                  >)) as ReadonlyArray<Record<string, unknown>>
+                  if (updated.length > 0 && parentLock.onWrite !== undefined) {
+                    await parentLock.onWrite({
+                      parentIds: lockedIds,
+                      tx: tx as ParentLockTransaction,
+                    })
+                  }
+                  return updated
+                },
             answered,
           )
           // Landed already: not written again.
@@ -2380,6 +2720,24 @@ export const writer = <P = unknown>(
           // Nothing to set: the row as it is, if it is there.
           rows = yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
             where,
+          })
+        } else if (parentLock !== undefined) {
+          const incomingIds = parentIdsFrom(values, links)
+          rows = yield* withParentLock(parentLock.table, parentLock.id, [], async tx => {
+            const allParentIds = sortParentIds([
+              ...(await existingParentIds(tx, id)),
+              ...incomingIds,
+            ])
+            const lockedIds = await lockParents(tx, parentLock.table, parentLock.id, allParentIds)
+            const updated = (await tx
+              .update(binding.table)
+              .set(set)
+              .where(where)
+              .returning(answered.columns)) as ReadonlyArray<Record<string, unknown>>
+            if (updated.length > 0 && parentLock.onWrite !== undefined) {
+              await parentLock.onWrite({ parentIds: lockedIds, tx })
+            }
+            return updated
           })
         } else {
           rows = yield* runStatement(
@@ -2392,7 +2750,8 @@ export const writer = <P = unknown>(
           Option.isSome(expect) ||
           Option.isSome(when) ||
           judged.length > 0 ||
-          requires !== undefined
+          requires !== undefined ||
+          targets.length > 0
         if (Option.isSome(written) || !conditioned) return written
         // The write missed. Why is read from the row as it is now: gone, moved
         // past the expected revision, not holding the precondition, or else
@@ -2418,6 +2777,7 @@ export const writer = <P = unknown>(
         if (Option.isNone(whole)) return whole
         // Who may write it is refused first, as a guard refuses before all else.
         yield* refusedBy(id, requires, required)
+        yield* refuseGone(id, targets)
         const row = whole.value
         // The same row with only what this write answers with: a patch keeps every column read.
         const answers = new Set(['id', ...answeredFields])
@@ -2504,12 +2864,17 @@ export const writer = <P = unknown>(
         if (idKey === undefined) return yield* missing('id column to insert')
         const set = { ...(yield* setOf(values, links)), [idKey]: id }
         const answered = returning(binding, [...Object.keys(values), ...Object.keys(links)])
-        const statement = (database: unknown) =>
-          (database as DrizzleWrites)
-            .insert(binding.table)
-            .values(set)
+        const targets = targetsOf(links)
+        const statement = (database: unknown) => {
+          const into = (database as DrizzleWrites).insert(binding.table)
+          return (
+            Arr.isReadonlyArrayNonEmpty(targets)
+              ? into.select(insertedWhile(set, targets))
+              : into.values(set)
+          )
             .onConflictDoNothing()
             .returning(answered.columns)
+        }
         // Only the ledger tells a retry from another create of a taken id. The row
         // there is never compared with this one, since it may hold what the asker
         // may not read, and a different answer per value would tell them.
@@ -2521,16 +2886,66 @@ export const writer = <P = unknown>(
             operation.value,
             request,
             id,
-            statement,
+            parentLock === undefined
+              ? statement
+              : async tx => {
+                  const parentIds = parentIdsFrom(values, links)
+                  const lockedIds = await lockParents(
+                    tx,
+                    parentLock.table,
+                    parentLock.id,
+                    parentIds,
+                  )
+                  const rows = (await (statement(tx) as PromiseLike<
+                    ReadonlyArray<Record<string, unknown>>
+                  >)) as ReadonlyArray<Record<string, unknown>>
+                  if (rows.length > 0 && parentLock.onWrite !== undefined) {
+                    await parentLock.onWrite({
+                      parentIds: lockedIds,
+                      tx: tx as ParentLockTransaction,
+                    })
+                  }
+                  return rows
+                },
             answered,
           )
           if (done._tag === 'Recorded') return yield* answerOfRecord(id, answered, done.answer)
           inserted = done.rows
+        } else if (parentLock !== undefined) {
+          const parentIds = parentIdsFrom(values, links)
+          inserted = yield* withParentLock(
+            parentLock.table,
+            parentLock.id,
+            parentIds,
+            async (tx, lockedIds) => {
+              const rows = (await (statement(tx) as PromiseLike<
+                ReadonlyArray<Record<string, unknown>>
+              >)) as ReadonlyArray<Record<string, unknown>>
+              if (rows.length > 0 && parentLock.onWrite !== undefined) {
+                await parentLock.onWrite({ parentIds: lockedIds, tx })
+              }
+              return rows
+            },
+          )
         } else {
           const writes = yield* drizzleWrites
           inserted = yield* runStatement(() => statement(writes), 'Database write failed')
         }
-        // Nothing inserted: the id is taken, and every such create is answered alike.
+        // Nothing inserted: the id is taken, and every such create is answered alike; or
+        // else a row it links to was gone when the statement ran, named by the relation alone.
+        if (inserted.length === 0 && Arr.isReadonlyArrayNonEmpty(targets)) {
+          const taken = yield* selectRows(
+            yield* DrizzleDatabase,
+            binding.table,
+            { id: idColumn(binding) },
+            { where: eq(idColumn(binding), id), limit: 1 },
+          )
+          if (taken.length === 0) {
+            yield* refuseGone(id, targets)
+            // Back since the statement ran: it still found the row gone.
+            return yield* goneRefusal(id, targets[0].key)
+          }
+        }
         return yield* Option.match(answeredOf(inserted, answered), {
           onNone: () => Effect.fail(RemoteServer.taken(`${binding.name} ${id} is already taken`)),
           onSome: Effect.succeed,
@@ -2556,18 +2971,36 @@ export const writer = <P = unknown>(
         // One statement unless the delete takes rows with it or clears links to it.
         const removal =
           Option.isNone(plan) && clears.length === 0
-            ? yield* Effect.gen(function* () {
-                const writes = yield* drizzleWrites
-                const rows = yield* runStatement(
-                  () =>
-                    writes
-                      .delete(binding.table)
-                      .where(where)
-                      .returning({ id: idColumn(binding) }),
-                  'Database write failed',
-                )
-                return { deleted: rows.length > 0, cascaded: [], cleared: [] }
-              })
+            ? parentLock !== undefined
+              ? yield* withParentLock(parentLock.table, parentLock.id, [], async tx => {
+                  const parentIds = sortParentIds(await existingParentIds(tx, id))
+                  const lockedIds = await lockParents(
+                    tx,
+                    parentLock.table,
+                    parentLock.id,
+                    parentIds,
+                  )
+                  const rows = (await tx
+                    .delete(binding.table)
+                    .where(where)
+                    .returning({ id: idColumn(binding) })) as ReadonlyArray<Record<string, unknown>>
+                  if (rows.length > 0 && parentLock.onWrite !== undefined) {
+                    await parentLock.onWrite({ parentIds: lockedIds, tx })
+                  }
+                  return { deleted: rows.length > 0, cascaded: [], cleared: [] }
+                })
+              : yield* Effect.gen(function* () {
+                  const writes = yield* drizzleWrites
+                  const rows = yield* runStatement(
+                    () =>
+                      writes
+                        .delete(binding.table)
+                        .where(where)
+                        .returning({ id: idColumn(binding) }),
+                    'Database write failed',
+                  )
+                  return { deleted: rows.length > 0, cascaded: [], cleared: [] }
+                })
             : yield* withCascade(plan, id, where, refusing, principal)
         if (removal.deleted)
           return DeleteOutcome.Deleted({ cascaded: removal.cascaded, cleared: removal.cleared })

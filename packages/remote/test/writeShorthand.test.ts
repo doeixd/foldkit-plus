@@ -2,10 +2,11 @@
  * `Mutation.update`, `insert` and `delete` are the long form they stand for:
  * the same declaration, the same patch shown while pending, the same request.
  */
-import { Effect, Layer, Result, Schema, Stream } from 'effect'
+import { Effect, Layer, Option, Result, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Write, type AnyWrite } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import {
   Mutation,
@@ -58,8 +59,10 @@ const decodes = (schema: Schema.Codec<unknown, unknown>, value: unknown) =>
 const declaration = (
   mutation: MutationDescriptor<string, any, any, any> & { readonly write: AnyWrite },
 ) => {
-  const { input, ...write } = mutation.write
+  const { input, when, ...write } = mutation.write
   return {
+    // Two builds of one expression are two objects: compare what the nodes say.
+    when: Option.map(when, query => query.where.map(each => Node.key(each.node))),
     name: mutation.name,
     entity: input.entity,
     members: input.members,

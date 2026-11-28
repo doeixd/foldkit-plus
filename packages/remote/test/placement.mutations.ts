@@ -23,15 +23,21 @@ export default [
     edits: [
       {
         file: placement,
-        find: 'const edges = segment.edges.filter(edge => edge.key !== key)',
-        replace: 'const edges = segment.edges',
+        find: '      if (edge.key === key) {',
+        replace: '      if (false && edge.key === key) {',
       },
     ],
     tests,
   },
   {
     name: 'a row is placed after the edge it sorts before',
-    edits: [{ file: placement, find: 'if (sign.value < 0) {', replace: 'if (sign.value > 0) {' }],
+    edits: [
+      {
+        file: placement,
+        find: '      if (sign.value < 0) {\n        hi = mid',
+        replace: '      if (sign.value > 0) {\n        hi = mid',
+      },
+    ],
     tests,
   },
   {
@@ -59,7 +65,7 @@ export default [
   },
   {
     name: 'a row between two edges is placed before the first one',
-    edits: [{ file: placement, find: 'if (position > 0) return before', replace: '' }],
+    edits: [{ file: placement, find: 'if (hasBefore) return before', replace: '' }],
     tests,
   },
   {
@@ -88,8 +94,8 @@ export default [
     name: 'keys of different kinds are compared anyway',
     edits: [
       {
-        file: '../../entity/src/evaluate.ts',
-        find: 'checkOrder(keys, terms, query)',
+        file: '../../entity/src/rowOrder.ts',
+        find: 'checkKeys(keys, terms, query)',
         replace: 'void terms',
       },
     ],
@@ -151,7 +157,7 @@ export default [
     edits: [
       {
         file: placement,
-        find: 'Match.orElse(() => (held === 0 ? boundary : RowPlace.Outside())),',
+        find: 'Match.orElse(() => (n > 0 && edges[0]!.key === key ? boundary : RowPlace.Outside())),',
         replace: 'Match.orElse(() => RowPlace.Outside()),',
       },
     ],
@@ -162,7 +168,7 @@ export default [
     edits: [
       {
         file: placement,
-        find: 'if (held >= 0 && held === segment.edges.length - 1) return boundary',
+        find: 'if (n > 0 && edges[n - 1]!.key === key) return boundary',
         replace: '',
       },
     ],

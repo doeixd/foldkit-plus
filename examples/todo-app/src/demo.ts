@@ -49,6 +49,7 @@ class RecordingModelContext implements ModelContext {
 const memoryStorage = (): Storage => {
   let state: unknown
   return {
+    store: { name: 'memory replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next =>
       Effect.sync(() => {
@@ -76,7 +77,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   }
 
   // 2. app.ts — a human uses the app. `RequestedTodo` is an intent; its
-  //    Command mints the id and the timestamp and emits the durable fact.
+  //    transition is supplied the id and the timestamp, and its Command
+  //    emits the durable fact.
   say('')
   say('# the human adds two todos (app.ts)')
   await store.dispatch(Message.RequestedTodo({ title: 'Write the proposal' }))

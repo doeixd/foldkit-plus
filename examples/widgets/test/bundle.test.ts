@@ -34,7 +34,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // `button.ts` gained the states, press and adornment options of the button work, +0.3 kB), and
 // `style.ts` of mixins gained `recipe.add` on every recipe. No module the start chunk does not draw
 // is in it: the sections' own chunks (file upload included, `lazy.ts`) are lazy and not counted.
-const CEILING = 156_000
+// +7,500 on 2026-11-26 (CI read 162,989): foldkit-bundle placement machine-lifting and mixins-ui
+// widget/surface updates across the toolbar and window-list start chunks. Ceiling: CI's reading
+// plus ~500, rounded up.
+const CEILING = 163_500
 
 clientBudget({
   name: 'widgets',

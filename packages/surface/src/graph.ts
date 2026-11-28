@@ -8,9 +8,23 @@
  * asks the graph's one question: is every transition that can break a law
  * witnessed keeping it?
  */
-import { Data, Option } from 'effect'
-import { lawFactsOf, type LawEntry } from 'foldkit-entity'
+import { Data, Option, type Schema } from 'effect'
+import { lawFactsOf, type LawEntry } from 'foldkit-entity/laws'
 import { Evidence } from 'foldkit-metadata'
+import {
+  build as buildDependencyGraph,
+  knownEdge,
+  modelPath,
+  rowPath,
+  unknownEdge,
+  type DependencyGraph,
+  type PathAddress,
+  type PathEdge,
+  type ReaderNode,
+  type RowToModelLink,
+  type WriterNode,
+} from 'metakit/graph'
+import { covers as pathCovers } from 'metakit/graph/match'
 import type { Contract, Finding, Module } from './index.js'
 import { labelOf, pathText, tableCell } from './text.js'
 
@@ -32,6 +46,12 @@ export type GraphNode = Data.TaggedEnum<{
   }
   /** An Entity's invariant (`Product.reservedWithinStock`), a document's law, or a closed Surface's closure. */
   Law: { readonly id: string }
+  /**
+   * A Message of the application (`message:DeleteRequested`) that a `Sends`
+   * edge names. Its writes, where its Machine declares them, are in
+   * `graph.dependencies`; it is no transition a law's evidence can name.
+   */
+  Message: { readonly id: string }
   /** A declared state of an Entity. */
   State: { readonly entity: string; readonly name: string }
   /** A Surface declared `closed: true`. */
@@ -58,6 +78,8 @@ export type GraphEdge = Data.TaggedEnum<{
   Keeps: { readonly transition: string; readonly law: string; readonly evidence: Evidence }
   /** `level`'s projection contains every path of `of`'s, and more. */
   Refines: { readonly level: string; readonly of: string }
+  /** A transition emits a Command that may send another Message back into the application. */
+  Sends: { readonly from: string; readonly emit: string; readonly to: string }
 }>
 export const GraphEdge = /* @__PURE__ */ Data.taggedEnum<GraphEdge>()
 
@@ -85,8 +107,35 @@ export interface ContractLaws {
   readonly entities?: ReadonlyArray<LawEntry> | undefined
 }
 
-/** An application's graph: every contract's facts, its closed Surfaces, and the evidence admitted. */
-export interface Graph extends GraphFacts {}
+/** A `metakit/machine` Machine (or any footprint table) contributed to the unified graph. */
+export interface GraphMachine {
+  readonly footprints: Readonly<
+    Record<
+      string,
+      {
+        readonly writes: ReadonlyArray<ReadonlyArray<string>>
+      }
+    >
+  >
+}
+
+/** Writer IDs present in `Graph.of(module).dependencies`: Message transitions, durable Messages, and entity writes. */
+export type GraphWriterId<Tag extends string = string> =
+  | `message:${Tag}`
+  | `durable:${Tag}`
+  | `write:${string}`
+
+/** Reader IDs present in `Graph.of(module).dependencies`: Surfaces, closed Surface laws, and contract/entity laws. */
+export type GraphReaderId<SurfaceName extends string = string> =
+  | `surface:${SurfaceName}`
+  | `closure:${SurfaceName}`
+  | `${string}.${string}`
+
+/** An application's graph: every contract's facts, its closed Surfaces, the evidence admitted, and the unified dependency graph. */
+export interface Graph<W extends string = string, R extends string = string> extends GraphFacts {
+  /** The unified `metakit/graph` dependency graph over contracts, laws, surfaces, and machine transitions. */
+  readonly dependencies: DependencyGraph<W, R>
+}
 
 /** What `Graph` reads beside the contracts. */
 export interface GraphOptions {
@@ -97,6 +146,22 @@ export interface GraphOptions {
    * join, is not admitted and is reported as `evidence-unmatched`.
    */
   readonly evidence?: ReadonlyArray<Evidence> | undefined
+  /**
+   * The application's `metakit/machine` Machine. Its transitions are added to
+   * `graph.dependencies` as `message:<tag>` writers so every surface, law, and
+   * store slice they reach is queryable in one place.
+   */
+  readonly machine?: GraphMachine | undefined
+  /**
+   * Message-to-Message edges from `Declared.of(...).messageEdges` (which
+   * emitted Commands may send which Messages back into the application). A
+   * Message that sends another affects what that one writes, and what the
+   * Messages it sends affect in turn: `graph.dependencies` lists it among the
+   * writers of those paths.
+   */
+  readonly sends?:
+    | ReadonlyArray<{ readonly from: string; readonly emit: string; readonly to: string }>
+    | undefined
 }
 
 /** A transition that writes a path a law reads, and what shows it keeps the law (empty: nothing). */
@@ -126,15 +191,11 @@ interface Assembled {
   readonly unmatched: ReadonlyArray<Unmatched>
 }
 
-const isPrefix = (prefix: ReadonlyArray<string>, path: ReadonlyArray<string>): boolean =>
-  prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])
+const toAddress = (at: Located): PathAddress =>
+  at.space === 'model' ? modelPath(at.path) : rowPath(at.path[0] ?? '', at.path.slice(1))
 
-/** One path is within the other: writing `['todos']` writes `['todos', 'title']`, and the reverse. */
-const overlaps = (a: Located, b: Located): boolean =>
-  a.space === b.space &&
-  a.path.length > 0 &&
-  b.path.length > 0 &&
-  (isPrefix(a.path, b.path) || isPrefix(b.path, a.path))
+const addressToPath = (address: PathAddress): ReadonlyArray<string> =>
+  address.kind === 'model' ? address.segments : [address.entity, ...address.segments]
 
 const keyOf = (value: unknown): string => JSON.stringify(value)
 
@@ -205,15 +266,31 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
       // Only admitted evidence is a keeps edge, made below.
       Keeps: () => false,
       Refines: () => true,
+      Sends: () => true,
     })
     if (kept) edges.set(keyOf(made), made)
   }
+
+  const surfaceReadersMap = new Map<string, Array<PathEdge>>()
+  const links: Array<RowToModelLink> = []
+  const seenLinks = new Set<string>()
 
   for (const contract of new Set(contracts)) {
     const label = labelOf(contract)
     if (contract.owns.length > 0) {
       node(GraphNode.Owner({ kind: contract.kind, name: contract.name }))
       for (const path of contract.owns) edge(GraphEdge.Owns({ owner: label, path }))
+    }
+    if (contract.kind === 'surface') {
+      const existing = surfaceReadersMap.get(label) ?? []
+      const edges: Array<PathEdge> = [
+        ...existing,
+        ...contract.observes.map(path => knownEdge(modelPath(path), 'declared')),
+      ]
+      if (contract.unnamed === true || contract.observes.length === 0) {
+        edges.push(unknownEdge())
+      }
+      surfaceReadersMap.set(label, edges)
     }
     if (contract.closed === true) {
       const law = `closure:${contract.name}`
@@ -228,35 +305,133 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
     }
     if (contract.laws === undefined) continue
     const facts = factsOf(contract, contract.laws)
+    const contractEntities = new Set<string>()
     for (const made of facts.nodes) {
       node(made)
       const key = GraphNode.$match(made, {
         Owner: () => Option.none<string>(),
         Path: () => Option.none<string>(),
-        Transition: ({ id }) => Option.some(`transition:${id}`),
+        Transition: ({ id, entity }) => {
+          if (entity !== undefined) contractEntities.add(entity)
+          return Option.some(`transition:${id}`)
+        },
         Law: ({ id }) => Option.some(`law:${id}`),
-        State: () => Option.none<string>(),
+        Message: () => Option.none<string>(),
+        State: ({ entity }) => {
+          contractEntities.add(entity)
+          return Option.none<string>()
+        },
         Level: () => Option.none<string>(),
       })
       if (Option.isSome(key)) contributed(key.value, label)
     }
-    for (const made of facts.edges) edge(made)
+    for (const made of facts.edges) {
+      edge(made)
+      GraphEdge.$match(made, {
+        Reads: ({ space, path }) => {
+          if (space === 'entity' && path.length > 0) contractEntities.add(path[0]!)
+        },
+        Writes: ({ space, path }) => {
+          if (space === 'entity' && path.length > 0) contractEntities.add(path[0]!)
+        },
+        Owns: () => undefined,
+        Observes: () => undefined,
+        From: () => undefined,
+        To: () => undefined,
+        Keeps: () => undefined,
+        Refines: () => undefined,
+        Sends: () => undefined,
+      })
+    }
+    for (const entity of contractEntities) {
+      for (const owned of contract.owns) {
+        const linkKey = JSON.stringify([entity, owned])
+        if (seenLinks.has(linkKey)) continue
+        seenLinks.add(linkKey)
+        links.push({
+          row: rowPath(entity, []),
+          model: modelPath(owned),
+          knowledge: 'declared',
+        })
+      }
+    }
   }
 
   // A level refines another when its paths cover every one of the other's and the reverse fails.
   const covers = (wider: Contract, narrower: Contract) =>
-    narrower.observes.every(path => wider.observes.some(own => isPrefix(own, path)))
+    narrower.observes.every(path => wider.observes.some(own => pathCovers(own, path)))
   for (const a of levels)
     for (const b of levels)
       if (a !== b && covers(a, b) && !covers(b, a))
         edge(GraphEdge.Refines({ level: a.name, of: b.name }))
 
-  const laws = new Set([...nodes.values()].filter(GraphNode.$is('Law')).map(law => law.id))
+  const lawNodes = [...nodes.values()].filter(GraphNode.$is('Law'))
+  const transitionNodes = [...nodes.values()].filter(GraphNode.$is('Transition'))
+  const laws = new Set(lawNodes.map(law => law.id))
   const transitions = new Map(
-    [...nodes.values()]
-      .filter(GraphNode.$is('Transition'))
-      .map(transition => [transition.id, transition.entity] as const),
+    transitionNodes.map(transition => [transition.id, transition.entity] as const),
   )
+
+  // Build the unified metakit DependencyGraph from contract transitions, machine
+  // transitions, laws, surface observations, and remote row->model links.
+  // Deduplicate writer ids so duplicate declarations still assemble and let
+  // `Graph.validate` report `transition-declared-twice`.
+  const depWritersMap = new Map<string, WriterNode>()
+  for (const transition of transitionNodes) {
+    if (depWritersMap.has(transition.id)) continue
+    depWritersMap.set(transition.id, {
+      id: transition.id,
+      kind: transition.kind === 'write' ? 'write' : 'transition',
+      writes: (writes.get(transition.id) ?? []).map(at => knownEdge(toAddress(at), 'declared')),
+    })
+  }
+  if (options.machine !== undefined) {
+    const { footprints } = options.machine
+    const sentBy = new Map<string, Array<string>>()
+    for (const { from, to } of options.sends ?? []) {
+      const known = sentBy.get(from)
+      if (known === undefined) sentBy.set(from, [to])
+      else known.push(to)
+    }
+    // The Message and every one its Commands send, and those send: a cycle is walked once.
+    const reached = (tag: string): ReadonlySet<string> => {
+      const seen = new Set([tag])
+      // A Set is iterated through what is added to it meanwhile.
+      for (const next of seen) for (const to of sentBy.get(next) ?? []) seen.add(to)
+      return seen
+    }
+    for (const tag of Object.keys(footprints)) {
+      const id = `message:${tag}`
+      if (depWritersMap.has(id)) continue
+      const paths = new Map<string, ReadonlyArray<string>>()
+      for (const each of reached(tag))
+        if (Object.hasOwn(footprints, each))
+          for (const path of footprints[each]!.writes) paths.set(keyOf(path), path)
+      depWritersMap.set(id, {
+        id,
+        kind: 'transition',
+        writes: [...paths.values()].map(path => knownEdge(modelPath(path), 'derived')),
+      })
+    }
+  }
+  const depReaders: Array<ReaderNode> = [
+    ...lawNodes.map(law => ({
+      id: law.id,
+      kind: 'rule' as const,
+      reads: (reads.get(law.id) ?? []).map(at => knownEdge(toAddress(at), 'declared')),
+    })),
+    ...[...surfaceReadersMap.entries()].map(([id, readEdges]) => ({
+      id,
+      kind: 'projection' as const,
+      reads: readEdges,
+    })),
+  ]
+  const dependencies = buildDependencyGraph({
+    writers: [...depWritersMap.values()],
+    readers: depReaders,
+    links,
+  })
+
   const unmatched: Array<Unmatched> = []
   const kept = new Set<Evidence>()
   const admit = (record: Evidence) => {
@@ -280,15 +455,22 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
     // What a record's pair must share. Over an Entity, the Entity: a pair within one is joined
     // even when it shares no member, as `Laws.check` records one kept by disjointness, and a
     // transition's own Entity counts where it writes no member (a delete). Over the Model, a
-    // path: Model laws read their owner's slice, so a slice is what tells two owners apart.
+    // path: Model laws read their owner's slice, queried through the unified dependency graph.
     const written = writes.get(transition) ?? []
     const entity = transitions.get(transition)
     const entities = new Set([
       ...written.flatMap(at => (at.space === 'entity' ? [at.path[0]] : [])),
       ...(entity === undefined ? [] : [entity]),
     ])
-    const joins = (at: Located) =>
-      at.space === 'entity' ? entities.has(at.path[0]) : written.some(each => overlaps(each, at))
+    const modelDirect = dependencies
+      .explain(transition, law)
+      .some(
+        reason =>
+          reason.kind === 'direct' &&
+          Option.isSome(reason.read.path) &&
+          reason.read.path.value.kind === 'model',
+      )
+    const joins = (at: Located) => (at.space === 'entity' ? entities.has(at.path[0]) : modelDirect)
     if (!(reads.get(law) ?? []).some(joins))
       return refuse(
         `names a pair the graph does not join: ${transition} writes nothing beside what ${law} reads`,
@@ -299,29 +481,47 @@ const assemble = (contracts: ReadonlyArray<Contract>, options: GraphOptions): As
     edges.set(`keeps:${kept.size}`, GraphEdge.Keeps({ transition, law, evidence: record }))
   }
   for (const record of options.evidence ?? []) admit(record)
+  for (const sent of options.sends ?? []) {
+    // An edge never names a node the graph lacks.
+    node(GraphNode.Message({ id: `message:${sent.from}` }))
+    node(GraphNode.Message({ id: `message:${sent.to}` }))
+    edge(
+      GraphEdge.Sends({
+        from: `message:${sent.from}`,
+        emit: sent.emit,
+        to: `message:${sent.to}`,
+      }),
+    )
+  }
 
   return {
-    graph: { nodes: [...nodes.values()], edges: [...edges.values()] },
+    graph: { nodes: [...nodes.values()], edges: [...edges.values()], dependencies },
     contributors,
     unmatched,
   }
 }
 
 /** The ids of the graph's laws, in the order contracts declared them. */
-const lawsOf = (graph: Graph): ReadonlyArray<string> =>
+const lawsOf = <W extends string, R extends string>(graph: Graph<W, R>): ReadonlyArray<string> =>
   graph.nodes.filter(GraphNode.$is('Law')).map(law => law.id)
 
-const breakers = (graph: Graph, law: string): ReadonlyArray<Breaker> => {
-  const read = graph.edges
-    .filter(GraphEdge.$is('Reads'))
-    .filter(edge => edge.law === law)
-    .map(({ space, path }) => ({ space, path }))
+const breakers = <W extends string, R extends string>(
+  graph: Graph<W, R>,
+  law: string,
+): ReadonlyArray<Breaker> => {
   const keeps = graph.edges.filter(GraphEdge.$is('Keeps')).filter(edge => edge.law === law)
   return graph.nodes.filter(GraphNode.$is('Transition')).flatMap(({ id }) => {
-    const paths = graph.edges
-      .filter(GraphEdge.$is('Writes'))
-      .filter(edge => edge.transition === id && read.some(at => overlaps(at, edge)))
-      .map(edge => edge.path)
+    const reasons = graph.dependencies.explain(id as W, law as R)
+    const seen = new Set<string>()
+    const paths: Array<ReadonlyArray<string>> = []
+    for (const reason of reasons) {
+      if (reason.kind !== 'direct' || Option.isNone(reason.write.path)) continue
+      const path = addressToPath(reason.write.path.value)
+      const key = keyOf(path)
+      if (seen.has(key)) continue
+      seen.add(key)
+      paths.push(path)
+    }
     if (paths.length === 0) return []
     const evidence = keeps.filter(edge => edge.transition === id).map(edge => edge.evidence)
     return [{ transition: id, paths, evidence }]
@@ -411,8 +611,19 @@ export const Graph = {
    * which, and a `keeps` edge per record of `evidence` that is issued and
    * joins its pair. Pure, and computed each time it is asked.
    */
-  of: (module: Module<any, any, any>, options: GraphOptions = {}): Graph =>
-    assemble(module.contracts, options).graph,
+  of: <
+    Root,
+    F extends Schema.Struct.Fields,
+    Cases extends Record<string, Schema.Struct.Fields>,
+    Surfaces extends string = string,
+  >(
+    module: Module<Root, F, Cases, Surfaces>,
+    options: GraphOptions = {},
+  ): Graph<GraphWriterId<keyof Cases & string>, GraphReaderId<Surfaces>> =>
+    assemble(module.contracts, options).graph as Graph<
+      GraphWriterId<keyof Cases & string>,
+      GraphReaderId<Surfaces>
+    >,
 
   /**
    * Each transition that writes a path `law` reads, which is each that could
@@ -420,7 +631,10 @@ export const Graph = {
    * the graph does not hold, which a misspelt id would otherwise answer with
    * nothing.
    */
-  breakersOf: (graph: Graph, law: string): ReadonlyArray<Breaker> => {
+  breakersOf: <W extends string, R extends string>(
+    graph: Graph<W, R>,
+    law: string,
+  ): ReadonlyArray<Breaker> => {
     if (!lawsOf(graph).includes(law))
       throw new Error(`Graph.breakersOf: the graph holds no law ${law}`)
     return breakers(graph, law)

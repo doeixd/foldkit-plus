@@ -20,9 +20,9 @@ Publish   x publishedStaysPublished   kept: 1 row enumerated
 Rename    x reservedWithinStock       kept: writes no member it reads
 Rename    x publishedStaysPublished   kept: 3 rows enumerated
 Restock   x reservedWithinStock       refused: Reserved stock cannot exceed the stock
-    before   reserved: 0, stock: 0
-    input    quantity: -1
-    after    reserved: 0, stock: -1
+    before   reserved: 0, stock: 0, revision: 0
+    input    revision: 0, quantity: -1
+    after    reserved: 0, stock: -1, revision: 1
 Restock   x publishedStaysPublished   kept: 3 rows enumerated
 Revert    x reservedWithinStock       kept: writes no member it reads
 Revert    x publishedStaysPublished   refused: A published product does not go back to draft

@@ -19,6 +19,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Expr, Order, Query as Relational } from 'foldkit-entity'
 import type { AnyQuery } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, entityKey, readField } from '../src/index.js'
 import { explain } from '../src/why.js'
@@ -193,7 +194,9 @@ describe('Why it is not built, which is not what it looked like', () => {
     // is an ordered, windowed answer with cursors at its ends, and deriving one
     // from another needs the order to agree and the window to be re-cut —
     // neither of which containment says anything about.
-    expect(ActiveProjects.body!.orderBy).toEqual(ActiveProjectsOfOwner.body!.orderBy)
+    const terms = (body: AnyQuery) =>
+      Relational.orderFor(body, {}).map(term => ({ ...term, expr: Node.key(term.expr.node) }))
+    expect(terms(ActiveProjects.body!)).toEqual(terms(ActiveProjectsOfOwner.body!))
     expect(wider.ref.window).toEqual(narrower.ref.window)
     // Even with both agreeing, the narrower connection has no segments at all.
     expect(narrower.read(loadedWider())).toEqual({ _tag: 'Initial' })

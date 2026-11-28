@@ -7,7 +7,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Effect, Match, Option, Optic, Schema } from 'effect'
 import { Write } from 'foldkit-entity'
 import { databaseLayer } from 'foldkit-remote-drizzle'
-import { Can, Refusal, Remote } from 'foldkit-remote'
+import { Can, CanWire, Refusal, Remote } from 'foldkit-remote'
 import { ModelRef } from 'foldkit-surface'
 import { RemoteServer } from 'foldkit-remote-server'
 import {
@@ -62,7 +62,7 @@ const held = Data.reduce(
 
 /** What `Data.can` says, as a line: the answer, and the invariant or rule behind a refusal. */
 const said = (answer: Can): string =>
-  Can.match(answer, {
+  CanWire.match(Can.toWire(answer), {
     Yes: () => 'Yes',
     No: ({ refusal }) =>
       Match.value(refusal).pipe(

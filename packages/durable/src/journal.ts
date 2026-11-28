@@ -5,6 +5,7 @@ import {
   Deferred,
   Effect,
   Exit,
+  Match,
   Metric,
   Option,
   PubSub,
@@ -349,7 +350,54 @@ export interface Cursors {
   readonly unpark: (key: DocumentId, name: string, opId: OpId) => Effect.Effect<void, JournalError>
 }
 
+/**
+ * What the store under a journal guarantees of concurrent writes. It has the
+ * shape of `StoreCapabilities` in `metakit/store`, which this package does not
+ * depend on: `isolation` is `'serializable'` (as if one at a time),
+ * `'read-committed'` (each statement reads what has committed) or
+ * `'eventual'` (replicas merge later); `isolates` is how far that reaches,
+ * `'transaction'` (a read and a later write in one transaction) or
+ * `'statement'` (one statement or batch, taken when not said);
+ * `parentRowLock` is whether a write locks the row its rows hang on.
+ */
+export interface JournalStore {
+  readonly name: string
+  readonly isolation: 'eventual' | 'read-committed' | 'serializable'
+  readonly isolates?: 'transaction' | 'statement'
+  readonly parentRowLock: boolean
+}
+
+/**
+ * The outcome of `replay` for a reconnecting client: either the incremental
+ * operations committed after the client's cursor, or the authoritative
+ * snapshot when the client's epoch changed, its cursor fell behind the
+ * compaction floor, or its cursor is ahead of the document.
+ */
+export type ReplayResult<Operation, Snapshot> =
+  | {
+      readonly _tag: 'Operations'
+      readonly epoch: string
+      readonly cursor: Cursor
+      readonly operations: ReadonlyArray<Committed<Operation>>
+      readonly hasMore: boolean
+    }
+  | {
+      readonly _tag: 'Snapshot'
+      readonly epoch: string
+      readonly cursor: Cursor
+      readonly snapshot: Snapshot
+      readonly reason: 'epoch-changed' | 'compacted' | 'cursor-ahead'
+    }
+
 export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unknown> {
+  /**
+   * What this journal's store guarantees of concurrent appends: serializable
+   * over SQLite, isolating a transaction (one per append); serializable over
+   * D1 isolating one statement, since a read and the append that follows are
+   * two round trips (the uniqueness constraints keep the order). A journal
+   * over another store says its own.
+   */
+  readonly store: JournalStore
   readonly load: (
     key: DocumentId,
   ) => Effect.Effect<{ readonly snapshot: Snapshot; readonly cursor: Cursor }, JournalError>
@@ -379,6 +427,20 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
     ReadonlyArray<Committed<Operation>>,
     InvalidCursorError | CompactedCursorError | JournalError
   >
+  /**
+   * Replays committed operations after `after` for a reconnecting client.
+   * Returns `Operations` when the client's cursor is within the retained log
+   * and its `epoch` (if given) matches; otherwise returns `Snapshot` with the
+   * authoritative state and the reason it could not replay incrementally.
+   */
+  readonly replay: (
+    key: DocumentId,
+    options: {
+      readonly after: Cursor
+      readonly epoch?: string | undefined
+      readonly limit?: number | undefined
+    },
+  ) => Effect.Effect<ReplayResult<Operation, Snapshot>, JournalError>
   /**
    * Commits an operation. A repeat of a known `opId` returns `Committed` with the
    * stored operation while its payload is retained, and `AlreadyCommitted`
@@ -789,6 +851,41 @@ const atomically = <A, E, R>(
 ): Effect.Effect<A, E | SqlError, R> => (d1 ? unit : sql.withTransaction(unit))
 
 /**
+ * Serializable: every append, and every unit that reads and writes, runs in
+ * `sql.withTransaction` (`atomically`, `commitDurably`), and SQLite lets one
+ * connection write at a time; a second connection whose snapshot went stale
+ * fails with SQLITE_BUSY rather than commit over it. `validate`, `authorize`,
+ * `reduce` and `judge` all run inside that transaction.
+ */
+const SQLITE_STORE: JournalStore = {
+  name: 'SQLite journal',
+  isolation: 'serializable',
+  isolates: 'transaction',
+  parentRowLock: false,
+}
+
+/**
+ * Serializable, per statement. D1 is SQLite behind one writer, so each
+ * statement, and each batch, which is one transaction, runs as if alone; the
+ * Drizzle writer declares D1 the same way. But D1 has no transaction a read
+ * and a later write share (`atomically` runs the unit directly), so
+ * `validate`, `authorize` and `judge` read the latest committed snapshot in
+ * one round trip and the append lands in another: nothing spans the two, and
+ * a rule judged from that read is refused (`isolates: 'statement'`). The
+ * `sequence`, replica and operation uniqueness constraints make a commit that
+ * lost a race fail and decide again (`commitDurably`'s retry), which keeps
+ * the order but is not a lock. A Durable Object routing the appends runs one
+ * request at a time only until it awaits I/O other than its own storage,
+ * which a D1 call is, so it is not claimed to serialize them either.
+ */
+const D1_STORE: JournalStore = {
+  name: 'D1 journal',
+  isolation: 'serializable',
+  isolates: 'statement',
+  parentRowLock: false,
+}
+
+/**
  * How many times a D1 commit retries on a uniqueness conflict before failing.
  * Each round of a race has one winner, so n concurrent writers can make one
  * lose n - 1 times: this bounds the writers one document takes at once.
@@ -911,10 +1008,10 @@ const makeShape = <
           last: null,
           epoch: null,
         }
-      const cursor = toCursor(Number(row.cursor))
-      const snapshotCursor = Number(row.snapshot_cursor)
-      const last = row.last === null ? null : String(row.last)
-      const epoch = row.epoch === null ? null : String(row.epoch)
+      let cursor = toCursor(Number(row.cursor))
+      let snapshotCursor = Number(row.snapshot_cursor)
+      let last = row.last === null ? null : String(row.last)
+      let epoch = row.epoch === null ? null : String(row.epoch)
       const cached = current.get(key)
       if (
         cached !== undefined &&
@@ -924,9 +1021,37 @@ const makeShape = <
         cached.epoch === epoch
       )
         return cached
+      // Guard the snapshot read against a concurrent compaction advancing snapshot_cursor
+      // between the two round trips (e.g. on D1); if it moved, re-read all fields in one SELECT.
       const stored = yield* sql<{
         readonly snapshot: string
-      }>`SELECT snapshot FROM documents WHERE key = ${key}`
+      }>`SELECT snapshot FROM documents WHERE key = ${key} AND snapshot_cursor = ${snapshotCursor}`
+      let rawSnapshot: string
+      if (stored[0] !== undefined) {
+        rawSnapshot = String(stored[0].snapshot)
+      } else {
+        const fresh = yield* sql<{
+          readonly cursor: number
+          readonly snapshot_cursor: number
+          readonly snapshot: string
+          readonly last: string | null
+          readonly epoch: string | null
+        }>`SELECT d.cursor, d.snapshot_cursor, d.snapshot, o.op_id AS last, e.epoch FROM documents d LEFT JOIN operations o ON o.key = d.key AND o.sequence = d.cursor LEFT JOIN epochs e ON e.key = d.key WHERE d.key = ${key}`
+        const latest = fresh[0]
+        if (latest === undefined)
+          return {
+            snapshot: options.empty(),
+            cursor: toCursor(0),
+            snapshotCursor: 0,
+            last: null,
+            epoch: null,
+          }
+        cursor = toCursor(Number(latest.cursor))
+        snapshotCursor = Number(latest.snapshot_cursor)
+        last = latest.last === null ? null : String(latest.last)
+        epoch = latest.epoch === null ? null : String(latest.epoch)
+        rawSnapshot = String(latest.snapshot)
+      }
       const since =
         // Bounded above by the cursor read with the snapshot: without a
         // transaction a concurrent commit could otherwise land between the
@@ -942,7 +1067,7 @@ const makeShape = <
           since.reduce(
             (state, operation) =>
               options.reduce(state, operationCodec.decode(JSON.parse(String(operation.input)))),
-            snapshotCodec.decode(JSON.parse(String(stored[0]!.snapshot))),
+            snapshotCodec.decode(JSON.parse(rawSnapshot)),
           ),
         catch: cause => journalError('Could not load the snapshot', cause),
       })
@@ -1394,8 +1519,18 @@ const makeShape = <
     InvalidOperationError | OperationRejectedError | IdentityConflictError | SqlError | JournalError
   > => {
     const unit = commitOnce(key, prepared, principal).pipe(Effect.map(settleCommit))
+    // On D1 a crash between INSERT INTO operations and UPDATE documents can leave
+    // documents.cursor behind MAX(operations.sequence); heal it before retrying.
+    const healCursor =
+      sql`UPDATE documents SET cursor = (SELECT COALESCE(MAX(sequence), 0) FROM operations WHERE key = ${key}) WHERE key = ${key} AND cursor < (SELECT COALESCE(MAX(sequence), 0) FROM operations WHERE key = ${key})`.pipe(
+        Effect.asVoid,
+        Effect.ignore,
+      )
     return d1
       ? unit.pipe(
+          Effect.tapErrorTag('SqlError', error =>
+            isConstraintViolation(error) ? healCursor : Effect.void,
+          ),
           Effect.retry({
             while: error => error._tag === 'SqlError' && isConstraintViolation(error),
             times: MAX_COMMIT_RETRIES,
@@ -1832,12 +1967,99 @@ const makeShape = <
 
   const subscribe: Shape['subscribe'] = Stream.fromPubSub(changes)
 
+  const replay: Shape['replay'] = Effect.fn('Journal.replay')(function* (
+    key: DocumentId,
+    options: {
+      readonly after: Cursor
+      readonly epoch?: string | undefined
+      readonly limit?: number | undefined
+    },
+  ) {
+    const limit = options.limit
+    if (
+      limit !== undefined &&
+      (!Number.isSafeInteger(limit) || limit < 1 || limit >= Number.MAX_SAFE_INTEGER)
+    ) {
+      return yield* Effect.die(
+        new Error('Journal.replay: limit must be a positive safe integer below MAX_SAFE_INTEGER'),
+      )
+    }
+    if (!Number.isSafeInteger(options.after) || options.after < 0) {
+      return yield* Effect.die(new Error('Journal.replay: after must be a non-negative integer'))
+    }
+    yield* Effect.annotateCurrentSpan({ key, after: options.after })
+
+    const loadSnapshot = (
+      reason: 'epoch-changed' | 'compacted' | 'cursor-ahead',
+    ): Effect.Effect<ReplayResult<Operation, Snapshot>, JournalError> =>
+      Effect.gen(function* () {
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const beforeEpoch = yield* epoch(key)
+          const loaded = yield* load(key)
+          const afterEpoch = yield* epoch(key)
+          if (beforeEpoch === afterEpoch) {
+            return {
+              _tag: 'Snapshot',
+              epoch: afterEpoch,
+              cursor: loaded.cursor,
+              snapshot: loaded.snapshot,
+              reason,
+            } satisfies ReplayResult<Operation, Snapshot>
+          }
+        }
+        const finalEpoch = yield* epoch(key)
+        const loaded = yield* load(key)
+        return {
+          _tag: 'Snapshot',
+          epoch: finalEpoch,
+          cursor: loaded.cursor,
+          snapshot: loaded.snapshot,
+          reason: 'epoch-changed',
+        } satisfies ReplayResult<Operation, Snapshot>
+      })
+
+    const currentEpoch = yield* epoch(key)
+    if (options.epoch !== undefined && options.epoch !== currentEpoch) {
+      return yield* loadSnapshot('epoch-changed')
+    }
+    const readResult = yield* Effect.result(
+      read(key, options.after, limit === undefined ? undefined : { limit: limit + 1 }),
+    )
+    if (Result.isFailure(readResult)) {
+      return yield* Match.valueTags(readResult.failure, {
+        CompactedCursorError: () => loadSnapshot('compacted'),
+        InvalidCursorError: () => loadSnapshot('cursor-ahead'),
+        JournalError: err => Effect.fail(err),
+      })
+    }
+    // Re-check epoch after reading so a concurrent reset() cannot tag new-epoch
+    // operations with an old epoch id.
+    const afterReadEpoch = yield* epoch(key)
+    if (afterReadEpoch !== currentEpoch) {
+      return yield* loadSnapshot('epoch-changed')
+    }
+    const fetched = readResult.success
+    const hasMore = limit !== undefined && fetched.length > limit
+    const operations = hasMore ? fetched.slice(0, limit) : fetched
+    const nextCursor =
+      operations.length > 0 ? toCursor(operations[operations.length - 1]!.sequence) : options.after
+    return {
+      _tag: 'Operations',
+      epoch: afterReadEpoch,
+      cursor: nextCursor,
+      operations,
+      hasMore,
+    } satisfies ReplayResult<Operation, Snapshot>
+  })
+
   return {
+    store: d1 ? D1_STORE : SQLITE_STORE,
     load,
     cursor,
     epoch,
     floor,
     read,
+    replay,
     append,
     appendAll,
     compact,

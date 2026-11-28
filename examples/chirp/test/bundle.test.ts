@@ -58,7 +58,25 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // data +24, the app's own style +44) and +447 by #593, whose `runtimeJson` codec (1.7 kB minified)
 // is Remote's Model schema, so every Remote page carries it. No module was added to or dropped from
 // the page by the first, so `foldkit-bundle` and FileUpload did not reach it. Ceiling raised to the reading.
-const CEILING = 245_700
+// +7,267 on 2026-11-21 after step 9 of the metakit unification plan (entity's judge on metakit at
+// step 5, guard's conditions at step 9; not measured step by step).
+// -1,876 on 2026-11-22, permanent: 250,791 measured (252,677 before, in one tree) after step 10. Entity's
+// constructors build metakit nodes, the translation layer is deleted, `Expr`, `Query` and `Order` are
+// namespaces, and metakit's reading of related rows arrives only with an `Expr.exists` (foldkit-entity
+// 83,473 to 76,531 minified, metakit 22,941 to 18,182). What stays over the earlier 245,700 (5,091) is
+// metakit's evaluator and judge on every page that reaches entity (18.2 kB minified, `node`,
+// `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
+// 2026-11-21. Ceiling: the reading plus 300.
+// +879 on 2026-11-22: 251,970 read locally and 251,594 by CI on Linux after the Phase 1 gate fixes
+// (an operand past the safe range refused by every reader, 63fac3ae0; ops/integerTerm and guard's
+// condition), part of the accepted Phase 1 cost. Ceiling: the larger reading plus 300.
+// +525 on 2026-11-22: 252,495 measured after Phase 5 items 5 and 10 (every domain with writes keeps the
+// late-answer record, and `replayOver` with its revision rule decides a pending write over a newer value),
+// code every page with writes runs. Ceiling: the reading plus 300.
+// +3,005 on 2026-11-26 (CI read 255,409): metakit's core evaluator and judge grew with Sets,
+// Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote gained IVM fixes and Effect Clock
+// integration. Ceiling: CI's reading plus ~400, rounded up.
+const CEILING = 255_800
 
 clientBudget({
   name: 'chirp',

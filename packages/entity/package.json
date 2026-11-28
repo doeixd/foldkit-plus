@@ -31,6 +31,21 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./lowering": {
+      "foldkit-plus:source": "./src/lowering.ts",
+      "types": "./dist/lowering.d.ts",
+      "import": "./dist/lowering.js"
+    },
+    "./laws": {
+      "foldkit-plus:source": "./src/laws.ts",
+      "types": "./dist/laws.d.ts",
+      "import": "./dist/laws.js"
+    },
+    "./transition": {
+      "foldkit-plus:source": "./src/writeTransition.ts",
+      "types": "./dist/writeTransition.d.ts",
+      "import": "./dist/writeTransition.js"
+    },
     "./conformance": {
       "foldkit-plus:source": "./src/conformance/index.ts",
       "types": "./dist/conformance/index.d.ts",
@@ -47,7 +62,8 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "foldkit-metadata": "workspace:*"
+    "foldkit-metadata": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0"

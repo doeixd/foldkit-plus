@@ -1794,6 +1794,11 @@ or field the store lacks is not judged either way, so the answer is
 Nothing is created: no connection, nothing new to retain, nothing new to fetch.
 The server stays authoritative for which rows exist.
 
+For a total, a count, or the smallest value of those same rows, kept up to
+date from the rows that change rather than added up again on every render, see
+[Show a total over a list you already loaded](./docs/aggregates.md)
+(`Maintained.value` from `foldkit-remote/maintained`).
+
 ### Judging the rows you already hold
 
 A connection's rows are edges the server delivered, and a query body describes
@@ -2569,10 +2574,12 @@ an author changed: only those are shown, and the request carries them for the
 server to write; the input is still sent and validated whole.
 
 `Data.can(model, Mutation, input)` tells, before anything is sent, whether the
-server would refuse a declared write, from what the Model holds: `Can.No` with
-`Forbidden` (a held `may`), `Unmet` (the `when`) or `Invalid` (an invariant),
-checked in the server's order; `Can.Undecided` with its reasons where the row,
-a field it reads, a `may` member or an input key is missing; otherwise `Can.Yes`. It is a hint
+server would refuse a declared write, from what the Model holds. It answers a
+metakit `Verdict` (read it with `Verdict.match` from `metakit`): `False`, whose
+witness is the refusal, `Forbidden` (a held `may`), `Unmet` (the `when`) or
+`Invalid` (an invariant), checked in the server's order; `Unknown` with its
+reasons where the row, a field it reads, a `may` member or an input key is
+missing; otherwise `True`. It is a hint
 to grey a control: `Data.mutate` does not read it, and still asks the server. See
 [Asking before sending](../../docs/declared-writes.md#asking-before-sending-datacan).
 `Data.capability(Mutation, toInput)` and `Data.available(Mutation, inputOf)` turn
@@ -3240,6 +3247,17 @@ differs from the answer's value, the answer is written, as above, and the field
 is read again (`Refreshing` meanwhile); the read's answer is what stays. An
 answer that agrees with the stream, or for a write started after the patch,
 reads nothing again. No protocol field is involved.
+
+A read answered while the write is pending may already include it, and
+nothing in the read says whether it does, so a relative layer does not add
+its amount to the read's value: with a pending `+1` over `likes: 10`, a read
+answering `11` shows `11`, the server's count, until the answer lands. An
+`add`'s answer that equals the read's value, or the read's value plus the
+amount at the revision right after the read's, settles the field with no
+second read. That second case needs a writer that answers the row's revision:
+`foldkit-remote-drizzle`'s `writer(binding, { revision })`, or
+`RemoteServer.memoryWriter(store, entity, { revision })`. Without a revision
+the field is read again.
 
 ### When a stream breaks
 

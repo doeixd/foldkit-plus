@@ -50,7 +50,7 @@ Plain-English definitions for the words used across Foldkit and Foldkit Plus, gr
 | **`Expr`** | Filter or check built as data so both SQL and client code evaluate it identically. | [Expressions](./expressions.md) |
 | **Query body** | Filter and sort order (`Query.from(Entity)`) run as SQL on servers or JS on clients. | [Expressions](./expressions.md) |
 | **Collation** | Explicit text comparison rule (`binary`, `asciiFold`, or `locale`). | [Expressions](./expressions.md) |
-| **`Judge`** | Evaluates a Query body against held rows and returns `Known` or `Unknown`. | [Expressions](./expressions.md) |
+| **`Judge`** | Evaluates a Query body against held rows and returns a metakit `Verdict`: `True`, `False` or `Unknown`. | [Expressions](./expressions.md) |
 | **Interpreter** | Engine that runs an `Expr` or Query (SQL compiler, in-memory runner, or `Judge`). | [Expressions](./expressions.md#three-interpreters-one-answer) |
 | **Reach** | Fields in other rows that a query reads across a relation. | [Expressions](./expressions.md) |
 | **Holder** | Partial set of cached rows where unread fields are missing, not null. | [Expressions](./expressions.md) |

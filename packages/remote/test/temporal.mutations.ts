@@ -33,8 +33,8 @@ export default [
   edit(
     'an earlier answer overwrites a field a later one settled',
     '../src/ledger.ts',
-    '.filter(([field]) => !newer(`${key}\\u0000${field}`)),',
-    '.filter(() => true),',
+    'return !newer(`${key}\\u0000${field}`)',
+    'return true',
   ),
   // Optimistic overlay
   edit(
@@ -89,37 +89,37 @@ export default [
   ),
   edit(
     'a request new to a patched field is kept over the first patch (#513)',
-    '../src/liveEvents.ts',
-    'by: new Map([...(held?.by ?? []), ...fresh.map(id => [id, before] as const)]),',
-    'by: new Map([...(held?.by ?? []), ...fresh.map(id => [id, held?.by.values().next().value ?? before] as const)]),',
+    '../src/replay.ts',
+    'by: new Map([...(was?.by ?? []), ...ids.map(id => [id, over] as const)]),',
+    'by: new Map([...(was?.by ?? []), ...ids.map(id => [id, was?.by.values().next().value ?? over] as const)]),',
   ),
   edit(
     'a later patch replaces the value kept from before the first',
-    '../src/liveEvents.ts',
-    'const fresh = [...pending].filter(id => held === undefined || !held.by.has(id))',
-    'const fresh = [...pending]',
+    '../src/replay.ts',
+    ': [...pending].filter(id => was === undefined || !was.by.has(id))',
+    ': [...pending]',
   ),
   edit(
     'a patch is kept with no write pending',
-    '../src/liveEvents.ts',
-    'const fresh = [...pending].filter(id => held === undefined || !held.by.has(id))',
-    "const fresh = [...(pending.size === 0 ? ['x'] : pending)]",
+    '../src/replay.ts',
+    ': [...pending].filter(id => was === undefined || !was.by.has(id))',
+    ": [...(pending.size === 0 ? ['x'] : pending)]",
   ),
   edit(
     'a kept value outlives the bound',
-    '../src/liveEvents.ts',
+    '../src/replay.ts',
     '.filter(([, field]) => field.since > now - echoKept)',
     '.filter(() => true)',
   ),
   edit(
     'an answer leaves the fields it wrote kept',
-    '../src/liveEvents.ts',
-    '.filter(([field]) => !Object.hasOwn(values, field))',
-    '.filter(() => true)',
+    '../src/replay.ts',
+    'if (!Object.hasOwn(values, field)) {',
+    'if (true) {',
   ),
   edit(
     'the last write answered leaves what is kept',
-    '../src/liveEvents.ts',
+    '../src/replay.ts',
     'if (pending.size === 0) return { kept: noKept, again }',
     'if (pending.size === 0) return { kept, again }',
   ),
@@ -143,14 +143,14 @@ export default [
   ),
   edit(
     'an answer that agrees with the stream is read again',
-    '../src/liveEvents.ts',
-    '      if (Equal.equals(own(store[key]?.values, field), values[field])) continue\n',
+    '../src/replay.ts',
+    '      if (Equal.equals(newer, values[field])) continue\n',
     '',
   ),
   edit(
     'an answer is read again for a patch older than its request',
-    '../src/liveEvents.ts',
-    'if (!held.by.has(requestId) || !Object.hasOwn(values, field)) continue',
+    '../src/replay.ts',
+    'if (!by.has(requestId) || !Object.hasOwn(values, field)) continue',
     'if (!Object.hasOwn(values, field)) continue',
   ),
   {
@@ -169,6 +169,31 @@ export default [
     ],
     tests,
   },
+  // A read answered over a pending write (#480)
+  edit(
+    'a read answered beside a pending write keeps nothing',
+    '../src/model.ts',
+    'kept: capabilities.keeps(model, message.result.entities, held, message.now),',
+    'kept: model.kept,',
+  ),
+  edit(
+    'a page answered beside a pending write keeps nothing',
+    '../src/model.ts',
+    ': capabilities.keeps(model, payload, read.held, message.now ?? 0),',
+    ': model.kept,',
+  ),
+  edit(
+    'a read that moved nothing is kept',
+    '../src/replay.ts',
+    'field => !Equal.equals(own(under?.values, field), values[field]),',
+    '() => true,',
+  ),
+  edit(
+    'a row the read wrote nothing of is kept',
+    '../src/layers.ts',
+    'rows.filter(row => !held.has(entityKey(row.entity, row.id))),',
+    'rows,',
+  ),
   // Selective refresh
   edit(
     'a refresh restarts every read, not those that cover it',

@@ -1,0 +1,47 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "noEmit": false,
+    "paths": {
+      "metakit": ["../../packages/metakit/src/index.ts"],
+      "metakit/aggregates": ["../../packages/metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../../packages/metakit/src/aggregatesSql.ts"],
+      "metakit/artifact": ["../../packages/metakit/src/artifact.ts"],
+      "metakit/build": ["../../packages/metakit/src/build.ts"],
+      "metakit/conformance": ["../../packages/metakit/src/conformance.ts"],
+      "metakit/domain": ["../../packages/metakit/src/domain.ts"],
+      "metakit/drizzle": ["../../packages/metakit/src/drizzle.ts"],
+      "metakit/fn": ["../../packages/metakit/src/fn.ts"],
+      "metakit/graph": ["../../packages/metakit/src/graph.ts"],
+      "metakit/graph/match": ["../../packages/metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../../packages/metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../../packages/metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../../packages/metakit/src/inspect.ts"],
+      "metakit/interpreter": ["../../packages/metakit/src/interpreter.ts"],
+      "metakit/language": ["../../packages/metakit/src/language.ts"],
+      "metakit/machine": ["../../packages/metakit/src/machine.ts"],
+      "metakit/operation": ["../../packages/metakit/src/operation.ts"],
+      "metakit/operation/sql": ["../../packages/metakit/src/operationSql.ts"],
+      "metakit/pairs": ["../../packages/metakit/src/pairs.ts"],
+      "metakit/policy": ["../../packages/metakit/src/policy.ts"],
+      "metakit/prove": ["../../packages/metakit/src/prove.ts"],
+      "metakit/relation": ["../../packages/metakit/src/relation.ts"],
+      "metakit/sql": ["../../packages/metakit/src/sql.ts"],
+      "metakit/store": ["../../packages/metakit/src/store.ts"],
+      "metakit/store/check": ["../../packages/metakit/src/storeCheck.ts"],
+      "metakit/syntax": ["../../packages/metakit/src/syntax.ts"],
+      "metakit/temporal": ["../../packages/metakit/src/temporal.ts"],
+      "metakit/tooling": ["../../packages/metakit/src/tooling.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    {
+      "path": "../../packages/metakit/tsconfig.build.json"
+    }
+  ]
+}

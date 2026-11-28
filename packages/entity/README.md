@@ -763,14 +763,14 @@ Expr.show(Expr.sub(Product.fields.cents, price.discount)) // '(Product.cents - $
 ```
 
 They are the kernel's primitive operators `number.add` and `number.subtract`,
-in `Operators.kernel` and every binding's SQL kernel: `+` and `-` in memory, in
-SQLite and in Postgres, and conformance cases hold the three to one answer. A
-null on either side gives null; a text operand is a type error where it is
-passed. A comparison, an order term, an invariant, a write's `when` and its
-`compute` read one as any number, and a sum of integers computes an integer
-field. Past what a double holds the readers part: memory and SQLite give an
-infinity, and Postgres refuses the statement as out of range (two integer
-columns add as integers there).
+which every memory table runs and every binding's SQL kernel holds: `+` and `-`
+in memory, in SQLite and in Postgres, and conformance cases hold the three to
+one answer. A null on either side gives null; a text operand is a type error
+where it is passed. A comparison, an order term, an invariant, a write's `when`
+and its `compute` read one as any number, and a sum of integers computes an
+integer field. An integer sum past 2^53 - 1, where a double no longer holds
+every integer, is refused in memory (a `QueryEvaluateError`); the SQL both
+databases run gives `NULL` there, since SQL has no refusal.
 
 ### Reading across relations: `Expr.path` and `Expr.exists`
 
@@ -858,13 +858,14 @@ const holder = Held.rows([
   { entity: User, rows: [{ id: 'u1', handle: 'ada' }], complete: false },
 ])
 Judge.query(ByHandle, { handle: 'ada' }, Option.getOrThrow(holder.row(Post, 'p1')))
-// { _tag: 'Known', truth: true }
+// { _tag: 'True', evidence: none }
 Judge.query(ByHandle, { handle: 'ada' }, Option.getOrThrow(holder.row(Post, 'p2')))
-// { _tag: 'Unknown', reason: 'User u2 is not held' }
+// { _tag: 'Unknown', reason: 'User u2 is not held', obligation: none }
 ```
 
-A verdict is `Known` or `Unknown`. A known predicate's truth is SQL's three
-values, its null decided (a row is not kept on it); unknown means the answer
+A verdict is metakit's `Verdict` (read it with `Verdict.match` from `metakit`):
+`True`, `False` or `Unknown`. A predicate SQL leaves null is `False` (a row is
+not kept on it; `Judge.predicate` gives the witness `'null'`); `Unknown` means the answer
 rests on a field or row the holder lacks or may not see, or on an operator only
 the server runs. What can decide anyway does: a null beside an unheld value,
 `and`'s false, `or`'s true, an exists' held witness. An exists is false only
@@ -1231,24 +1232,52 @@ reads neither the row after the write nor another Entity, so assignments never
 depend on each other, and is refused where it is declared for a field another
 key writes or a value of a kind the field does not store. A defined operator in
 it is expanded there, so `Write.bind` carries it as data (`assignments`, each a
-`Computation`: fields by key, values encoded, operators by name), which a writer
+`Computation`: fields by key, values encoded, operators by name; text a
+collation compares arrives folded, as a call of `text.lowerAscii`, and a call
+carries no collation), which a writer
 compiles into the statement and a client predicts by its own table. A
 computation does not repeat without effect, so a retry of one is held to it as
 an increment's is; without a revision it lands only under a ledger, and there
 only where the writer pins the row it read (a guarded writer with a `revision`)
-or by an operator whose commutativity and associativity are tested over every
-value for each implementation the writer runs (`Conformance.laws` in memory,
-`Conformance.lawsBy` in SQL).
+or by an operator declared both commutative and associative and supplied in
+memory and SQL.
 
 ### The row a write leaves: `Write.apply`
 
 `Write.apply(row, bound, { operators })` is the row a bound write leaves over
 the row before it: values set, amounts added (a null stays null, as in SQL),
-assignments computed. It is the one computation of that row: a guard judges
-it, a writer explains a miss by it, a client predicts it. `unknown` names each
-field it could not work out (one the row lacks, an amount added to a value
-that is no number, or an operator the table lacks), which keeps what the row
-holds.
+assignments computed, all by metakit's evaluator. It is the one computation of
+that row: a guard judges it, a writer explains a miss by it, a client predicts
+it. `unknown` names each field it could not work out (one the row lacks, an
+amount added to a value that is no number, or an operator the table lacks),
+which keeps what the row holds. A value the evaluator refuses (a sum past the
+safe integer range, text holding a NUL character) is a failure, never a write:
+`Write.apply` throws a `QueryEvaluateError` carrying the refusal, which a
+prediction treats as unknown and a writer answers as its own error.
+
+### A write as a metakit transition: `foldkit-entity/transition`
+
+`transitionOf(write)` (from `foldkit-entity/transition`) gives a declared write
+as a metakit `Transition`, so metakit's checker, prover, `Transition.commutes`
+and graph read it as they read any transition. Its state is the row's place in
+its table, `{ present, row }` (`present` says whether the row is there; `row` is
+the Entity's row as the store holds it), its input is the write's input with
+each key in its stored form, and what no caller passes arrives as `supplied`
+(`suppliedOf(write, context, read)` reads it once: the viewer's id as `viewer`,
+the time as `now`).
+
+| Part of the write | Its way of writing |
+| --- | --- |
+| a key set, a link, a context value | `set` of `row.<field>` |
+| `increment`, `decrement` (the amount negated) | `add` |
+| `compute` | `set` of the expression, read under `row` |
+| an insert | `set` of `present` to true |
+| a delete | `set` of `present` to false |
+
+It applies where the row is `present` (an insert: is not), the `when` and
+`from` hold, and the revision it `expect`s is the row's; the revision then
+moves on by one. A page that only declares and binds writes does not carry it:
+the main entry never imports it.
 
 ### What a client foresees of a supplied member
 
@@ -1462,8 +1491,9 @@ Refusal.isInvalidBy(refusal, reservedWithinQuantity)
 
 Text compares only under a declared collation, here too: a date stored as text
 needs `{ collation: Collation.binary }` on its comparison. An interpreter that
-judges stored rows alone refuses `after`'s nodes as the operation `next`;
-`Expr.substituteNext` reads the ones a write sets as their values.
+judges stored rows alone refuses `after`'s reads as the operation `next`; a
+reader that knows the values a write sets puts them in place of those reads
+(`after.x` reads the segments `next.x`).
 
 ## States of a row, and what every write does to them
 
@@ -1536,11 +1566,13 @@ const Publish = Write.update(
 
 `Laws.check` judges each write against each invariant of its Entity, and
 reports the arrows the writes make between its states. It is pure, needs no
-database, and reads declarations only:
+database, and reads declarations only. It is its own entry, `foldkit-entity/laws`,
+because it carries metakit's checker, which a page never loads:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
-import { Entity, Footprint, Laws, Write } from 'foldkit-entity'
+import { Entity, Footprint, Write } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 
 const Product = Entity.define(
   'Product',
@@ -1628,9 +1660,8 @@ of these that decides it:
 | --- | --- |
 | State invariant; write changes none of its fields | `Kept`, by disjointness |
 | Finite fields set directly by the write | Enumerated: `Kept`, or `Refused` with witness |
-| Rule holds vacuously for non-enumerable fields | `Kept`, `vacuous` |
-| Bounded numbers decide the inequality | `Kept`, `bounds`; or `Refused` with witness |
-| Unbounded text, links, or > 4,096 combinations | `Undecided`, with reason and `obligation` |
+| Numbers, or members the write computes | metakit's checker: `Kept`, by the tier of its proof (`concrete`, `interval`, `zone`); or `Refused` with witness |
+| Text, links, another row, or > 4,096 combinations | `Undecided`, with reason and `obligation` |
 
 A transition invariant is never kept by disjointness: `after.count >
 before.count` is broken by every write that leaves `count` alone. Rows are not
@@ -1638,34 +1669,45 @@ filtered by the invariants before enumeration, since a row may be invalid
 before a write; a row the write's `when` (and `from`) definitely refuses is
 dropped, and one it cannot judge stays.
 
-#### Numbers, by their bounds
+#### Numbers, by metakit's checker
 
-A number member or input key the check cannot enumerate gets an interval:
-its Schema's checks (`isGreaterThanOrEqualTo`, `isBetween`, `Schema.Int`…),
-narrowed by the write's `from` and `when` where they compare it with a value,
-and by the Entity's state invariants, assumed to hold of the row before the
-write. That assumption is what makes the proof inductive: a write that keeps a
-rule from every row the rules allow keeps it on every row the writes make,
-starting from rows that held it. The write's effect is carried through the
-intervals (a set, an increment, a `compute` through operators that declare
-`Law.monotonic` for each argument), and the rule is judged over the result in
-SQL's three values. `Kept` by `bounds` holds for every row and input within
-those bounds.
+A pair whose members enumeration cannot list (a number, a member the write
+computes) goes to metakit's checker, `Abstract.checkGoal`, over the write read
+as a transition (`transitionOf`, [`foldkit-entity/transition`](#a-write-as-a-metakit-transition-foldkit-entitytransition)).
+It asks whether the rule holds of the row the write leaves, for every row the
+Entity's state invariants allow (assumed to hold of the row before, which is
+what makes the proof inductive: a write that keeps a rule from every row the
+rules allow keeps it on every row the writes make) and every input within its
+Schema, where the write's `from` and `when` hold. It reads a literal set (a
+status, a boolean) as the fact that the member is one of its values. It
+relates two unknowns: a `when` of `balance >= amount` over a `compute` of
+`Expr.sub(balance, amount)`, or a `decrement: { balance: 'amount' }`, keeps
+`balance >= 0`. `Kept` names the tier of the checker's proof in `by`.
 
-It is deliberately non-relational: a `when` comparing two unknowns
-(`amount <= balance`) narrows each only by the other's interval, so it keeps
-nothing on its own, and the pair is `Undecided`: "it rests on comparing
-balance with amount". A refusal is never inferred from intervals: the check
-tries the values nearest 0 and at each interval's ends, and refuses only with
-a row and input the reference judge refuses, within every Schema, meeting the
-`when`, and keeping every state invariant they hold the members of. The
-numbers are the judge's (JavaScript's, rounding monotone); a store that rounds
-otherwise is outside what it proves.
+What the checker leaves `Undecided` follows evaluation's own rules, which
+refuse what a database refuses:
+
+- **A plain `Schema.Number` may be NaN or infinite**, and a comparison or an
+  arithmetic operation over one is refused, so a rule that reads one is
+  proved only where something rules NaN out (a `when` that compares it) or
+  decides the rule without it. `Schema.Finite` and `Schema.Int` decide it; a sum or a
+  difference of two numbers that nothing bounds may pass the safe integer
+  range, so a rule over one wants a bound on each (`Schema.isBetween`).
+- **Another row.** A rule or a write that reads a related row is `Undecided`,
+  saying so; the checker sees one row.
+
+A refusal is never taken from the checker's answer: where it cannot prove a pair
+the check tries the values nearest 0, the numbers the rule and the write name
+and those beside them, and the ends of each Schema, and refuses only with a row
+and input the reference judge refuses, within every Schema, meeting the `when`,
+and keeping every state invariant they hold the members of. The numbers are the
+judge's (JavaScript's, rounding monotone); a store that rounds otherwise is
+outside what it proves.
 
 An `Undecided` pair of a declared write carries an `obligation`: the `write`,
-the `rule`, the state invariants `assumed` before it and the `cases` (values
-of the finite members) left, all as declared, for a later pass, such as a
-solver, to prove without reading the source again.
+the `rule`, the state invariants `assumed` before it and the `cases` the
+enumeration left (none where the checker decided), all as declared, for a later
+pass, such as a solver, to prove without reading the source again.
 
 The findings (`holds`, `enforced`, `undeclared`, `refused`, `unmeetable`,
 `unreached`, `terminal`) are reports, never faults: a write an invariant can
@@ -1699,18 +1741,17 @@ is a declared write's own.
 #### Evidence, and the graph's facts
 
 A pair the check keeps by reading the declarations carries a record in
-`evidence`, issued by `foldkit-entity/laws`: `Bounded` for one the numbers'
-bounds decided, `Enumerated` for the rest (by disjointness, by enumeration,
-`vacuous`, a create against a transition invariant, a delete). A pair
+`evidence`, issued by `foldkit-entity/laws`: `Bounded` for one metakit's checker
+proved, `Enumerated` for the rest (by disjointness, by enumeration, a create
+against a transition invariant, a delete). A pair
 kept on its author's word (`declared`), refused or undecided carries none:
 for those, the evidence is a walk through the writer, a scenario, or
-`Evidence.runtimeOnly` with its reason. These records are
-`foldkit-metadata`'s `Evidence`; the `Evidence` this package exports is an
-operator law's (`Tested`, `Proven`, [below](#laws-and-holding-an-implementation-to-them)).
+`Evidence.runtimeOnly` with its reason. These records use `Evidence` from
+`foldkit-metadata`.
 
 ```ts
 import { Option } from 'effect'
-import { lawFactsOf } from 'foldkit-entity'
+import { lawFactsOf } from 'foldkit-entity/laws'
 import { Evidence } from 'foldkit-metadata'
 
 const records = report.pairs.flatMap(pair => Option.toArray(pair.evidence))
@@ -1777,8 +1818,8 @@ Query.show(PublicStories)
 
 - **Expands purely from its arguments:**
   `definedAs` builds an expression from a call's arguments, once per call, and
-  every interpreter runs that expression (`Expr.expanded` writes a predicate's
-  calls out); one that closes over a field or an input instead of taking it is
+  every interpreter runs that expression (a call is what its body builds); one
+  that closes over a field or an input instead of taking it is
   refused when called. `Query.show` prints the call, and
   `Query.dependencies(body).operators` lists each operator a body uses. The
   guide's [What the calls mean](../../docs/operators.md#what-the-calls-mean)
@@ -1842,7 +1883,9 @@ refused where it is written.
   `evaluate`, `evaluateEach`, `decided`, `truthOver`, `Entity.judge`,
   `Entity.judgeInput(input, value, { operators })` and
   `Entity.check(entity, { operators })` each take the table, `Operators.kernel`
-  by default.
+  by default. That one implements nothing: every table runs the kernel's own
+  `Text.startsWith`, `Expr.add` and `Expr.sub`, and refuses an implementation
+  of one.
 - **Null is strict by default.** A null argument gives null (unknown for a
   predicate) and the implementation never sees one. `nulls: 'handled'`
   operators are implemented with `Operators.implementHandlingNulls` and answer
@@ -1871,82 +1914,22 @@ refused where it is written.
   row causes (an operator the table lacks, an input the body reads holding a
   NUL, order keys of different kinds) still refuses it. A client judging the
   rows it holds wants the second.
-- **NUL is refused** in any text argument, and an implementation that throws
-  is reported as a `QueryEvaluateError` naming its operator.
+- **NUL is refused** in any text argument, and an implementation that throws,
+  or answers a kind other than its output's (text for a number), is reported as
+  a `QueryEvaluateError` naming its operator; its `refusal` holds what was
+  refused. A refusal decides before null: `contains` of stored text holding a
+  NUL is refused even beside a null search.
+- **An implementation is told no collation.** An operator declared
+  `collation: 'required'` is given its text arguments folded as the call's
+  collation folds them, and `{ collation }` is always none.
+- **A write refuses text holding a NUL** where its input is decoded
+  (`Entity.input`'s schema), naming the key, so no stored row holds one.
 
-### Laws, and holding an implementation to them
+### Check what a primitive operator promises
 
-An operator may declare the equations every implementation of it keeps. A law
-is descriptive: interpreters execute expressions as written without algebraic
-rewrites. `Conformance.laws` tests an implementation against them, and what it
-finds is evidence its table records.
+Pass `claims` to `Expr.operator` to declare properties such as commutativity. A commutative operator gives the same result when its two arguments are exchanged. The declaration travels with calls to that operator.
 
-```ts
-import { Schema } from 'effect'
-import { Expr, Law, Operators } from 'foldkit-entity'
-import { Conformance } from 'foldkit-entity/conformance'
-
-const concat = Expr.operator('acme.concat', {
-  input: [Schema.String, Schema.String],
-  output: Schema.String,
-  collation: 'operands',
-  laws: [Law.associative, Law.identity(''), Law.preservesCollation],
-})
-const table = Operators.memory(Operators.implement(concat, (left, right) => `${left}${right}`))
-
-const verdict = Conformance.laws(concat, table) // { _tag: 'Holds', evidence: [...] }
-const recorded =
-  verdict._tag === 'Holds' ? Operators.withEvidence(table, verdict.evidence) : table
-Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence }]
-```
-
-- **A law is checked where it is declared.** `Law.commutative`, `associative`,
-  `idempotent`, `identity(value, side?)`, `absorbing(value, side?)`,
-  `inverse(other, identity)` and `distributes(over)` are laws of an operator of
-  two arguments; `monotonic(direction, position)` names an argument it has, and
-  `preservesCollation` needs `collation: 'operands'`. A witness that is not a
-  value the argument's schema stores is refused.
-- **Its domain** is every non-null value of the input schemas, narrowed with
-  `Law.within(law, schema)` where a law holds of less (a square is increasing
-  over the non-negative numbers only). Strict null makes both sides null, so no
-  law needs a null case.
-- **Testing is sampling, seeded.** Cases come from a fixed sample of each kind
-  (the empty string, mixed case, non-ASCII and astral text, `%`, `_` and `\`; zero, negatives, a
-  fraction), kept where the schemas decode them, up to `cases` (200) a law
-  chosen by `seed` (0), under each of `binary` and `asciiFold` where the
-  operator or a witness its law calls compares text (so a record of such a law
-  counts twice the cases). The verdict is `Holds` with one `Tested` record a law, or the
-  first `Counterexample` with both sides and its collation: declaring `concat` commutative
-  finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`. Two sides that both refuse agree,
-  but are no case: a record counts only cases whose sides both answered, and a law with
-  none is `Unanswered`, with the reason the first left side refused for, and records nothing.
-- **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
-  of an operator the table lacks or a law it does not declare, and a `Tested`
-  record `Conformance.laws` did not make of this table's own implementation
-  (`Operators.testedOn(record)` names the one it did), or tested beside another
-  implementation of a witness its law calls; `override` drops a
-  replaced implementation's records, and those of a law that called it as a
-  witness (`inverse`, `distributes`); `merge` keeps both tables'. An SQL table
-  (`DrizzleOperators.withEvidence`) takes only records `Conformance.lawsBy`
-  made (`Operators.testedByRunner`): not one built by hand, copied, or tested
-  in memory. Which runner made it, the database's or another, is the caller's
-  word, so run it over the table's own SQL (`compileCall`). `Evidence.Proven`
-  records a proof made elsewhere, never checked here. A law's domain is
-  described as a JSON Schema with the definitions it refers to.
-- **A defined operator's laws describe it; nothing records them.** It has no
-  implementation to hold evidence. A write computing through it is expanded
-  first, so it commutes by the primitive operator it calls, by that one's
-  evidence.
-
-`Conformance.operator(op, { implementations })` runs one set of calls through
-every implementation given and reports where they disagree, a refusal included:
-generated from each argument's samples, null where its schema admits one, and
-text holding NUL, under `binary` and `asciiFold` where the operator compares
-text. `Conformance.memory(table)` is the reference interpreter's runner; a
-defined operator's expansion runs beside the others as `expansion`, a name an
-implementation of a defined operator may not take. `foldkit-remote-drizzle`
-runs the kernel's operators and an application's through it on SQLite and
-Postgres.
+Await `Conformance.operator(op, { implementations })` from `foldkit-entity/conformance` and read the report's `disagreements`. It compares results on generated inputs and counts a refusal on both sides as agreement. `Conformance.memory(table)` supplies the memory runner. To test the algebraic properties of a custom MetaKit operation, see [Test a primitive operator's claims](../../docs/operators.md#test-a-primitive-operators-claims).
 
 ### Describing what a table runs
 
@@ -1955,10 +1938,10 @@ whoever asks what a server runs: the guide carries one operator the whole way
 ([An operator of your own](../../docs/operators.md#an-operator-of-your-own) to
 [Publishing what a server runs](../../docs/operators.md#publishing-what-a-server-runs)).
 
-`Operators.describe` gives an `OperatorDescription`, a Schema whose decoder
-checks a description another server publishes; it says what an operator takes
-and keeps, never a defined operator's body. `Operators.describeTable(table)`
-lists each operator a table implements so, with its evidence, and
+`Operators.describe(op)` returns the operator's signature and claims.
+`OperatorDescription` is the schema that checks descriptions from another service.
+`Operators.describeTable(table)`
+lists each operator a table implements, with its claims, and
 `Query.operators(body)` names each operator a body calls (a defined one and the
 primitive ones it calls). A version is part of an operator's name: a table
 holding `acme.slug` does not answer a body calling `acme.slug@2`, and the
@@ -2052,12 +2035,12 @@ server on different deploys see which side is behind.
 | `Held.rows` / `Held.fromRefs` / `isLink` | Build `HeldRow` caches and normalize relation ref keys |
 | `Judge.pins` | Extract fixed field values from a conjunction for `pointing` |
 | `Expr.operator(id, options)` | Define a reusable macro (`definedAs`) or primitive operator |
-| `Expr.expanded` / `unsupported` / `dependenciesOf` | Expand operator macros and inspect expression dependencies |
+| `Expr.unsupported` / `dependenciesOf` | Inspect what an expression reads and needs |
 | `Operators.memory` / `implement` / `kernel` | Build and compose in-memory primitive operator tables |
 | `Operators.merge` / `override` / `checked` | Combine operator tables and validate outputs in tests |
-| `Law.*` (`associative`, `monotonic`, …) | Algebraic laws declared on primitive operators |
-| `Conformance.laws` / `lawsBy` / `operator` | Test operator implementations against laws and each other |
-| `Operators.withEvidence` / `describeTable` | Record conformance evidence and serialize table capabilities |
+| `Expr.operator` with `claims` | Declare algebraic properties on a primitive operator |
+| `Conformance.operator` | Compare operator implementations on generated inputs |
+| `Operators.describe` / `describeTable` | Describe operator signatures and claims for other services |
 | `Collation.*` / `ReadFilter.*` | Collation metadata and server-filtered member metadata |
 | `valueOfOperand(node, { operators })` | Evaluate a row-independent scalar expression |
 

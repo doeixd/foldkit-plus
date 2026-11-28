@@ -14,34 +14,6 @@ const reference = [
 
 export default [
   {
-    name: 'the evaluator reads an empty list as it reads any other',
-    edits: [{ file: evaluate, find: 'if (among.length === 0) return false', replace: '' }],
-    tests: reference,
-  },
-  {
-    name: 'the evaluator compares a null value',
-    edits: [{ file: evaluate, find: "if (isNull(value)) return 'unknown'", replace: '' }],
-    tests: reference,
-  },
-  {
-    name: 'the evaluator finds no match',
-    edits: [
-      { file: evaluate, find: 'if (among.some(each => each === value)) return true', replace: '' },
-    ],
-    tests: reference,
-  },
-  {
-    name: 'the evaluator ignores a null in the list',
-    edits: [
-      {
-        file: evaluate,
-        find: "return among.some(isNull) ? 'unknown' : false",
-        replace: 'return false',
-      },
-    ],
-    tests: reference,
-  },
-  {
     name: 'TanStack reads a null against an empty list as unknown',
     edits: [
       {

@@ -1,6 +1,6 @@
 # Remote: server-owned data cached in the Model
 
-Checked against `foldkit-remote` 0.28.0, `foldkit-remote-server` 0.24.0, `foldkit-remote-drizzle` 0.21.0 and `foldkit-plus` 0.23.0.
+Checked against `foldkit-remote` 0.29.0, `foldkit-remote-server` 0.26.0, `foldkit-remote-drizzle` 0.23.0 and `foldkit-plus` 0.25.0.
 
 `foldkit-remote` keeps a **normalized, disposable cache of server-owned facts
 inside the Foldkit Model**. Features declare which entity fields they need;
@@ -736,15 +736,16 @@ seconds, `0` never) of its Effect clock, else its own clock, reporting `ClockSke
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and
 invariants: [entity.md](entity.md).
 
-`Data.can(model, M, partialInput)` reads what the Model holds and answers `Can.Yes`,
-`Can.No({ refusal })` (`Forbidden { reason }`, `Unmet`, `Invalid { entity, rule, message, path }`,
-the server's order) or `Can.Undecided({ reasons })` (row, field, `may` member or input key missing; an
-increment or computed field not worked out). A hint: `Data.mutate` still asks the server.
-Throws for a mutation not declared with `Mutation.write`. Match with `Can.match`.
+`Data.can(model, M, partialInput)` reads what the Model holds and answers a metakit `Verdict` (`Verdict.match` from `metakit`): `True`;
+`False` whose witness is the `CanRefusal` (`Forbidden { reason }`, `Unmet`, `Invalid { entity, rule, message, path }`,
+the server's order); or `Unknown` (row, field, `may` member or input key missing; an
+increment or computed field not worked out), its reasons joined by `; `. A hint: `Data.mutate` still asks the server.
+Throws for a mutation not declared with `Mutation.write`. `Can.toWire` and `Can.fromWire` convert to and from
+the JSON shape `CanWire` (`Yes`, `No { refusal }`, `Undecided { reasons }`).
 `Data.capability(M, toInput)` gives a `foldkit-agent` variant `{ authorize, applies }` from it
-(`Forbidden` refuses in `authorize` with its words, `Unmet` and `Invalid` in `applies`, `Undecided`
+(`Forbidden` refuses in `authorize` with its words, `Unmet` and `Invalid` in `applies`, `Unknown`
 allows), and `Data.available(M, model => Option<partialInput>)` an `available` (false with no row
-named or on `No`). Judged as the Model's viewer, so compose `authorize` with the agent's principal
+named or on `False`). Judged as the Model's viewer, so compose `authorize` with the agent's principal
 check, and `available` (asked at discovery, before `authorize`) shows any caller the viewer's answer;
 plain functions, so Remote needs no agent package.
 
@@ -909,6 +910,16 @@ different answers; an input every interpreter refuses (text holding NUL) is
 empty and incomplete, never a throw. It creates no connection, so nothing new is retained or
 fetched.
 
+A total, count, minimum or every/any over those same rows, kept from the rows
+that change: `aggregated` (see "A kept aggregate over a loaded list" at the end).
+
+Remote reads (`Data.get`, `Data.query`, live reads, `Data.confirmed`) declare
+the store's field as their `dependencies`, so `Projection.derive` and
+`SlotView.region` over them skip while that field is the same object; a domain
+on a raw optic declares none and is read every time. A read entry for a bare
+Surface or `Remote.observe` reuses its plan without building the Surface's
+projection while the store is unchanged.
+
 Local execution is not a second authority: `matching` and `filtered` conclude
 from held facts (this row matches) and never claim the whole dataset (the list
 is these rows) unless the connection is terminal at both ends (`complete`).
@@ -966,7 +977,11 @@ entry) and the `httpWithLive` client. A live read installs on its domain the
 code that streams and applies changes (the live capability), so a page that
 reads nothing live keeps none of it, and a domain that reads nothing live
 refuses a `LiveReceived`, naming itself. The transport's `RemoteClient.live`
-is unchanged.
+is unchanged. Where the domain reads live, a read answered beside a pending
+write is kept as a live patch is: when the read brought a field a value other
+than the one the write's late answer names, the field is written and then read
+again (only a read says which is newer), so another writer's later change is
+not overwritten for good.
 A list read with `liveQuery(Data, Q, input, { select, first })` rides the same
 live entry while a Surface reads it: the stream sends
 the list as the read does (at most 32 lists a stream), and the server's live
@@ -1440,8 +1455,9 @@ Source's `filter`.
 (or `entity(name, table, { operators })`) gives every binding the tables its
 bodies' primitive operators run by, each its kernel (`Text.startsWith`) when not
 given: `sql` from `DrizzleOperators.make(DrizzleOperators.implement(op, ({ args,
-dialect, collate }) => …))`, whose function returns Drizzle `SQL` (`merge`,
-`override`, `kernel`), `memory` from `Operators`. A literal or input argument taken as a number or boolean is cast on
+dialect }) => …))`, whose function returns Drizzle `SQL` (`merge`, `override`,
+`kernel`, which is empty: the kernel's three operators are metakit's own and take no
+implementation), `memory` from `Operators`. A literal or input argument taken as a number or boolean is cast on
 Postgres (`cast($1 as integer)` while the value fits one, `bigint` past 32 bits); SQLite takes none, and binds a boolean as 1 or 0. A query, an invariant or a
 write's `when` calling one either table lacks is refused where it is registered
 or the writer built; `GuardDrizzle.visible(Policy, entities, { operators })`
@@ -1459,6 +1475,31 @@ guard's rule that reads another row, which `GuardServer.writer` hands it as `req
 (`requires: true` on the writer: an update's and a delete's `RowRequirement`). When nothing was
 written, the row read back says why, in this order: gone, `Forbidden` (a `requires` it fails),
 `Conflict`, `Unmet`, `Invalid`.
+Every writer says how its database runs concurrent writes (`EntityWriter.store`, required, a
+`StoreCapabilities` from `metakit/store`): `writer(binding)` says serializable over SQLite and
+read-committed over Postgres, `writer(binding, { isolation: 'serializable' })` says a Postgres set
+to run so, and `RemoteServer.memoryWriter` says serializable. `isolates` says how far that reaches:
+`'statement'` over SQLite, since a SQLite table may be D1's, which shares no transaction between a
+read and a later write; `'transaction'` over Postgres and in memory. The Drizzle writer also says
+`judgesInStatement: true`: every rule it is handed is a clause of the statement that writes. A
+writer you write by hand names its own store, and a wrapping writer passes its inner writer's on,
+with its own rules' needs (`EntityWriter.needs`, which a guard fills). `RemoteServer.write`
+throws, where the write is registered, for a writer that names no store, and for a precondition,
+invariant or writer's own rule that reads other rows through a store that cannot run those rows'
+writers one at a time: Postgres at read committed with no parent lock, or a store isolating one
+statement (D1) through a writer that reads first and writes in a second round trip. Both shipped
+writers refuse a precondition or invariant over other rows before that, since neither runs a path
+or an exists in one; a guard's rule over other rows they do run.
+A relation declared `onDelete` (`restrict`, `cascade`, `setNull`) promises that no row points at a
+row that is gone, so a delete of its target, and a write setting a link through it, need the same
+(`"DeleteTopic restrict Note.topic"`, `"AddNote link Note.topic"` in the refusal). Postgres at read
+committed holds them only where the table's own foreign key holds the link
+(`EntityWriter.foreignKey`, judged as `'constraint'`): there `writer(binding)` is refused for them
+unless the table declares the foreign key or you say `isolation: 'serializable'`. The Drizzle writer
+writes such a link only while its row is there, in the statement that writes
+(`checksTargets: true`), and otherwise answers `Invalid` with the relation's key as the path (a
+taken id is still answered `Taken`); `RemoteServer.memoryWriter` checks the same in its one step. A
+writer without `checksTargets` is refused for such a link unless a foreign key holds it.
 A row already holding what the write sets answers as written (taken for the retry of one that
 landed), unless it increments or a ledger was consulted for it: a ledger answers a retry itself, so
 under one a new write is judged by its `when` and transition invariants. An insert's values are judged before it is written, by its state invariants
@@ -1499,6 +1540,11 @@ rule compiles over a float4 `real` column) or put `entityChecks(Entity, t)`
 in the Drizzle table for `drizzle-kit`, never a CHECK written by hand; and,
 for a guarded writer's `revision` pin, `revisionTrigger(binding, 'revision')`, so a
 handler's write and raw SQL are held to the invariants and move the revision too.
+`writer(binding, { revision: 'revision' })` (and `RemoteServer.memoryWriter(store, E,
+{ revision })`) moves that column on by one in every update and answers it as the row's
+revision: a pending `add` whose answer is the newer value plus the amount, one revision
+after it, settles with no second read; without it the field is read again. A read answered
+beside a pending `add` shows its own value, not the value plus the amount: it may include it.
 
 ## Gotchas
 
@@ -1635,6 +1681,57 @@ Met in applications on this stack: what failed, and what to do instead.
 - **One `drizzle-orm` per install.** The Drizzle adapters peer on it; a second
   copy, resolved with other optional peers, makes the application's tables
   fail to type-check against the adapter. Count the copies in the lockfile.
+
+## A kept aggregate over a loaded list
+
+`Maintained.value(Data, model, over, definition, { where, input })` from
+`foldkit-remote/maintained` updates a value from the rows that changed. Pass
+a `metakit/aggregates` definition for a sum, count, minimum, maximum, `every`
+or `any`. Pass `Maintained.list` to keep the rows in the connection's order.
+The optional `where` query picks which rows count. The result is
+`{ value, complete }`, with `filtered`'s completeness rules. With 120 rows
+loaded for a query, the value covers all 120 even if `over` asks for 50.
+When a change cannot be traced to rows, such as after restoring a snapshot,
+Remote compares the loaded rows and updates the value from their differences.
+
+<!-- docs-check standalone
+import { Schema as S } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Entity, Expr, Order } from 'foldkit-entity'
+import { Query, Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+const Invoice = Entity.define('Invoice', S.Struct({ id: S.String, cents: S.Int, status: S.String }))
+const All = Query.define('All', {}, () => Query.from(Invoice).pipe(Query.orderBy(Order.asc(Invoice.fields.id))))
+const Unpaid = Query.define('Unpaid', {}, () =>
+  Query.from(Invoice).pipe(Query.where(Expr.eq(Invoice.fields.status, 'unpaid')), Query.orderBy(Order.asc(Invoice.fields.id))),
+)
+const Model = S.Struct({ remote: Remote.Model })
+const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+const Data = Remote.make({ model: App.model.remote, entities: [Invoice], queries: [All, Unpaid] })
+const invoices = Data.query(All, {}, { select: Entity.select(Invoice, { cents: true }), first: 50 })
+declare const model: typeof Model.Type
+-->
+
+```ts
+import { Schema } from 'effect'
+import * as Rows from 'metakit/aggregates'
+import { Maintained } from 'foldkit-remote/maintained'
+
+// Once, at module level: the kept value belongs to this aggregate value.
+const UnpaidCents = Rows.sum(Schema.Struct({ cents: Schema.Int }), $ => $.cents)
+const { value, complete } = Maintained.value(Data, model, invoices, UnpaidCents, {
+  where: Unpaid,
+  input: {},
+})
+// value is the total in cents for the loaded unpaid invoices.
+```
+
+Mistakes: an aggregate made in the view is new each render and adds up from
+nothing every time (a `{ where, input }` object made in the view only costs
+re-reading what the list and query say: define it once too); `Rows.sum` over a `Schema.Number` field throws (only
+integer contributions keep exact deltas); the aggregate's row may name fewer
+fields than the list selects, never one it does not select (a type error).
+Guide: [aggregates.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/remote/docs/aggregates.md).
 
 ## See also
 

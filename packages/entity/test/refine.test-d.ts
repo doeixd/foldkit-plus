@@ -9,12 +9,12 @@ import {
   Entity,
   Expr,
   Footprint,
-  Laws,
   Query,
   Write,
   type ConditionedWrite,
   type Query as QueryOf,
 } from '../src/index.js'
+import { Laws } from '../src/laws.js'
 
 const Box = Entity.define(
   'Box',

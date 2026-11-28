@@ -56,7 +56,8 @@ test('a body asked in the page is answered by SQLite and the in-memory readers a
   expect(await page.getByLabel('Statement the adapter compiled').textContent()).toContain(
     'from "posts"',
   )
-  expect(await page.getByText('["%COMP%",101]').isVisible()).toBe(true)
+  // metakit's lowering binds the search lowered (`instr(lower(headline), ?)`), not as a LIKE pattern.
+  expect(await page.getByText('["comp",101]').isVisible()).toBe(true)
   expect(await page.getByLabel('The expression').textContent()).toContain(
     'WHERE contains(Post.title, $search)',
   )

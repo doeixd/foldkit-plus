@@ -59,7 +59,7 @@ export default [
   },
   {
     name: 'the selection is not put back',
-    edits: [{ file: keep, find: '      element.setSelectionRange(...selection)\n', replace: '' }],
+    edits: [{ file: keep, find: '    element.setSelectionRange(...selection)\n', replace: '' }],
     tests: [...eager, ...deferred, ...lazy],
   },
   {

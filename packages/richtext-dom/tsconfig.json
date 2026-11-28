@@ -10,7 +10,11 @@
       "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
+      "foldkit-entity/laws": ["../entity/src/laws.ts"],
+      "foldkit-entity/lowering": ["../entity/src/lowering.ts"],
+      "foldkit-entity/transition": ["../entity/src/writeTransition.ts"],
       "foldkit-form": ["../form/src/index.ts"],
+      "foldkit-form/metakit": ["../form/src/metakit.ts"],
       "foldkit-richtext": ["../richtext/src/index.ts"],
       "foldkit-richtext-dom": ["./src/index.ts"],
       "foldkit-richtext-dom/editor": ["./src/editor.ts"],
@@ -20,7 +24,36 @@
       "foldkit-richtext-dom/html": ["./src/html.ts"],
       "foldkit-richtext-dom/input": ["./src/input.ts"],
       "foldkit-richtext-dom/toolbar": ["./src/toolbar.ts"],
-      "foldkit-richtext-dom/view": ["./src/view.ts"]
+      "foldkit-richtext-dom/view": ["./src/view.ts"],
+      "metakit": ["../metakit/src/index.ts"],
+      "metakit/aggregates": ["../metakit/src/aggregates.ts"],
+      "metakit/aggregates/sql": ["../metakit/src/aggregatesSql.ts"],
+      "metakit/artifact": ["../metakit/src/artifact.ts"],
+      "metakit/build": ["../metakit/src/build.ts"],
+      "metakit/conformance": ["../metakit/src/conformance.ts"],
+      "metakit/domain": ["../metakit/src/domain.ts"],
+      "metakit/drizzle": ["../metakit/src/drizzle.ts"],
+      "metakit/fn": ["../metakit/src/fn.ts"],
+      "metakit/graph": ["../metakit/src/graph.ts"],
+      "metakit/graph/match": ["../metakit/src/graph/match.ts"],
+      "metakit/graph/prune": ["../metakit/src/graph/prune.ts"],
+      "metakit/graph/readiness": ["../metakit/src/graph/readiness.ts"],
+      "metakit/inspect": ["../metakit/src/inspect.ts"],
+      "metakit/interpreter": ["../metakit/src/interpreter.ts"],
+      "metakit/language": ["../metakit/src/language.ts"],
+      "metakit/machine": ["../metakit/src/machine.ts"],
+      "metakit/operation": ["../metakit/src/operation.ts"],
+      "metakit/operation/sql": ["../metakit/src/operationSql.ts"],
+      "metakit/pairs": ["../metakit/src/pairs.ts"],
+      "metakit/policy": ["../metakit/src/policy.ts"],
+      "metakit/prove": ["../metakit/src/prove.ts"],
+      "metakit/relation": ["../metakit/src/relation.ts"],
+      "metakit/sql": ["../metakit/src/sql.ts"],
+      "metakit/store": ["../metakit/src/store.ts"],
+      "metakit/store/check": ["../metakit/src/storeCheck.ts"],
+      "metakit/syntax": ["../metakit/src/syntax.ts"],
+      "metakit/temporal": ["../metakit/src/temporal.ts"],
+      "metakit/tooling": ["../metakit/src/tooling.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
@@ -36,6 +69,9 @@
     },
     {
       "path": "../richtext/tsconfig.build.json"
+    },
+    {
+      "path": "../metakit/tsconfig.build.json"
     }
   ]
 }

@@ -1,0 +1,20 @@
+{
+  "name": "foldkit-example-metakit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/demo.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.11",
+    "drizzle-orm": "1.0.0-rc.5",
+    "effect": "4.1.4",
+    "metakit": "workspace:*",
+    "z3-solver": "5.4.1"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

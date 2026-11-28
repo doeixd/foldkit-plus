@@ -34,3 +34,29 @@ export const claim = (): Loader | undefined => {
   offered = undefined
   return loader
 }
+
+/** The binder's state and queued Messages handed over to `SSR.hydrate`. */
+export interface BinderSnapshot {
+  readonly model: unknown
+  readonly mutated: boolean
+  readonly queued: ReadonlyArray<unknown>
+}
+
+export interface BinderHandoff {
+  /** Stops the binder's listeners and hands over its current Model and queued Messages once. */
+  readonly take: () => BinderSnapshot
+}
+
+let offeredBinder: BinderHandoff | undefined
+
+/** The binder, as it starts on the served page. */
+export const offerBinder = (binder: BinderHandoff): void => {
+  offeredBinder = binder
+}
+
+/** `SSR.hydrate`: the binder running on this page, if any, claimed once. */
+export const claimBinder = (): BinderHandoff | undefined => {
+  const binder = offeredBinder
+  offeredBinder = undefined
+  return binder
+}

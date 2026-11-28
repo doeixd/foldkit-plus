@@ -41,7 +41,8 @@ This short example declares an `Item` entity with a stock invariant and a `Hold`
 
 ```ts
 import { Schema } from 'effect'
-import { Entity, Expr, Laws } from 'foldkit-entity'
+import { Entity, Expr } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 import { Mutation } from 'foldkit-remote'
 
 const Item = Entity.define(
@@ -79,7 +80,8 @@ The sections below walk a single catalog domain from Entity definition through s
 
 ```ts
 import { Schema } from 'effect'
-import { Derived, Entity, Expr, Laws, Order, Query as Body, Relation, Write } from 'foldkit-entity'
+import { Derived, Entity, Expr, Order, Query as Body, Relation, Write } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 
 const ProductFields = Entity.define(
   'Product',
@@ -279,7 +281,8 @@ The client creates a `Remote` instance over the exact same `Product`, `ForSale`,
 
 ```ts
 import { Optic } from 'effect'
-import { Can, Remote } from 'foldkit-remote'
+import { Verdict } from 'metakit'
+import { Remote } from 'foldkit-remote'
 import { ModelRef } from 'foldkit-surface'
 
 const Model = Schema.Struct({ remote: Remote.Model })
@@ -295,10 +298,10 @@ declare const model: typeof Model.Type
 
 const forSale = Data.query(ForSale, { search: '' }, { select: Card })
 
-const label = Can.match(Data.can(model, Publish, { id: 'p1', status: 'published' }), {
-  Yes: () => 'Publish',
-  No: ({ refusal }) => `Cannot publish: ${refusal._tag}`,
-  Undecided: () => 'Publish',
+const label = Verdict.match(Data.can(model, Publish, { id: 'p1', status: 'published' }), {
+  True: () => 'Publish',
+  False: () => 'Cannot publish',
+  Unknown: () => 'Publish',
 })
 ```
 
@@ -310,7 +313,7 @@ Using those shared declarations, `Remote` keeps cached rows inside your `Model` 
 
 - **Optimistic layers:** `Data.mutate` previews changes immediately and clears the overlay once the server settles.
 - **List placement:** `ForSale` moves optimistic items into or out of cached query results when every required field is held locally, deferring uncertain lists to the server.
-- **Pre-send hints:** `Data.can` returns `Yes`, `No`, or `Undecided` from cached rows without guessing when fields are absent.
+- **Pre-send hints:** `Data.can` returns a `Verdict` (`True`, `False`, or `Unknown`) from cached rows without guessing when fields are absent.
 
 Forms also consume `Entity.input(Product, ...)` directly to generate controls, per-field rules, and invariant markers; see [From declarations to the screen](./declared-data-to-ui.md).
 

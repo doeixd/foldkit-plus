@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { ReplicaId, type Storage } from 'foldkit-sync'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Message } from '../src/app.js'
@@ -12,6 +12,7 @@ import { TodoSync } from '../src/sync.js'
 const memoryStorage = (): Storage => {
   let state: unknown
   return {
+    store: { name: 'memory replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next =>
       Effect.sync(() => {
@@ -58,7 +59,7 @@ describe('the mounted app', () => {
     }
   })
 
-  it('applies an intent, persists the fact it minted, and renders through the slots', async () => {
+  it('applies an intent, persists the fact it sent, and renders through the slots', async () => {
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
       setTimeout(() => callback(performance.now()), 0),
     )
@@ -110,6 +111,48 @@ describe('the mounted app', () => {
       )
       expect(rendered.size).toBeGreaterThan(0)
       expect([...rendered].filter(name => !stylesheet.includes(`.${name}`))).toEqual([])
+    } finally {
+      await mounted.dispose()
+      await Effect.runPromise(replica.close)
+      container.remove()
+    }
+  })
+
+  it('keeps the list title and shows no error for a blank rename, and saves a real one', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    const container = document.createElement('div')
+    container.id = 'todo-app-rename'
+    document.body.appendChild(container)
+    const replica = await Effect.runPromise(
+      TodoSync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('rename') }),
+    )
+    const mounted = mountApp(replica, container)
+    try {
+      await vi.waitFor(() => expect(document.body.textContent).toContain('0 active'))
+      const input = document.querySelector<HTMLInputElement>('input[aria-label="List title"]')!
+      const change = (value: string) => {
+        input.value = value
+        input.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+
+      change('   ')
+      // The refusal would reach the Model through the persist, a tick after the edit.
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(mounted.model().listTitle).toBe('Todos')
+      expect(mounted.model().lastError).toEqual(Option.none())
+      expect(Effect.runSync(replica.pending)).toEqual([])
+
+      change(' Groceries ')
+      await vi.waitFor(() => expect(mounted.model().listTitle).toBe('Groceries'))
+      await vi.waitFor(() => expect(Effect.runSync(replica.pending)).toHaveLength(1))
+      expect(Effect.runSync(replica.pending)[0]!.message).toMatchObject({
+        _tag: 'RenamedList',
+        title: 'Groceries',
+      })
+      expect(mounted.model().lastError).toEqual(Option.none())
     } finally {
       await mounted.dispose()
       await Effect.runPromise(replica.close)

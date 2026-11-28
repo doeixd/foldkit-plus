@@ -22,7 +22,24 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // 6.1 to 7.9 kB brotli~ and nothing else moved. It gained the connection strip with
 // its offline switch (network.ts), delete with undo, the focus Commands and the
 // empty states. Ceiling that plus about 1%, rounded up to the next 500 bytes.
-const CEILING = 166_000
+// 169,292 bytes on 2026-11-21, from 165,083: the application opts into `foldkit-surface/writes`
+// (`machine.ts`, `surface.ts`), so a Message draws again only the Surfaces that read what it
+// writes. It carries 12.2 kB minified of `metakit` (transition, residualize, node, path, eval,
+// graph, kind, machine, eq, verdict, expr, core), 1.1 kB of `foldkit-surface/writes`, and
+// 1.1 kB of the declarations; the verifier (`writesCheck`) stays out of the build. Ceiling that
+// plus about 1%, rounded up to the next 500 bytes.
+// 171,558 bytes on 2026-11-21, from 169,292: every Message is declared (`machine.ts`), and
+// `update` runs the machine for each and turns the records it emits into Commands. The page
+// lost `ops/residualize`, `verdict`, `expr` and `kind` (step 3 of the unification plan moved
+// `can` and the reads walker off it) and gained `ops/rows` (evaluation of a fold), the list
+// writes (`transitionLists`, `ops/arr`), `transitionOpaque` (the mirrors' two steps),
+// `ops/str`, `ops/bool` and `ops/null`: 18.2 kB minified of `metakit` in all, which every
+// page of the application runs as its `update`. Ceiling that plus about 1%, rounded up to the
+// next 500 bytes.
+// +3,100 on 2026-11-26 (CI read 176,095): metakit's core evaluator/machine updates (Sets,
+// Domain.Id/Ordinal, Pipeable/Inspectable, nested folds) and foldkit-sync Effect tracing. Ceiling:
+// CI's reading plus ~500, rounded up.
+const CEILING = 176_600
 
 clientBudget({
   name: 'todo-app',

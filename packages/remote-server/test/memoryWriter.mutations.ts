@@ -16,6 +16,21 @@ const edit = (name: string, find: string, replace: string) => ({
 
 export default [
   edit(
+    'a link through an onDelete relation is written whatever row it points at',
+    'Option.isSome(relation.onDelete) ? [{ key, target: relation.target().name }] : []',
+    '[]',
+  ),
+  edit(
+    'an update writes a link whatever row it points at',
+    '        yield* refuseGone(id, links)\n        const row = found.value',
+    '        const row = found.value',
+  ),
+  edit(
+    'an insert refuses a gone link before a taken id',
+    '        if (Option.isSome(breaks)) return yield* breaks.value\n        if (Option.isSome(stored(id))) {',
+    '        if (Option.isSome(breaks)) return yield* breaks.value\n        yield* refuseGone(id, links)\n        if (Option.isSome(stored(id))) {',
+  ),
+  edit(
     'an update ignores the revision it expects',
     'if (Option.isSome(expect) && !sameStored(row[expect.value.field], expect.value.revision)) {',
     'if (false) {',
@@ -40,8 +55,8 @@ export default [
   ),
   edit(
     'amounts and computations read the row after the values set',
-    'Write.apply(\n          before,',
-    'Write.apply(\n          { ...before, ...values },',
+    'Write.apply(\n                before,',
+    'Write.apply(\n                { ...before, ...values },',
   ),
   edit(
     'a retry is never recognised',
@@ -78,5 +93,21 @@ export default [
     'a link is stored as the id it points at',
     'Option.getOrNull(Option.map(link, ref => entityKey(ref.entity, ref.id))),',
     'Option.getOrNull(Option.map(link, ref => ref.id)),',
+  ),
+  edit('the writer declares no revision', '    revision: revisionField,\n', ''),
+  edit(
+    'an update expecting none leaves the revision where it was',
+    '...(revisionField === undefined ? {} : movedOn(revisionField)),',
+    '',
+  ),
+  edit(
+    'an update does not answer the revision it moved',
+    '...(revisionField === undefined ? [] : [revisionField]),',
+    '',
+  ),
+  edit(
+    'a revision naming no field is taken',
+    'if (revisionField !== undefined && !Object.hasOwn(entity.fields, revisionField)) {',
+    'if (false) {',
   ),
 ]

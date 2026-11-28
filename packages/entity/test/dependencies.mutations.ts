@@ -3,7 +3,7 @@
  * `pnpm mutate packages/entity/test/dependencies.mutations.ts`.
  */
 const tests = ['packages/entity/test/expr.test.ts']
-const expr = '../src/expr.ts'
+const expr = '../src/expr/query.ts'
 
 export default [
   {

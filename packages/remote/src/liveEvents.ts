@@ -5,13 +5,13 @@
  * resume or invalidate. Reached only through the live capability (#378), which
  * a live read installs.
  */
-import { Equal, Option } from 'effect'
+import { Equal } from 'effect'
 import { type Connection, hasNext, hasPrevious } from './connection.js'
 import { addOverlay } from './capability.js'
-import { noKept, type Kept, type KeptField } from './kept.js'
+import { noKept, type Kept } from './kept.js'
+import { echoKept, replayOver } from './replay.js'
 import type { OptimisticState } from './optimistic.js'
 import type { LiveInsertion, LivePolicy } from './query.js'
-import { own } from './record.js'
 import {
   clearFloors,
   entityKey,
@@ -19,7 +19,6 @@ import {
   olderThanHeld,
   pastFloor,
   writeEntities,
-  type EntityEntry,
   type EntityKey,
   type EntityStore,
 } from './store.js'
@@ -51,9 +50,6 @@ const recordBoundary = (
   return { ...state, boundary: { ...state.boundary, [connection]: next } }
 }
 
-/** Long past any stream's lag behind an answer: it only bounds what the Model keeps (echoes and `kept` alike). */
-const echoKept = 60_000
-
 /**
  * The echoes awaited once a write's answer wrote `entities` at `now`: each row's
  * values, over what an earlier answer left of it, heard by no stream yet.
@@ -78,125 +74,11 @@ export const awaitEchoes = (
   return next
 }
 
-/** `kept` without the fields heard `echoKept` or more before `now`. */
-const unexpired = (kept: Kept, now: number): Kept => {
-  let next: Map<EntityKey, ReadonlyMap<string, KeptField>> | undefined
-  for (const [key, row] of kept) {
-    const live = new Map([...row].filter(([, field]) => field.since > now - echoKept))
-    if (live.size === row.size) continue
-    next ??= new Map(kept)
-    if (live.size === 0) next.delete(key)
-    else next.set(key, live)
-  }
-  return next ?? kept
-}
-
 const withoutRow = (kept: Kept, key: EntityKey): Kept => {
   if (!kept.has(key)) return kept
   const next = new Map(kept)
   next.delete(key)
   return next
-}
-
-/**
- * `kept` once a patch wrote `fields` of a row held as `under`, while the
- * requests in `pending` were in flight: a field's first patch keeps what it
- * held, and every patch adds the requests it was pending beside.
- */
-const keptBefore = (
-  kept: Kept,
-  key: EntityKey,
-  under: EntityEntry | undefined,
-  fields: ReadonlyArray<string>,
-  pending: ReadonlySet<string>,
-  now: number,
-): Kept => {
-  const row = new Map(kept.get(key))
-  let changed = false
-  for (const field of fields) {
-    const held = row.get(field)
-    const before =
-      under !== undefined && !under.tombstone && under.present.has(field)
-        ? Option.some(own(under.values, field))
-        : Option.none()
-    // A request new to the field began after the patches it already has, so it is
-    // worked out over what the base held before this one.
-    const fresh = [...pending].filter(id => held === undefined || !held.by.has(id))
-    if (fresh.length === 0) continue
-    changed = true
-    row.set(field, {
-      since: held?.since ?? now,
-      by: new Map([...(held?.by ?? []), ...fresh.map(id => [id, before] as const)]),
-    })
-  }
-  return changed ? new Map(kept).set(key, row) : kept
-}
-
-/**
- * What an answer does to the values kept from before a stream's patches: the
- * fields it writes leave `kept`, and those that a stream patched while the
- * request was pending, to something other than the answer's value, are
- * `again` to be read: the client cannot tell whether the stream is behind the
- * write or past it, and only a read can say (#499). `pending` is the requests
- * still in flight after the answer; with none, nothing is kept.
- */
-export const settleKept = (
-  kept: Kept,
-  store: EntityStore,
-  requestId: string,
-  entities: ReadonlyArray<{
-    readonly entity: string
-    readonly id: string
-    readonly values: Readonly<Record<string, unknown>>
-  }>,
-  pending: ReadonlySet<string>,
-  now: number,
-): { readonly kept: Kept; readonly again: ReadonlyArray<AgainRow> } => {
-  const held = unexpired(kept, now)
-  const again = againOf(held, store, requestId, entities)
-  if (pending.size === 0) return { kept: noKept, again }
-  const next = new Map(held)
-  for (const { entity, id, values } of entities) {
-    const key = entityKey(entity, id)
-    const row = next.get(key)
-    if (row === undefined) continue
-    const rest = new Map([...row].filter(([field]) => !Object.hasOwn(values, field)))
-    if (rest.size === 0) next.delete(key)
-    else next.set(key, rest)
-  }
-  return { kept: next, again }
-}
-
-export interface AgainRow {
-  readonly entity: string
-  readonly id: string
-  readonly fields: ReadonlyArray<string>
-}
-
-const againOf = (
-  kept: Kept,
-  store: EntityStore,
-  requestId: string,
-  entities: ReadonlyArray<{
-    readonly entity: string
-    readonly id: string
-    readonly values: Readonly<Record<string, unknown>>
-  }>,
-): ReadonlyArray<AgainRow> => {
-  const again = new Map<EntityKey, { entity: string; id: string; fields: Set<string> }>()
-  for (const { entity, id, values } of entities) {
-    const key = entityKey(entity, id)
-    const row = kept.get(key)
-    if (row === undefined) continue
-    for (const [field, held] of row) {
-      if (!held.by.has(requestId) || !Object.hasOwn(values, field)) continue
-      if (Equal.equals(own(store[key]?.values, field), values[field])) continue
-      const asked = again.get(key) ?? { entity, id, fields: new Set<string>() }
-      asked.fields.add(field)
-      again.set(key, asked)
-    }
-  }
-  return [...again.values()].map(({ entity, id, fields }) => ({ entity, id, fields: [...fields] }))
 }
 
 /**
@@ -218,19 +100,20 @@ const heardBack = (
   readonly echo: AwaitedEcho
 } => {
   if (echo.heard.includes(stream)) return { values, contradicted: [], echo }
-  const named = Object.keys(values).filter(field => Object.hasOwn(echo.values, field))
+  const fieldMark = (field: string) => `${stream}\u0000${field}`
+  const named = Object.keys(values).filter(
+    field => Object.hasOwn(echo.values, field) && !echo.heard.includes(fieldMark(field)),
+  )
   const contradicted = named.filter(field => !Equal.equals(values[field], echo.values[field]))
-  if (contradicted.length === 0)
-    return {
-      values,
-      contradicted,
-      echo: named.length === 0 ? echo : { ...echo, heard: [...echo.heard, stream] },
-    }
+  const matched = named.filter(field => Equal.equals(values[field], echo.values[field]))
+  const nextEcho =
+    matched.length === 0 ? echo : { ...echo, heard: [...echo.heard, ...matched.map(fieldMark)] }
+  if (contradicted.length === 0) return { values, contradicted, echo: nextEcho }
   const out = new Set(contradicted)
   return {
     values: Object.fromEntries(Object.entries(values).filter(([field]) => !out.has(field))),
     contradicted,
-    echo,
+    echo: nextEcho,
   }
 }
 
@@ -255,7 +138,7 @@ export const applyEntityEvent = (
     /** The stream the event came on, which an answer it has sent back is heard from. */
     readonly stream?: string | undefined
     readonly echoes?: Readonly<Record<EntityKey, AwaitedEcho>> | undefined
-    /** What fields held before a patch landed while a write was pending (`settleKept`). */
+    /** What fields held before a patch landed while a write was pending (`replayOver`). */
     readonly kept?: Kept | undefined
     /** The requests in flight, which a patch is kept beside. */
     readonly pending?: ReadonlySet<string> | undefined
@@ -297,30 +180,32 @@ export const applyEntityEvent = (
   const heard =
     awaited === undefined ? undefined : heardBack(awaited, context.stream ?? '', event.values)
   const written = heard?.values ?? event.values
-  const unexpiredKept = unexpired(kept, context.now ?? 0)
-  const patched = writeEntities(
-    store,
-    [
-      {
-        key,
-        values: written,
-        ...(event.revision === undefined ? {} : { revision: event.revision }),
-      },
-    ],
-    context.now ?? 0,
-  )
+  const hasWritten = Object.keys(written).length > 0
+  const patched = hasWritten
+    ? writeEntities(
+        store,
+        [
+          {
+            key,
+            values: written,
+            ...(event.revision === undefined ? {} : { revision: event.revision }),
+          },
+        ],
+        context.now ?? 0,
+      )
+    : store
   return {
     state: next,
-    store: floor === undefined ? patched : clearFloors(patched, [key]),
+    store: !hasWritten || floor === undefined ? patched : clearFloors(patched, [key]),
     outcome,
     written,
     echoes:
       heard === undefined || heard.echo === awaited ? echoes : { ...echoes, [key]: heard.echo },
-    kept: keptBefore(
-      unexpiredKept,
-      key,
-      store[key],
-      Object.keys(written),
+    kept: replayOver(
+      kept,
+      store,
+      [{ ...event.ref, values: written }],
+      'patch',
       context.pending ?? noPending,
       context.now ?? 0,
     ),

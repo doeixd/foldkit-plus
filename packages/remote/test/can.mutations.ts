@@ -21,8 +21,8 @@ export default [
   edit(
     'a when that does not hold never refuses',
     can,
-    'if (Result.isSuccess(met) && !met.success)',
-    'if (Result.isSuccess(met) && met.success)',
+    'if (Verdict.isFalse(met))',
+    'if (Verdict.isTrue(met))',
   ),
   edit(
     'a broken invariant never refuses',
@@ -33,7 +33,7 @@ export default [
   edit(
     'a when that cannot be decided says nothing',
     can,
-    'if (Result.isFailure(met)) reasons.push(met.failure)',
+    'if (Verdict.isUnknown(met)) reasons.push(met.reason)',
     '',
   ),
   edit(
@@ -65,14 +65,14 @@ export default [
   edit(
     'Data.capability refuses Undecided in authorize',
     can,
-    'Undecided: allowed,\n      }),\n    applies',
-    'Undecided: () => false,\n      }),\n    applies',
+    'Unknown: allowed,\n        }),\n      ),\n    applies',
+    'Unknown: () => false,\n        }),\n      ),\n    applies',
   ),
   edit(
     'Data.capability refuses Undecided in applies',
     can,
-    'Undecided: allowed,\n      })\n    },',
-    'Undecided: () => false,\n      })\n    },',
+    'Unknown: allowed,\n        }),\n      ),\n  }\n}',
+    'Unknown: () => false,\n        }),\n      ),\n  }\n}',
   ),
   edit(
     'Data.capability lets a forbidding may through authorize',
@@ -83,8 +83,8 @@ export default [
   edit(
     "Data.capability tells the row's state in authorize",
     can,
-    'Unmet: allowed,\n            Invalid: allowed,',
-    'Unmet: () => false,\n            Invalid: allowed,',
+    'Unmet: allowed,\n                  Invalid: allowed,',
+    'Unmet: () => false,\n                  Invalid: allowed,',
   ),
   edit(
     'Data.capability lets an unmet when through applies',
@@ -98,17 +98,42 @@ export default [
     'Invalid: ({ message }) => ({ applies: false as const, reason: message }),',
     'Invalid: allowed,',
   ),
-  edit('Data.available ignores No', can, 'No: () => false,', 'No: () => true,'),
-  edit(
-    'Data.available refuses Undecided',
-    can,
-    'Undecided: () => true,',
-    'Undecided: () => false,',
-  ),
+  edit('Data.available ignores No', can, 'False: () => false,', 'False: () => true,'),
+  edit('Data.available refuses Undecided', can, 'Unknown: () => true,', 'Unknown: () => false,'),
   edit(
     'Data.available is true with no row named',
     can,
-    'onNone: () => false,\n      onSome: input =>',
-    'onNone: () => true,\n      onSome: input =>',
+    'onNone: () => false,\n      onSome: input => {',
+    'onNone: () => true,\n      onSome: input => {',
+  ),
+  edit(
+    'an input the schema cannot encode is not refused',
+    can,
+    'if (Result.isFailure(encoded))',
+    'if (false && Result.isFailure(encoded))',
+  ),
+  edit(
+    'a capability allows when asking throws',
+    can,
+    '    } catch {\n      return false\n    }\n  }\n  return {',
+    '    } catch {\n      return true as never\n    }\n  }\n  return {',
+  ),
+  edit(
+    'authorize allows a No with no refusal',
+    can,
+    'closed(request, ({ can }) =>\n        Verdict.match(can, {\n          False: ({ witness }) =>\n            Option.match(witness, {\n              onNone: () => false,',
+    'closed(request, ({ can }) =>\n        Verdict.match(can, {\n          False: ({ witness }) =>\n            Option.match(witness, {\n              onNone: () => true,',
+  ),
+  edit(
+    'applies allows a No with no refusal',
+    can,
+    'closed(request, ({ input, can }) =>\n        Verdict.match(can, {\n          False: ({ witness }) =>\n            Option.match(witness, {\n              onNone: () => false,',
+    'closed(request, ({ input, can }) =>\n        Verdict.match(can, {\n          False: ({ witness }) =>\n            Option.match(witness, {\n              onNone: () => true,',
+  ),
+  edit(
+    'Data.available offers a control it could not judge',
+    can,
+    '          // A control that cannot be judged is not offered.\n          return false',
+    '          return true',
   ),
 ]

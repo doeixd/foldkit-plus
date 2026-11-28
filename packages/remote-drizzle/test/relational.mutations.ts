@@ -4,8 +4,8 @@
  * that a test fails for every one.
  */
 const compile = '../src/compile.ts'
+const target = '../src/target.ts'
 const index = '../src/index.ts'
-const evaluate = '../../entity/src/evaluate.ts'
 const conformance = ['packages/remote-drizzle/test/conformance.test.ts']
 const registration = ['packages/remote-drizzle/test/relational.test.ts']
 
@@ -14,9 +14,9 @@ export default [
     name: 'a path reads a row its reader may not see',
     edits: [
       {
-        file: compile,
-        find: 'Option.match(visible, {\n    onNone: () => at,\n    onSome: rule => sql`${at} and (${rule})`,',
-        replace: 'Option.match(visible, {\n    onNone: () => at,\n    onSome: () => at,',
+        file: target,
+        find: '    onSome: rule => sql`${at} and (${rule})`,',
+        replace: '    onSome: () => at,',
       },
     ],
     tests: conformance,
@@ -25,9 +25,9 @@ export default [
     name: 'an exists finds a row its reader may not see',
     edits: [
       {
-        file: compile,
-        find: '    ...Option.toArray(Option.map(visibleIn(anchor, owner, query), rule => sql`(${rule})`)),',
-        replace: '',
+        file: '../src/render.ts',
+        find: '        onSome: rule => sql`${own} and (${rule})`,',
+        replace: '        onSome: () => own,',
       },
     ],
     tests: conformance,
@@ -47,7 +47,7 @@ export default [
     name: 'compiling without the reader reads every row of a reached table',
     edits: [
       {
-        file: compile,
+        file: target,
         find: '    Option.fromUndefinedOr(target.visibleOf),',
         replace: '    Option.some(target.visibleOf ?? (() => Option.none())),',
       },
@@ -71,16 +71,5 @@ export default [
       },
     ],
     tests: [...conformance, ...registration],
-  },
-  {
-    name: 'a predicate over another row is decided as if it read none',
-    edits: [
-      {
-        file: evaluate,
-        find: '      field: read.fields.length + read.next.length + read.reaches.length > 0,',
-        replace: '      field: read.fields.length + read.next.length > 0,',
-      },
-    ],
-    tests: conformance,
   },
 ]

@@ -6,9 +6,10 @@
  */
 import { Option } from 'effect'
 import type { ExprContext, MemoryOperators } from 'foldkit-entity'
-import type { Install, LayerCapability, Lists } from './capability.js'
+import type { Capabilities, Install, LayerCapability, Lists } from './capability.js'
 import { items, type Connection, type Edge } from './connection.js'
 import type { Kept } from './kept.js'
+import { replayOver, settleReplayed } from './replay.js'
 import { changesOf, readsThrough, rejudged } from './impact.js'
 import { memoRead } from './memo.js'
 import {
@@ -152,6 +153,21 @@ const pendingPlaced = (
   )
 }
 
+const pageKeysCache = new WeakMap<Connection, ReadonlySet<string>>()
+
+const heldKeysOf = (pages: Connection): ReadonlySet<string> => {
+  let held = pageKeysCache.get(pages)
+  if (held === undefined) {
+    const set = new Set<string>()
+    for (const segment of pages.segments) {
+      for (const edge of segment.edges) set.add(edge.key)
+    }
+    held = set
+    pageKeysCache.set(pages, held)
+  }
+  return held
+}
+
 const insertsPlaced = (
   lists: Lists,
   entities: EntityStore,
@@ -174,26 +190,41 @@ const insertsPlaced = (
       if (overlay.connection !== identity || overlay.position === 'remove') continue
       for (const edge of overlay.edges) inserted.set(edge.key, edge)
     }
-    const held = new Set(items(pages).map(edge => edge.key))
+    const held = heldKeysOf(pages)
     let placed = pages
     const outside: Array<Edge> = []
+    const placedKeys = new Set<string>()
     for (const edge of inserted.values()) {
       if (held.has(edge.key)) continue
       const key = entityKey(edge.ref.entity, edge.ref.id)
       RowPlace.$match(placeIn(store, placed, body, query.value.encoded, key, operators), {
-        Before: place => void (placed = withEdge(placed, edge, place)),
-        End: place => void (placed = withEdge(placed, edge, place)),
+        Before: place => {
+          placed = withEdge(placed, edge, place)
+          placedKeys.add(edge.key)
+        },
+        End: place => {
+          placed = withEdge(placed, edge, place)
+          placedKeys.add(edge.key)
+        },
         Outside: () => void outside.push(edge),
         Unknown: () => undefined,
       })
     }
+    const remaining =
+      placedKeys.size === 0
+        ? overlays
+        : overlays.flatMap(overlay => {
+            if (overlay.connection !== identity || overlay.position === 'remove') return [overlay]
+            const left = overlay.edges.filter(edge => !placedKeys.has(edge.key))
+            return left.length === 0 ? [] : [{ ...overlay, edges: left }]
+          })
     return {
       pages: placed,
       overlays:
         outside.length === 0
-          ? overlays
+          ? remaining
           : [
-              ...overlays,
+              ...remaining,
               { id: 'placed:outside', connection: identity, edges: outside, position: 'remove' },
             ],
     }
@@ -240,10 +271,23 @@ export const layers: LayerCapability = {
   begin: beginOptimistic,
   settleSuccess,
   settleFailure,
+  settleReplayed,
   pruneOverlays,
 }
 
-/** Installs the layer capability; whatever makes a layer calls it first. */
+/** `Capabilities.keeps` for a domain that holds layers: what a read moved under a pending write. */
+export const keepsRead: Capabilities['keeps'] = (model, rows, held, now) =>
+  replayOver(
+    model.kept,
+    model.entities,
+    rows.filter(row => !held.has(entityKey(row.entity, row.id))),
+    'read',
+    model.mutations.pending,
+    now,
+  )
+
+/** Installs the layer capability, and with it what a read keeps; whatever makes a layer calls it first. */
 export const installLayers: Install = capabilities => {
   capabilities.layers = Option.some(layers)
+  capabilities.keeps = keepsRead
 }

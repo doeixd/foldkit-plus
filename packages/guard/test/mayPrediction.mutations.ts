@@ -27,8 +27,8 @@ export default [
   edit(
     'a half-known answer is foreseen',
     may,
-    'sameMay(held, answerAssuming(false)) ? Option.some(held)',
-    'true ? Option.some(held)',
+    'Option.filter(answerAssuming(false), other => sameMay(held, other))',
+    'Option.some(held)',
   ),
   edit(
     'a client without a viewer is taken for a visitor',
@@ -39,20 +39,26 @@ export default [
   edit(
     "a rule over the principal's fields is judged without them",
     condition,
-    '          readsPrincipal(guard)\n            ? assumed\n',
-    '          false\n            ? assumed\n',
+    '          readsPrincipal(each.guard)\n            ? open\n',
+    '          false\n            ? open\n',
   ),
   edit(
     'a rule over what the store lacks is taken to fail',
     condition,
-    '                onUnknown: () => assumed,',
-    '                onUnknown: () => false,',
+    "Open: () => Node.Path({ segments: ['open', String(opened++)], ast: Option.none() }),",
+    'Open: () => Node.Lit({ value: false }),',
   ),
   edit(
-    "SQL's null lets a rule hold",
+    'a rule over what the client cannot know is taken to hold',
     condition,
-    '                onKnown: truth => truth === true,',
-    '                onKnown: truth => truth !== false,',
+    "Open: () => Node.Path({ segments: ['open', String(opened++)], ast: Option.none() }),",
+    'Open: () => Node.Lit({ value: true }),',
+  ),
+  edit(
+    'a partly decided answer is foreseen',
+    may,
+    'return [...decided.values()].every(Option.isSome)',
+    'return true',
   ),
   edit(
     'a link is read as its ref key',

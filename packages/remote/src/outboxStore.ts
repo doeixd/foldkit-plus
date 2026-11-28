@@ -9,9 +9,9 @@
  * by every tab on the same key, and written as a merge so no tab's write
  * overwrites another's.
  */
-import { Context, Duration, Effect, Option, Random, Schema } from 'effect'
+import { Context, Duration, Effect, Match, Option, Random, Schema, SchemaAST } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
-import type { Computation } from 'foldkit-entity'
+import { lowerAsciiName, Operators, type Computation } from 'foldkit-entity'
 import type { OptimisticOperation } from './optimistic.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
 import {
@@ -41,12 +41,6 @@ const QueuedStateSchema = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal('WaitingForSignIn'), error: remoteErrorSchema }),
 ])
 
-const CollationSchema = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('Binary') }),
-  Schema.Struct({ _tag: Schema.Literal('AsciiFold') }),
-  Schema.Struct({ _tag: Schema.Literal('Locale'), locale: Schema.String }),
-])
-
 const ComputationSchema: Schema.Codec<Computation> = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal('Field'), key: Schema.String }),
   Schema.Struct({ _tag: Schema.Literal('Value'), value: Schema.Unknown }),
@@ -54,9 +48,120 @@ const ComputationSchema: Schema.Codec<Computation> = Schema.Union([
     _tag: Schema.Literal('Call'),
     operator: Schema.String,
     args: Schema.Array(Schema.suspend((): Schema.Codec<Computation> => ComputationSchema)),
-    collation: Schema.NullOr(CollationSchema),
+    // A call carries no collation (its text arrives folded). `upgradedEntry` has
+    // already translated a stored one, so any that reaches here is refused, never ignored.
+    collation: Schema.optionalKey(Schema.Null),
   }),
 ])
+
+type Upgraded<A> = { readonly value: A } | { readonly refused: string }
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** Each item through `each`; the first refusal is the answer. */
+const upgradedAll = (
+  items: ReadonlyArray<unknown>,
+  each: (item: unknown) => Upgraded<unknown>,
+): Upgraded<ReadonlyArray<unknown>> => {
+  const values: Array<unknown> = []
+  for (const item of items) {
+    const upgraded = each(item)
+    if ('refused' in upgraded) return upgraded
+    values.push(upgraded.value)
+  }
+  return { value: values }
+}
+
+const isText = (schema: Schema.Top): boolean => {
+  const ast = Schema.toEncoded(schema).ast
+  return SchemaAST.isString(ast) || (SchemaAST.isUnion(ast) && ast.types.some(SchemaAST.isString))
+}
+
+const LegacyCollation = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal('Binary') }),
+  Schema.Struct({ _tag: Schema.Literal('AsciiFold') }),
+  Schema.Struct({ _tag: Schema.Literal('Locale'), locale: Schema.String }),
+])
+
+/** A call as v0.43.0 stored it, with the collation it carried. */
+const StoredCall = Schema.Struct({
+  _tag: Schema.Literal('Call'),
+  operator: Schema.String,
+  args: Schema.Array(Schema.Unknown),
+  collation: Schema.optionalKey(Schema.NullOr(LegacyCollation)),
+})
+
+/**
+ * A computation as an earlier version stored it: a call carried the collation
+ * its text compared under. Now the text a collation compares arrives folded,
+ * as a call of `lowerAsciiName`, so a `Binary` collation is dropped, an
+ * `AsciiFold` one folds the text arguments of an operator that compares text
+ * itself, and one that cannot be said in a write is refused with its reason.
+ */
+const upgradedComputation = (raw: unknown): Upgraded<unknown> => {
+  const stored = Schema.decodeUnknownOption(StoredCall)(raw)
+  // Not a call, or a collation of no shape an earlier version wrote: left for the schema to refuse.
+  if (Option.isNone(stored)) return { value: raw }
+  const { collation, ...call } = stored.value
+  const args = upgradedAll(call.args, upgradedComputation)
+  if ('refused' in args) return args
+  const kept = { ...call, args: args.value }
+  if (collation === undefined || collation === null) return { value: kept }
+  return Match.valueTags(collation, {
+    Binary: (): Upgraded<unknown> => ({ value: kept }),
+    Locale: ({ locale }): Upgraded<unknown> => ({
+      refused: `a computed field compared text by the backend's "${locale}" collation, which a client no longer carries`,
+    }),
+    AsciiFold: (): Upgraded<unknown> => {
+      const descriptor = Operators.kernel.named(call.operator)
+      if (Option.isNone(descriptor) || descriptor.value.collation !== 'required') {
+        return {
+          refused: `a computed field called ${call.operator} under an ASCII-folding collation, which this version cannot say`,
+        }
+      }
+      const { input } = descriptor.value
+      return {
+        value: {
+          ...kept,
+          args: args.value.map((arg, position) =>
+            input[position] !== undefined && isText(input[position])
+              ? { _tag: 'Call', operator: lowerAsciiName, args: [arg] }
+              : arg,
+          ),
+        },
+      }
+    },
+  })
+}
+
+/** A stored entry with every computation of its layer upgraded, or why one cannot be. */
+export const upgradedEntry = (raw: unknown): Upgraded<unknown> => {
+  if (!isRecord(raw) || !Array.isArray(raw.optimistic)) return { value: raw }
+  const optimistic = upgradedAll(raw.optimistic, operation => {
+    if (!isRecord(operation) || !isRecord(operation.computes)) return { value: operation }
+    const names = Object.keys(operation.computes)
+    const computes = upgradedAll(
+      names.map(name => (operation.computes as Record<string, unknown>)[name]),
+      upgradedComputation,
+    )
+    if ('refused' in computes) return computes
+    return {
+      value: {
+        ...operation,
+        computes: Object.fromEntries(names.map((n, i) => [n, computes.value[i]])),
+      },
+    }
+  })
+  return 'refused' in optimistic ? optimistic : { value: { ...raw, optimistic: optimistic.value } }
+}
+
+const decodeStored = (raw: unknown): Option.Option<StoredWrite> => {
+  const upgraded = upgradedEntry(raw)
+  return 'refused' in upgraded
+    ? Option.none()
+    : Schema.decodeUnknownOption(StoredWrite)(upgraded.value)
+}
 
 const Ref = Schema.Struct({ entity: Schema.String, id: Schema.String })
 
@@ -244,7 +349,7 @@ export const answeredIn = (outbox: StoredOutbox, operation: string): boolean =>
   outbox.done.includes(operation) ||
   outbox.entries.some(raw =>
     Option.exists(
-      Schema.decodeUnknownOption(StoredWrite)(raw),
+      decodeStored(raw),
       write => write.operation === operation && write.state._tag !== 'Waiting',
     ),
   )
@@ -288,7 +393,9 @@ export const readEntries = (
     const unreadable = (reason: string): ReadonlyArray<ReadEntry> => [
       { _tag: 'Unreadable', ...key.value, raw, reason },
     ]
-    const write = Schema.decodeUnknownOption(StoredWrite)(raw)
+    const upgraded = upgradedEntry(raw)
+    if ('refused' in upgraded) return unreadable(upgraded.refused)
+    const write = Schema.decodeUnknownOption(StoredWrite)(upgraded.value)
     if (Option.isNone(write)) return unreadable('it was stored in a shape this version cannot read')
     return Option.match(inputOf(write.value.mutation), {
       onNone: () => unreadable(`${write.value.mutation} is not a mutation this version registers`),

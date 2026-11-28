@@ -103,6 +103,24 @@ export const Todo = TodoFields.pipe(
 
 ## Attaching
 
+To check whether someone allowed to update a row can also read a particular
+member, call `GuardCheck.policy(Todo, 'ownerId')` on the Entity returned by
+`Guards.attach`. `GuardCheck` comes from `foldkit-guard/check`, an entry of its
+own because the prover behind it is large: use it in a test or a development
+script, not in a page. The `consistent` verdict is false for a provably unreachable
+Update. An unknown `consistent` verdict leaves reachability open. A true
+`implication` means every allowed Update on a valid row also
+passes the row and member Read rules. Check both verdicts because an
+unreachable Update implies any Read.
+
+For an undecided implication, pass the report's `definition`, then
+`'Update'` and `'Read'`, to `policyImplies` from `metakit/prove` in a test.
+The checker understands comparisons of row fields that always hold a number,
+and state invariants over them. It can leave a result unknown when it depends
+on a server-only check, a related row, a field that may be null, absent or
+NaN, or an expression it cannot translate. Runtime authorization still uses the
+attached rules on every request.
+
 - Default refusals: a row Read is not found, a member or relation Read is
   omitted, a write is forbidden. `Guards.on(guards, Guards.redact(value))` and
   `Guards.explain(reason)` choose another.
@@ -118,7 +136,10 @@ export const Todo = TodoFields.pipe(
   `GuardSync.document`) throws where it is built when given a descriptor
   without them of a guarded Entity (`Todo carries guards on another descriptor
   of it; pass the one Guards.attach returned`). Rules are still declared over
-  the bare one (`guard.row(TodoFields, …)`).
+  the bare one (`guard.row(TodoFields, …)`). Code of your own that decides
+  from the guards what is safe reads them with `Guards.enforced(Todo)`, which
+  throws the same way; `Guards.attached` answers "none" for the bare one, and
+  `Guards.matrix` prints it as `Todo: guards on another descriptor`.
 - A relation's Read rules are guards over the parent row: where they refuse,
   the relation is withheld, like a member.
 - `Guards.matrix([Todo])` prints every surface; `Guards.guardFields(Todo,
@@ -143,6 +164,12 @@ export const Todo = TodoFields.pipe(
   changing what such a rule reads of its own row is refused, and `may` leaves
   the interaction out. `Guards.attach` refuses such a rule on `Create`, `Write`,
   a member, relation, named interaction or `always`, judged over one row.
+- Such an Update or Delete rule (and one of a row a delete takes or unlinks)
+  decides from a row a concurrent write can change, so it needs a store that
+  runs the writers under one parent one at a time. `RemoteServer.write` refuses
+  the write where it is registered, naming the guard, the capability and the
+  store, through a writer over Postgres at read committed; SQLite, D1 and
+  `writer(binding, { isolation: 'serializable' })` over Postgres hold it.
 
 ## On the server
 
@@ -183,7 +210,11 @@ export const Todo = TodoFields.pipe(
   joined by and/or, plus inherited Reads); `Condition.holds(condition, values,
   Policy.inputOf(principal), inherit, Policy.operators)` runs it over stored
   values, the row guards' primitive operators by the policy's table
-  (`G.implement(bodies, { operators })`, `Operators.kernel` by default).
+  (`G.implement(bodies, { operators })`, `Operators.kernel` by default). It
+  is true only where metakit judges the whole condition true: a guard that is
+  refused (text holding a NUL, NaN, a sum past the safe integer range), that
+  one row cannot judge, or that reads a principal's field holding a NUL or a
+  non-finite number refuses it, whatever the other guards say.
   `Condition.residual(condition, values, input, operators)` decides it as far
   as one row can, keeping the row guards that read another row (what a
   writer's `requires` then judges); `Condition.decided` reads `Always`/`Never`
@@ -286,8 +317,8 @@ supplied: true } }`). Select `may: true` and read it with
 (an `explain`'s sentence for a refusal, else none).
 
 `may` says one of three things of a row interaction: yes, no, or nothing, where
-its rule reads another row and one row cannot decide it. `May.answer(may,
-'Update')` is the three as an `Option<boolean>`. `May.can` is true only on a
+its rule needs a hidden or redacted field or another row. `May.answer(may,
+'Update')` is the three as a metakit `Verdict` (`True`, `False`, `Unknown`). `May.can` is true only on a
 yes and `May.refused(may, 'Update')` only on a no: hide or disable on
 `refused`, so what was not said stays live and the server decides it.
 `May.locks(Todo)` (`Crud.editor`'s `locks`) locks a key only where the row's
@@ -349,11 +380,11 @@ yes and `May.refused(may, 'Update')` only on a no: hide or disable on
 Guard, `Expr`, and `Laws` share one typed expression tree (`Guard and from/when and invariants and Schema`):
 
 - **Two-step reduction (`Policy.readable` / `writable`):** principal guards decide once per request into `Always` or `Never` and simplify the `Condition` tree; only surviving `RowGuard`s reach SQL (`GuardDrizzle.visible`) or memory (`Condition.holds`).
-- **Partial evaluation & residualization:** `Condition.residual` decides single-row guards immediately and leaves only cross-row guards (`Expr.path`, `Expr.exists`) for the write's SQL statement. `Condition.judge` runs over partial client rows twice (assuming unknowns `true` and `false`) and decides only where both agree.
+- **Partial evaluation & residualization:** `Condition.residual` decides single-row guards immediately and leaves only cross-row guards (`Expr.path`, `Expr.exists`) for the write's SQL statement. `Condition.judge(condition, row, rows)` judges partial client rows with metakit and returns a `Verdict`: `Unknown` for a rule over the principal's fields, an inherited Read, a row or field the client lacks, or a refusal, and for a yes beside any of them. `may`'s prediction decides principal guards both ways and stands only where every rule is decided and both agree.
 - **Structural safety guarantees:**
   - `GuardServer.writer` checks `Update` row rules on **both `before` and `after`** (blocking privilege escape), checks each member/`Link` rule on `after` with that one change undone, checks cascading `Delete` child rows in the same statement, and pins writes with `revision` (retrying up to 3 times on concurrent edits).
   - `GuardServer.validate` and `GuardServer.writer` block hidden-field side channels: queries cannot filter/sort by Read-ruled members, writes cannot read them in `when`/`expect`/`compute`, and invariant failures over them return generic `Invalid`.
-  - `May.answer` is three-valued (`Option<boolean>`); disable UI only on `May.refused` so undecided actions stay live for the server.
+  - `May.answer` is three-valued (a metakit `Verdict`); disable UI only on `May.refused` so undecided actions stay live for the server.
 - **Authority stays separate from validity:** `Entity.invariant` and `Laws.check` never assume discretionary Guards as hypotheses. Guards are alternatives (`[isOwner, isAdmin]`) that change with roles; invariants hold for everyone (`Forbidden` vs `Unmet` vs `Invalid`).
 
 ## Known traps

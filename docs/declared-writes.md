@@ -438,19 +438,23 @@ Client previews and local refusals (`Invalid` from held invariants or `Forbidden
 `Data.can` evaluates held `may` flags, `when` preconditions, and invariants in memory—matching the server's check order—to guide button states:
 
 ```ts
-import { Can } from 'foldkit-remote'
+import { Verdict } from 'metakit'
 
 const answer = Data.can(model, Publish, { id: 'p1', status: 'published' })
-const label = Can.match(answer, {
-  Yes: () => 'Publish',
-  No: ({ refusal }) => `Cannot publish: ${refusal._tag}`,
-  Undecided: ({ reasons }) => `Publish (unchecked: ${reasons.join('; ')})`,
+const label = Verdict.match(answer, {
+  True: () => 'Publish',
+  False: () => 'Cannot publish',
+  Unknown: ({ reason }) => `Publish (unchecked: ${reason})`,
 })
 ```
 
-- **`Can.Yes`:** Held data passes all checks.
-- **`Can.No({ refusal })`:** Returns the exact `Forbidden`, `Unmet`, or `Invalid` refusal shape the server returns.
-- **`Can.Undecided({ reasons })`:** Returned when rows, fields, operators, input keys, or `may` flags are missing locally.
+`Data.can` answers a `Verdict` from `metakit`, read with `Verdict.match`:
+
+- **`True`:** Held data passes all checks.
+- **`False`:** Its `witness` is the `Forbidden`, `Unmet`, or `Invalid` refusal the server returns, as a `CanRefusal`.
+- **`Unknown`:** Its `reason` says what is missing locally (rows, fields, operators, input keys, or `may` flags), several joined by `; `.
+
+`Can.toWire` and `Can.fromWire` convert an answer to and from its JSON shape (`Yes`, `No({ refusal })`, `Undecided({ reasons })`), which is what `CanWire` describes.
 
 `Data.can` is strictly an advisory UI hint (`Data.mutate` still sends `Unmet` writes in case local data is stale) and throws on non-declared mutations.
 

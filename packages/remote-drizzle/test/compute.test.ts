@@ -14,17 +14,8 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { SQLiteDialect, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import {
-  Collation,
-  Entity,
-  Evidence,
-  Expr,
-  Law,
-  Operators,
-  Write,
-  isPredicate,
-} from 'foldkit-entity'
-import { Conformance } from 'foldkit-entity/conformance'
+import { Collation, Entity, Expr, Operators, Write } from 'foldkit-entity'
+import { Node } from 'metakit'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -43,11 +34,11 @@ const concat = Expr.operator('acme.concat', {
   input: [Schema.String, Schema.String],
   output: Schema.String,
 })
-/** Integer addition: commutes and associates, which evidence must show for each implementation. */
+/** Integer addition: commutes and associates. */
 const add = Expr.operator('acme.add', {
   input: [Schema.Int, Schema.Int],
   output: Schema.Int,
-  laws: [Law.commutative, Law.associative],
+  claims: { commutative: true, associative: true },
 })
 const memory = Operators.memory(
   Operators.implement(concat, (left, right) => `${left}${right}`),
@@ -301,7 +292,9 @@ const selectingSqlite =
         value: unknown
       }
     ).value
-    return isPredicate(call) && typeof value === 'number' ? value === 1 : value
+    // SQLite answers a truth as 1 or 0.
+    const truth = Node.$is('Call')(call.node) && call.node.op.returns === 'boolean'
+    return truth && typeof value === 'number' ? value === 1 : value
   }
 
 describe('A computed assignment without a revision, under a ledger', () => {
@@ -315,37 +308,17 @@ describe('A computed assignment without a revision, under a ledger', () => {
         ledger: { table: ledgerTable, scope: principal => principal },
       }),
     )
-  const tested = async () => {
-    const memoryVerdict = Conformance.laws(add, memory)
-    const Db = bind(
-      { Part },
-      { Part: { table: sqliteParts } },
-      { operators: { memory, sql: sqlTable } },
-    )
-    const sqlVerdict = await Conformance.lawsBy(add, selectingSqlite(Db), {
-      implementation: 'sqlite',
-    })
-    if (memoryVerdict._tag !== 'Holds' || sqlVerdict._tag !== 'Holds') {
-      throw new Error('integer addition did not hold its laws')
-    }
-    return {
-      memory: Operators.withEvidence(memory, memoryVerdict.evidence),
-      sql: DrizzleOperators.withEvidence(sqlTable, sqlVerdict.evidence),
-    }
-  }
+  const commuting = { memory, sql: sqlTable }
 
-  it('is refused where it is served until both implementations are shown to commute', async () => {
+  it('requires an implementation in both the memory and SQL tables', () => {
     const message = 'write "Score" computes "score" and expects no revision'
-    expect(() => served({ memory, sql: sqlTable })).toThrow(message)
-    const evidence = await tested()
-    expect(() => served({ memory: evidence.memory, sql: sqlTable })).toThrow(message)
-    expect(() => served({ memory, sql: evidence.sql })).toThrow(message)
-    expect(() => served(evidence)).not.toThrow()
+    expect(() => served({ memory: Operators.kernel, sql: sqlTable })).toThrow(message)
+    expect(() => served({ memory, sql: DrizzleOperators.kernel })).toThrow(message)
+    expect(() => served(commuting)).not.toThrow()
   })
 
-  it('is refused for an assignment not of its own field by an amount, whatever the evidence', async () => {
-    const evidence = await tested()
-    const Db = bind({ Part }, { Part: { table: sqliteParts } }, { operators: evidence })
+  it('requires the assigned field first and an amount independent of the row', () => {
+    const Db = bind({ Part }, { Part: { table: sqliteParts } }, { operators: commuting })
     const ledgered = writer<string>(Db.Part, {
       ledger: { table: ledgerTable, scope: principal => principal },
     })
@@ -372,9 +345,9 @@ describe('A computed assignment without a revision, under a ledger', () => {
     )
   })
 
-  it('is refused through a writer with no ledger, which cannot tell a retry from a second write', async () => {
+  it('is refused through a writer with no ledger, which cannot tell a retry from a second write', () => {
     const plain = writer(
-      bind({ Part }, { Part: { table: sqliteParts } }, { operators: await tested() }).Part,
+      bind({ Part }, { Part: { table: sqliteParts } }, { operators: commuting }).Part,
     )
     expect(() => RemoteServer.write(Score, plain)).toThrow(
       'write "Score" computes a field and expects no revision, so a retry could compute twice',
@@ -385,7 +358,7 @@ describe('A computed assignment without a revision, under a ledger', () => {
     sqlite.exec(`drop table if exists parts; drop table if exists write_ledger; ${schema}`)
     const server = RemoteServer.make<string, DrizzleDatabase>({
       entities: [],
-      mutations: [served(await tested())],
+      mutations: [served(commuting)],
     })
     expect(
       await Effect.runPromise(
@@ -404,7 +377,7 @@ describe('A computed assignment without a revision, under a ledger', () => {
     sqlite.exec(`drop table if exists parts; drop table if exists write_ledger; ${schema}`)
     const server = RemoteServer.make<string, DrizzleDatabase>({
       entities: [],
-      mutations: [served(await tested())],
+      mutations: [served(commuting)],
     })
     const send = (by: number, operation: string) =>
       Effect.runPromise(
@@ -424,79 +397,22 @@ describe('A computed assignment without a revision, under a ledger', () => {
   })
 })
 
-describe("A SQL table's evidence", () => {
-  const record = async () => {
-    const Db = bind(
-      { Part },
-      { Part: { table: sqliteParts } },
-      { operators: { memory, sql: sqlTable } },
-    )
-    const verdict = await Conformance.lawsBy(add, selectingSqlite(Db), { implementation: 'sqlite' })
-    return verdict._tag === 'Holds' ? verdict.evidence : []
-  }
-
-  it('refuses a record of an operator it does not implement, or of a law not declared', async () => {
-    const evidence = await record()
-    expect(() => DrizzleOperators.withEvidence(DrizzleOperators.kernel, evidence)).toThrow(
-      'evidence names acme.add, which this table does not implement',
-    )
-    expect(() =>
-      DrizzleOperators.withEvidence(sqlTable, [
-        { ...evidence[0]!, law: Law.describe(Law.idempotent) },
-      ]),
-    ).toThrow('evidence names a law of acme.add it does not declare (idempotent)')
-  })
-
-  it('takes only what Conformance.lawsBy made: not memory evidence, a copy, or a record by hand', async () => {
-    const message = "evidence of acme.add's commutative law was not made by Conformance.lawsBy"
-    const inMemory = Conformance.laws(add, memory)
-    expect(() =>
-      DrizzleOperators.withEvidence(sqlTable, inMemory._tag === 'Holds' ? inMemory.evidence : []),
-    ).toThrow(message)
-    const [run] = await record()
-    expect(() => DrizzleOperators.withEvidence(sqlTable, [{ ...run! }])).toThrow(message)
-    expect(() =>
-      DrizzleOperators.withEvidence(sqlTable, [
-        Evidence.Tested({
-          operator: 'acme.add',
-          law: Law.describe(Law.commutative),
-          implementation: 'sqlite',
-          cases: 200,
-          seed: 0,
-        }),
-      ]),
-    ).toThrow(message)
-    expect(() => DrizzleOperators.withEvidence(sqlTable, [run!])).not.toThrow()
-  })
-
-  it('does not let a law tested over less than every value admit a write with no revision', async () => {
-    // Associative over the positive integers only: a column may hold any.
+describe('Claims for a computed assignment without a revision', () => {
+  it.each([
+    ['associativity alone', { associative: true }],
+    ['commutativity alone', { commutative: true }],
+    ['conditional associativity', { commutative: true, associative: { unlessRefused: true } }],
+  ] as const)('refuses %s', (_, claims) => {
     const addSome = Expr.operator('acme.addSome', {
       input: [Schema.Int, Schema.Int],
       output: Schema.Int,
-      laws: [
-        Law.commutative,
-        Law.within(Law.associative, Schema.Int.check(Schema.isGreaterThan(0))),
-      ],
+      claims,
     })
     const tables = {
       memory: Operators.memory(Operators.implement(addSome, (left, right) => left + right)),
       sql: DrizzleOperators.make(
         DrizzleOperators.implement(addSome, ({ args: [left, right] }) => sql`(${left} + ${right})`),
       ),
-    }
-    const memoryVerdict = Conformance.laws(addSome, tables.memory)
-    const sqlVerdict = await Conformance.lawsBy(
-      addSome,
-      selectingSqlite(bind({ Part }, { Part: { table: sqliteParts } }, { operators: tables })),
-      { implementation: 'sqlite' },
-    )
-    if (memoryVerdict._tag !== 'Holds' || sqlVerdict._tag !== 'Holds') {
-      throw new Error('addition did not hold its laws')
-    }
-    const evidenced = {
-      memory: Operators.withEvidence(tables.memory, memoryVerdict.evidence),
-      sql: DrizzleOperators.withEvidence(tables.sql, sqlVerdict.evidence),
     }
     const ScoreSome = Mutation.write(
       'ScoreSome',
@@ -507,39 +423,13 @@ describe("A SQL table's evidence", () => {
         { id: 'id', compute: { score: ({ row, input }) => addSome(row.score, input.by) } },
       ),
     )
-    const Db = bind({ Part }, { Part: { table: sqliteParts } }, { operators: evidenced })
+    const Db = bind({ Part }, { Part: { table: sqliteParts } }, { operators: tables })
     expect(() =>
       RemoteServer.write(
         ScoreSome,
         writer<string>(Db.Part, { ledger: { table: ledgerTable, scope: principal => principal } }),
       ),
     ).toThrow('write "ScoreSome" computes "score" and expects no revision')
-  })
-
-  it('records nothing of a law whose every call the database refuses', async () => {
-    const broken = DrizzleOperators.make(
-      DrizzleOperators.implement(concat, ({ args: [left, right] }) => sql`(${left} || ${right})`),
-      DrizzleOperators.implement(add, ({ args: [left, right] }) => sql`${left} +* ${right}`),
-    )
-    const Db = bind(
-      { Part },
-      { Part: { table: sqliteParts } },
-      { operators: { memory, sql: broken } },
-    )
-    const verdict = await Conformance.lawsBy(add, selectingSqlite(Db), { implementation: 'sqlite' })
-    expect(verdict).toMatchObject({ _tag: 'Unanswered', law: { kind: 'commutative' } })
-    expect(verdict._tag === 'Unanswered' && verdict.reason).toContain('syntax error')
-  })
-
-  it('keeps its records through a merge, and drops a replaced implementation’s', async () => {
-    const table = DrizzleOperators.withEvidence(sqlTable, await record())
-    expect(DrizzleOperators.merge(table, DrizzleOperators.kernel).evidence).toHaveLength(2)
-    expect(
-      DrizzleOperators.override(
-        table,
-        DrizzleOperators.implement(add, ({ args: [left, right] }) => sql`(${right} + ${left})`),
-      ).evidence,
-    ).toEqual([])
   })
 })
 

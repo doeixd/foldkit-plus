@@ -71,7 +71,42 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // +5,000 on 2026-11-19: 3,272,257 raw measured after `Expr.add`/`sub`/`implies`, `in:`,
 // `Entity.transition`, `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600) in
 // `foldkit-entity` and `foldkit-remote` (and their doc comments). Ceiling: reading, rounded up.
-const CEILING = 3_273_000
+// +4,700 on 2026-11-21: measured 3,275,610, 2,610 over the ceiling above, from server code the Worker runs: the
+// set-up-time store check (`metakit/store`'s `mount`, 1.1 kB, no other metakit module, plus about
+// 700 bytes in `remote-server`), the SSR coverage fix (198 bytes), and about 1.4 kB in
+// `foldkit-remote` since v0.43.0 (`storePaths`, the store-step bookkeeping, the plan's reuse in
+// `observeEntry`), which nobody bisected. Ceiling: reading plus 2,000, rounded up.
+// +14,663 on 2026-11-22, permanent: 3,292,063 measured after step 10 of the metakit unification plan
+// (3,331,100 before it, in one tree; it read about 3,333,000 since step 5, and this ceiling was never
+// raised for it). A Worker carries both readers: metakit's evaluator and judge, which entity's judge runs
+// on every page and server since step 5 (accepted by the maintainer on 2026-11-21), and its SQL lowering.
+// Step 10 took the translation layer and, with the related-rows reading, about 39 kB off it. Ceiling: the
+// reading plus 300.
+// +743 on 2026-11-22: CI on Linux read 3,292,806 after the Phase 1 gate fixes (an operand past the safe
+// range refused by every reader; ops/integerTerm). Ceiling: CI's reading plus 300.
+// +597 on 2026-11-22: 3,293,403 measured after Phase 5 items 2 and 4 (a store says how far its isolation
+// reaches and where a rule is judged, `metakit/store`; `RemoteServer.write` checks a writer's own rules
+// against its store), about 700 raw bytes estimated by their author. Code every server with writes runs.
+// Ceiling: the reading plus 300.
+// +1,582 on 2026-11-22: 3,294,985 measured. 1,108 of it is the Phase 5 review's fix that a write's answer
+// carries the row's revision (`EntityWriter.revision`, the mutate handler keeping it); 174 was already over
+// at 331a7de4b from the day's other server growth, not bisected. Ceiling: the reading plus 300.
+// +2,511 on 2026-11-22: 3,297,496 measured at ab41873a8 after the Phase 5 review's store findings:
+// `RemoteServer.write` holds a delete through an onDelete relation, and a link through one, to the
+// store (`EntityWriter.checksTargets` and `foreignKey`), and `metakit/store` judges a rule a
+// constraint holds. About 2,520 raw estimated per module. Code every server with writes runs.
+// Ceiling: the reading plus 300.
+// +966 on 2026-11-22: 3,298,462 measured after the review of those findings: `RemoteServer.memoryWriter`
+// checks a link through an onDelete relation points at a row in its store (about 912 raw estimated),
+// held by the namespace object this Worker reads `RemoteServer.write` through. Ceiling: the reading plus 300.
+// +96,238 on 2026-11-26 (3,393,516 measured after marking Config.all exports pure): domains-plus
+// adopted metakit/machine (`src/client/machine.ts`, bringing metakit/machine and metakit/transition
+// into the SSR Worker, 96.1 kB raw total for metakit) plus SSR/remote-server Effect integration
+// (`ManagedRuntime`, `Clock`, `withSpan`). Ceiling: reading plus ~1,500, rounded up.
+// +1,000 on 2026-11-27 (3,395,203 measured): metakit #648 P0 #3 evidence-gated foreign rewrites
+// (`permitsForeignRewrite`, `foreignCallCannotRefuse`) and `claims.total` parity/soundness in
+// `ops/laws.ts` and `ops/residualize.ts`. Ceiling: reading plus ~800, rounded up.
+const CEILING = 3_396_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

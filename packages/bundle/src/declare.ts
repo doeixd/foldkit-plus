@@ -7,7 +7,7 @@ import { Record, Schema } from 'effect'
 import type { AnyBundle, Bundle, EachConfigParam, PlaceConfigParam } from './bundle.js'
 import type { PlacedCollection } from './collection.js'
 import { Link, type KeyedWrapped, type KeyedWrapper, type Wrapped, type Wrapper } from './link.js'
-import type { Placed } from './placed.js'
+import type { LiftedOf, Placed } from './placed.js'
 import type { WithoutResources } from './parent.js'
 
 /** `search` → `GotSearchMessage`. */
@@ -25,7 +25,8 @@ export type BundleParts<B> =
     infer S,
     infer ViewInputs,
     infer Resources,
-    infer Helpers
+    infer Helpers,
+    infer Machine
   >
     ? {
         Name: Name
@@ -38,6 +39,7 @@ export type BundleParts<B> =
         ViewInputs: ViewInputs
         Resources: Resources
         Helpers: Helpers
+        Machine: Machine
       }
     : never
 
@@ -76,7 +78,8 @@ export interface Declared<B extends AnyBundle, Field extends string> {
     BundleParts<B>['Resources'],
     BundleParts<B>['Helpers'],
     Field,
-    WrapperTag<Field>
+    WrapperTag<Field>,
+    LiftedOf<Parent, BundleParts<B>['Machine']>
   >
 }
 

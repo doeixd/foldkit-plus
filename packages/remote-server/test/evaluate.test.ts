@@ -7,9 +7,9 @@
  * same order. A body that means two things is a bug in whichever is wrong, and
  * these say which.
  */
-import { Option, Schema } from 'effect'
-import { Collation, Entity, Expr, Order, Query, isPredicate } from 'foldkit-entity'
-import type { Operandish, Predicate } from 'foldkit-entity'
+import { Schema } from 'effect'
+import { Collation, Entity, Expr, Order, Query } from 'foldkit-entity'
+import type { Predicate } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
 import { QueryEvaluateError, assertSupported, evaluate, supported, type Row } from '../src/index.js'
@@ -54,68 +54,113 @@ const column: Readonly<Record<string, string>> = {
   archivedAt: 'archived_at',
 }
 
+type ExprNode = Predicate['node']
+
+const symbols = {
+  'ord.lt': '<',
+  'ord.lte': '<=',
+  'ord.gt': '>',
+  'ord.gte': '>=',
+  'str.lt': '<',
+  'str.lte': '<=',
+  'str.gt': '>',
+  'str.gte': '>=',
+} as const
+
 /** The body as SQL, written the way `foldkit-remote-drizzle` compiles one. */
 const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
   const params: unknown[] = []
   const escapeLike = (value: string) => value.replace(/[\\%_]/g, found => `\\${found}`)
-  const side = (operand: Operandish): string => {
-    if (isPredicate(operand)) return `(${predicate(operand)})`
-    if (operand._tag === 'Field') return `"${column[operand.key]}"`
-    if (operand._tag === 'Next') throw new Error('a query reads no row after a write')
-    if (operand._tag === 'Call') throw new Error('unsupported')
-    if (operand._tag === 'Viewer' || operand._tag === 'Now') throw new Error('unsupported')
-    if (operand._tag === 'Path' || operand._tag === 'ViewerPath') throw new Error('unsupported')
-    params.push(operand._tag === 'Input' ? input[operand.key] : operand.value)
-    return '?'
+  const isField = (node: ExprNode): boolean =>
+    node._tag === 'Path' && node.segments[0] === 'row' && node.segments.length === 2
+  /** The text a folded side holds: `str.lowerAscii` is how a node says it was folded. */
+  const unfolded = (node: ExprNode): ExprNode | undefined =>
+    node._tag === 'Call' && node.op.id === 'str.lowerAscii' ? node.args[0] : undefined
+  /** A literal, or an input, as the value it stands for. */
+  const valueOf = (node: ExprNode): unknown => {
+    if (node._tag === 'Lit') return node.value
+    if (node._tag === 'Path' && node.segments[0] === 'input' && node.segments.length === 2) {
+      return input[node.segments[1]!]
+    }
+    throw new Error('unsupported')
   }
-  const predicate = (node: Predicate): string => {
-    switch (node._tag) {
-      case 'Eq':
-        // Column first, as the compiler normalises it.
-        return isPredicate(node.left) || node.left._tag === 'Field'
-          ? `${side(node.left)} = ${side(node.right)}`
-          : `${side(node.right)} = ${side(node.left)}`
-      case 'Null':
-        return `${side(node.operand)} is ${node.present ? 'not null' : 'null'}`
-      case 'Contains': {
-        const search = node.search
-        if (search._tag !== 'Input' && search._tag !== 'Literal') throw new Error('unsupported')
-        const text = search._tag === 'Input' ? input[search.key] : search.value
-        params.push(`%${escapeLike(text as string)}%`)
-        return `lower(${side(node.value)}) like lower(?) escape '\\'`
+  const side = (operand: ExprNode): string => {
+    if (operand._tag === 'Lit') {
+      params.push(operand.value)
+      return '?'
+    }
+    if (operand._tag === 'Path') {
+      const [slice, key] = operand.segments
+      if (slice === 'row' && operand.segments.length === 2) return `"${column[key!]}"`
+      if (slice === 'next') throw new Error('a query reads no row after a write')
+      if (slice === 'input' && operand.segments.length === 2) {
+        params.push(input[key!])
+        return '?'
       }
-      case 'In': {
-        const among = node.among
-        if (among._tag !== 'Input' && among._tag !== 'Literal') throw new Error('unsupported')
-        const list = (among._tag === 'Input' ? input[among.key] : among.value) as unknown[]
+      throw new Error('unsupported')
+    }
+    if (operand._tag === 'Call' && operand.op.returns === 'boolean')
+      return `(${predicate(operand)})`
+    if (operand._tag === 'Call' && operand.op.id === 'str.lowerAscii') {
+      return `lower(${side(operand.args[0]!)})`
+    }
+    throw new Error('unsupported')
+  }
+  const predicate = (node: ExprNode): string => {
+    if (node._tag !== 'Call') throw new Error('unsupported')
+    const [left, right] = node.args
+    switch (node.op.id) {
+      case 'eq.equals':
+        // Column first, as the compiler normalises it.
+        return isField(left!) || (left!._tag === 'Call' && left!.op.returns === 'boolean')
+          ? `${side(left!)} = ${side(right!)}`
+          : `${side(right!)} = ${side(left!)}`
+      case 'null.isNull':
+        return `${side(left!)} is null`
+      case 'bool.not':
+        return left!._tag === 'Call' && left!.op.id === 'null.isNull'
+          ? `${side(left!.args[0]!)} is not null`
+          : `not (${predicate(left!)})`
+      case 'str.contains': {
+        const value = unfolded(left!)
+        const search = unfolded(right!)
+        if (value === undefined || search === undefined) throw new Error('unsupported')
+        params.push(`%${escapeLike(valueOf(search) as string)}%`)
+        return `lower(${side(value)}) like lower(?) escape '\\'`
+      }
+      case 'eq.among': {
+        const list = valueOf(right!) as unknown[]
         if (list.length === 0) return 'false'
         params.push(...list)
-        return `${side(node.value)} in (${list.map(() => '?').join(', ')})`
+        return `${side(left!)} in (${list.map(() => '?').join(', ')})`
       }
-      case 'And':
-        return `(${node.operands.map(predicate).join(' and ')})`
-      case 'Or':
-        return `(${node.operands.map(predicate).join(' or ')})`
-      case 'Not':
-        return `not (${predicate(node.operand)})`
-      case 'Test':
-      case 'Exists':
+      case 'bool.and':
+        return `(${predicate(left!)} and ${predicate(right!)})`
+      case 'bool.or':
+        return `(${predicate(left!)} or ${predicate(right!)})`
+      case 'ord.lt':
+      case 'ord.lte':
+      case 'ord.gt':
+      case 'ord.gte':
+        return `${side(left!)} ${symbols[node.op.id]} ${side(right!)}`
+      case 'str.lt':
+      case 'str.lte':
+      case 'str.gt':
+      case 'str.gte': {
+        // Folded sides say so in their nodes; unfolded text compares by code point.
+        const collate =
+          unfolded(left!) !== undefined || unfolded(right!) !== undefined ? '' : ' collate binary'
+        return `${side(left!)}${collate} ${symbols[node.op.id]} ${side(right!)}${collate}`
+      }
+      default:
         throw new Error('unsupported')
-      case 'Compare': {
-        const symbol = { lt: '<', lte: '<=', gt: '>', gte: '>=' }[node.operator]
-        const collate = Option.match(node.collation, {
-          onNone: () => '',
-          onSome: collation =>
-            collation._tag === 'AsciiFold' ? ' collate nocase' : ' collate binary',
-        })
-        return `${side(node.left)}${collate} ${symbol} ${side(node.right)}${collate}`
-      }
     }
   }
-  const where = body.where.map(predicate)
+  const where = body.where.map(each => predicate(each.node))
   const order = Query.orderFor(body, input).map(term => {
-    if (term.expr._tag !== 'Field') throw new Error('unsupported')
-    return `"${column[term.expr.key]}" ${term.direction} nulls ${term.nulls}`
+    const termNode = term.expr.node
+    if (termNode._tag !== 'Path' || !isField(termNode)) throw new Error('unsupported')
+    return `"${column[termNode.segments[1]!]}" ${term.direction} nulls ${term.nulls}`
   })
   return {
     sql: `select id from posts${where.length === 0 ? '' : ` where ${where.join(' and ')}`}${

@@ -2,16 +2,19 @@
  * The law over a feed whose body counts other rows through an exists (#344):
  * Home, an account's own posts and those of everyone it follows, with a
  * follow and an unfollow run through the client and through a memory server.
- * A follow's Home is the server's while pending and once answered; an
- * unfollow's is left to the server, since the store may not hold every
- * follow that keeps a post in it, unless it holds every follow of mine
- * (#409).
+ * The client judges no exists over rows its store may not hold, but Home's
+ * cannot refuse (it compares stored ids with the input's), so an `or` is
+ * settled by a post's own side beside it. While a follow is pending the client
+ * decides every held post and agrees with the server; while an unfollow is
+ * pending the followee's posts rest on follows it may lack, and Home is left
+ * to the server, unless every follow of the account is held (#344, #409).
  */
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Collation, Entity, Expr, Held, Judge, Order, Relation, Write } from 'foldkit-entity'
 import { Mutation, Query, Remote } from 'foldkit-remote'
 import { Law } from 'foldkit-remote/testing'
+import { Verdict } from 'metakit'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
@@ -125,10 +128,7 @@ const homeOf = (stored: () => MemoryServed<string>): QuerySource<string> => ({
         .rows('Post')
         .filter(post =>
           Option.exists(rows.row(Post, post['id']), row =>
-            Judge.match(Judge.query(homeBody, given, row, { rows }), {
-              onKnown: truth => truth,
-              onUnknown: () => false,
-            }),
+            Verdict.isTrue(Judge.query(homeBody, given, row, { rows })),
           ),
         )
         .map(post => ({ id: String(post['id']), at: Number(post['createdAt']) }))
@@ -209,7 +209,7 @@ const checked = (
   )
 
 describe('the law over a feed counting follows', () => {
-  it('agrees on Home while a follow is pending, its posts already in it', async () => {
+  it('agrees on the follow while it is pending, and on Home', async () => {
     const report = await checked(FollowAccount, { id: 'f2', followeeId: 'bo' })
     expect(report.disagreed).toEqual([])
     expect(report.agreed).toEqual(
@@ -224,10 +224,9 @@ describe('the law over a feed counting follows', () => {
     expect(report.unknown).toContain(home.identity)
   })
 
-  it('agrees on Home while an unfollow is pending, holding every follow of mine', async () => {
+  it('agrees on the list of follows while an unfollow is pending, and on Home beside it', async () => {
     const report = await checked(UnfollowAccount, { id: 'f1' }, [home, following])
     expect(report.disagreed).toEqual([])
-    expect(report.agreed).toEqual(expect.arrayContaining([home.identity, following.identity]))
-    expect(report.unknown).not.toContain(home.identity)
+    expect(report.agreed).toEqual(expect.arrayContaining([following.identity, home.identity]))
   })
 })

@@ -44,6 +44,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "metakit": "workspace:*",
     "uqr": "^0.1.3"
   },
   "peerDependencies": {

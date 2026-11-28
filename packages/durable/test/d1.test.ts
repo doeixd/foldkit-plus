@@ -173,6 +173,15 @@ describe('durable over D1', () => {
     expect(meta.results).toEqual([{ value: '7' }])
   }, 30_000)
 
+  it('declares serializable per statement: nothing spans its read and its append', async () => {
+    expect((await openJournal()).store).toEqual({
+      name: 'D1 journal',
+      isolation: 'serializable',
+      isolates: 'statement',
+      parentRowLock: false,
+    })
+  })
+
   it('appends, loads, and reads committed operations', async () => {
     const journal = await openJournal()
     const first = await Effect.runPromise(journal.append(key, note(1), 'ada'))

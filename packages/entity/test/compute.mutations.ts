@@ -31,7 +31,7 @@ export default [
   ),
   edit(
     'a value of any kind is stored',
-    "const comes = [...kindsOf(expr)].filter(kind => kind !== 'null' && !stored.has(kind))",
+    "const comes = [...kindsOf(expr.node)].filter(kind => kind !== 'null' && !stored.has(kind))",
     'const comes: Array<string> = []',
   ),
   edit(
@@ -49,20 +49,20 @@ export default [
   ),
   edit(
     'it is not bound',
-    'put(assignments, field.key, computationOf(write, expr, input))',
-    'void computationOf(write, expr, input)',
+    'put(assignments, field.key, computationOf(write, expr.node, input))',
+    'void computationOf(write, expr.node, input)',
   ),
 
   // ---- the row it leaves
   edit(
     'a null under an amount is not known',
-    'if (held === null) after[field] = null',
-    'if (false) after[field] = null',
+    "if (held === null || typeof held === 'number') {",
+    "if (typeof held === 'number') {",
   ),
   edit(
     'an amount is not added',
-    "else if (typeof held === 'number') after[field] = held + amount",
-    "else if (typeof held === 'number') after[field] = held",
+    'args: [rowField(field), Node.Lit({ value: amount })]',
+    'args: [rowField(field), Node.Lit({ value: 0 })]',
   ),
   edit(
     'a computation it cannot work out is not named',
@@ -71,13 +71,13 @@ export default [
   ),
   edit(
     'a field the row lacks is read as absent',
-    'Field: ({ key }) => (Object.hasOwn(row, key) ? Option.some(row[key]) : Option.none()),',
-    'Field: ({ key }) => Option.some(row[key]),',
+    'Field: ({ key }) => (Object.hasOwn(row, key) ? Option.some(rowField(key)) : Option.none()),',
+    'Field: ({ key }) => Option.some(rowField(key)),',
   ),
   edit(
     'an operator the table lacks is run anyway',
-    'Option.flatMap(operators.named(operator), descriptor =>',
-    'Option.flatMap(Option.some(operators.implementations[0]!.operator), descriptor =>',
+    'return Option.map(operators.named(operator), descriptor => {',
+    'return Option.map(Option.some(operators.implementations[0]!.operator), descriptor => {',
   ),
   edit(
     'a computation reads nothing',
@@ -91,13 +91,13 @@ export default [
   ),
   edit(
     'an assignment that may be null is let into a field storing none',
-    "if (!stored.has('null') && mayBeNull(expr)) {",
+    "if (!stored.has('null') && mayBeNull(expr.node)) {",
     'if (false) {',
   ),
   edit(
     'a strict call over a nullable argument reads as never null',
-    "expr.operator.nulls === 'strict' &&",
-    'false &&',
+    "operator.nulls === 'strict' && args.some(",
+    'false && args.some(',
   ),
 
   // ---- into an integer field
@@ -108,8 +108,8 @@ export default [
   ),
   edit(
     'a field or input is an integer whatever it holds',
-    'Input: ({ schema }) => storesIntegers(schema),',
-    'Input: () => true,',
+    'Option.exists(node.ast, holdsIntegers),',
+    'true,',
   ),
   edit(
     'an operator is an integer whatever it answers',
@@ -118,17 +118,17 @@ export default [
   ),
   edit(
     'a literal is an integer whatever it holds',
-    'Literal: ({ value }) => value === null || Number.isInteger(value),',
-    'Literal: () => true,',
+    '? node.value === null || Number.isInteger(node.value)',
+    '? true',
   ),
   edit(
     'a null literal is not an integer',
-    'Literal: ({ value }) => value === null || Number.isInteger(value),',
-    'Literal: ({ value }) => Number.isInteger(value),',
+    '? node.value === null || Number.isInteger(node.value)',
+    '? Number.isInteger(node.value)',
   ),
   edit(
     'a nullable field is not an integer one',
-    'const present = SchemaShape.present(Schema.toEncoded(schema).ast)',
-    'const present = [Schema.toEncoded(schema).ast]',
+    'const present = SchemaShape.present(ast)',
+    'const present = [ast]',
   ),
 ]

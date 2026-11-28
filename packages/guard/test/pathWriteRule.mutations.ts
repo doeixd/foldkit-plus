@@ -16,8 +16,8 @@ export default [
   edit(
     'an update is not held to its rule in the statement',
     drizzle,
-    '          ...required,\n          ...(yield* holdingInvariants',
-    '          ...(yield* holdingInvariants',
+    '          ...required,\n          ...targets.map(({ exists }) => exists),\n          ...(yield* holdingInvariants',
+    '          ...targets.map(({ exists }) => exists),\n          ...(yield* holdingInvariants',
   ),
   edit(
     'a delete is not held to its rule in the statement',
@@ -34,7 +34,7 @@ export default [
   edit(
     'a write may change what its rule reads of its own row',
     server,
-    'if (read.some(key => !sameStored(before[key], after[key]))) {',
+    'if (read.some(changed)) {',
     'if (false) {',
   ),
   edit(
@@ -70,14 +70,14 @@ export default [
   edit(
     "every row of the viewer's Entity is taken for theirs",
     condition,
-    'Option.exists(viewerIdOf(start, context), id => id === written.id)',
-    'Option.exists(viewerIdOf(start, context), () => true)',
+    'Option.exists(viewerIdOf(viewer, context), id => id === written.id)',
+    'Option.exists(viewerIdOf(viewer, context), () => true)',
   ),
   edit(
     "a row of another Entity is taken for the viewer's",
     condition,
-    'return start.name === written.entity &&',
-    'return true &&',
+    'viewer.name === written.entity &&',
+    'true &&',
   ),
   edit(
     'what the rule reads of the row by a path is not read before the write',
@@ -88,8 +88,8 @@ export default [
   edit(
     'one row decides a rule that reads another, as false',
     condition,
-    '          reachesOther(row.guard)',
-    '          false',
+    '          if (reachesOther(row.guard)) return each',
+    '          if (false) return each',
   ),
   edit(
     'may answers what one row cannot decide, as false',

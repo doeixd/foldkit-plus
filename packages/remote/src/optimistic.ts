@@ -5,6 +5,7 @@
  * rebase for free.
  */
 import { Match, Option } from 'effect'
+import { Node } from 'metakit'
 import {
   Operators,
   QueryEvaluateError,
@@ -12,6 +13,7 @@ import {
   type EntityRef,
   type MemoryOperators,
 } from 'foldkit-entity'
+import { applyCombine, type ReplayForeign } from './replay.js'
 import { type Connection, type Edge, edge, items } from './connection.js'
 import { connectionIdentity, type ConnectionIdentity } from './capability.js'
 import {
@@ -22,7 +24,7 @@ import {
   type PendingDelete,
   type PendingPatch,
 } from './ledger.js'
-import { overKept, type Kept } from './kept.js'
+import { overKept, unincluded, type Kept } from './kept.js'
 import { put } from './record.js'
 import { isPatch } from './shown.js'
 import {
@@ -222,22 +224,25 @@ export const visibleStore = (
   optimistic: OptimisticState,
   kept: Kept,
   operators: MemoryOperators = Operators.kernel,
+  foreign?: ReplayForeign,
 ): EntityStore =>
   [...pendingDeletes(optimistic)].reduce(
     tombstone,
     writeEntities(
       base,
-      resolvedPatches(base, optimistic, kept, operators).map(patch => {
-        const key = entityKey(patch.entity, patch.id)
-        const under = base[key]
-        return {
-          key,
-          values: patch.values,
-          updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
-          // A pending write is no read: the row stays as fresh as the server last made it.
-          oldestAt: under === undefined || under.tombstone ? Infinity : under.oldestAt,
-        }
-      }),
+      resolvedPatches(base, optimistic, kept, operators, foreign)
+        .filter(patch => Object.keys(patch.values).length > 0)
+        .map(patch => {
+          const key = entityKey(patch.entity, patch.id)
+          const under = base[key]
+          return {
+            key,
+            values: patch.values,
+            updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
+            // A pending write is no read: the row stays as fresh as the server last made it.
+            oldestAt: under === undefined || under.tombstone ? Infinity : under.oldestAt,
+          }
+        }),
     ),
   )
 
@@ -301,18 +306,56 @@ export const heldOnlyByRequests = (
  * deletes it. Read from the server's store, not the visible one, where a
  * pending patch over a deleted row clears its tombstone.
  */
+const tombstonesCache = new WeakMap<EntityStore, boolean>()
+
+const hasTombstones = (store: EntityStore): boolean => {
+  let found = tombstonesCache.get(store)
+  if (found === undefined) {
+    found = false
+    for (const key in store) {
+      if (Object.hasOwn(store, key) && store[key]!.tombstone) {
+        found = true
+        break
+      }
+    }
+    tombstonesCache.set(store, found)
+  }
+  return found
+}
+
+const connectionKeysCache = new WeakMap<Connection, ReadonlySet<string>>()
+
+const connectionKeysOf = (connection: Connection): ReadonlySet<string> => {
+  let keys = connectionKeysCache.get(connection)
+  if (keys === undefined) {
+    const set = new Set<string>()
+    for (const segment of connection.segments) {
+      for (const edge of segment.edges) set.add(edge.key)
+    }
+    keys = set
+    connectionKeysCache.set(connection, keys)
+  }
+  return keys
+}
+
 export const goneIn = (
   store: EntityStore,
   optimistic: OptimisticState,
 ): ((key: EntityKey) => boolean) => {
   const deleted = pendingDeletes(optimistic)
-  return key => deleted.has(key) || isTombstone(store, key)
+  const none = deleted.size === 0 && !hasTombstones(store)
+  const check = (key: EntityKey): boolean =>
+    none ? false : deleted.has(key) || isTombstone(store, key)
+  if (none) (check as { none?: boolean }).none = true
+  return check
 }
 
 /**
  * Every pending patch in order, each amount added and each computed field
  * worked out over the row under it (the store's, a field `kept` says a live
- * patch wrote as it was before, and earlier layers over it) by `Write.apply`, with the client's table (the kernel's when not
+ * patch wrote as it was before, and earlier layers over it) by `Write.apply`;
+ * a field a read wrote that may include the write is left as the read gave it.
+ * With the client's table (the kernel's when not
  * given). A prediction, so only over
  * what the client holds: a field it has not read, an amount over anything
  * but a number, or a computation by an operator its table lacks keeps what
@@ -323,13 +366,14 @@ export const resolvedPatches = (
   optimistic: OptimisticState,
   kept: Kept,
   operators: MemoryOperators = Operators.kernel,
+  foreign?: ReplayForeign,
 ): ReadonlyArray<NormalizedPatch> => {
   const shown = new Map<EntityKey, Record<string, unknown>>()
   // Fields an earlier layer could not work out: what the store holds for one is
   // not what the row before a later layer holds, so nothing reading it is predicted.
   const unsure = new Map<EntityKey, ReadonlySet<string>>()
   return optimistic.layers.flatMap(layer =>
-    layer.patches.map(({ adds, computes, ...patch }) => {
+    layer.patches.map(({ adds, combines, computes, ...patch }) => {
       const key = entityKey(patch.entity, patch.id)
       const earlier = shown.get(key) ?? {}
       const unknown = new Set(
@@ -345,11 +389,27 @@ export const resolvedPatches = (
           ...earlier,
         }).filter(([field]) => !unknown.has(field)),
       )
-      const moved = { values: {}, increments: adds ?? {}, assignments: computes ?? {} }
+      const moved = {
+        values: {},
+        increments: unincluded(adds, kept.get(key), layer.id),
+        assignments: unincluded(computes, kept.get(key), layer.id),
+      }
       const predicted = predicting(() => Write.apply(row, moved, { operators }))
       for (const field of [...Object.keys(moved.increments), ...Object.keys(moved.assignments)]) {
         if (predicted !== undefined && !predicted.unknown.includes(field)) {
           put(values, field, predicted.row[field])
+          unknown.delete(field)
+        } else {
+          unknown.add(field)
+        }
+      }
+      const combinedFields = unincluded(combines, kept.get(key), layer.id)
+      for (const [field, spec] of Object.entries(combinedFields)) {
+        const next = Object.hasOwn(row, field)
+          ? applyCombine(foreign, spec.op, row[field], spec.value)
+          : Option.none()
+        if (Option.isSome(next)) {
+          put(values, field, next.value)
           unknown.delete(field)
         } else {
           unknown.add(field)
@@ -418,11 +478,13 @@ export const settleSuccess = (
   readonly store: EntityStore
   readonly state: MutationState
   readonly optimistic: OptimisticState
+  readonly applied: ReadonlyArray<NormalizedPatch>
 } => {
   const reconciled = reconcileMutation(base, state, requestId, answer)
   return {
     store: reconciled.store,
     state: reconciled.state,
+    applied: reconciled.applied,
     optimistic: state.applied.has(requestId)
       ? release(optimistic, requestId)
       : superseded(
@@ -437,7 +499,7 @@ export const settleSuccess = (
           (answer.deleted ?? [])
             .map(gone => entityKey(gone.entity, gone.id))
             .filter(key => isTombstone(reconciled.store, key)),
-          answer.entities,
+          reconciled.applied,
         ),
   }
 }
@@ -478,6 +540,9 @@ const superseded = (
         ...patch,
         values: withoutFields(patch.values, settled),
         ...(patch.adds === undefined ? {} : { adds: withoutFields(patch.adds, settled) }),
+        ...(patch.combines === undefined
+          ? {}
+          : { combines: withoutFields(patch.combines, settled) }),
         ...(patch.computes === undefined
           ? {}
           : { computes: withoutFields(patch.computes, settled) }),
@@ -485,6 +550,7 @@ const superseded = (
       const empty =
         Object.keys(kept.values).length === 0 &&
         Object.keys(kept.adds ?? {}).length === 0 &&
+        Object.keys(kept.combines ?? {}).length === 0 &&
         Object.keys(kept.computes ?? {}).length === 0
       return empty ? [] : [kept]
     })
@@ -533,23 +599,35 @@ export const visibleItems = (
       else hidden.delete(edge.key)
     }
   }
+  const noGone = (gone as { readonly none?: boolean }).none === true
   const hides = (edge: Edge): boolean =>
-    hidden.has(edge.key) || gone(entityKey(edge.ref.entity, edge.ref.id))
-  const known = items(connection).filter(edge => !hides(edge))
-  const seen = new Set(known.map(edge => edge.key))
+    (hidden.size > 0 && hidden.has(edge.key)) ||
+    (!noGone && gone(entityKey(edge.ref.entity, edge.ref.id)))
+  const raw = items(connection)
+  const unchanged = hidden.size === 0 && noGone
+  const known = unchanged ? raw : raw.filter(edge => !hides(edge))
+  const hasInserts = applicable.some(overlay => overlay.position !== 'remove')
+  if (!hasInserts) return known
+
+  const baseSeen = unchanged ? connectionKeysOf(connection) : new Set(known.map(edge => edge.key))
+  const addedSeen = new Set<string>()
+  const isSeen = (key: string): boolean => baseSeen.has(key) || addedSeen.has(key)
 
   const take = (position: 'prepend' | 'append'): ReadonlyArray<Edge> => {
     const edges: Edge[] = []
     const ordered = applicable.filter(value => value.position === position)
     for (const overlay of position === 'prepend' ? [...ordered].reverse() : ordered) {
       for (const edge of overlay.edges) {
-        if (seen.has(edge.key) || hides(edge)) continue
-        seen.add(edge.key)
+        if (isSeen(edge.key) || hides(edge)) continue
+        addedSeen.add(edge.key)
         edges.push(edge)
       }
     }
     return edges
   }
 
-  return [...take('prepend'), ...known, ...take('append')]
+  const before = take('prepend')
+  const after = take('append')
+  if (before.length === 0 && after.length === 0) return known
+  return [...before, ...known, ...after]
 }

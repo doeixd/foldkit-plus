@@ -179,7 +179,7 @@ export default [
   },
   {
     name: 'a ticked box is not put back',
-    edits: [{ file: keep, find: '      element.checked = checked\n', replace: '' }],
+    edits: [{ file: keep, find: '    element.checked = checked\n', replace: '' }],
     tests: checked,
     survives:
       'the replayed Message moves the Model to what the person ticked, so the render after it ticks the box anyway; the restore only spares a frame showing the served state',

@@ -416,7 +416,7 @@ const Reserved = Lower.write(ReserveStock, {
 | `event`, `record`, `apply`, `listed` | Supplied by you (stored Event contract) |
 | `revision`, `principal`, `middleware`, `policy` | Supplied by you (versioning and auth wiring) |
 
-`Lower.check(write)` inspects a write before lowering and returns any single-aggregate blockers (`OutsideBoundary` for cross-row reads, `NotPersisted` for unstored members). Lowered aggregates also remember the last 256 operation digests per row and refuse mismatched reuse with `Reused` (only after the caller passes authorization).
+`Lower.check(write)` inspects a write before lowering and returns any single-aggregate blockers (`OutsideBoundary` for cross-row reads, `NotPersisted` for unstored members). Declare the write over the Entity `Guards.attach` returned: over the one you passed to it, `Lower.check` and `Lower.write` throw (`… carries guards on another descriptor of it`) rather than miss its Update rules. Lowered aggregates also remember the last 256 operation digests per row and refuse mismatched reuse with `Reused` (only after the caller passes authorization).
 
 ## Failure modes and current limits
 
@@ -424,7 +424,7 @@ const Reserved = Lower.write(ReserveStock, {
 - **Monotonic revisions:** Remote drops any row or live frame older than the held revision, including resurrected rows after a delete. Ensure every Event advances `revision`.
 - **Principal switches:** calling `Data.forget` on sign-out clears all cached rows; the adapter itself caches no rows.
 - **Internal defects:** lowered writes log unexpected failures via `RemoteServer.report` (`ServerDefect`) and return only `Internal error, incident <id>` over the wire (mapped to `RemoteUnreachable`).
-- **`written` authorization safety:** `DomainRemote.command` refuses `written` if the Entity's Update rules do not imply its Read rules or if a field has its own Read rule.
+- **`written` authorization safety:** `DomainRemote.command` refuses `written` if the Entity's Update rules do not imply its Read rules or if a field has its own Read rule. It throws for a mutation whose write is declared over the Entity you passed to `Guards.attach` instead of the one it returned, which holds none of the rules to check.
 - **Upstream `2.0.0-beta.86` limits:** tested against `Domain.InMemory` and `Domain.protocolHttp` (not Durable Objects or WebSockets); live reads with relations fail `RemoteLiveError`; each listed row costs one View snapshot (16 concurrent).
 
 ## Reference

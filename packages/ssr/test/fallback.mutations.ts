@@ -58,9 +58,9 @@ export default [
       },
       {
         file,
-        find: "import { Cause, Context, Effect, Exit, Layer, Option, Result, Schema } from 'effect'",
+        find: "import { Cause, Clock, Config, Context, Effect, Exit, Layer, Option, Result, Schema } from 'effect'",
         replace:
-          "import { Cause, Context, Effect, Exit, Layer, Option, Result, Schema, Scope } from 'effect'",
+          "import { Cause, Clock, Config, Context, Effect, Exit, Layer, Option, Result, Schema, Scope } from 'effect'",
       },
     ],
     tests,

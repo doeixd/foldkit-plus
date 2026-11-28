@@ -2,7 +2,7 @@ import type { Duration } from 'effect'
 import { Predicate, Schema } from 'effect'
 import type { MessageUnion } from 'foldkit/message'
 import type { Action, MessageSet } from 'foldkit-surface'
-import { toJsonSchema } from './jsonSchema.js'
+import { type RefineInputJsonSchema, refineInputJsonSchema, toJsonSchema } from './jsonSchema.js'
 import { messageTag } from './tag.js'
 import { type CompiledCompletion, compileCompletion } from './completion.js'
 import { type SnakeCase, assertValidName, defaultName } from './naming.js'
@@ -580,14 +580,19 @@ export const expose = <
       return make(made)
     }
 
+    const derived = toJsonSchema(inputSchema, {
+      emptyPayload: external === undefined ? payload.empty : externalIsEmpty,
+    })
+    const refine = Predicate.hasProperty(config, refineInputJsonSchema)
+      ? (config[refineInputJsonSchema] as RefineInputJsonSchema)
+      : undefined
+
     return {
       tag,
       name,
       description: config.description,
       inputSchema,
-      inputJsonSchema: toJsonSchema(inputSchema, {
-        emptyPayload: external === undefined ? payload.empty : externalIsEmpty,
-      }),
+      inputJsonSchema: refine === undefined ? derived : refine(derived),
       construct,
       messageConstructor: constructor,
       available: config.available,

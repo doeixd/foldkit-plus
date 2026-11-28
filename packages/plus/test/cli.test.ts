@@ -161,11 +161,11 @@ const lawsApp = () => {
     JSON.stringify({
       name: 'foldkit-entity',
       type: 'module',
-      exports: { '.': { import: './index.js' } },
+      exports: { '.': { import: './index.js' }, './laws': { import: './laws.js' } },
     }),
   )
   writeFileSync(
-    join(entity, 'index.js'),
+    join(entity, 'laws.js'),
     'export const Laws = { show: report => `stub shows ${report.findings.length} findings`, check: () => ({ pairs: [], arrows: [], states: [], findings: [] }) }\n',
   )
   writeFileSync(

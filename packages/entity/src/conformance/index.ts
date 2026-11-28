@@ -825,6 +825,7 @@ export const primitiveRefusals: ReadonlyArray<ConformanceRefusal> = [
     input: { prefix: `In${NUL}` },
   },
 ]
+export { checkOperation, lawObligations } from 'metakit/conformance'
 export * from './operator.js'
 export * from './relational.js'
 export * from './variants.js'

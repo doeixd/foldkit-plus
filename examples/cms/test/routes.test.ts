@@ -17,7 +17,16 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 
 // Brotli bytes, from the build this was set against: each ceiling is the reading plus about 2%,
 // rounded up to the next 500 bytes. Never raise one without saying here what the growth bought.
-const CEILINGS = { studio: 372_500, site: 328_500 }
+// studio +5,568 on 2026-11-22, permanent: 377,768 measured after step 10 of the metakit unification plan
+// (379,562 before it, in one tree; it read 379,499 to 379,607 since step 5 and the ceiling was never
+// raised for it). The entry it loads carries metakit's evaluator and judge, as every page that reaches
+// entity does (15.9 kB minified), accepted by the maintainer on 2026-11-21. Ceiling: the reading plus 300.
+// site +3,614 on 2026-11-22, permanent: 331,814 measured after step 10 (333,714 before it, in one tree),
+// over since step 5 for the same reason. Ceiling: the reading plus 300.
+// studio +4,432 and site +4,486 on 2026-11-26 (CI read 382,052 and 336,151): metakit's core
+// evaluator/judge growth (Sets, Domain.Id/Ordinal, Pipeable/Inspectable) and foldkit-remote
+// IVM/Effect integration carried by the shared entry. Ceilings: CI's reading plus ~450, rounded up.
+const CEILINGS = { studio: 382_500, site: 336_600 }
 
 /** Strings only the editor's code writes: its form control's kind, its toolbar's keys. */
 const EDITOR = ['RichTextInput', 'FormattingToolbarKeys']

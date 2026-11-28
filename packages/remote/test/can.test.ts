@@ -7,7 +7,10 @@ import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Derived, Entity, Expr, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
+import { Verdict } from 'metakit'
 import { describe, expect, it } from 'vitest'
+import { availableOf, capabilityOf } from '../src/canOf.js'
+import { CanRefusal } from '../src/can.js'
 import { Can, Mutation, Remote } from '../src/index.js'
 
 const Doc = Entity.define(
@@ -103,6 +106,14 @@ const Retitle = Mutation.write(
     id: 'id',
   }),
 )
+// A refinement keeps the type `string` while the schema refuses what the type allows.
+const Name = Mutation.write(
+  'Name',
+  Write.update(
+    Entity.input(Doc, Schema.Struct({ id: Schema.String, title: Schema.NonEmptyString })),
+    { id: 'id' },
+  ),
+)
 const Drop = Mutation.write(
   'Drop',
   Write.delete(Entity.input(Doc, Schema.Struct({ id: Schema.String })), { id: 'id' }),
@@ -118,7 +129,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Doc],
-  mutations: [Publish, Revert, PublishSeen, Grow, Resize, Retitle, Drop, Hand],
+  mutations: [Publish, Revert, PublishSeen, Grow, Resize, Retitle, Name, Drop, Hand],
 })
 
 const read = (
@@ -154,17 +165,17 @@ const held = read(
 const partial = read([{ id: 'bare', title: 'E' }], ['id', 'title'])
 
 const tag = (answer: Can) =>
-  Can.match(answer, { Yes: () => 'Yes', No: () => 'No', Undecided: () => 'Undecided' })
+  Verdict.match(answer, { True: () => 'Yes', False: () => 'No', Unknown: () => 'Undecided' })
 const refusal = (answer: Can) =>
-  Can.match(answer, {
-    Yes: () => undefined,
-    No: ({ refusal: why }) => why,
-    Undecided: () => undefined,
+  Verdict.match(answer, {
+    True: () => undefined,
+    False: ({ witness }) => Option.getOrUndefined(witness),
+    Unknown: () => undefined,
   })
 
 describe('Data.can', () => {
   it('answers Yes for a draft the when admits and no invariant breaks', () => {
-    expect(Data.can(held, Publish, { id: 'draft', status: 'published' })).toEqual(Can.Yes({}))
+    expect(Data.can(held, Publish, { id: 'draft', status: 'published' })).toEqual(Verdict.True())
   })
 
   it('answers No(Unmet) where the row does not hold what the when asks', () => {
@@ -213,7 +224,7 @@ describe('Data.can', () => {
 
   it('answers Undecided where the row is not held, with the reason', () => {
     expect(Data.can(held, Publish, { id: 'nobody', status: 'published' })).toEqual(
-      Can.Undecided({ reasons: ['Doc nobody is not held'] }),
+      Can.undecided(['Doc nobody is not held']),
     )
   })
 
@@ -232,24 +243,22 @@ describe('Data.can', () => {
       Data.can(ungated, Drop, { id: 'u' }),
     ])
       expect(answer).toEqual(
-        Can.Undecided({
-          reasons: ['the client holds no Doc.gate, which a rule may refuse the write by'],
-        }),
+        Can.undecided(['the client holds no Doc.gate, which a rule may refuse the write by']),
       )
     // A held gate that refuses still answers No: only a missing one is undecided.
     expect(tag(Data.can(held, Publish, { id: 'draft', status: 'published' }))).toBe('Yes')
   })
 
   it('answers Undecided without the id', () => {
-    expect(Data.can(held, Publish, {})).toEqual(Can.Undecided({ reasons: ['id is not given'] }))
+    expect(Data.can(held, Publish, {})).toEqual(Can.undecided(['id is not given']))
   })
 
   it('answers Undecided where an input key the when reads is not given, and decides once it is', () => {
     const asked = Data.can(held, PublishSeen, { id: 'draft', status: 'published' })
-    expect(asked).toMatchObject({ _tag: 'Undecided' })
+    expect(tag(asked)).toBe('Undecided')
     expect(
       Data.can(held, PublishSeen, { id: 'draft', status: 'published', seen: 'draft' }),
-    ).toEqual(Can.Yes({}))
+    ).toEqual(Verdict.True())
     expect(
       refusal(Data.can(held, PublishSeen, { id: 'draft', status: 'published', seen: 'archived' })),
     ).toEqual({ _tag: 'Unmet' })
@@ -266,13 +275,11 @@ describe('Data.can', () => {
   })
 
   it('answers Undecided over a field the write moves by an amount, which the client does not work out', () => {
-    expect(Data.can(held, Grow, { id: 'live', amount: 5 })).toMatchObject({ _tag: 'Undecided' })
+    expect(tag(Data.can(held, Grow, { id: 'live', amount: 5 }))).toBe('Undecided')
   })
 
   it('answers Undecided where an invariant reads a field the row does not hold', () => {
-    expect(Data.can(partial, Retitle, { id: 'bare', title: 'F' })).toMatchObject({
-      _tag: 'Undecided',
-    })
+    expect(tag(Data.can(partial, Retitle, { id: 'bare', title: 'F' }))).toBe('Undecided')
   })
 
   it('refuses a mutation that is not a declared Write, and an unregistered one', () => {
@@ -368,6 +375,57 @@ describe('Data.capability', () => {
     expect(() => Data.capability(Hand, () => ({ id: 'x' }))).toThrow(
       'Data.capability(Hand): the mutation was not declared as a Write',
     )
+  })
+})
+
+describe('a capability fails closed', () => {
+  const unencodable = Data.capability(Name, ({ input }: { input: { readonly id: string } }) => ({
+    id: input.id,
+    title: '',
+  }))
+
+  it('answers No(Invalid), and does not throw, for an input its schema cannot encode', () => {
+    expect(refusal(Data.can(held, Name, { id: 'draft', title: '' }))).toMatchObject({
+      _tag: 'Invalid',
+      entity: 'Doc',
+      path: ['title'],
+    })
+  })
+
+  it('leaves the gate to authorize and refuses an unencodable input in applies', () => {
+    expect(unencodable.authorize(call('draft'))).toBe(true)
+    expect(unencodable.applies(call('draft'))).toMatchObject({ applies: false })
+  })
+
+  const throwing = (): Can => {
+    throw new Error('the store failed')
+  }
+  const request = { model: held, input: {}, principal: { name: 'agent' } }
+  const stub = (ask: () => Can) =>
+    capabilityOf({ name: 'Publish', write: Publish.write }, ask, () => ({}))
+
+  it('refuses in both hooks, without a reason, when asking throws', () => {
+    const checks = stub(throwing)
+    expect(checks.authorize(request)).toBe(false)
+    expect(checks.applies(request)).toBe(false)
+  })
+
+  it('refuses in both hooks a False that carries no refusal', () => {
+    const checks = stub(() => Verdict.False(Option.none<CanRefusal>()))
+    expect(checks.authorize(request)).toBe(false)
+    expect(checks.applies(request)).toBe(false)
+  })
+
+  it('allows an Unknown, which the server decides', () => {
+    const checks = stub(() => Can.undecided(['not held']))
+    expect(checks.authorize(request)).toBe(true)
+    expect(checks.applies(request)).toBe(true)
+  })
+
+  it('shows a control unavailable when asking throws or the refusal has no witness', () => {
+    const names = () => Option.some({})
+    expect(availableOf(throwing, names)(held)).toBe(false)
+    expect(availableOf(() => Verdict.False(Option.none<CanRefusal>()), names)(held)).toBe(false)
   })
 })
 

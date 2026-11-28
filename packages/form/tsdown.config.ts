@@ -11,6 +11,13 @@ export default defineConfig({
   clean: true,
   target: 'es2022',
   deps: {
-    neverBundle: ['effect', 'foldkit', 'foldkit-bundle', 'foldkit-entity', 'foldkit-metadata'],
+    neverBundle: [
+      'effect',
+      /^metakit(\/.*)?$/,
+      'foldkit',
+      'foldkit-bundle',
+      'foldkit-entity',
+      'foldkit-metadata',
+    ],
   },
 })

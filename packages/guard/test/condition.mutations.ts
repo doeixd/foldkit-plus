@@ -7,23 +7,6 @@ const tests = ['packages/guard/test/condition.test.ts']
 
 export default [
   {
-    name: 'a row its rule cannot judge ends the request',
-    edits: [
-      {
-        file,
-        find: '  Query,\n  evaluateEach,\n',
-        replace: '  Query,\n  evaluate,\n  evaluateEach,\n',
-      },
-      {
-        file,
-        find: 'evaluateEach(guard.query, input,',
-        replace: 'evaluate(guard.query, input,',
-      },
-      { file, find: '          }).matched.length === 1,', replace: '          }).length === 1,' },
-    ],
-    tests,
-  },
-  {
     name: 'a conjunction keeps a part that can never hold',
     edits: [{ file, find: "if (condition._tag === 'Never') return never", replace: '' }],
     tests,
@@ -78,8 +61,8 @@ export default [
     edits: [
       {
         file,
-        find: '          }).matched.length === 1,',
-        replace: '          }).matched.length >= 0,',
+        find: '      { Known: ({ value }) => value === true, Open: () => false },',
+        replace: '      { Known: () => true, Open: () => false },',
       },
     ],
     tests,
@@ -162,13 +145,8 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: [
-          '                    evaluate(rowGuard.query, {}, [row], {',
-          '                      operators,',
-          '                      context: contextOf(principal),',
-          '                    }).length === 1,',
-        ].join('\n'),
-        replace: '                    false,',
+        find: '!(Option.isNone(principal) && readsPrincipal(rowGuard)) &&',
+        replace: 'Option.isSome(principal) &&',
       },
     ],
     tests,

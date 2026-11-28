@@ -1,6 +1,8 @@
 /**
  * `foldkit-plus laws <module>[#export]`: loads a module of the project and
- * prints `Laws.show` of the report it holds. It reads `tsx` and
+ * prints `Laws.show` of the report it holds, or the list an obligations
+ * report holds (`Temporal.registry.report()` of `metakit/temporal`: open,
+ * discharged, and decided without a test). It reads `tsx` and
  * `foldkit-entity` from the project, never its own copies: a report is the
  * project's data, and Effect values from a second copy of a library do not
  * compare with the first's.
@@ -38,6 +40,12 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
 const isReport = (value: unknown) =>
   isRecord(value) &&
   ['pairs', 'arrows', 'states', 'findings'].every(key => Array.isArray(value[key]))
+
+/** What `Temporal.registry.report()` returns: the lists of obligations and the text of them. */
+const isObligations = (value: unknown): value is { readonly format: () => string } =>
+  isRecord(value) &&
+  ['open', 'discharged', 'decided'].every(key => Array.isArray(value[key])) &&
+  typeof value['format'] === 'function'
 
 const isWrites = (value: unknown): value is { readonly writes: unknown } =>
   isRecord(value) && Array.isArray(value['writes'])
@@ -112,16 +120,17 @@ export const tsxWithoutApi = (dir: string): string => {
   return `The tsx installed at ${dir} (${version ?? 'unknown version'}) has no esm/api export, which this command loads the module through. Upgrade tsx to a 4.x release that has it (foldkit-plus is tested with ^4.23.15).`
 }
 
-/** Node's own TypeScript support: the module by its URL, `foldkit-entity` from the nearest `node_modules`. */
+/** Node's own TypeScript support: the module by its URL, `foldkit-entity` and its subpaths from the nearest `node_modules`. */
 const throughNode =
   (file: string): Load =>
   async specifier => {
-    if (specifier !== 'foldkit-entity') return import(/* @vite-ignore */ specifier)
-    const dir = installedFrom(dirname(file), specifier)
+    if (specifier !== 'foldkit-entity' && !specifier.startsWith('foldkit-entity/'))
+      return import(/* @vite-ignore */ specifier)
+    const dir = installedFrom(dirname(file), 'foldkit-entity')
     if (Option.isNone(dir)) throw new Error('foldkit-entity is not installed above the module')
-    const entry = entryOf(dir.value, '.')
+    const entry = entryOf(dir.value, `.${specifier.slice('foldkit-entity'.length)}`)
     if (Option.isNone(entry))
-      throw new Error("foldkit-entity's manifest names no entry for `import`")
+      throw new Error(`foldkit-entity's manifest names no entry for \`import\` of ${specifier}`)
     return import(/* @vite-ignore */ pathToFileURL(entry.value).href)
   }
 
@@ -151,20 +160,33 @@ const printed = async (
       `${file} has no ${named}. It exports: ${Object.keys(loaded).join(', ') || 'nothing'}.`,
     )
   const value = loaded[exportName]
+  if (isObligations(value)) {
+    try {
+      return {
+        text: `${value.format()}
+`,
+        isError: false,
+      }
+    } catch (error) {
+      return failed(
+        `The obligations of the ${named} of ${file} could not be printed: ${messageOf(error)}`,
+      )
+    }
+  }
   if (!isReport(value) && !isWrites(value))
     return failed(
-      `The ${named} of ${file} is ${describeValue(value)}: expected a LawReport (Laws.check's result) or { writes }.`,
+      `The ${named} of ${file} is ${describeValue(value)}: expected a LawReport (Laws.check's result), { writes }, or the report of obligations (Temporal.registry.report()).`,
     )
 
   let laws: unknown
   try {
-    const entity = await load('foldkit-entity')
+    const entity = await load('foldkit-entity/laws')
     laws = isRecord(entity) ? entity['Laws'] : undefined
   } catch (error) {
-    return failed(`Could not load foldkit-entity from the project: ${messageOf(error)}`)
+    return failed(`Could not load foldkit-entity/laws from the project: ${messageOf(error)}`)
   }
   if (!isEntityLaws(laws))
-    return failed("The project's foldkit-entity exports no Laws.check and Laws.show.")
+    return failed("The project's foldkit-entity/laws exports no Laws.check and Laws.show.")
   try {
     return { text: `${laws.show(isWrites(value) ? laws.check(value) : value)}\n`, isError: false }
   } catch (error) {
@@ -174,7 +196,8 @@ const printed = async (
 
 /**
  * Prints the report `spec` (`path` or `path#export`, resolved from `cwd`)
- * holds, or the `{ writes }` that `Laws.check` takes. Findings are the report's
+ * holds, the `{ writes }` that `Laws.check` takes, or the report of
+ * obligations. Findings and open obligations are the report's
  * content, not a failure; only a module that cannot be loaded, or an export that
  * is neither shape, fails.
  */

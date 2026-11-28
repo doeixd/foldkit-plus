@@ -8,8 +8,8 @@ export default [
     edits: [
       {
         file: '../src/condition.ts',
-        find: '[Held.fromRefs(guard.query, values)]',
-        replace: '[values]',
+        find: 'read = Held.fromRefs(each.guard.query, values)',
+        replace: 'read = values',
       },
     ],
     tests: ['packages/guard/test/link.test.ts'],

@@ -131,7 +131,7 @@ const UiView = FormView.define(Edit, {
 })
 ```
 
-Each key in `renderers` (`input`, `textarea`, `select`, `checkbox`, `checkboxGroup`) is optional. The form keeps ownership of labels, descriptions, `checking` indicators, error alerts, IDs, and ARIA attributes while swapping the inner control element. Note that `Text`, `Number`, `Multiline`, and select styles move from `FieldSlots` onto the UI component Slots, and `Toggle`/`Choices`/`RelationMany` render `role="checkbox"` buttons paired with hidden inputs for progressive enhancement.
+Each key in `renderers` (`input`, `textarea`, `select`, `checkbox`, `checkboxGroup`) is optional. The form keeps ownership of labels, descriptions, `checking` indicators, error alerts, IDs, and ARIA attributes while swapping the inner control element. Note that `Text`, `Number`, `CalendarDay`, `Decimal`, `Multiline`, and select styles move from `FieldSlots` onto the UI component Slots, and `Toggle`/`Choices`/`RelationMany` render `role="checkbox"` buttons paired with hidden inputs for progressive enhancement.
 
 ## Customize field layouts with UI inputs
 
@@ -182,6 +182,8 @@ Additional view options:
 | `Text` | `input type="text"` | `text` |
 | `Multiline` | `textarea` | `multiline` |
 | `Number` | `input type="text" inputmode="decimal"` | `number` |
+| `CalendarDay` | `input type="date"` | `date` |
+| `Decimal` | `input type="text" inputmode="decimal"` | `decimal` |
 | `Toggle` | `input type="checkbox"` | `toggle` |
 | `Select` | `select` of control options with blank option | `select`, `option` |
 | `Choices` | `role="group"` of checkboxes | `choices`, `choiceLabel`, `choice` |
@@ -261,6 +263,43 @@ Fields.field(control, formModel, control.key, h, (input, draw) =>
 ```
 
 `Number` controls render `input type="text" inputmode="decimal"` because partial drafts like `"4."` are rejected by native `<input type="number">`.
+
+### Draw days and amounts from a metakit declaration
+
+A day typed as `2026-03-05` wants a date picker, an amount typed as `12.50` wants a decimal keypad, and both want the limits your Schema already states. [metakit](../metakit/README.md) is a library that keeps Schema rules as data a program can read, and `Declared.inputs(schema)` from `foldkit-form/metakit` ([the guide](../form/docs/metakit.md)) gives its `CalendarDay` keys a control that holds a `YYYY-MM-DD` draft and its `Money` and `Decimal` keys one that holds an amount in whole units. `FormView` has no renderer for either: `DeclaredView.of`, from `foldkit-mixins-form/declared`, brings them, so a form view that uses neither carries none of their code.
+
+`DeclaredView.of(form, Declared.of(form))` gives back the form and the options to draw it with. The first control is drawn as `input type="date"` and the second as a text input with `inputmode="decimal"` (text, like `Number`, so `"12."` can be typed). The `min`, `max` and `step` the Schema declares go on those inputs and on `Number` ones, and a rule over several keys ("leave after you arrive") shows its message beside every key it reads, where each key's own errors show, marked `aria-invalid` and named in `aria-describedby` the same way:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Form } from 'foldkit-form'
+import { Declared } from 'foldkit-form/metakit'
+import { FormView } from 'foldkit-mixins-form'
+import { DeclaredView } from 'foldkit-mixins-form/declared'
+import { Expr } from 'metakit'
+import { CalendarDay } from 'metakit/domain'
+-->
+```ts
+const StayInput = Schema.Struct({
+  arrives: CalendarDay.schema,
+  leaves: CalendarDay.schema,
+}).pipe(
+  Expr.refine($ => CalendarDay.before($.arrives, $.leaves), { message: 'Leave after you arrive' }),
+)
+const Stay = Form.make('Stay', Form.input(StayInput), { inputs: Declared.inputs(StayInput) })
+
+const stay = DeclaredView.of(Stay, Declared.of(Stay))
+const StayView = FormView.fields(stay.form, stay.options).view
+```
+
+With `2026-03-05` typed for `arrives` and `2026-03-01` for `leaves`, "Leave after you arrive" is drawn under both inputs; typing a later `leaves` removes it. Drawn from `Stay` itself the form reads its own `field`, which shows that rule only among the form's own `errors`, after a submit.
+
+- **What it gives.** `stay.form` is the form with its `field` replaced by the declared one, which adds the rules' messages; pass it wherever you passed the form. `stay.options` is `{ attrs, renderers }`, for `FormView.fields` and `FormView.field`; `FormView.define` takes no `attrs`, so give it `field: FormView.field(stay.form, stay.options)`.
+- **It reads shapes.** `DeclaredView.of` reads only the declarations' `field` and `constraints[key].attributes`, so neither entry of this package imports a metakit module.
+- **`attrs` win.** `DeclaredView.of(form, declared, { attrs: { deposit: { max: '500.00' } } })` replaces the declared `max` for that key; `inputMode` is taken from the declaration the same way.
+- **Text inputs do not check bounds.** The amount input and a `Number` input are `type="text"`: their `min`, `max` and `step` are on the element, for a script or a stylesheet to read, and the browser ignores them. Pass `attrs: { deposit: { type: 'number' } }` to make the amount a number input, which the browser holds to them, at the cost of refusing a half-typed `"12."`. The date input is checked by the browser as it stands.
+- **Slots and styles.** The date and amount inputs are drawn by the `Text` renderer and a `Number` input by the `Number` renderer, so they are the `text` and `number` Slots of `FieldSlots` and take their styles. Pass `renderers: UiForm.renderers()` to `DeclaredView.of` to draw all three through `foldkit-mixins-ui`'s Input.
+- **Without it.** A form with a `CalendarDay` or `Decimal` control drawn by `FormView` alone throws when the key is drawn, naming the kind that has no renderer.
 
 ### Validation summaries, pending checks, and submit states
 

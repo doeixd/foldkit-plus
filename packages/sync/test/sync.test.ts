@@ -102,6 +102,7 @@ const committed = (
 const memoryStorage = (initial?: unknown): Storage => {
   let state = initial
   return {
+    store: { name: 'test replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next =>
       Effect.sync(() => {
@@ -815,6 +816,7 @@ describe('the replica', () => {
   it('closes storage when the open fails', async () => {
     let closes = 0
     const storage: Storage = {
+      store: { name: 'test replica', isolation: 'eventual', parentRowLock: false },
       load: () => Effect.succeed(undefined),
       save: () => Effect.fail(new StorageError({ message: 'disk full' })),
       close: Effect.sync(() => {

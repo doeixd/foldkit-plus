@@ -28,6 +28,7 @@ import { own, put } from './record.js'
 import { targetsOf } from './relation.js'
 import { RemoteConnections, RemoteRequirements, type RelationRequirement } from './requirement.js'
 import { entityKey, readField, type EntityEntry } from './store.js'
+import { storePaths } from './storePath.js'
 import { ReadAfterToken } from './wire.js'
 
 const CapturedEntry = Schema.Struct({
@@ -341,6 +342,8 @@ export interface RemoteResumePart<AppModel> {
   readonly id: string
   /** The metadata key names whose reads this part resumes. */
   readonly covers: ReadonlyArray<string>
+  /** The Model path of the store it restores, as Remote reads declare it: none for a raw optic. */
+  readonly restores: ReadonlyArray<ReadonlyArray<string>>
   readonly capture: (
     model: AppModel,
     projections: ReadonlyArray<{ readonly metadata: Metadata }>,
@@ -364,6 +367,7 @@ export const resumePart = <AppModel, Store extends RemoteModel>(
 ): RemoteResumePart<AppModel> => ({
   id: options.id ?? 'remote',
   covers: [RemoteRequirements.name, RemoteConnections.name],
+  restores: storePaths(domain.store),
   deferrable: (_key, entry) => typeof entry === 'object' && entry !== null && DEFERRABLE in entry,
   capture: (model, projections) => {
     const remote = domain.store.get(model)

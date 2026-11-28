@@ -157,14 +157,44 @@ const isAdd = (request: Request): boolean => {
   return body.includes('"operation":"mutate"') && body.includes('"AddNote"')
 }
 
+/** Whether `request` is a page's edit of a note, as Remote's HTTP client sends it. */
+const isEdit = (request: Request): boolean => {
+  const body = request.method() === 'POST' ? (request.postData() ?? '') : ''
+  return body.includes('"operation":"mutate"') && body.includes('"EditNote"')
+}
+
 declare global {
   interface Window {
     /** The page's elements as the Worker sent them, before any script ran. */
     served?: ReadonlyArray<Element>
     /** The root's markup as the Worker sent it. */
     servedMarkup?: string
+    /** What the page's headings and links said at each change since `recordTitles`, in order. */
+    titlesShown?: Array<string>
   }
 }
+
+/**
+ * Records what the page's headings and links say from now on (a note's title
+ * is its page's heading and its link in the list): what a later look would miss.
+ */
+const recordTitles = (page: Page) =>
+  page.evaluate(() => {
+    const shown: Array<string> = []
+    window.titlesShown = shown
+    const read = () => {
+      const text = [...document.querySelectorAll('h1, h2, h3, a')]
+        .map(titled => titled.textContent ?? '')
+        .join(' | ')
+      if (shown.at(-1) !== text) shown.push(text)
+    }
+    read()
+    new MutationObserver(read).observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    })
+  })
 
 /**
  * Keeps the elements of the page the Worker sends, as parsed and before any
@@ -359,4 +389,147 @@ test('each served page names itself in the head, and the running page keeps one'
   ).toEqual([['HEAD', 'Your notes, kept in step across your devices.']])
   expect(errors()).toEqual([])
   await babbage.close()
+})
+
+// #480: two edits of one note, stored in the order made, whose answers arrive
+// in the other order. A page saves one edit at a time (its editor waits for
+// the answer), so the second edit is another tab's. Once the second is saved
+// its tab shows nothing else. The first tab shows its own edit while that is
+// pending, and goes to the list after the second edit is stored: the list's
+// read brings it the second. Its live stream is held unopened meanwhile (one
+// opened after the second edit would have nothing to send, but would ask for
+// the list once more, at a moment of its own), so that read is all the tab
+// hears. The late answer disagrees with what the read brought, so the tab
+// reads the note again, and from then shows the second and not the first.
+// Broken by hand: with the first tab's reads aborted, it stays on the first
+// edit; so it does on a client that keeps nothing of a read answered beside a
+// pending write.
+test('two edits of one note answered out of order keep the second edit throughout and after reload', async () => {
+  const context = await browser.newContext()
+  const turing1 = await context.newPage()
+  const errors1 = Behaviors.consoleErrors(turing1)
+  await signUp(turing1, 'Turing')
+
+  await turing1.getByLabel('Title').fill('Original title')
+  await turing1.getByLabel('Note', { exact: true }).fill('Body text.')
+  await Promise.all([
+    turing1.waitForResponse(response => isAdd(response.request())),
+    turing1.getByRole('button', { name: 'Add' }).click(),
+  ])
+  await notes(turing1).getByRole('link', { name: 'Original title' }).click()
+  await turing1.getByRole('heading', { name: 'Original title' }).waitFor()
+
+  const noteUrl = turing1.url()
+  const turing2 = await context.newPage()
+  const errors2 = Behaviors.consoleErrors(turing2)
+  await turing2.goto(noteUrl)
+  await turing2.getByRole('heading', { name: 'Original title' }).waitFor()
+
+  const deferred = () => {
+    let resolve!: () => void
+    const promise = new Promise<void>(r => {
+      resolve = r
+    })
+    return { promise, resolve }
+  }
+  const firstCommitted = deferred()
+  const releaseFirstAnswer = deferred()
+  const firstDelivered = deferred()
+  const secondAnswered = deferred()
+  const openLive = deferred()
+
+  await context.route('**/remote', async (route: Route) => {
+    const req = route.request()
+    if (req.frame().page() === turing1 && (req.postData() ?? '').includes('"operation":"live"')) {
+      await openLive.promise
+      // The page may have left by then, and its request with it.
+      return route.fallback().catch(() => {})
+    }
+    if (!isEdit(req)) return route.fallback()
+    const body = req.postData() ?? ''
+    if (body.includes('First edit')) {
+      const firstResponse = await route.fetch()
+      firstCommitted.resolve()
+      await releaseFirstAnswer.promise
+      await route.fulfill({ response: firstResponse })
+      firstDelivered.resolve()
+      return
+    }
+    if (body.includes('Second edit')) {
+      const secondResponse = await route.fetch()
+      await route.fulfill({ response: secondResponse })
+      secondAnswered.resolve()
+      return
+    }
+    return route.fallback()
+  })
+
+  // What the first tab asks the server from here on: said when it never shows the second edit.
+  const asked: Array<string> = []
+  turing1.on('request', request => asked.push((request.postData() ?? request.url()).slice(0, 160)))
+
+  // The first edit, from the first tab: stored, its answer held.
+  await turing1.getByRole('button', { name: 'Edit' }).click()
+  await turing1.getByLabel('Title').fill('First edit')
+  await turing1.getByRole('button', { name: 'Save' }).click()
+  await firstCommitted.promise
+  await turing1.getByRole('heading', { name: 'First edit' }).waitFor()
+
+  // The second edit, from the second tab: stored after the first, answered before it.
+  await turing2.getByRole('button', { name: 'Edit' }).click()
+  await turing2.getByLabel('Title').fill('Second edit')
+  await turing2.getByRole('button', { name: 'Save' }).click()
+  await turing2.getByRole('heading', { name: 'Second edit' }).waitFor()
+  await recordTitles(turing2)
+  await secondAnswered.promise
+
+  // The first tab goes to the list, and the list's read brings it the second
+  // edit under its own, still pending: drawn, a frame after the answer.
+  const readSecond = turing1.waitForResponse(async response => {
+    const sent = response.request().postData() ?? ''
+    return sent.includes('"operation":"query"') && (await response.text()).includes('Second edit')
+  })
+  await turing1.getByRole('link', { name: 'All notes' }).click()
+  await notes(turing1).getByRole('link', { name: 'First edit' }).waitFor()
+  await recordTitles(turing1)
+  await readSecond
+  await turing1.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve(true))))
+
+  // The first edit's answer, late: the first tab reads the note again and shows the second.
+  const before = asked.length
+  releaseFirstAnswer.resolve()
+  await firstDelivered.promise
+  await notes(turing1)
+    .getByRole('link', { name: 'Second edit' })
+    .waitFor({ timeout: 15_000 })
+    .catch(() => {
+      throw new Error(
+        `the first tab never showed the second edit; after the late answer it asked:\n${asked.slice(before).join('\n') || '(nothing)'}`,
+      )
+    })
+  // The second edit shows once that read is answered, and nothing is asked after it: a frame.
+  for (const tab of [turing1, turing2]) {
+    await tab.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve(true))))
+  }
+  openLive.resolve()
+  const shown = (tab: Page) => tab.evaluate(() => window.titlesShown ?? [])
+  // The second tab showed the second edit and never the first.
+  const second = await shown(turing2)
+  expect(second.length).toBeGreaterThan(0)
+  expect(second.filter(text => !text.includes('Second edit'))).toEqual([])
+  // The first tab went from the first edit to the second, and not back.
+  const first = await shown(turing1)
+  const arrived = first.findIndex(text => text.includes('Second edit'))
+  expect(arrived).toBeGreaterThan(0)
+  expect(first.slice(arrived).filter(text => text.includes('First edit'))).toEqual([])
+  expect(first.at(-1)).toContain('Second edit')
+
+  // The server holds the second edit: both tabs show it after a reload.
+  await turing1.reload()
+  await notes(turing1).getByRole('link', { name: 'Second edit' }).waitFor()
+  await turing2.reload()
+  await turing2.getByRole('heading', { name: 'Second edit' }).waitFor()
+  expect(errors1()).toEqual([])
+  expect(errors2()).toEqual([])
+  await context.close()
 })

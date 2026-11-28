@@ -45,6 +45,18 @@ const log: ReportDiagnostic = diagnostic => {
 }
 
 /**
+ * Like `log`, but attaches `diagnosticTag` and `diagnosticSource` via
+ * `Effect.annotateLogs` for structured JSON or OpenTelemetry loggers.
+ */
+const structuredLog: ReportDiagnostic = diagnostic =>
+  log(diagnostic).pipe(
+    Effect.annotateLogs({
+      diagnosticTag: diagnostic._tag,
+      diagnosticSource: diagnostic.source,
+    }),
+  )
+
+/**
  * The reporter in effect. Provide another with `Layer.succeed(Diagnostics.Reporter, report)`
  * (a Foldkit runtime's resources, a server's layer) or `Effect.provideService`.
  */
@@ -115,6 +127,7 @@ const claim = (reporter: ReportDiagnostic): Effect.Effect<void, never, Scope.Sco
 export const Diagnostics = {
   Reporter,
   report,
+  structuredLog,
   /**
    * `reporter` as the reporter, hearing what Mounts report too: in a document,
    * it claims each `DiagnosticEvent` while the layer is built. Give it in a

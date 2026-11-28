@@ -7,6 +7,7 @@
  */
 import { Effect, Match, Option, Record, Schema } from 'effect'
 import { Derived, Entity, type AnyEntity, type Forbids, type Predict } from 'foldkit-entity'
+import { Verdict } from 'metakit'
 import { attached, type InteractionKey } from './attach.js'
 import { Condition, deciding, type MemberRead, type RowRule } from './condition.js'
 
@@ -18,8 +19,8 @@ import { Condition, deciding, type MemberRead, type RowRule } from './condition.
  *
  * `row` says one of three things of an interaction: `true`, its rule let the
  * reader; `false`, it refused; and nothing, the key left out, where the rule
- * reads another row and one row cannot decide it. The write's statement
- * decides that one. Read the three with `May.answer`.
+ * needs data unavailable to the reader. The server decides that rule at
+ * write time. Read the three with `May.answer`, which gives a `Verdict`.
  */
 export const MaySchema = Schema.Struct({
   row: Schema.Record(Schema.String, Schema.Boolean),
@@ -34,12 +35,15 @@ export type MayAnswer = typeof MaySchema.Type
 
 type MemberKeys<E extends AnyEntity> = (keyof E['fields'] | keyof E['derived']) & string
 
-/** What the answer says of a row interaction; none where it does not name it. */
-const answer = (may: MayAnswer, interaction: string): Option.Option<boolean> =>
-  Record.get(may.row, interaction)
+/** What the answer says of a row interaction: `Unknown` where it does not name it. */
+const answer = (may: MayAnswer, interaction: string): Verdict.Verdict<never> =>
+  Option.match(Record.get(may.row, interaction), {
+    onNone: () => Verdict.Unknown(`the answer does not say ${interaction}`),
+    onSome: said => (said ? Verdict.True() : Verdict.False<never>()),
+  })
 
 const can = (may: MayAnswer, interaction: string): boolean =>
-  Option.getOrElse(answer(may, interaction), () => false)
+  Verdict.isTrue(answer(may, interaction))
 
 /** Whether `answers` names `key`, and says no to it. */
 const refuses = (answers: Readonly<Record<string, boolean>>, key: string): boolean =>
@@ -135,18 +139,19 @@ export const mayConditions = (rules: MayRules): ReadonlyArray<Condition> => [
 
 /**
  * The answer over one row, each condition decided by `decide`. A row
- * interaction it cannot decide over one row (a rule reading another row,
- * which the write's statement judges) is left out, and so refuses nothing.
+ * interaction it cannot decide for the reader is left out, and so refuses
+ * nothing. The wire carries both directions of a relation as one entry.
  */
 export const answerOf = (
   rules: MayRules,
   decide: (condition: Condition) => Option.Option<boolean>,
 ): MayAnswer => {
-  // Member and relation rules never read another row (`Guards.attach` refuses one).
-  const holds = (condition: Condition) => Option.getOrElse(decide(condition), () => false)
   // A relation without a rule for one direction leaves it to the row's Update.
   const allows = (rule: Option.Option<RowRule>) =>
-    Option.match(rule, { onNone: () => true, onSome: ({ condition }) => holds(condition) })
+    Option.match(rule, {
+      onNone: () => Option.some(true),
+      onSome: ({ condition }) => decide(condition),
+    })
   const decided = rules.rows.flatMap(([interaction, rule]) =>
     Option.match(decide(rule.condition), {
       onNone: () => [],
@@ -170,28 +175,35 @@ export const answerOf = (
       ),
     ),
     members: Object.fromEntries(
-      rules.members.map(({ member, condition }) => [member, holds(condition)]),
+      rules.members.flatMap(({ member, condition }) =>
+        Option.toArray(Option.map(decide(condition), answer => [member, answer] as const)),
+      ),
     ),
     relations: Object.fromEntries(
-      rules.relations.map(({ relation, link, unlink }) => [
-        relation,
-        { Link: allows(link), Unlink: allows(unlink) },
-      ]),
+      rules.relations.flatMap(({ relation, link, unlink }) =>
+        Option.toArray(
+          Option.map(
+            Option.all({ Link: allows(link), Unlink: allows(unlink) }),
+            answer => [relation, answer] as const,
+          ),
+        ),
+      ),
     ),
   }
 }
 
 /**
- * `may` foreseen for a row the client writes. A principal guard's body is
- * the server's, and the principal's fields are not the client's to know, so
- * each is unknown, as is a rule over a row or field the store lacks. Every
- * rule is a conjunction and disjunction of its parts, so it is decided when
- * it comes out the same with every unknown part taken to hold and taken not
- * to: the answer is foreseen only when the whole of it is.
+ * `may` foreseen for a row the client writes, foreseen only when the whole
+ * of it is. What the client cannot know (the principal's fields, a rule over
+ * a row or field the store lacks, a refusal the server would meet) leaves a
+ * rule `Unknown` in metakit's judgement (`Condition.judge`). A principal
+ * guard's body is the server's: it is decided both ways, and the answer
+ * stands only where both agree, which settles it, since no part of a
+ * condition is negated.
  */
 const predict: Predict = ({ entity, row, rows, context }) => {
   // Never a visitor here: a client without a viewer may be one that was not told it.
-  const answerAssuming = (assumed: boolean): MayAnswer => {
+  const answerAssuming = (assumed: boolean): Option.Option<MayAnswer> => {
     const decide = (interaction: string) =>
       deciding(() => Effect.succeed(assumed), false, interaction, context)
     const rules = Effect.runSync(
@@ -201,10 +213,23 @@ const predict: Predict = ({ entity, row, rows, context }) => {
         relation: (relation, interaction) => decide(interaction).relation(entity, relation),
       }),
     )
-    return answerOf(rules, condition => Option.some(Condition.judge(condition, row, rows, assumed)))
+    const decided = new Map(
+      mayConditions(rules).map(condition => [
+        condition,
+        Verdict.match(Condition.judge(condition, row, rows), {
+          True: () => Option.some(true),
+          False: () => Option.some(false),
+          Unknown: () => Option.none<boolean>(),
+        }),
+      ]),
+    )
+    return [...decided.values()].every(Option.isSome)
+      ? Option.some(answerOf(rules, condition => decided.get(condition) ?? Option.none()))
+      : Option.none()
   }
-  const held = answerAssuming(true)
-  return sameMay(held, answerAssuming(false)) ? Option.some(held) : Option.none()
+  return Option.flatMap(answerAssuming(true), held =>
+    Option.filter(answerAssuming(false), other => sameMay(held, other)).pipe(Option.as(held)),
+  )
 }
 
 /**
@@ -240,22 +265,24 @@ export const May = {
   member: Entity.derived({ may: Derived.make(MaySchema, { predict, forbids }) }),
 
   /**
-   * What the answer says of the row's rule for `interaction`: `some(true)`,
-   * it let the reader when the row was read; `some(false)`, it refused; none,
-   * the answer does not say, since the rule reads another row and one row
-   * cannot decide it. The server decides that one when the write reaches it.
+   * What the answer says of the row's rule for `interaction`, as a metakit
+   * `Verdict`: `True`, it let the reader when the row was read; `False`, it
+   * refused; `Unknown`, the answer does not say, since the rule reads another
+   * row and one row cannot decide it. The server decides that one when the
+   * write reaches it.
    *
    * ```ts
-   * Option.match(May.answer(todo.may, 'Update'), {
-   *   onNone: () => 'the server will say',
-   *   onSome: allowed => (allowed ? 'yes' : 'no'),
+   * Verdict.match(May.answer(todo.may, 'Update'), {
+   *   True: () => 'yes',
+   *   False: () => 'no',
+   *   Unknown: () => 'the server will say',
    * })
    * ```
    */
   answer: (
     may: MayAnswer,
     interaction: 'Update' | 'Delete' | InteractionKey,
-  ): Option.Option<boolean> => answer(may, interaction),
+  ): Verdict.Verdict<never> => answer(may, interaction),
 
   /**
    * Whether the answer says yes to `interaction`: `false` both where the rule

@@ -12,7 +12,7 @@ import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr } from 'foldkit-entity'
-import { Can, Mutation, Remote } from 'foldkit-remote'
+import { Can, CanWire, Mutation, Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -211,7 +211,7 @@ const holding = (values: Readonly<Record<string, unknown> & { readonly id: strin
     },
   )
 const answer = (can: Can) =>
-  Can.match(can, {
+  CanWire.match(Can.toWire(can), {
     Yes: () => 'Yes',
     No: ({ refusal }) => refusal._tag,
     Undecided: ({ reasons }) => `Undecided: ${reasons.join('; ')}`,

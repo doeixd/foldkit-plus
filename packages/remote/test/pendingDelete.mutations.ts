@@ -37,9 +37,9 @@ export default [
     edits: [
       {
         file: optimistic,
-        find: '      resolvedPatches(base, optimistic, kept, operators).map(patch => {',
+        find: '        .filter(patch => Object.keys(patch.values).length > 0)\n        .map(patch => {',
         replace:
-          '      resolvedPatches(base, optimistic, kept, operators).filter(patch => !isTombstone(base, entityKey(patch.entity, patch.id))).map(patch => {',
+          '        .filter(patch => Object.keys(patch.values).length > 0)\n        .filter(patch => !isTombstone(base, entityKey(patch.entity, patch.id)))\n        .map(patch => {',
       },
     ],
     tests,
@@ -98,8 +98,9 @@ export default [
     edits: [
       {
         file: optimistic,
-        find: 'return key => deleted.has(key) || isTombstone(store, key)',
-        replace: 'return key => isTombstone(store, key)',
+        find: '  const check = (key: EntityKey): boolean =>\n    none ? false : deleted.has(key) || isTombstone(store, key)',
+        replace:
+          '  const check = (key: EntityKey): boolean =>\n    none ? false : isTombstone(store, key)',
       },
     ],
     tests,

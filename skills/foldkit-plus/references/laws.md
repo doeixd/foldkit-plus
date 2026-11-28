@@ -112,20 +112,20 @@ first, a hint; match the refusal with `Sync.isInvalidBy(refusal, Board.laws.x)`.
 
 ## Checking every write
 
-`Laws.check({ writes })` (`foldkit-entity`) is pure: each declared write
-against each invariant of its Entity (`kept`, `refused`, `undecided`), and the
-arrows writes make between states. It enumerates finite fields and bounds
-numbers by intervals: each number's Schema checks, narrowed by the write's
-`from`/`when` (against a value) and by the state invariants, assumed to hold
-before the write. `Laws.show(report)` prints it, each refusal's witness
+`Laws.check({ writes })` (`foldkit-entity/laws`, not the main entry: it carries
+metakit's checker) is pure: each declared write against each invariant of its
+Entity (`kept`, `refused`, `undecided`), and the arrows writes make between
+states. It enumerates finite fields and decides numbers with metakit's checker:
+each number's Schema checks, narrowed by the write's `from`/`when` and by the
+state invariants, assumed to hold before the write. `Laws.show(report)` prints it, each refusal's witness
 (before, input, after) under its line, and the totals last;
 `npx foldkit-plus laws src/laws.ts#report` prints a module's export.
 
 | Says | Repair |
 | --- | --- |
-| `kept` | none (an `Enumerated` record; `Bounded` for one decided from numbers' bounds) |
+| `kept` | none (an `Enumerated` record; `Bounded` for one the checker proved, `by` its tier) |
 | `refused` (pair) | read the witness: bound the input (`Schema.isGreaterThanOrEqualTo(0)`), narrow the `when`/`from`; or, where the writer refusing it is the law at work, add a `runtimeOnly` line. A `hint` means it starts in a state no write reaches: an invariant ruling that out settles it |
-| `undecided` | text, a link, a `when` comparing two unknowns (`amount <= balance`), an operator with no `Law.monotonic` per argument: walk it through the writer, a scenario, or a `runtimeOnly` line; `verdict.obligation` holds what a solver would prove |
+| `undecided` | a plain `Schema.Number` (may be NaN: use `Schema.Finite` or `Schema.Int`, and bound a sum), a strict comparison of two members that are not integers (`x < y`; against a constant it is decided), text, a link, another row, an operator the checker knows nothing of: walk it through the writer, a scenario, or a `runtimeOnly` line; `verdict.obligation` holds what a solver would prove |
 | `unmeetable` | no row the invariants allow meets the write's `from`/`when`: fix the condition |
 | `holds`, `enforced` | none |
 | `undeclared` | declare `from` and `becomes`, or narrow the write |
@@ -147,7 +147,7 @@ needs evidence per law, and a Message added later is reported until covered.
 | Record | Issued by |
 | --- | --- |
 | `Enumerated` | `Laws.check`, a pair kept by reading declarations (in `report.pairs[].evidence`) |
-| `Bounded` | `Laws.check`, a pair kept from the numbers' declared bounds, for every row and input within them |
+| `Bounded` | `Laws.check`, a pair metakit's checker proved, for every row and input the declarations allow |
 | `Walked` | `Walk.run` (`foldkit-remote/testing`), no walk failing |
 | `Scenario` | `Scenario.run` (`foldkit-remote/testing`), a runner with no mismatch |
 | `RuntimeOnly` | `Evidence.runtimeOnly({ transition, law, why })`, by hand, `why` non-empty |
@@ -161,8 +161,9 @@ edge yet.
 ## `Data.can`
 
 `Data.can(model, Mutation, input)` is a hint, from the held rows and no I/O:
-`Can.Yes`, `Can.No({ refusal })` (`Forbidden`, `Unmet` or `Invalid`, in the
-server's order) or `Can.Undecided({ reasons })` (a row not held, a field or
+a metakit `Verdict` (read with `Verdict.match` from `metakit`): `True`, `False`
+with the refusal as its witness (`Forbidden`, `Unmet` or `Invalid`, in the
+server's order) or `Unknown` with its reasons (a row not held, a field or
 operator missing). `Data.mutate` does not read it: the server answers some
 writes the client calls `Unmet` as written. It throws for a mutation that is
 not a declared `Write`. `Data.capability` and `Data.available` give an agent

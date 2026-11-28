@@ -88,6 +88,11 @@ export const jobs: ReadonlyArray<{
     guide: 'entity',
   },
   {
+    job: 'State rules and guarded steps once, and have them checked, proved and compiled',
+    imports: ['metakit'],
+    guide: 'metakit',
+  },
+  {
     job: 'Server-owned data in the Model: queries, mutations, live updates',
     imports: ['remote', 'remote-server', 'remote-drizzle', 'remote-domain'],
     guide: 'remote',

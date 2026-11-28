@@ -20,6 +20,7 @@ import {
 } from 'foldkit-remote'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
+import { Verdict } from 'metakit'
 import { afterAll, describe, expect, it } from 'vitest'
 import { GuardAgent } from '../src/agent.js'
 import { GuardDrizzle } from '../src/drizzle.js'
@@ -123,12 +124,12 @@ const agent = (interaction: 'Update' | 'Delete', may: MayAnswer) => ({
 
 describe('what may says of a row interaction', () => {
   it.each([
-    { state: 'yes', row: { Delete: true }, answer: Option.some(true), can: true, refused: false },
-    { state: 'no', row: { Delete: false }, answer: Option.some(false), can: false, refused: true },
-    { state: 'unsaid', row: {}, answer: Option.none(), can: false, refused: false },
+    { state: 'yes', row: { Delete: true }, answer: 'True', can: true, refused: false },
+    { state: 'no', row: { Delete: false }, answer: 'False', can: false, refused: true },
+    { state: 'unsaid', row: {}, answer: 'Unknown', can: false, refused: false },
   ])('$state: every reader agrees', ({ row, answer, can, refused }) => {
     const may = said(row)
-    expect(May.answer(may, 'Delete')).toEqual(answer)
+    expect(May.answer(may, 'Delete')._tag).toBe(answer)
     expect(May.can(may, 'Delete')).toBe(can)
     expect(May.refused(may, 'Delete')).toBe(refused)
     // A hint acts on a no, and only on a no.
@@ -140,7 +141,7 @@ describe('what may says of a row interaction', () => {
     // `constructor` is on every object: an answer that does not name it says nothing of it.
     const inherited = Interaction.make('constructor').key
     const may = said({ Update: true })
-    expect(May.answer(may, inherited)).toEqual(Option.none())
+    expect(Verdict.isUnknown(May.answer(may, inherited))).toBe(true)
     expect(May.refused(may, inherited)).toBe(false)
     expect(May.can(may, inherited)).toBe(false)
   })
@@ -296,8 +297,9 @@ describe('a rule over a path from the viewer, from the page to the server and ba
     'the server says nothing of Update to %s, and yes or no of Delete',
     async who => {
       const may = await mayOf(who)
-      expect(May.answer(may, 'Update')).toEqual(Option.none())
-      expect(May.answer(may, 'Delete')).toEqual(Option.some(who === 'bo'))
+      expect(Verdict.isUnknown(May.answer(may, 'Update'))).toBe(true)
+      expect(Verdict.isTrue(May.answer(may, 'Delete'))).toBe(who === 'bo')
+      expect(Verdict.isFalse(May.answer(may, 'Delete'))).toBe(who !== 'bo')
     },
   )
 

@@ -173,6 +173,9 @@ test('the panel paints past a clipping box, at least as wide as its trigger', as
 test.each(['outline', 'filled', 'ghost'] as const)('a %s trigger draws its box', async trigger => {
   mount({ check: 'end', direction: 'ltr', chosen: Option.none(), trigger })
   await vi.waitFor(() => expect(document.getElementById('fruit-button')).not.toBeNull())
+  // The browser tests share one pointer: parked over the trigger it paints the hover fill.
+  await userEvent.hover(document.body, { position: { x: 1400, y: 880 } })
+  await vi.waitFor(() => expect(button().getAnimations()).toHaveLength(0))
   const style = getComputedStyle(button())
   const probe = document.createElement('span')
   const root = getComputedStyle(document.documentElement)

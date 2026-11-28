@@ -7,10 +7,10 @@ import { describe, expect, it } from 'vitest'
 import {
   Entity,
   Expr,
-  Law,
   OperatorDescription,
   Operators,
   Query,
+  Text,
   applyOperator,
   evaluate,
   valueOfOperand,
@@ -22,13 +22,11 @@ const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, slug: Sche
 
 describe('An operator described', () => {
   it('describes every kernel operator as its contract says, through JSON', () => {
-    for (const { operator } of Operators.kernel.implementations) {
-      const described = Operators.describe({ descriptor: operator })
+    for (const operator of [Text.startsWith, Expr.add, Expr.sub]) {
+      const described = Operators.describe(operator)
       expect(decode(JSON.parse(JSON.stringify(described)))).toEqual(described)
     }
-    expect(
-      Operators.describe({ descriptor: Operators.kernel.implementations[0]!.operator }),
-    ).toMatchObject({
+    expect(Operators.describe(Text.startsWith)).toMatchObject({
       name: 'text.startsWith',
       input: [
         { anyOf: [{ type: 'string' }, { type: 'null' }] },
@@ -40,13 +38,21 @@ describe('An operator described', () => {
     })
   })
 
-  it('names a later version, says it is defined, and lists its laws, never its body', () => {
+  it('lists no kernel operator among a table it implements: each is a metakit operation, run by every table', () => {
+    expect(Operators.describeTable(Operators.kernel)).toEqual([])
+    expect(Operators.kernel.has(Expr.add.descriptor)).toBe(true)
+    expect(Option.getOrThrow(Operators.kernel.named('number.add'))).toBe(Expr.add.descriptor)
+    expect(() => Operators.memory(Operators.implement(Expr.add, (a, b) => a + b))).toThrow(
+      "number.add is metakit's own operation",
+    )
+  })
+
+  it('names a later version, says it is defined, and refuses claims on a defined operator', () => {
     const marked = Expr.operator('acme.marked', {
       input: [Schema.String, Schema.String],
       output: Schema.String,
       version: 2,
       description: 'Text with a mark after it.',
-      laws: [Law.idempotent],
       definedAs: text => text,
     })
     const described = Operators.describe(marked)
@@ -56,9 +62,27 @@ describe('An operator described', () => {
       version: 2,
       description: 'Text with a mark after it.',
       defined: true,
+      claims: {},
     })
-    expect(described.laws).toEqual([Law.describe(Law.idempotent)])
     expect(decode(described)).toEqual(described)
+
+    const primitive = Expr.operator('acme.idem', {
+      input: [Schema.String, Schema.String],
+      output: Schema.String,
+      claims: { idempotent: true },
+    })
+    expect(Operators.describe(primitive).claims).toEqual({ idempotent: true })
+
+    expect(() =>
+      Expr.operator('cms.published', {
+        input: [Schema.String],
+        output: Schema.Boolean,
+        definedAs: text => Expr.isNotNull(text),
+        claims: { idempotent: true } as unknown as undefined,
+      }),
+    ).toThrow(
+      '[foldkit-entity] Expr.operator("cms.published"): a defined operator is its body, and readers read the body\'s operations; remove claims.',
+    )
   })
 
   it('describes each schema by its stored side', () => {

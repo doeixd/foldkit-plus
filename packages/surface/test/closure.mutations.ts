@@ -13,7 +13,7 @@ const edit = (name: string, find: string, replace: string, file = '../src/closur
 })
 
 export default [
-  edit('reads resets no field', '    for (const key of fields) reset[key] = baseline[key]\n', ''),
+  edit('reads resets no field', '      reset[key] = baseline[key]\n', ''),
   edit(
     'the slices are compared by identity alone',
     'return !Object.is(after, other) && !equal(after, other)',
@@ -21,10 +21,14 @@ export default [
   ),
   edit(
     'a field at its initial value is a candidate',
-    ' && !Object.is(live[key], baseline[key])',
-    '',
+    '      (set !== undefined || !partial.has(key)) &&\n      !Object.is(live[key], baseline[key]),',
+    '      (set !== undefined || !partial.has(key)),',
   ),
-  edit('a field the projection owns is a candidate', 'key => !own.has(key) &&', 'key =>'),
+  edit(
+    'a field the projection owns is a candidate',
+    '    key =>\n      !whole.has(key) &&\n      (set !== undefined || !partial.has(key)) &&',
+    '    key =>\n      (set !== undefined || !partial.has(key)) &&',
+  ),
   edit(
     'fields that each alone is enough go unnamed',
     'return named.length === 0 ? outside : named',
@@ -37,12 +41,12 @@ export default [
   ),
   edit(
     'a Message outside the set is not compared',
-    '      const { codec, read } = partsOf(projection)\n      const [was, now] = [read(before), read(after)]\n      return Object.is(was, now) || equivalence(codec)(was, now)\n',
-    '      return []\n      const { codec, read } = partsOf(projection)\n      const [was, now] = [read(before), read(after)]\n      return Object.is(was, now) || equivalence(codec)(was, now)\n',
+    '  const { codec, read } = partsOf(projection)\n  const [was, now] = [read(before), read(after)]\n',
+    '  return []\n  const { codec, read } = partsOf(projection)\n  const [was, now] = [read(before), read(after)]\n',
   ),
   edit(
     'a Message in the set is not checked for reads',
-    'const fields = reads(app, projection, before, message)',
+    'const fields = reads(app, surface.projection, before, message)',
     'const fields: ReadonlyArray<string> = []',
   ),
   edit(

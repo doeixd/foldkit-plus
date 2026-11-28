@@ -9,15 +9,26 @@
     "paths": {
       "foldkit-agent": ["../../packages/agent/src/index.ts"],
       "foldkit-agent-webmcp": ["../../packages/agent-webmcp/src/index.ts"],
+      "foldkit-agent/metakit": ["../../packages/agent/src/metakit.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
-      "foldkit-surface": ["../../packages/surface/src/index.ts"]
+      "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-surface/declared": ["../../packages/surface/src/declared.ts"],
+      "foldkit-surface/writes": ["../../packages/surface/src/writes.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
-    { "path": "../../packages/agent/tsconfig.build.json" },
-    { "path": "../../packages/agent-webmcp/tsconfig.build.json" },
-    { "path": "../../packages/metadata/tsconfig.build.json" },
-    { "path": "../../packages/surface/tsconfig.build.json" }
+    {
+      "path": "../../packages/agent/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/agent-webmcp/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/surface/tsconfig.build.json"
+    }
   ]
 }

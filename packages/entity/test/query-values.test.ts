@@ -169,11 +169,13 @@ describe('contains in the reference interpreter (#136)', () => {
       const body = Query.from(NullText).pipe(Query.where(predicate))
       expect(() => evaluate(body, nul, rows)).toThrow(QueryEvaluateError)
     }
-    // A NUL stored beside a null given is unknown, as SQL answers it.
+    // A NUL stored beside a null given is refused too: a refusal decides before null.
     const stored = Query.from(NullText).pipe(
       Query.where(Expr.eq(NullText.fields.text, Expr.input('maybe', Schema.NullOr(Schema.String)))),
     )
-    expect(evaluate(stored, { maybe: null }, [{ id: 'a', text: nul.given }])).toEqual([])
+    expect(() => evaluate(stored, { maybe: null }, [{ id: 'a', text: nul.given }])).toThrow(
+      QueryEvaluateError,
+    )
   })
 })
 

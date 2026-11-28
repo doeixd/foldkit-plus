@@ -248,6 +248,8 @@ const cartToggle = (added: boolean, domain: AvailableDomain, slots: Slots, h: H)
         slots.iconButton.attrs([
           h.Type('submit'),
           ...(added ? [h.DataAttribute('added', '')] : []),
+          h.DataAttribute('fk-msg', added ? 'ClickedRemoveDomain' : 'ClickedAddDomain'),
+          h.DataAttribute('fk-payload', JSON.stringify({ name: domain.name })),
           h.AriaLabel(added ? `Remove ${domain.name} from cart` : `Add ${domain.name} to cart`),
           h.AriaDescription(terms),
         ]),

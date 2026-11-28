@@ -349,7 +349,14 @@ const Restock = Write.update(
   `revision`) or by `op(field, amount)` whose commutativity and associativity are tested over every value
   for each implementation (`Conformance.laws`/`lawsBy`, `withEvidence`).
   `Write.apply(row, bound, { operators })` is the row a write leaves (a null under an amount stays null),
-  which guards judge, writers explain misses by, and clients predict.
+  which guards judge, writers explain misses by, and clients predict; it computes with metakit and throws
+  a `QueryEvaluateError` for a value metakit refuses (a sum past the safe integer range), never writing it.
+  `Computation.Call` carries no collation: text a collation compares arrives as a call of `text.lowerAscii`.
+- **`transitionOf(write)` (`foldkit-entity/transition`)** is a declared write as a metakit `Transition` over
+  `{ present, row }`: a set, link or context value is `set`, an increment `add` (a decrement adds the amount
+  negated), an insert sets `present` to true and a delete to false, so the checker, `Transition.commutes` and
+  the graph read it; `suppliedOf(write, by, read)` gives the `viewer` and `now` it is run with. Not in the
+  main entry, so a page that binds writes does not carry it.
 - **An invariant's lifecycle is what it reads.** `after` only: a state invariant, judged on every create
   and update, and a `CHECK` constraint (`checkConstraints`, `entityChecks`). `before` too: a transition invariant, judged
   on updates only. `Entity.readsBefore` of one of `Entity.invariants(entity)` tells which. One reading nothing of `after` is refused
@@ -387,11 +394,12 @@ How the declaration, its guard, its writer and the client fit together:
 
 A state is a named predicate over the row, a value declared once on the Entity
 (never a second descriptor, which every reader of an Entity would have to tell
-apart). A write starts from one and leaves another; `Laws.check` enumerates
-what every write does to every invariant and state.
+apart). A write starts from one and leaves another; `Laws.check` (`foldkit-entity/laws`, its own
+entry so a page never loads the checker) judges what every write does to every invariant and state.
 
 ```ts
-import { Footprint, Laws } from 'foldkit-entity'
+import { Footprint } from 'foldkit-entity'
+import { Laws } from 'foldkit-entity/laws'
 
 const Draft = Entity.refine(Product, 'Draft', { status: 'draft' }) // literal form: one eq per field
 const Published = Entity.refine(Product, 'Published', { status: 'published' })
@@ -426,8 +434,11 @@ Laws.show(report)
   `local`, so no `from` or `becomes` and no `inState`. `build` gets `row` only: no past.
 - **Verdicts.** A state invariant the write writes nothing of is `Kept` by disjointness; a transition
   invariant never is. All-finite members changed only by `set` are enumerated (`Kept` or `Refused` with
-  rows; the `when` drops rows it definitely refuses). Anything else (a number, an increment, a computed
-  field, a link, a missing operator, over 4,096 rows) is `Undecided` with a reason. Findings (`holds`,
+  rows; the `when` drops rows it definitely refuses). A number, an increment or a computed field goes to
+  metakit's checker: `Kept` with `by` the tier of its proof (`concrete`, `interval`, `zone`), `Refused`
+  with a row the reference judge refuses, or `Undecided` with its reason (a plain `Schema.Number` may be
+  NaN: `Schema.Finite` or `Schema.Int` decide it). A link, another row, a missing operator or over 4,096
+  rows is `Undecided` with a reason. Findings (`holds`,
   `enforced` for a `becomes` held where it commits, `undeclared`, `refused`, `unreached`, `terminal`)
   are reports, not faults.
 - **Footprints.** An entry that is no declared write is `{ name, entity, footprint }`:
@@ -480,7 +491,7 @@ Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
 One language for every rule and question (a query's `where` and order, an
 invariant, a state, a write's `when`, a guard's row rule). Three interpreters
 answer it alike: SQL (`foldkit-remote-drizzle`), `evaluate` (every row of one
-table, in memory) and `Judge` (what a holder has: `Known`, or `Unknown` with
+table, in memory) and `Judge` (what a holder has: a metakit `Verdict`, `Unknown` with
 why). Before writing one:
 
 - It follows SQL, not JavaScript: a comparison with null is unknown, and `not`
@@ -492,9 +503,20 @@ why). Before writing one:
   (`Entity.annotateMembers({ title: Collation.of(Collation.binary) })`), or the
   comparison throws, `evaluate` refuses the order (`evaluateEach`, which only
   judges membership, does not) and a client cannot place rows in the list.
-- A path or exists reads other rows: it is in `Query.dependencies(q).reaches`,
-  not `fields`; `evaluate` refuses it, `Judge` and SQL run it; a list never
-  orders by one.
+- An expression is a metakit `Expr`: its `node` is metakit's own (`Expr.eq`
+  builds `eq.equals`, a field reads the path `row.<key>`, `Expr.path` reads
+  `row.@relation.<key>`, `Expr.exists` is a `Rows` node), so metakit's
+  evaluator, judge, checker and SQL lowering read it as it is. There is no
+  `_tag` per kind of predicate to branch on, and two built separately are
+  compared by `Node.key(a.node)`, not `toEqual`. The types are `Expr<T>`,
+  `Predicate` (`Expr<boolean | null>`, so a boolean field is one) and
+  `InputExpr<T>`; no type names a kind of node, and a value is tested through
+  its `node`. `Expr`, `Query` and `Order` are namespaces, so a page keeps only
+  the members it calls.
+- A path or exists reads other rows: it is in `Query.dependencies(q).reaches`
+  (each a `Path`, `ViewerPath` or `Exists` description with its `expr`), not
+  `fields`; `evaluate` refuses it, `Judge` and SQL run it; a list never orders
+  by one.
 - `Expr.viewer` and `Expr.now` come from the run's context; a run without one
   is refused (`ContextMissingError`), a visitor's viewer is null.
 - A derived member is not an operand, and there is no aggregate. Arithmetic is
@@ -558,15 +580,20 @@ output: Schema.Boolean, definedAs: at => Expr.isNotNull(at) })` declares an oper
 by what a call means; `published(Story.fields.publishedAt)` is then a predicate
 (a boolean output) or a scalar, printed by name, listed in
 `Query.dependencies(body).operators`, and run by every interpreter as its expansion
-(`Expr.expanded`), so it needs no SQL of its own. `definedAs` may read only its
+(a call is the expression its body builds), so it needs no SQL of its own. `definedAs` may read only its
 arguments. `foldkit-cms`'s `Cms.published(entity)` is one, over the `published` role.
 Without `definedAs` an operator is **primitive**: each interpreter implements it.
 In memory, `Operators.memory(Operators.implement(op, (a, b, { collation }) => …))`
 is a table passed to `evaluate(body, input, rows, { operators })`, `Entity.judge`,
 `judgeInput` (`{ operators }`) and `Entity.check(entity, { operators })` (which throws where it is made
 for an operator the table lacks); `Operators.kernel` is the
-default and holds `Text.startsWith(text, prefix, { collation? })`, `Expr.add` and
-`Expr.sub` (as does every binding's SQL kernel). A strict operator
+default and implements nothing: every table runs `Text.startsWith(text, prefix,
+{ collation? })`, `Expr.add` and `Expr.sub` as metakit's own operations (as
+every binding's SQL kernel holds them) and refuses an implementation of one. An
+implementation is told no collation: a `'required'` operator is given its text
+folded. The judge runs through metakit, so a refusal (NUL, an integer past
+2^53 - 1, an answer of the wrong kind) throws `QueryEvaluateError` with its
+`refusal`, and an Entity's input refuses text holding a NUL where it is decoded. A strict operator
 (the default) never sees a null; `nulls: 'handled'` with
 `Operators.implementHandlingNulls` does. `collation: 'operands'` makes a text result
 carry its operands' collation; `'required'` refuses text with none. A body calling an
@@ -737,9 +764,11 @@ Expr.path(Feed.Post.relations.author,
   list orders by one.
 - `evaluate` (one plain row) refuses a path or an exists. `Judge.query(body,
   input, row)` reads a `HeldRow` (`Held.rows(tables)` over plain records) and
-  answers a `Verdict`: `Known` (SQL's answer) or `Unknown` with why, when the
+  answers a metakit `Verdict` (read with `Verdict.match` from `metakit`): `True` or `False`
+  (SQL's answer), or `Unknown` with why, when the
   answer rests on a field or row the holder lacks or may not see, or an operator
-  only the server runs. SQL's null stays a known answer. An exists is false only
+  only the server runs. SQL's null is `False`; `Judge.query`'s `False` carries no witness, where
+  `Judge.predicate`'s carries `'null'` for a null. An exists is false only
   where `HeldRow.pointing(relation, pinned)` misses no row: `pinned` is what its
   filter fixes (`Judge.pins(predicates, { input, context })`: each `eq` of a field
   and a literal, an input or the viewer, and whether that is all), so a holder of
@@ -752,7 +781,15 @@ Expr.path(Feed.Post.relations.author,
 viewer of another Entity), and `Expr.now` the time in milliseconds. Each side
 provides them once: a server from `RemoteServer.make({ viewer })` and its clock,
 a client from `Remote.make({ viewer })`. A run given no context refuses a body
-that reads one (`ContextMissingError`) rather than reading a visitor.
+that reads one (`ContextMissingError`) rather than reading a visitor. Each is
+an expression that says which it is (`term`: `'viewer'`, `'viewerPath'` for a
+path from the viewer, `'now'`); a reader of a write's context values branches
+with `matchContext(value, { viewer, viewerPath, now })`. A reader outside the
+package that runs expressions itself (a SQL compiler) reads them through
+`foldkit-entity/lowering`: `readingOf(exprs, terms)` gathers what they read past
+their own nodes (the order keys, the related rows an exists asks, the viewer's
+Entity, the foreign operations), `envOf` builds the environment from held rows,
+and `foreignOf` gives a memory table's implementations.
 
 <!-- docs-check
 const Note = Entity.define(

@@ -4,11 +4,13 @@
  */
 const tests = [
   'packages/entity/test/expr.test.ts',
+  'packages/entity/test/orderCall.test.ts',
   'packages/remote/test/impact.test.ts',
   'packages/remote/test/matching.test.ts',
   'packages/remote-drizzle/test/compile.test.ts',
 ]
-const expr = '../src/expr.ts'
+const expr = '../src/expr/query.ts'
+const dependencies = '../src/expr/dependencies.ts'
 const evaluate = '../src/evaluate.ts'
 const impact = '../../remote/src/impact.ts'
 const drizzle = '../../remote-drizzle/src/index.ts'
@@ -38,27 +40,18 @@ export default [
     name: 'the choices are not read as dependencies',
     edits: [
       {
-        file: expr,
-        find: 'for (const choice of Object.values(expr.choices)) walk(choice, found)',
+        file: dependencies,
+        find: '          ...Object.values(choices).map(choice => choice.node),\n',
         replace: '',
       },
     ],
     tests,
   },
-  {
-    name: 'a choice of another Entity is accepted',
-    edits: [
-      {
-        file: expr,
-        find: 'for (const choice of Object.values(expr.choices)) yield* fieldsIn(choice, seen)',
-        replace: '',
-      },
-    ],
-    tests,
-  },
+  // 'a choice of another Entity is accepted' is gone as its own mutation: dependencies and
+  // ownership now read a chosen order's choices through the one `nodesOf`, so it is the one above.
   {
     name: 'the evaluator ignores the order',
-    edits: [{ file: evaluate, find: 'Query.orderFor(body, input),', replace: '[],' }],
+    edits: [{ file: evaluate, find: 'orderFor(body, input),', replace: '[],' }],
     tests,
   },
   {
@@ -97,7 +90,11 @@ export default [
   {
     name: 'an order is left without a tie-break',
     edits: [
-      { file: expr, find: 'return endsOnId ? terms : [...terms, id]', replace: 'return terms' },
+      {
+        file: expr,
+        find: 'return endsOnId ? terms : [...terms, idTermOf(self.entity)]',
+        replace: 'return terms',
+      },
     ],
     tests,
   },
@@ -106,8 +103,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: 'return endsOnId ? terms : [...terms, id]',
-        replace: 'return [...terms, id]',
+        find: 'return endsOnId ? terms : [...terms, idTermOf(self.entity)]',
+        replace: 'return [...terms, idTermOf(self.entity)]',
       },
     ],
     tests,

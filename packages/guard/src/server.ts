@@ -17,6 +17,7 @@ import {
   type AnyEntity,
   type AnyQuery,
   type Invariant,
+  type Reach,
 } from 'foldkit-entity'
 import {
   Diagnostics,
@@ -40,6 +41,7 @@ import {
   type MemoryReadable,
   type ReadPlan,
   type ServerDefinition,
+  type StoreRequirement,
   type CascadeRequirement,
   type WriteRequirement,
   type WriteWhen,
@@ -90,9 +92,7 @@ interface ReachedMember {
  * path ends at, and an exists' pointing relation and filter. SQL reads such a
  * row under its `visible` rule alone, never its members'.
  */
-const reachedMembers = (
-  reaches: ReturnType<typeof dependenciesOf>['reaches'],
-): ReadonlyArray<ReachedMember> =>
+const reachedMembers = (reaches: ReadonlyArray<Reach>): ReadonlyArray<ReachedMember> =>
   reaches.flatMap(reached => {
     const via = reached.via.map(relation => ({ entity: relation.owner.name, key: relation.key }))
     return Match.valueTags(reached, {
@@ -191,68 +191,66 @@ export const GuardServer = {
         principal: Option.Option<User>,
         fields: readonly string[],
       ): Effect.Effect<ReadPlan, never, R> =>
-        Effect.map(
-          Effect.all([
-            policy.readMembers(entity, principal, fields),
-            // `may` is answered here, where the row is read as its principal sees it.
-            asksMay(entity, fields)
-              ? Effect.map(mayOf(entity, policy, principal), Option.some)
-              : Effect.succeed(Option.none<MayPlan>()),
-          ]),
-          ([members, may]): ReadPlan => {
-            if (members.length === 0 && Option.isNone(may)) return { fields, apply: noMembers }
-            const input = policy.inputOf(principal)
-            const decided = members.map(member => ({
-              ...member,
-              // A redacted value is a decoded one; the record holds what the store holds.
-              redacted: Match.valueTags(member.deny, {
-                Redact: deny =>
-                  Option.some(
-                    Schema.encodeSync(
-                      (entity.members as Readonly<Record<string, { readonly schema: Schema.Top }>>)[
-                        member.member
-                      ]!.schema as unknown as Schema.Codec<unknown, unknown>,
-                    )(deny.value),
-                  ),
-                NotFound: () => Option.none(),
-                Omit: () => Option.none(),
-                Forbidden: () => Option.none(),
-                Explain: () => Option.none(),
-              }),
-            }))
-            return {
-              fields: [
-                ...new Set([
-                  ...fields,
-                  ...members.flatMap(({ condition }) => Condition.members(condition)),
-                  ...Option.match(may, { onNone: () => [], onSome: ({ fields }) => fields }),
-                ]),
-              ],
-              apply: record => {
-                const values: Record<string, unknown> = { ...record.values }
-                for (const { member, condition, redacted } of decided) {
-                  // Member rules carry no inherited Read: only a row's Read may inherit.
-                  if (
-                    Condition.holds(condition, record.values, input, () => false, policy.operators)
-                  )
-                    continue
-                  Option.match(redacted, {
-                    onNone: () => {
-                      delete values[member]
-                    },
-                    onSome: value => {
-                      values[member] = value
-                    },
-                  })
-                }
-                Option.map(may, ({ answer }) => {
-                  values.may = answer(record.values)
+        Effect.gen(function* () {
+          const may = asksMay(entity, fields)
+            ? Option.some(yield* mayOf(entity, policy, principal))
+            : Option.none<MayPlan>()
+          const requested = Option.match(may, {
+            onNone: () => fields,
+            onSome: plan => [...new Set([...fields, ...plan.fields])],
+          })
+          const members = yield* policy.readMembers(entity, principal, requested)
+          if (members.length === 0 && Option.isNone(may)) return { fields, apply: noMembers }
+          const input = policy.inputOf(principal)
+          const decided = members.map(member => ({
+            ...member,
+            // A redacted value is a decoded one; the record holds what the store holds.
+            redacted: Match.valueTags(member.deny, {
+              Redact: deny =>
+                Option.some(
+                  Schema.encodeSync(
+                    (entity.members as Readonly<Record<string, { readonly schema: Schema.Top }>>)[
+                      member.member
+                    ]!.schema as unknown as Schema.Codec<unknown, unknown>,
+                  )(deny.value),
+                ),
+              NotFound: () => Option.none(),
+              Omit: () => Option.none(),
+              Forbidden: () => Option.none(),
+              Explain: () => Option.none(),
+            }),
+          }))
+          return {
+            fields: [
+              ...new Set([
+                ...requested,
+                ...members.flatMap(({ condition }) => Condition.members(condition)),
+              ]),
+            ],
+            apply: record => {
+              const values: Record<string, unknown> = { ...record.values }
+              const hidden = new Set<string>()
+              for (const { member, condition, redacted } of decided) {
+                // Member rules carry no inherited Read: only a row's Read may inherit.
+                if (Condition.holds(condition, record.values, input, () => false, policy.operators))
+                  continue
+                hidden.add(member)
+                Option.match(redacted, {
+                  onNone: () => {
+                    delete values[member]
+                  },
+                  onSome: value => {
+                    values[member] = value
+                  },
                 })
-                return { ...record, values }
-              },
-            }
-          },
-        ),
+              }
+              Option.map(may, ({ answer }) => {
+                values.may = answer(record.values, hidden)
+              })
+              return { ...record, values }
+            },
+          }
+        }).pipe(Effect.withSpan('guard.readPlan', { attributes: { entity: entity.name } })),
       policy,
       [entity],
     )
@@ -366,6 +364,14 @@ export const GuardServer = {
    * taken under its own are read from its guarded descriptor, given as
    * `children`; one missing is refused where the writer is made.
    *
+   * An Update or Delete rule that reads another row (a path, an exists), and
+   * each such rule of a row a delete takes or unlinks, decides from a row a
+   * concurrent write can change. It is held to its writer's store as a data
+   * rule over other rows is (`needs`): `RemoteServer.write` refuses the write
+   * on a store that does not run the writers under one parent one at a time
+   * (Postgres at read committed with no parent lock), naming the guard. SQLite
+   * and D1 hold it, since the writer judges it in the statement that writes.
+   *
    * ```ts
    * RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
    * GuardServer.writer(Post, Policy, writer(Db.Post), { children: [Like] })
@@ -440,6 +446,28 @@ export const GuardServer = {
         `[foldkit-guard] GuardServer.writer: a delete of ${entity.name} clears links of ${clearJudging.map(({ child }) => child.name).join(', ')} rows under their own Update rules, which only a writer judging rules in its statement and clearing links can hold it to (foldkit-remote-drizzle's writer); this writer does not`,
       )
     }
+    // A rule reading another row decides from a row a concurrent write can change, so
+    // its store must run the writers under that row's parent one at a time, as for a
+    // data rule. Each is handed to the writer as `requires`; where the writer says it
+    // judges what it is handed in its statement, that is enough on D1.
+    const judged = writer.judgesInStatement === true ? 'in-statement' : 'read-first'
+    const overOthers = (of: AnyEntity, interaction: 'Update' | 'Delete') =>
+      Option.match(enforced(of), {
+        onNone: () => [],
+        onSome: attachment =>
+          reachingRules(attachment, interaction).map((name): StoreRequirement => ({
+            rule: `guard "${name}" (${of.name}'s ${interaction} rule)`,
+            needs: 'parent-serialized',
+            because: 'it reads another row, which a concurrent write can change',
+            judged,
+          })),
+      })
+    const updating = overOthers(entity, 'Update')
+    const deleting = [
+      ...overOthers(entity, 'Delete'),
+      ...judging.flatMap(child => overOthers(child, 'Delete')),
+      ...clearJudging.flatMap(({ child }) => overOthers(child, 'Update')),
+    ]
     const used = new Set([
       ...judging.map(child => child.identity.token),
       ...clearJudging.map(({ child }) => child.identity.token),
@@ -847,7 +875,17 @@ export const GuardServer = {
             ),
             { entity: entity.name, id: context.id },
           )
-          if (read.some(key => !sameStored(before[key], after[key]))) {
+          const storedLinks = Option.getOrUndefined(stored)
+          const changed = (key: string): boolean => {
+            if (Object.hasOwn(links, key)) {
+              // `before[key]` may be masked to null when the caller cannot read the linked row;
+              // compare against the unmasked stored link when available, or fail closed if unknown.
+              if (storedLinks !== undefined) return !sameStored(storedLinks[key], after[key])
+              return before[key] === null || !sameStored(before[key], after[key])
+            }
+            return !sameStored(before[key], after[key])
+          }
+          if (read.some(changed)) {
             return yield* Effect.fail(refused(rules.row.deny))
           }
         }
@@ -870,7 +908,18 @@ export const GuardServer = {
           ({ rule, key }) => require([rule], { ...after, [key]: before[key] }, principal),
           { discard: true },
         )
-        return requires
+        return Option.match(requires, {
+          onNone: () => leaving,
+          onSome: req =>
+            Option.match(leaving, {
+              onNone: () => Option.some(req),
+              onSome: left =>
+                Option.some({
+                  holds: RowRequirement.All({ of: [req.holds, left.holds] }),
+                  reason: Option.orElse(req.reason, () => left.reason),
+                }),
+            }),
+        })
       })
     const guarded: EntityWriter<Option.Option<User>, R | RW> = {
       entity: writer.entity,
@@ -881,6 +930,8 @@ export const GuardServer = {
       // With a revision every update lands over the row its rules read. Without one an
       // unpinned move is refused, so what the writer would say commutes is not passed on.
       ...(revision === undefined ? {} : { pins: true }),
+      // Every update it lets through expects the revision it pins, which the writer moves on.
+      revision: revision ?? writer.revision,
       ...(writer.ledger === true ? { ledger: true } : {}),
       // Invariants are the writer's to judge, over the row its statement writes.
       ...(writer.invariants === true ? { invariants: true } : {}),
@@ -892,6 +943,24 @@ export const GuardServer = {
       ...(writer.restricts === true ? { restricts: true } : {}),
       // So is clearing a link to it; the guard hands over each such row's Update rules.
       ...(writer.clears === true ? { clears: true } : {}),
+      // So is refusing a link to a row that is gone, and saying where a foreign key holds one.
+      ...(writer.checksTargets === true ? { checksTargets: true } : {}),
+      ...(writer.foreignKey === undefined ? {} : { foreignKey: writer.foreignKey }),
+      // What its store guarantees of concurrent writes is the writer's to say.
+      store: writer.store,
+      // So is where it judges the rules a write declares, which the guard hands on.
+      ...(writer.judgesInStatement === true ? { judgesInStatement: true } : {}),
+      // What the guard's own rules over other rows need of that store, with the writer's.
+      needs: write => [
+        ...(writer.needs?.(write) ?? []),
+        ...Match.value(write).pipe(
+          Match.tagsExhaustive({
+            Insert: () => [],
+            Update: () => updating,
+            Delete: () => deleting,
+          }),
+        ),
+      ],
       // What the store refuses, the store knows: the guard drops none of its reasons. It
       // adds one: its rules judge the row the write leaves, worked out by the policy's
       // table, so an assignment that table cannot run would be judged as its old value.
@@ -1332,6 +1401,12 @@ export const GuardServer = {
             )
             const expected = write.expect?.field.key
             const pin = typeof writer === 'object' && writer !== null ? pins.get(writer) : undefined
+            const writerRev =
+              typeof writer === 'object' && writer !== null && 'revision' in writer
+                ? (writer as { readonly revision?: string }).revision
+                : undefined
+            const pinnedField = pin !== undefined && Option.isSome(pin) ? pin.value : undefined
+            const revField = writerRev ?? pinnedField
             return [
               ...open,
               ...when.map(
@@ -1341,6 +1416,11 @@ export const GuardServer = {
               ...computed,
               ...(expected !== undefined && readRuled(attachment, expected)
                 ? [`write ${mutation} expects ${name}'s ${expected}, which has a Read rule`]
+                : []),
+              ...(revField !== undefined && revField !== expected && readRuled(attachment, revField)
+                ? [
+                    `write ${mutation} carries ${name}'s revision ${revField}, which has a Read rule`,
+                  ]
                 : []),
               ...(expected !== undefined &&
               pin !== undefined &&
@@ -1482,7 +1562,10 @@ const asksMay = (entity: AnyEntity, fields: ReadonlyArray<string>) =>
 /** How one principal's `may` is answered: the fields its rules read, and the answer over a row. */
 interface MayPlan {
   readonly fields: ReadonlyArray<string>
-  readonly answer: (values: Readonly<Record<string, unknown>>) => MayAnswer
+  readonly answer: (
+    values: Readonly<Record<string, unknown>>,
+    hidden: ReadonlySet<string>,
+  ) => MayAnswer
 }
 
 /**
@@ -1505,14 +1588,20 @@ const mayOf = <User, R>(
     }),
     (rules): MayPlan => {
       const input = policy.inputOf(principal)
+      const dependencies = new Map(
+        mayConditions(rules).map(condition => [condition, Condition.members(condition)]),
+      )
       return {
         // `id` too, so a row is read when its rules read none of it (an admin's).
-        fields: ['id', ...new Set(mayConditions(rules).flatMap(Condition.members))],
+        fields: [...new Set(['id', ...[...dependencies.values()].flat()])],
         // A rule reading another row is the write's statement's to judge: not answered here.
-        answer: values =>
-          answerOf(rules, condition =>
-            Condition.decided(Condition.residual(condition, values, input, policy.operators)),
-          ),
+        answer: (values, hidden) =>
+          answerOf(rules, condition => {
+            if (dependencies.get(condition)!.some(member => hidden.has(member))) {
+              return Option.none()
+            }
+            return Condition.decided(Condition.residual(condition, values, input, policy.operators))
+          }),
       }
     },
   )

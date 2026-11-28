@@ -5,6 +5,7 @@
  * that holds only part of the rows is never wrong about what it says it knows.
  */
 import { Option, Result } from 'effect'
+import { Verdict } from 'metakit'
 import { Judge, type EntityRef } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { openDatabase, runLanguage } from '../src/language.js'
@@ -57,11 +58,13 @@ describe('the language trace', () => {
       '  SQLite: p1, p3',
     ])
     expect(lines.filter(line => line.startsWith('  SQLite ran:'))).toEqual([
-      `  SQLite ran: select "id", "headline" from "posts" where lower("posts"."headline") like lower(?) escape '\\' order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["%COMP%",101]`,
-      '  SQLite ran: select "id", "headline" from "posts" where not ("posts"."editor_id" = ?) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]',
-      '  SQLite ran: select "id", "headline" from "posts" where (("posts"."editor_id" is null) or not ("posts"."editor_id" = ?)) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]',
-      `  SQLite ran: select "id", "headline" from "posts" where lower((select "authors"."name" from "authors" where "authors"."id" = "posts"."author_id")) like lower(?) escape '\\' order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["%ada%",101]`,
-      '  SQLite ran: select "id", "headline" from "posts" where exists (select 1 from "comments" where "comments"."post_id" = "posts"."id" and "comments"."author_id" = ?) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a1",101]',
+      // Operations are written by metakit's SQL lowering (step 8 of the unification plan): a
+      // search is `instr` over the text lowered, its value lowered where it is bound.
+      '  SQLite ran: select "id", "headline" from "posts" where instr(lower("posts"."headline"), ?) > 0 order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["comp",101]',
+      '  SQLite ran: select "id", "headline" from "posts" where (NOT ("posts"."editor_id" COLLATE BINARY = ?)) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]',
+      '  SQLite ran: select "id", "headline" from "posts" where (("posts"."editor_id" IS NULL) OR (NOT ("posts"."editor_id" COLLATE BINARY = ?))) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]',
+      '  SQLite ran: select "id", "headline" from "posts" where instr(lower((select "authors"."name" from "authors" where "authors"."id" = "posts"."author_id")), ?) > 0 order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["ada",101]',
+      '  SQLite ran: select "id", "headline" from "posts" where EXISTS (SELECT 1 FROM "comments" WHERE "comments"."post_id" = "posts"."id" AND (("comments"."author_id" COLLATE BINARY = ?)) IS TRUE) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a1",101]',
     ])
   })
 })
@@ -212,18 +215,15 @@ describe('one body, three interpreters', () => {
         for (const question of asked(seed, rows)) {
           const sql = new Set((await database.ask(question)).ids)
           for (const { id, verdict } of judged(question, rows, partial)) {
-            Judge.match(verdict, {
-              onUnknown: () => {
-                unknown += 1
-              },
-              onKnown: truth => {
-                known += 1
-                if (truth !== sql.has(id))
-                  wrong.push(
-                    `seed ${seed} ${question.name} ${id}: Judge ${truth}, SQLite ${sql.has(id)}`,
-                  )
-              },
-            })
+            if (Verdict.isUnknown(verdict)) unknown += 1
+            else {
+              known += 1
+              const truth = Verdict.isTrue(verdict)
+              if (truth !== sql.has(id))
+                wrong.push(
+                  `seed ${seed} ${question.name} ${id}: Judge ${truth}, SQLite ${sql.has(id)}`,
+                )
+            }
           }
         }
       } finally {

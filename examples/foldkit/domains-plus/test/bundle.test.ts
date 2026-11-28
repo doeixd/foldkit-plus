@@ -46,7 +46,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // stand-ins; 4.4 kB to 9.7 kB minified) that the page draws. The ceiling is that plus about 1%.
 // -500 on 2026-11-15: 198,986 after the theme's storage streams left the `Theme` object (it read
 // 199,053 with them); the ceiling is that plus about 1%, rounded up.
-const CEILING = 201_000
+// +8,800 on 2026-11-26 (CI read 209,281): domains-plus adopted metakit/machine (`src/client/machine.ts`,
+// declaring 30 of its 39 own Messages as one Machine) alongside metakit's core evaluator and
+// foldkit-remote's IVM/Effect updates. Ceiling: CI's reading plus ~500, rounded up.
+const CEILING = 209_800
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))

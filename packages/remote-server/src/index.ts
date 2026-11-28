@@ -27,6 +27,7 @@ import {
   SchemaShape,
   Write,
   assertSupported,
+  dependenciesOf,
   evaluate,
   Query,
   type AnyEntity,
@@ -38,6 +39,7 @@ import {
   type Computation,
   type EntityMember,
   type EntityRef,
+  type EntityRelation,
   type Invariant,
   type Row,
   type WriteAssignment,
@@ -98,6 +100,13 @@ import {
   publishFailed,
   type InternalFailure,
 } from './diagnostics.js'
+import {
+  gives,
+  mount,
+  type Judged,
+  type Requirement as StoreRequirement,
+  type StoreCapabilities,
+} from 'metakit/store'
 import { unauthenticatedAnswer } from './refusal.js'
 import { memoryWriter } from './memoryWriter.js'
 
@@ -423,6 +432,9 @@ export type DeleteOutcome = Data.TaggedEnum<{
 }>
 export const DeleteOutcome = Data.taggedEnum<DeleteOutcome>()
 
+/** A `one` relation: what a row links through, and what a delete may act through. */
+export type LinkRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
+
 export interface EntityWriter<P, R = never> {
   readonly entity: string
   /**
@@ -463,6 +475,15 @@ export interface EntityWriter<P, R = never> {
    * real number, or any computed assignment, needs no `expect` of its own.
    */
   readonly pins?: true
+  /**
+   * The field holding the row's revision, which every `update` this writer
+   * lands moves on by one (the writer itself, or a database trigger such as
+   * `foldkit-remote-drizzle`'s `revisionTrigger`). `update` answers it with
+   * what it wrote, and `RemoteServer.write` sends it as the answered row's
+   * revision, so a client tells a write that landed right after the row it
+   * held from one another change came between.
+   */
+  readonly revision?: string | undefined
   /**
    * Whether `assignment`, landed without `expect`, gives one result whatever
    * order concurrent writes land in: its operator `op(field, amount)`, with
@@ -521,11 +542,54 @@ export interface EntityWriter<P, R = never> {
    */
   readonly clears?: true
   /**
+   * Whether `insert` and `update` refuse, in the same atomic step or
+   * transaction that writes, a link through a relation declared `onDelete`
+   * (`restrict`, `cascade` or `setNull`) to a row that is not there, answering
+   * `Invalid` with the relation's key as its path: such a relation promises
+   * that no row points at a row that is gone. `RemoteServer.write` refuses a
+   * write setting one through a writer without it, unless the database's own
+   * foreign key holds that link (`foreignKey`).
+   */
+  readonly checksTargets?: true
+  /**
+   * Whether the database holds the links of `relation` by a foreign key it
+   * enforces, which locks the row pointed at against its deleters at any
+   * isolation. What a delete or a link through `relation` needs of `store` is
+   * then held by that constraint (`metakit/store`'s `constraint`).
+   */
+  readonly foreignKey?: (relation: LinkRelation) => boolean
+  /**
    * Why this writer cannot land `write`, each a sentence; none when it can.
    * `RemoteServer.write` asks once, where the write is registered, for what
    * only the store knows: a column's type, say, which the Entity does not say.
    */
   readonly refuses?: (write: AnyWrite) => ReadonlyArray<string>
+  /**
+   * How the store this writer writes to runs concurrent writes
+   * (`metakit/store`'s vocabulary). Every writer says: `RemoteServer.write`
+   * refuses a writer that names none. A rule that reads other rows (a `when`
+   * or an invariant with a path or an exists) holds only where the writers of
+   * those rows run one at a time, so it is refused through a store that
+   * cannot.
+   */
+  readonly store: StoreCapabilities
+  /**
+   * Whether every rule `update`, `insert` and `delete` are handed (`when`,
+   * `requires`, invariants, a postcondition, cascading and clearing
+   * requirements) is judged inside the statement, or the one batch, that
+   * writes, never from a row read before it (an insert's invariants may be
+   * judged over its own values, which reads no row). A rule over other rows then
+   * holds on a store whose isolation reaches one statement (D1, `isolates:
+   * 'statement'`); `RemoteServer.write` refuses one there through a writer
+   * without it.
+   */
+  readonly judgesInStatement?: true
+  /**
+   * What this writer's own rules need of `store` for `write`, beyond the
+   * write's: a guard's rules over other rows. `RemoteServer.write` holds the
+   * store to them with the write's own, and refuses the write where it cannot.
+   */
+  readonly needs?: (write: AnyWrite) => ReadonlyArray<StoreRequirement>
   /**
    * The answer recorded for `operation`, when this writer has a ledger and
    * holds one: what a wrapping writer (a guard) answers a retry with, without
@@ -2561,6 +2625,12 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" writes ${write.input.entity.name}, but its writer is for ${writer.entity}`,
       )
     }
+    // A JavaScript caller, or a cast, can still hand over a writer the types forbid.
+    if (writer.store === undefined) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" writes through a writer for ${writer.entity} that names no store (store)`,
+      )
+    }
     // Without a revision, only a ledger tells a retry of an increment from a second one.
     if (write.increments.length > 0 && write.expect === undefined && writer.ledger !== true) {
       throw new Error(
@@ -2630,6 +2700,103 @@ export const RemoteServer = {
       )
     }
     const judged = [...declared, ...Option.toArray(write.ensures)]
+    // Writers that judge in-statement do so in UPDATE/DELETE statements; Insert checks its
+    // invariants in memory before executing INSERT, so an Insert's rules are always read-first.
+    const judgedWhere =
+      !kind.inserts && writer.judgesInStatement === true ? 'in-statement' : 'read-first'
+    // Two writes can each read other rows that admit them and together break the rule.
+    const clearedEntities = kind.deletes
+      ? [
+          ...new Map(
+            Entity.clearing(write.input.entity).map(({ owner }) => [owner.name, owner]),
+          ).values(),
+        ]
+      : []
+    const reaching: ReadonlyArray<StoreRequirement<`${Name} ${string}`>> = [
+      ...Option.match(write.when, {
+        onNone: () => [],
+        onSome: when => (Query.dependencies(when).reaches.length > 0 ? ['precondition'] : []),
+      }),
+      ...judged
+        .filter(held => dependenciesOf(held.predicate).reaches.length > 0)
+        .map(held => `invariant "${held.id}"`),
+      ...clearedEntities.flatMap(owner =>
+        Entity.invariants(owner)
+          .filter(held => dependenciesOf(held.predicate).reaches.length > 0)
+          .map(held => `clear invariant "${owner.name}.${held.id}"`),
+      ),
+    ].map(rule => ({
+      rule: `${mutation.name} ${rule}` as const,
+      needs: 'parent-serialized',
+      because: 'it reads other rows',
+      judged: judgedWhere,
+    }))
+    // A relation declared onDelete promises that no row points at a row that is gone. A
+    // delete reads the rows pointing at its row, and a link reads the row it points at:
+    // a link written while that row is deleted breaks the promise unless writers of the
+    // row run one at a time, or the database's foreign key holds the link.
+    const constrained = (relation: LinkRelation) => writer.foreignKey?.(relation) === true
+    const linking = (relation: LinkRelation, judged: Judged) =>
+      constrained(relation) ? 'constraint' : judged
+    const linkName = ({ owner, key }: LinkRelation) => `${owner.name}.${key}`
+    const links = kind.deletes
+      ? []
+      : [
+          ...write.links.map(({ relation }) => relation),
+          ...write.context.flatMap(({ member }) =>
+            Match.value(member).pipe(
+              Match.tagsExhaustive({
+                Field: (): ReadonlyArray<LinkRelation> => [],
+                Relation: relation => [relation],
+              }),
+            ),
+          ),
+        ].filter(relation => Option.isSome(relation.onDelete))
+    const unchecked = links.filter(relation => !constrained(relation))
+    if (unchecked.length > 0 && writer.checksTargets !== true) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" links ${unchecked.map(linkName).join(', ')}, declared onDelete, but its writer for ${writer.entity} does not refuse a link to a row that is not there (checksTargets)`,
+      )
+    }
+    /** Each relation a delete of `entity` acts through: rows it takes, refuses over, or clears. */
+    const actsThrough = (
+      entity: AnyEntity,
+      seen: Set<string>,
+    ): ReadonlyArray<{ readonly does: string; readonly relation: LinkRelation }> => [
+      ...Entity.restricting(entity).map(({ relation }) => ({ does: 'restrict', relation })),
+      ...Entity.clearing(entity).map(({ relation }) => ({ does: 'clear', relation })),
+      ...Entity.cascading(entity).flatMap(({ relation, owner }) => {
+        if (seen.has(owner.name)) return [{ does: 'cascade', relation }]
+        seen.add(owner.name)
+        return [{ does: 'cascade', relation }, ...actsThrough(owner, seen)]
+      }),
+    ]
+    const pointing: ReadonlyArray<StoreRequirement<`${Name} ${string}`>> = [
+      ...links.map(relation => ({
+        rule: `${mutation.name} link ${linkName(relation)}` as const,
+        needs: 'parent-serialized' as const,
+        because: `the ${relation.target().name} it points at may be deleted while it is written`,
+        judged: linking(relation, 'in-statement'),
+      })),
+      ...(kind.deletes
+        ? actsThrough(write.input.entity, new Set([write.input.entity.name]))
+        : []
+      ).map(({ does, relation }) => ({
+        rule: `${mutation.name} ${does} ${linkName(relation)}` as const,
+        needs: 'parent-serialized' as const,
+        because: `a ${relation.owner.name} may come to point at the row while it is deleted`,
+        judged: linking(relation, judgedWhere),
+      })),
+    ]
+    const needed = [
+      ...reaching,
+      ...pointing,
+      ...(writer.needs?.(write) ?? []).map(need => ({
+        ...need,
+        rule: `${mutation.name} ${need.rule}`,
+      })),
+    ]
+    if (needed.length > 0) mount(writer.store, needed)
     // An insert's row is its values and its links (a `one` relation an invariant reads as the
     // id it points at): a member it leaves to a default the writer cannot judge.
     if (kind.inserts) {
@@ -2871,7 +3038,20 @@ export const RemoteServer = {
               ),
             ),
           )
-        const answered = (bound: BoundWrite, values: Readonly<Record<string, unknown>>) => {
+        // The revision an update left the row at, as its writer answered it (`EntityWriter.revision`).
+        const revisionOf = (values: Readonly<Record<string, unknown>>): Option.Option<number> => {
+          const field = writer.revision
+          const revision =
+            field === undefined || !Object.hasOwn(values, field) ? undefined : values[field]
+          return typeof revision === 'number' && Number.isFinite(revision)
+            ? Option.some(revision)
+            : Option.none()
+        }
+        const answered = (
+          bound: BoundWrite,
+          values: Readonly<Record<string, unknown>>,
+          revision: Option.Option<number> = Option.none(),
+        ) => {
           const read = writer.read
           const shown =
             read === undefined
@@ -2888,7 +3068,18 @@ export const RemoteServer = {
               }),
               onSome: seen => ({
                 output: {},
-                entities: [{ entity: bound.entity, id: bound.id, values: seen }],
+                // A revision is the writer's, of the row it wrote: no field, so no read rule cuts it.
+                entities: [
+                  {
+                    entity: bound.entity,
+                    id: bound.id,
+                    values: seen,
+                    ...Option.match(revision, {
+                      onNone: () => ({}),
+                      onSome: revision => ({ revision }),
+                    }),
+                  },
+                ],
                 connections: [],
                 deleted: [],
               }),
@@ -2945,7 +3136,7 @@ export const RemoteServer = {
                   ),
                 )
                 if (Option.isSome(written))
-                  return naming(yield* answered(bound, written.value), [
+                  return naming(yield* answered(bound, written.value, revisionOf(written.value)), [
                     ...before,
                     ...(yield* pointedAt(bound.id, principal)),
                   ])
@@ -3140,7 +3331,7 @@ export const RemoteServer = {
     }
     if (config.viewer === undefined) {
       const viewing = (config.mutations ?? []).find(source =>
-        (source.writes?.write.context ?? []).some(({ value }) => value._tag === 'Viewer'),
+        (source.writes?.write.context ?? []).some(({ value }) => value.term === 'viewer'),
       )
       if (viewing !== undefined) {
         throw new Error(
@@ -3585,10 +3776,12 @@ export const RemoteServer = {
 
         return {
           output,
+          // `sent` holds only rows the caller may read; a row's revision is no field, and goes with it.
           entities: sent.map(patch => ({
             entity: patch.entity,
             id: patch.id,
             values: patch.values,
+            ...(patch.revision === undefined ? {} : { revision: patch.revision }),
           })),
           connections: outcome.connections,
           deleted: outcome.deleted.map(gone => ({ entity: gone.entity, id: gone.id })),
@@ -3720,7 +3913,44 @@ export const RemoteServer = {
 
 export * from './evaluate.js'
 export type { MemoryWriterOptions } from './memoryWriter.js'
+/** What an `EntityWriter`'s `store` declares; `metakit/store` says what each level gives. */
+export type { StoreCapabilities }
+/** What a writer's own rules need of its store (`EntityWriter.needs`); `metakit/store`'s `Requirement`. */
+export type { StoreRequirement }
 export { bodyLimit } from './body.js'
+
+/**
+ * Verify that `store` can enforce a row-aggregate data rule (such as a parent
+ * entity summing its children). On stores that only isolate a single statement
+ * (like D1 / SQLite), refuses with an actionable message naming Postgres's
+ * parent lock or an in-statement guard.
+ */
+export const checkAggregateRule = (
+  store: StoreCapabilities,
+  rule: {
+    readonly name: string
+    readonly entity: string
+    readonly over: string
+    readonly judged?: 'in-statement' | 'read-first' | undefined
+  },
+): void => {
+  const judged = rule.judged ?? 'read-first'
+  if (gives(store, 'parent-serialized', judged)) return
+  const isolates = store.isolates ?? 'statement'
+  if (isolates !== 'transaction' && judged === 'read-first') {
+    throw new Error(
+      `[foldkit-remote-server] the rule "${rule.name}" of ${rule.entity} sums its ${rule.over} and needs parent-serialized; ${store.name} (${store.isolation} per ${isolates}) judges it from a read first. Judge it on Postgres with the parent lock, or as a guard in the statement.`,
+    )
+  }
+  mount(store, [
+    {
+      rule: `${rule.entity}.${rule.name}`,
+      needs: 'parent-serialized',
+      because: `it sums its ${rule.over}`,
+      judged,
+    },
+  ])
+}
 export type {
   AnswerUnread,
   CachedReadDiffers,

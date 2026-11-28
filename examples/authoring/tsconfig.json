@@ -10,6 +10,7 @@
     "types": ["node", "vite/client"],
     "paths": {
       "foldkit-agent": ["../../packages/agent/src/index.ts"],
+      "foldkit-agent/metakit": ["../../packages/agent/src/metakit.ts"],
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
@@ -38,13 +39,16 @@
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote/filter": ["../../packages/remote/src/filter.ts"],
       "foldkit-remote/live": ["../../packages/remote/src/live.ts"],
+      "foldkit-remote/maintained": ["../../packages/remote/src/maintained/index.ts"],
       "foldkit-remote/outbox": ["../../packages/remote/src/outbox.ts"],
       "foldkit-remote/overlay": ["../../packages/remote/src/overlay.ts"],
       "foldkit-remote/persistence": ["../../packages/remote/src/persistence.ts"],
       "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
       "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
       "foldkit-remote/why": ["../../packages/remote/src/why.ts"],
-      "foldkit-surface": ["../../packages/surface/src/index.ts"]
+      "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-surface/declared": ["../../packages/surface/src/declared.ts"],
+      "foldkit-surface/writes": ["../../packages/surface/src/writes.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"],

@@ -13,11 +13,13 @@
  */
 import {
   Cause,
+  Config,
   Deferred,
   Duration,
   Effect,
   Exit,
   Layer,
+  type ManagedRuntime,
   Option,
   Result,
   Schedule,
@@ -62,6 +64,26 @@ import {
 } from './edgeCache.js'
 import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
 import { unauthenticatedAnswer } from './refusal.js'
+
+/**
+ * Effect `Config` for `serveFetch` path and body/query limits. Load via any
+ * `ConfigProvider` (`REMOTE_PATH`, `REMOTE_MAX_BODY_BYTES`,
+ * `REMOTE_MAX_IDS_PER_ENTITY`, `REMOTE_MAX_DEPTH`) and spread into `serveFetch`.
+ */
+export const fetchLimitsConfig: Config.Config<{
+  readonly path: string
+  readonly maxBodyBytes: number
+  readonly maxIdsPerEntity: number
+  readonly maxDepth: number
+}> = /*#__PURE__*/ (() =>
+  Config.all({
+    path: Config.String('REMOTE_PATH').pipe(Config.withDefault('/remote')),
+    maxBodyBytes: Config.Int('REMOTE_MAX_BODY_BYTES').pipe(
+      Config.withDefault(DEFAULT_MAX_BODY_BYTES),
+    ),
+    maxIdsPerEntity: Config.Int('REMOTE_MAX_IDS_PER_ENTITY').pipe(Config.withDefault(1000)),
+    maxDepth: Config.Int('REMOTE_MAX_DEPTH').pipe(Config.withDefault(8)),
+  }))()
 
 /** What `serveFetch` needs of the host runtime, per request. */
 export interface FetchConfig<P, R, Env, RP = never> {
@@ -128,6 +150,12 @@ export interface FetchConfig<P, R, Env, RP = never> {
   readonly maxIdsPerEntity?: number | undefined
   /** A nested selection may not reach further than this many levels; default 8. */
   readonly maxDepth?: number | undefined
+  /**
+   * Optional shared `ManagedRuntime` for long-lived servers (Node/Bun). When
+   * supplied, each request runs directly on this runtime instead of building
+   * `layer(env)` fresh per request (which remains the default for Workers).
+   */
+  readonly runtime?: ManagedRuntime.ManagedRuntime<NoInfer<R | RP>, never> | undefined
   /**
    * A request body may not be larger than this many bytes; default 1 MiB. A
    * larger one is a 413 with Remote's `tooLarge` answer, refused before it is
@@ -537,7 +565,9 @@ export const serveFetch = <P, R, Env, RP = never>(
         )
         return { response, live: false }
       }
-      const answered = yield* RemoteServer.answer(handlers, body.success)
+      const answered = yield* RemoteServer.answer(handlers, body.success).pipe(
+        Effect.withSpan('remote.answer'),
+      )
       if (cache !== undefined && answered.status === 200 && isWrite(body.success)) {
         yield* cache.store.purge(writeTags('result' in answered.body ? answered.body.result : {}))
       }
@@ -559,21 +589,41 @@ export const serveFetch = <P, R, Env, RP = never>(
     if (declaresTooLarge(request, maxBodyBytes)) {
       return Response.json(tooLargeAnswer(maxBodyBytes), { status: 413 })
     }
-    const exit = await Effect.runPromiseExit(
-      Effect.gen(function* () {
-        // Not Effect.provide(layer), which closes it when `respond` returns,
-        // before a live stream has served a frame: the stream's re-reads and
-        // revalidation would run on released resources.
-        const scope = yield* Scope.make()
-        const answered = yield* Layer.buildWithScope(config.layer(env), scope).pipe(
-          Effect.flatMap(context => Effect.provide(respond(request, env, scope), context)),
-          Effect.onExit(exit =>
-            Exit.isSuccess(exit) && exit.value.live ? Effect.void : Scope.close(scope, exit),
-          ),
-        )
-        return answered.response
-      }).pipe(reportingFor(request)),
-    )
+    const runRequest =
+      config.runtime !== undefined
+        ? config.runtime.runPromiseExit(
+            Effect.gen(function* () {
+              const scope = yield* Scope.make()
+              const answered = yield* respond(request, env, scope).pipe(
+                Effect.onExit(exit =>
+                  Exit.isSuccess(exit) && exit.value.live ? Effect.void : Scope.close(scope, exit),
+                ),
+              )
+              return answered.response
+            }).pipe(
+              Effect.withSpan('remote.fetch', { attributes: { path } }),
+              reportingFor(request),
+            ),
+          )
+        : Effect.runPromiseExit(
+            Effect.gen(function* () {
+              // Not Effect.provide(layer), which closes it when `respond` returns,
+              // before a live stream has served a frame: the stream's re-reads and
+              // revalidation would run on released resources.
+              const scope = yield* Scope.make()
+              const answered = yield* Layer.buildWithScope(config.layer(env), scope).pipe(
+                Effect.flatMap(context => Effect.provide(respond(request, env, scope), context)),
+                Effect.onExit(exit =>
+                  Exit.isSuccess(exit) && exit.value.live ? Effect.void : Scope.close(scope, exit),
+                ),
+              )
+              return answered.response
+            }).pipe(
+              Effect.withSpan('remote.fetch', { attributes: { path } }),
+              reportingFor(request),
+            ),
+          )
+    const exit = await runRequest
     if (Exit.isSuccess(exit)) return exit.value
     // A failure of the layer, or a defect anywhere: this side broke, and the
     // caller learns that it did, not what; the diagnostics learn what. `answer`

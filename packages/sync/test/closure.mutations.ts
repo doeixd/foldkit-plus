@@ -9,8 +9,8 @@ export default [
     edits: [
       {
         file: '../src/mount.ts',
-        find: '      return Closure.reads(app, sync.projection, model, message)',
-        replace: '      return []',
+        find: '      return { fields: Closure.reads(app, sync.projection, model, message) }',
+        replace: '      return { fields: [] }',
       },
     ],
     tests,
@@ -22,9 +22,9 @@ export default [
     edits: [
       {
         file: '../src/mount.ts',
-        find: '      return Closure.reads(app, sync.projection, model, message)',
+        find: '      return { fields: Closure.reads(app, sync.projection, model, message) }',
         replace:
-          '      return Closure.reads(app, sync.projection, sync.projection.set(model, Effect.runSync(replica.snapshot).shared), message)',
+          '      return { fields: Closure.reads(app, sync.projection, sync.projection.set(model, Effect.runSync(replica.snapshot).shared), message) }',
       },
     ],
     tests,
@@ -36,8 +36,8 @@ export default [
     edits: [
       {
         file: '../src/mount.ts',
-        find: '    if (outside.length > 0) {',
-        replace: '    if (outside.length > 0 && false) {',
+        find: '    if (outside.fields.length > 0) {',
+        replace: '    if (outside.fields.length > 0 && false) {',
       },
     ],
     tests,
@@ -59,7 +59,7 @@ export default [
     edits: [
       {
         file: '../src/mount.ts',
-        find: "shared projection: ${outside.join(', ')}`",
+        find: "shared projection: ${outside.fields.join(', ')}`",
         replace: 'shared projection`',
       },
     ],

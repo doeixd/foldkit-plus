@@ -18,6 +18,8 @@ import {
   type Journal as JournalShape,
 } from 'foldkit-durable'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { Arr, Eq, Expr, Num, Path, Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   Sync,
@@ -31,6 +33,7 @@ import {
   type WrittenOperation,
 } from '../src/index.js'
 import { journalExchange, reaction, serverJournal } from '../src/journal.js'
+import { SyncDeclared } from '../src/metakit.js'
 import { memoryStorage } from './memoryStorage.js'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String })
@@ -76,13 +79,14 @@ const options = {
 }
 
 /** The guide's cap, as a law: no rule of `authorize` names it. */
+const { model } = Path.forEnv({ model: options.shared.schema })
 const Capped = Sync.forApplication(App)
   .withPrincipal<string>()
   .make({
     ...options,
     laws: {
       atMost100Todos: {
-        holds: ({ after }) => after.todos.length <= 100,
+        holds: SyncDeclared.holds(Num.lte(Arr.count(model.todos), 100)),
         message: 'A list holds 100 todos',
         path: ['todos'],
       },
@@ -90,6 +94,20 @@ const Capped = Sync.forApplication(App)
   })
 /** The same document before the law was added. */
 const Uncapped = Sync.forApplication(App).withPrincipal<string>().make(options)
+const most = Number.MAX_SAFE_INTEGER
+/** A law metakit cannot evaluate from the second todo on: the product is past ±(2^53−1). */
+const Exact = Sync.forApplication(App)
+  .withPrincipal<string>()
+  .make({
+    ...options,
+    laws: {
+      exact: {
+        holds: SyncDeclared.holds(Num.lte(Num.mul(Arr.count(model.todos), most), most)),
+        message: 'The count stays exact',
+        path: ['todos'],
+      },
+    },
+  })
 type Shared = Parameters<typeof Capped.replay>[0]
 const key = JournalDocumentId.make('todos-capped')
 const encode = Schema.encodeSync(Message)
@@ -104,7 +122,10 @@ afterEach(() => {
 
 type TodosJournal = JournalShape<Operation, Shared, string>
 
-const openJournal = (sync: typeof Capped | typeof Uncapped, at = ':memory:'): TodosJournal => {
+const openJournal = (
+  sync: typeof Capped | typeof Uncapped | typeof Exact,
+  at = ':memory:',
+): TodosJournal => {
   const scope = Effect.runSync(Scope.make())
   scopes.push(scope)
   return Effect.runSync(
@@ -173,6 +194,97 @@ const count = (journal: TodosJournal) =>
   run(journal.load(key)).then(loaded => loaded.snapshot.todos.length)
 
 describe('a law', () => {
+  it('rejects an unreachable transition and a transition that breaks an expression law', () => {
+    const state = Schema.Struct({ model: options.shared.schema })
+    const input = Message.CreatedTodo
+    const rule = {
+      holds: SyncDeclared.holds(Num.lte(Arr.count(model.todos), 0)),
+      message: 'Must stay empty',
+    }
+    const make = (transition: Transition.Transition<typeof state.Type, typeof input.Type>) =>
+      Sync.forApplication(App).make({
+        ...options,
+        laws: { empty: rule },
+        transitions: { CreatedTodo: SyncDeclared.transition(transition) },
+      })
+    expect(() =>
+      make(Transition.make({ state, input, when: () => false, apply: () => [] })),
+    ).toThrow('unreachable guard')
+    // Reachable on its own, and never under the law.
+    expect(() =>
+      make(
+        Transition.make({
+          state,
+          input,
+          when: ({ state }) => Num.gt(Arr.count(state.model.todos), 0),
+          apply: () => [],
+        }),
+      ),
+    ).toThrow('unreachable guard')
+    expect(() =>
+      make(
+        Transition.make({
+          state,
+          input,
+          apply: ({ state }) => [Transition.set(state.model.todos, [{ id: '1', title: 'one' }])],
+        }),
+      ),
+    ).toThrow('violates a shared-state invariant')
+  })
+
+  it('rejects a transition under a tag the document does not record', () => {
+    const local = SyncDeclared.transition(
+      Transition.make({
+        state: Schema.Struct({ model: options.shared.schema }),
+        input: Message.ChangedFilter,
+        apply: () => [],
+      }),
+    )
+    expect(() =>
+      Sync.forApplication(App).make({
+        ...options,
+        // @ts-expect-error ChangedFilter is neither durable nor server-only
+        transitions: { ChangedFilter: local },
+      }),
+    ).toThrow('Sync.make: "ChangedFilter" is not a recorded Message')
+  })
+
+  it('refuses a Message whose transition guard is false, in the replica and in the journal', async () => {
+    const only = [{ id: 'only', title: 'The one todo' }]
+    const Single = Sync.forApplication(App)
+      .withPrincipal<string>()
+      .make({
+        ...options,
+        transitions: {
+          CreatedTodo: SyncDeclared.transition(
+            Transition.make({
+              state: Schema.Struct({ model: options.shared.schema }),
+              input: Message.CreatedTodo,
+              when: ({ state }) => Num.lt(Arr.count(state.model.todos), 1),
+              apply: ({ state }) => [Transition.set(state.model.todos, only)],
+            }),
+          ),
+        },
+      })
+    const journal = openJournal(Single)
+    const reply = (await journalExchange({ sync: Single, journal, principal: 'ada' }).exchange(
+      sequence(0),
+      [1, 2].map(n => entry(Message.CreatedTodo({ id: `t${n}`, title: 'x' }), 'tab', n)),
+    )) as Reply
+    expect([reply.acknowledged, reply.rejected]).toEqual([['tab:1'], ['tab:2']])
+    expect((await run(journal.load(key))).snapshot.todos).toEqual(only)
+
+    const replica = await run(Single.openReplica(memoryStorage(), { replicaId: replicaId('r') }))
+    const submit = (id: string) =>
+      run(Effect.exit(replica.submit(Message.CreatedTodo({ id, title: 'x' }))))
+    expect(Exit.isSuccess(await submit('a'))).toBe(true)
+    expect(Exit.isFailure(await submit('b'))).toBe(true)
+    expect((await run(replica.shared)).todos).toEqual(only)
+    expect((await run(replica.status)).pending).toBe(1)
+    // A tag with no declaration is still replayed by the application's update.
+    await run(replica.submit(Message.RemovedTodo({ id: 'only' })))
+    expect((await run(replica.shared)).todos).toEqual([])
+  })
   it('refuses at 100 every durable Message that grows the list, as Invalid naming the law', async () => {
     const journal = openJournal(Capped)
     await fill(journal, 100)
@@ -357,6 +469,44 @@ describe("the server's own appends", () => {
   })
 })
 
+/**
+ * A law metakit refuses to evaluate over a snapshot does not hold of it: the
+ * operation is refused by the law, as one that makes it false is.
+ */
+describe('a law whose evaluation is refused', () => {
+  it('is a broken law in the replica, before the outbox', async () => {
+    const replica = await run(Exact.openReplica(memoryStorage(), { replicaId: replicaId('ada') }))
+    await run(replica.submit(Message.CreatedTodo({ id: 't1', title: 'chore' })))
+    const failure = await run(
+      Effect.flip(replica.submit(Message.CreatedTodo({ id: 't2', title: 'chore' }))),
+    )
+    expect(failure).toMatchObject({ _tag: 'LawBrokenError', rule: 'exact' })
+    expect(await run(replica.pending)).toHaveLength(1)
+  })
+
+  it('is a broken law where the journal commits, as Invalid naming it', async () => {
+    const journal = openJournal(Exact)
+    const reply = (await journalExchange({ sync: Exact, journal, principal: 'ada' }).exchange(
+      sequence(0),
+      [
+        entry(Message.CreatedTodo({ id: 't1', title: 'chore' }), 'tab', 1),
+        entry(Message.CreatedTodo({ id: 't2', title: 'chore' }), 'tab', 2),
+      ],
+    )) as Reply
+    expect(reply.acknowledged).toEqual(['tab:1'])
+    expect(reply.rejected).toEqual(['tab:2'])
+    expect(reply.refusals?.map(({ refusal }) => decodeRefusal(refusal))).toEqual([
+      SyncRefusal.Invalid({
+        entity: Option.none(),
+        rule: Option.some('exact'),
+        message: 'The count stays exact',
+        path: ['todos'],
+      }),
+    ])
+    expect(await count(journal)).toBe(1)
+  })
+})
+
 describe('a replica', () => {
   it('refuses with LawBrokenError, before the outbox, a Message whose result breaks a law', async () => {
     const replica = await run(Capped.openReplica(memoryStorage(), { replicaId: replicaId('ada') }))
@@ -376,5 +526,176 @@ describe('a replica', () => {
     // A Message the law takes still goes.
     await run(replica.submit(Message.RemovedTodo({ id: 't1' })))
     expect(await run(replica.pending)).toHaveLength(101)
+  })
+})
+
+describe('SyncDeclared.fromMachine', () => {
+  const AppMachine = Machine.make({
+    state: Model,
+    transitions: {
+      CreatedTodo: Transition.make({
+        state: Model,
+        input: Message.CreatedTodo,
+        apply: ({ state, input }) => [
+          Transition.insert(state.todos, { id: input.id, title: input.title }),
+        ],
+      }),
+      RemovedTodo: Transition.make({
+        state: Model,
+        input: Message.RemovedTodo,
+        apply: ({ state, input }) => [Transition.remove(state.todos, input.id)],
+      }),
+      ChangedFilter: Transition.make({
+        state: Model,
+        input: Message.ChangedFilter,
+        apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
+      }),
+      Emitting: Transition.make({
+        state: Model,
+        input: Message.CreatedTodo,
+        apply: () => [],
+        emits: () => [Transition.emit('Notify', {})],
+      }),
+      Supplied: Transition.make({
+        state: Model,
+        input: Message.CreatedTodo,
+        supplied: { id: Schema.String },
+        apply: ({ state, input, supplied }) => [
+          Transition.insert(state.todos, { id: supplied.id, title: input.title }),
+        ],
+      }),
+      Unbounded: Transition.make({
+        state: Model,
+        input: Message.CreatedTodo,
+        when: () => Expr.opaque({ name: 'clock' }, () => true),
+        apply: ({ state, input }) => [
+          Transition.insert(state.todos, { id: input.id, title: input.title }),
+        ],
+      }),
+      ReadsFilter: Transition.make({
+        state: Model,
+        input: Message.CreatedTodo,
+        when: ({ state }) => Eq.is(state.filter, ''),
+        apply: ({ state, input }) => [
+          Transition.insert(state.todos, { id: input.id, title: input.title }),
+        ],
+      }),
+    },
+  })
+  const fromMachine = (
+    tag: keyof typeof AppMachine.transitions,
+    dependencies = options.shared.dependencies,
+  ) =>
+    SyncDeclared.fromMachine(
+      AppMachine,
+      [tag],
+      { dependencies, get: options.shared.get, set: options.shared.set },
+      App.initial,
+    )
+
+  it.each([
+    [
+      'writes outside the shared slice',
+      'ChangedFilter',
+      /writes "filter", outside the shared slice/,
+    ],
+    ['emits a Command', 'Emitting', /emits a Command; durable transitions are state-only/],
+    ['declares supplied values', 'Supplied', /declares supplied values, and a replay passes none/],
+    ['has reads it does not bound', 'Unbounded', /reads it does not bound/],
+    ['reads outside the shared slice', 'ReadsFilter', /reads "filter", outside the shared slice/],
+  ] as const)('refuses, at definition, a tag that %s', (_, tag, reason) => {
+    expect(() => fromMachine(tag)).toThrow(reason)
+  })
+
+  it('refuses a tag the Machine does not declare', () => {
+    expect(() =>
+      SyncDeclared.fromMachine(
+        AppMachine,
+        // @ts-expect-error not a transition of the Machine
+        ['Missing'],
+        options.shared,
+        App.initial,
+      ),
+    ).toThrow(/not a transition of this Machine/)
+  })
+
+  it('refuses a write to a parent of the shared slice', () => {
+    // `CreatedTodo` writes `todos`, which is above the slice `todos.*.title`.
+    expect(() => fromMachine('CreatedTodo', [['todos', '*', 'title']])).toThrow(
+      /writes "todos", outside the shared slice/,
+    )
+  })
+
+  it('keeps the Model where the transition refuses, as SyncDeclared.transition does', () => {
+    const Guarded = Machine.make({
+      state: Model,
+      transitions: {
+        RemovedTodo: Transition.make({
+          state: Model,
+          input: Message.RemovedTodo,
+          when: ({ state }) => Num.gt(Arr.count(state.todos), 0),
+          apply: ({ state, input }) => [Transition.remove(state.todos, input.id)],
+        }),
+      },
+    })
+    const sync = Sync.forApplication(App).make({
+      ...options,
+      transitions: SyncDeclared.fromMachine(Guarded, ['RemovedTodo'], options.shared, App.initial),
+    })
+    expect(() => sync.replay({ todos: [] }, Message.RemovedTodo({ id: 'gone' }))).toThrow()
+  })
+
+  it('gives the live Model: the next one, and the same one where refused or unchanged', () => {
+    const Same = Machine.make({
+      state: Model,
+      transitions: {
+        CreatedTodo: Transition.make({
+          state: Model,
+          input: Message.CreatedTodo,
+          when: ({ state }) => Num.lt(Arr.count(state.todos), 1),
+          apply: ({ state, input }) => [
+            Transition.insert(state.todos, { id: input.id, title: input.title }),
+          ],
+        }),
+        RemovedTodo: Transition.make({
+          state: Model,
+          input: Message.RemovedTodo,
+          apply: ({ state }) => [Transition.set(state.todos, state.todos)],
+        }),
+      },
+    })
+    const sync = Sync.forApplication(App).make({
+      ...options,
+      transitions: SyncDeclared.fromMachine(
+        Same,
+        ['CreatedTodo', 'RemovedTodo'],
+        options.shared,
+        App.initial,
+      ),
+    })
+    const created = Message.CreatedTodo({ id: 'a', title: 'first' })
+    const filled = Option.getOrThrow(sync.live(App.initial, created))
+    expect(filled.todos).toEqual([{ id: 'a', title: 'first' }])
+    expect(Option.getOrThrow(sync.live(filled, created))).toBe(filled)
+    expect(Option.getOrThrow(sync.live(filled, Message.RemovedTodo({ id: 'a' })))).toBe(filled)
+    expect(sync.live(filled, Message.ChangedFilter({ filter: 'x' }))).toEqual(Option.none())
+  })
+
+  it('extracts durable transitions from an application Machine', () => {
+    const FromMachine = Sync.forApplication(App).make({
+      ...options,
+      transitions: SyncDeclared.fromMachine(
+        AppMachine,
+        ['CreatedTodo', 'RemovedTodo'],
+        options.shared,
+        App.initial,
+      ),
+    })
+    const replayed = FromMachine.replay(
+      { todos: [] },
+      Message.CreatedTodo({ id: 'a', title: 'first' }),
+    )
+    expect(replayed.todos).toEqual([{ id: 'a', title: 'first' }])
+    expect(FromMachine.replay(replayed, Message.RemovedTodo({ id: 'a' })).todos).toEqual([])
   })
 })

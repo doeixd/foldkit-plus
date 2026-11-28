@@ -40,6 +40,11 @@ export default [
     tests,
   },
   {
+    name: 'the matrix prints a bare descriptor of a guarded Entity as unguarded',
+    edits: [{ file, find: 'guarded.has(entity.identity)\n              ?', replace: 'false ?' }],
+    tests,
+  },
+  {
     name: 'a row guard over a namesake Entity is attached',
     edits: [{ file, find: 'if (!Entity.same(guard.entity, entity)) {', replace: 'if (false) {' }],
     tests,

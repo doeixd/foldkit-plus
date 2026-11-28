@@ -491,7 +491,7 @@ call `postgres()` from `foldkit-remote-drizzle/pg` at startup).
 
 - Cross-row `Update`/`Delete` rules read the stored row, blocking writes that
   would move a row out of reach (such as moving a note to another team).
-- `may` leaves cross-row interactions undecided (`May.answer` returns `Option.none()`).
+- `may` leaves cross-row interactions undecided (`May.answer` returns an `Unknown` `Verdict`).
   Keep forms editable and hide controls with `May.refused` rather than
   `!May.can`, letting the server render the final decision.
 - `GuardServer.writer` throws if given a writer without `requires` support;
@@ -582,6 +582,8 @@ May.canLink(row.may, Todo, 'project', 'Link')
 - `may` covers `Update`, `Delete`, custom interactions, member `Update` rules,
   and relation `Link`/`Unlink` rules over the loaded row (members/relations
   without rules inherit `Update`).
+- A rule that reads a field hidden or redacted for the reader leaves its `may`
+  entry out. The server evaluates the rule when it receives a write.
 - `May.reason(row.may, 'Delete')` returns `Option<string>` from `Guards.explain`.
 - `foldkit-crud` passes `locks: May.locks(Todo)` to lock disallowed fields in
   `foldkit-mixins-form` while keeping undecided fields editable.
@@ -812,7 +814,10 @@ Condition.holds(readable, t1, Policy.inputOf(ada), () => false, Policy.operators
 - `Condition.always` and `Condition.never` short-circuit row scans when
   principal guards alone decide access.
 - `Condition.holds` evaluates a condition over an in-memory row; its fourth
-  argument resolves inherited `Read` relations.
+  argument resolves inherited `Read` relations. It answers `true` only where
+  the whole condition is true: a guard the row makes unanswerable (text
+  holding a NUL character, NaN, a sum too large to add exactly) refuses it,
+  even beside a guard that allows.
 
 ## Limits
 

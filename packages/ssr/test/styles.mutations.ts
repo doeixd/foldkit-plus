@@ -35,8 +35,9 @@ export default [
       { file: client, find: '    keepStyles(root)\n', replace: '' },
       {
         file: client,
-        find: '  const adoptFrom = (model: Model): void => {\n',
-        replace: '  const adoptFrom = (model: Model): void => {\n    keepStyles(root)\n',
+        find: "    binderSnapshot: Option.Option<ReturnType<NonNullable<ReturnType<typeof claimBinder>>['take']>>,\n  ): void => {\n",
+        replace:
+          "    binderSnapshot: Option.Option<ReturnType<NonNullable<ReturnType<typeof claimBinder>>['take']>>,\n  ): void => {\n    keepStyles(root)\n",
       },
     ],
     tests: styles,

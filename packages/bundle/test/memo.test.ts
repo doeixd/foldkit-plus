@@ -5,13 +5,14 @@
  * again and leaves its sibling's drawing as it was, and `memo: false` draws
  * on every render. `Link.child` keeps its drawing the same way.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import * as Submodel from 'foldkit/submodel'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Bundle, Link } from '../src/index.js'
+import { keptDrawing } from '../src/memo.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -306,6 +307,129 @@ describe('A collection', () => {
     try {
       await vi.waitFor(() => expect(document.querySelectorAll('.item')).toHaveLength(size))
       expect(listed).toBeLessThanOrEqual(3)
+    } finally {
+      handle.dispose()
+    }
+  })
+
+  it('keys keptDrawing on declared pathEpoch when provided (#586) and isolates started counters', async () => {
+    let epoch = 0
+    let draws = 0
+    const Page = Schema.Struct({ tick: Schema.Number, child: Counter })
+    type Page = typeof Page.Type
+    const PageMessage = defineMessageUnion({
+      Ticked: {},
+      ChildChanged: {},
+    })
+    type PageMessage = typeof PageMessage.Type
+
+    const drawChild = keptDrawing<Counter>(
+      (model, h) => {
+        draws++
+        return h.span([h.Id('epoch-child')], [String(model.count)])
+      },
+      undefined,
+      { pathEpoch: () => epoch },
+    )
+
+    const container = document.createElement('div')
+    container.id = 'bundle-path-epoch'
+    document.body.appendChild(container)
+    timedFrames()
+
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model: Page,
+        container,
+        init: () => ({ model: { tick: 0, child: { count: 0 } } }),
+        update: (model: Page, message: PageMessage) =>
+          message._tag === 'Ticked'
+            ? // Rebuilds child object with identical content without advancing pathEpoch.
+              { model: { tick: model.tick + 1, child: { ...model.child } }, commands: [] }
+            : (() => {
+                epoch++
+                return {
+                  model: { tick: model.tick, child: { count: model.child.count + 1 } },
+                  commands: [],
+                }
+              })(),
+        view: (model: Page, h: HtmlBuilder<PageMessage>) =>
+          h.div(
+            [],
+            [
+              h.span([h.Id('epoch-tick')], [String(model.tick)]),
+              drawChild(model.child, h),
+              h.button([h.Id('tick-btn'), h.OnClick(PageMessage.Ticked())], ['tick']),
+              h.button([h.Id('child-btn'), h.OnClick(PageMessage.ChildChanged())], ['child']),
+            ],
+          ),
+      }),
+    )
+    try {
+      await vi.waitFor(() => expect(document.getElementById('epoch-child')?.textContent).toBe('0'))
+      expect(draws).toBe(1)
+      ;(document.getElementById('tick-btn') as HTMLElement).click()
+      await vi.waitFor(() => expect(document.getElementById('epoch-tick')?.textContent).toBe('1'))
+      // Child slice was rebuilt as a new object, yet pathEpoch stayed 0 -> skipped!
+      expect(draws).toBe(1)
+      ;(document.getElementById('child-btn') as HTMLElement).click()
+      await vi.waitFor(() => expect(document.getElementById('epoch-child')?.textContent).toBe('1'))
+      // pathEpoch advanced -> redrawn!
+      expect(draws).toBe(2)
+    } finally {
+      handle.dispose()
+    }
+  })
+})
+
+describe('A placed child kept on a pathEpoch', () => {
+  const GotMaybe = Link.wrapper('GotMaybe', CounterMessage)
+  const Shown = Schema.Struct({ maybe: Schema.Option(Counter) })
+  type Shown = typeof Shown.Type
+  const ShownMessage = defineMessageUnion({ Hid: {}, Showed: {}, ...GotMaybe.cases })
+  type ShownMessage = typeof ShownMessage.Type
+  // The epoch never moves: only the hide can forget the drawing.
+  const Maybe = counter('maybe').at(Link.optional<Shown>()('maybe', GotMaybe), {
+    pathEpoch: () => 0,
+  })
+  const placements = Bundle.assemble<Shown, ShownMessage>()([Maybe])
+
+  it('draws a child shown again after it was hidden, though the epoch is the same', async () => {
+    draws.clear()
+    const container = document.createElement('div')
+    container.id = 'bundle-memo-shown'
+    document.body.appendChild(container)
+    timedFrames()
+    const handle = Runtime.embed(
+      Runtime.makeElement(
+        placements.complete({
+          Model: Shown,
+          container,
+          init: () => placements.init({ maybe: Option.some({ count: 0 }) }),
+          update: placements.update((model, message) => {
+            if (message._tag === 'Hid') return { model: { maybe: Option.none() } }
+            return { model: { ...model, maybe: Option.some({ count: 7 }) } }
+          }),
+          view: (model: Shown, h: HtmlBuilder<ShownMessage>) =>
+            h.main(
+              [],
+              [
+                Maybe.view(model, h),
+                h.button([h.Id('hide'), h.OnClick(ShownMessage.Hid())], ['hide']),
+                h.button([h.Id('show'), h.OnClick(ShownMessage.Showed())], ['show']),
+              ],
+            ),
+          subscriptions: placements.subscriptions(),
+          managedResources: placements.resources(),
+        }),
+      ),
+    )
+    try {
+      await vi.waitFor(() => expect(text('.maybe')).toBe('0'))
+      click('#hide')
+      await vi.waitFor(() => expect(document.querySelector('.maybe')).toBeNull())
+      click('#show')
+      await vi.waitFor(() => expect(text('.maybe')).toBe('7'))
     } finally {
       handle.dispose()
     }

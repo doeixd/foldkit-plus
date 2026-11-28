@@ -5,7 +5,7 @@
 const tests = ['packages/entity/test/expr.test.ts']
 const edit = (name: string, find: string, replace: string) => ({
   name,
-  edits: [{ file: '../src/expr.ts', find, replace }],
+  edits: [{ file: '../src/expr/query.ts', find, replace }],
   tests,
 })
 

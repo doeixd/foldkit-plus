@@ -5,7 +5,7 @@
  * `ImageAsset`, for whoever registers them (a CMS's asset row). The bytes
  * travel once, over HTTP; only the facts go on to the application's data.
  */
-import { Context, Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Config, Context, Effect, Layer, Option, Redacted, Schema, Stream } from 'effect'
 import { HttpServerResponse, type HttpServerRequest } from 'effect/http'
 import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
 import { KeyValueStore } from 'effect/persistence'
@@ -17,6 +17,18 @@ import { factsUnanswered } from './diagnostics.js'
 import { OriginalTooLarge } from './errors.js'
 import { factsOf, type FactsOptions } from './facts.js'
 import { Answer, headersFor, statusOf } from './headers.js'
+
+/**
+ * Effect `Config` for media upload limits and signing secrets (`MEDIA_MAX_UPLOAD_BYTES`,
+ * `MEDIA_SIGNING_SECRET` as `Redacted`). Load via any `ConfigProvider`.
+ */
+export const uploadConfig: Config.Config<{
+  readonly maxUploadBytes: number
+  readonly signingSecret: Option.Option<Redacted.Redacted<string>>
+}> = Config.all({
+  maxUploadBytes: Config.Int('MEDIA_MAX_UPLOAD_BYTES').pipe(Config.withDefault(10 * 1024 * 1024)),
+  signingSecret: Config.option(Config.Redacted('MEDIA_SIGNING_SECRET')),
+})
 
 /**
  * Where an original's facts enter, apart from `MediaApi`, so the variant server needs none of

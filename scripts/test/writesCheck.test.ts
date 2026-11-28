@@ -7,6 +7,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
 // @ts-expect-error the checker is plain JavaScript
 import { check, reachesSeams } from '../writes-check.mjs'
 // @ts-expect-error the compiler API of TypeScript 6, which TypeScript 7 no longer ships
@@ -67,9 +68,8 @@ const findingsOf = (body: string, allow: boolean = false): string[] => {
   return found.map(line => line.replace(/^\S+:/, ''))
 }
 // The check names a file by its path from the repository root.
-const relativeToRoot = (file: string): string =>
-  relative(fileURLToPathRoot, file).replaceAll('\\', '/')
-const fileURLToPathRoot = new URL('../..', import.meta.url).pathname.replace(/\/$/, '')
+const relativeToRoot = (file: string): string => relative(root, file).replaceAll('\\', '/')
+const root = fileURLToPath(new URL('../..', import.meta.url))
 
 const marked = (why: string): string => `// write: infrastructure — ${why}`
 
@@ -156,8 +156,7 @@ test('a marker covers its own statement only', () => {
 })
 
 describe('which projects can hold a write', () => {
-  const root = new URL('../..', import.meta.url).pathname.replace(/\/$/, '')
-  const at = (name: string): string => `${root}/${name}`
+  const at = (name: string): string => join(root, name)
   const graph: Record<string, string[]> = {
     [at('packages/surface')]: [],
     [at('packages/remote')]: [at('packages/surface')],

@@ -12,7 +12,7 @@ const variants = at('../src/variants.ts')
 const descriptor = at('../src/descriptor.ts')
 const entity = at('../src/entity.ts')
 const invariant = at('../src/invariant.ts')
-const expr = at('../src/expr.ts')
+const expr = at('../src/expr/relation.ts')
 
 export default [
   variants(
@@ -54,13 +54,13 @@ export default [
   ),
   invariant(
     'the invariant does not refuse another case’s field',
-    'foreign.map(key => Expr.isNull(row[key]!))',
-    'foreign.map(key => Expr.or(Expr.isNull(row[key]!), Expr.isNotNull(row[key]!)))',
+    'foreign.map(key => isNull(row[key]!))',
+    'foreign.map(key => or(isNull(row[key]!), isNotNull(row[key]!)))',
   ),
   invariant(
     'the invariant does not require a case’s own field',
-    'held.map(key => Expr.isNotNull(row[key]!))',
-    'held.map(key => Expr.or(Expr.isNull(row[key]!), Expr.isNotNull(row[key]!)))',
+    'held.map(key => isNotNull(row[key]!))',
+    'held.map(key => or(isNull(row[key]!), isNotNull(row[key]!)))',
   ),
   invariant(
     'the invariant requires a field that stores null already',
@@ -73,7 +73,11 @@ export default [
     '    if (false) return []\n',
   ),
   expr('is ignores what is asked', '  if (build === undefined) return is\n', '  return is\n'),
-  expr('is asks without the tag', '  return Expr.and(is, asked)\n', '  return asked\n'),
+  expr(
+    'is asks without the tag',
+    '  return and(is, asked as Predicate)\n',
+    '  return asked as Predicate\n',
+  ),
   expr(
     'is hands out the stored field',
     'read(Object.freeze({ ...stored[key]!, schema }))',

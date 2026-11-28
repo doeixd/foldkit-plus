@@ -180,6 +180,8 @@ interface Backend {
   readonly Own: ReturnType<typeof bindOn>
   readonly Parented: ReturnType<typeof bindParented>
   readonly exec: (statement: string) => Promise<void>
+  /** What the writer is told of the database: Postgres here runs serializable. */
+  readonly writing: { readonly isolation?: 'serializable' }
 }
 
 const sqliteBackend = (): Backend => {
@@ -199,6 +201,7 @@ const sqliteBackend = (): Backend => {
     Own: bindOn(sqliteTables, true),
     Parented: bindParented(sqliteTables),
     exec: async statement => void sqlite.exec(statement),
+    writing: {},
   }
 }
 
@@ -220,6 +223,8 @@ afterAll(async () => {
 })
 
 const pgBackend = async (): Promise<Backend> => {
+  // Without a foreign key, only serializable Postgres holds a cascade against a new link.
+  await pglite.exec("set default_transaction_isolation to 'serializable'")
   await pglite.exec('drop table if exists users, posts, likes')
   for (const statement of SCHEMA) await pglite.exec(statement)
   return {
@@ -232,6 +237,7 @@ const pgBackend = async (): Promise<Backend> => {
     Own: bindOn(pgTables, true),
     Parented: bindParented(pgTables),
     exec: async statement => void (await pglite.exec(statement)),
+    writing: { isolation: 'serializable' },
   }
 }
 
@@ -252,6 +258,7 @@ const d1Backend = async (): Promise<Backend> => {
     Own: bindOn(sqliteTables, true),
     Parented: bindParented(sqliteTables),
     exec: async statement => void (await db.prepare(statement).run()),
+    writing: {},
   }
 }
 
@@ -261,20 +268,20 @@ const backends: ReadonlyArray<readonly [string, () => Promise<Backend>]> = [
   ['D1', d1Backend],
 ]
 
-const serverOf = (Db: Backend['Db']) =>
+const serverOf = (Db: Backend['Db'], writing: Backend['writing']) =>
   RemoteServer.make<string, DrizzleDatabase>({
     entities: [source(Db.User), source(Db.Post), source(Db.Like)],
     queries: [query(Everything, { entity: Db.Post })],
     mutations: [
-      RemoteServer.write(DeletePost, writer(Db.Post)),
-      RemoteServer.write(DeleteUnpinned, writer(Db.Post)),
+      RemoteServer.write(DeletePost, writer(Db.Post, writing)),
+      RemoteServer.write(DeleteUnpinned, writer(Db.Post, writing)),
     ],
     viewer: principal => Option.some({ entity: 'User', id: principal }),
   })
 
 const sent = (backend: Backend, mutation: string, input: unknown) =>
   Effect.runPromise(
-    RemoteServer.handlers(serverOf(backend.Db), 'ada')
+    RemoteServer.handlers(serverOf(backend.Db, backend.writing), 'ada')
       .FoldkitRemoteMutate({ requestId: 'r1', mutation, input })
       .pipe(Effect.result, Effect.provide(backend.layer)),
   )
@@ -295,7 +302,7 @@ describe.each(backends)('A declared cascade, on %s', (_, open) => {
   it('names only the rows its asker may see, and removes the rest unnamed', async () => {
     const backend = await open()
     const answer = await Effect.runPromise(
-      RemoteServer.handlers(serverOf(backend.Own), 'ada')
+      RemoteServer.handlers(serverOf(backend.Own, backend.writing), 'ada')
         .FoldkitRemoteMutate({ requestId: 'r1', mutation: 'DeletePost', input: { id: 'p1' } })
         .pipe(Effect.result, Effect.provide(backend.layer)),
     )
@@ -479,9 +486,9 @@ describe('The law over a cascading delete', () => {
         now: 1,
       }).pipe(
         Effect.provide(
-          Remote.clientLayer(RemoteServer.handlers(serverOf(backend.Db), 'ada')).pipe(
-            Layer.provide(backend.layer),
-          ),
+          Remote.clientLayer(
+            RemoteServer.handlers(serverOf(backend.Db, backend.writing), 'ada'),
+          ).pipe(Layer.provide(backend.layer)),
         ),
       ),
     )
@@ -564,5 +571,110 @@ describe('A cascade the store must agree with', () => {
     const backend = sqliteBackend()
     const { cascades: _, ...forgetful } = writer(backend.Db.Post)
     expect(() => RemoteServer.write(DeletePost, forgetful)).toThrow(/cascades/)
+  })
+})
+
+describe('Postgres row locking during a cascade', () => {
+  it('locks root, self-cascade replies, and child likes for update before any delete', async () => {
+    await pglite.exec("set default_transaction_isolation to 'read committed'")
+    await pglite.exec('drop table if exists users, posts, likes')
+    for (const statement of SCHEMA) await pglite.exec(statement)
+    const queries: Array<string> = []
+    const db = drizzlePg({ client: pglite, logger: { logQuery: query => queries.push(query) } })
+    const Db = bindOn(pgTables)
+    const outcome = await Effect.runPromise(
+      writer(Db.Post)
+        .delete({ id: 'p1', expect: Option.none(), when: Option.none(), principal: 'ada' })
+        .pipe(Effect.provide(databaseLayer(db))),
+    )
+    expect(outcome).toMatchObject({ _tag: 'Deleted' })
+    const locks = queries.filter(q => q.toLowerCase().includes('for update'))
+    const firstDelete = queries.findIndex(q => q.toLowerCase().startsWith('delete '))
+    expect(firstDelete).toBeGreaterThan(-1)
+    // Root post locked first, then self-cascade posts (with fixpoint re-check), then likes.
+    expect(locks.length).toBeGreaterThanOrEqual(4)
+    expect(locks[0]).toMatch(/from "posts".*for update/i)
+    expect(locks[1]).toMatch(/from "posts".*with recursive.*for update/i)
+    expect(locks[2]).toMatch(/from "posts".*with recursive.*for update/i)
+    expect(locks[locks.length - 1]).toMatch(/from "likes".*for update/i)
+    // Every FOR UPDATE runs before the first DELETE.
+    for (const lock of locks) {
+      expect(queries.indexOf(lock)).toBeLessThan(firstDelete)
+    }
+    expect(
+      (await pglite.query<{ id: string }>('select id from posts order by id')).rows.map(r => r.id),
+    ).toEqual(['p8', 'p9'])
+    expect(
+      (await pglite.query<{ id: string }>('select id from likes order by id')).rows.map(r => r.id),
+    ).toEqual(['l8', 'l9'])
+  })
+
+  it('locks intermediate parents top-down for a 2-hop Postgres FK cascade at read committed', async () => {
+    const Org = Entity.define('Org', Schema.Struct({ id: Schema.String }))
+    const Proj = Entity.define('Proj', Schema.Struct({ id: Schema.String }))
+    const Item = Entity.define('Item', Schema.Struct({ id: Schema.String }))
+    const Tree = Entity.relate(
+      { Org, Proj, Item },
+      {
+        Proj: { org: Relation.one(Org, { onDelete: 'cascade' }) },
+        Item: { proj: Relation.one(Proj, { onDelete: 'cascade' }) },
+      },
+    )
+    const orgs = pgTable('lock_orgs', { id: pgText('id').primaryKey() })
+    const projs = pgTable('lock_projs', {
+      id: pgText('id').primaryKey(),
+      orgId: pgText('org_id')
+        .notNull()
+        .references(() => orgs.id, { onDelete: 'cascade' }),
+    })
+    const items = pgTable('lock_items', {
+      id: pgText('id').primaryKey(),
+      projId: pgText('proj_id')
+        .notNull()
+        .references(() => projs.id, { onDelete: 'cascade' }),
+    })
+    await pglite.exec("set default_transaction_isolation to 'read committed'")
+    await pglite.exec('drop table if exists lock_items, lock_projs, lock_orgs')
+    await pglite.exec(`
+      create table lock_orgs (id text primary key);
+      create table lock_projs (id text primary key, org_id text not null references lock_orgs (id) on delete cascade);
+      create table lock_items (id text primary key, proj_id text not null references lock_projs (id) on delete cascade);
+      insert into lock_orgs values ('o1'), ('o2');
+      insert into lock_projs values ('pr1', 'o1'), ('pr2', 'o2');
+      insert into lock_items values ('i1', 'pr1'), ('i2', 'pr2');
+    `)
+    const Db = bind(Tree, {
+      Org: { table: orgs },
+      Proj: { table: projs, relations: { org: { field: projs.orgId } } },
+      Item: { table: items, relations: { proj: { field: items.projId } } },
+    })
+    const DeleteOrg = Mutation.write(
+      'DeleteOrg',
+      Write.delete(Entity.input(Tree.Org, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+    )
+    const queries: Array<string> = []
+    const db = drizzlePg({ client: pglite, logger: { logQuery: query => queries.push(query) } })
+    const server = RemoteServer.make<string, DrizzleDatabase>({
+      entities: [source(Db.Org), source(Db.Proj), source(Db.Item)],
+      mutations: [RemoteServer.write(DeleteOrg, writer(Db.Org))],
+    })
+    const answer = await Effect.runPromise(
+      RemoteServer.handlers(server, 'ada')
+        .FoldkitRemoteMutate({ requestId: 'r1', mutation: 'DeleteOrg', input: { id: 'o1' } })
+        .pipe(Effect.result, Effect.provide(databaseLayer(db))),
+    )
+    expect(answer).toMatchObject({ _tag: 'Success' })
+    const locks = queries.filter(q => q.toLowerCase().includes('for update'))
+    expect(locks).toHaveLength(3)
+    expect(locks[0]).toMatch(/from "lock_orgs".*for update/i)
+    expect(locks[1]).toMatch(/from "lock_projs".*for update/i)
+    expect(locks[2]).toMatch(/from "lock_items".*for update/i)
+    const firstDelete = queries.findIndex(q => q.toLowerCase().startsWith('delete '))
+    expect(queries.indexOf(locks[2]!)).toBeLessThan(firstDelete)
+    expect(
+      (await pglite.query<{ id: string }>('select id from lock_items order by id')).rows.map(
+        r => r.id,
+      ),
+    ).toEqual(['i2'])
   })
 })

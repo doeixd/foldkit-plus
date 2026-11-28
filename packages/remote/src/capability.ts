@@ -22,13 +22,9 @@ import type {
   MutationStarted,
   QueryRequirement,
 } from './index.js'
-import type {
-  applyConnectionEvent,
-  applyEntityEvent,
-  awaitEchoes,
-  settleKept,
-} from './liveEvents.js'
+import type { applyConnectionEvent, applyEntityEvent, awaitEchoes } from './liveEvents.js'
 import type { Kept } from './kept.js'
+import type { settleReplayed } from './replay.js'
 import type { LiveEvent } from './liveState.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { MutationAnswer, MutationState, NormalizedPatch } from './ledger.js'
@@ -59,6 +55,17 @@ export interface Capabilities {
   writes: Option.Option<WriteCapability>
   /** Live streams and their events; installed by a live read (`foldkit-remote/live`). */
   live: Option.Option<LiveCapability>
+  /**
+   * `model.kept` once a read is about to write `rows`, less those it `held`;
+   * the layer capability replaces it with `replayOver` (#480), so every domain
+   * with writes keeps what a read moved, and a read-only one loads none of it.
+   */
+  keeps: (
+    model: RemoteModel,
+    rows: Schema.Schema.Type<typeof ReadBatchResult>['entities'],
+    held: ReadonlySet<EntityKey>,
+    now: number,
+  ) => Kept
   /** What a list's body does on the client; installed by a query declared with a body (`Query.define`). */
   bodies: Option.Option<BodyCapability>
   /** Read-after tokens (#544); installed by a Mutation the domain registers, whose answers hold rows to them. */
@@ -70,6 +77,7 @@ export const noCapabilities = (domain: string): Capabilities => ({
   layers: Option.none(),
   writes: Option.none(),
   live: Option.none(),
+  keeps: model => model.kept,
   bodies: Option.none(),
   readAfter: Option.none(),
 })
@@ -152,8 +160,11 @@ export interface LayerCapability {
     readonly store: EntityStore
     readonly state: MutationState
     readonly optimistic: OptimisticState
+    readonly applied: ReadonlyArray<NormalizedPatch>
   }
   readonly settleFailure: (optimistic: OptimisticState, requestId: string) => OptimisticState
+  /** What an answer or a failure does to the values kept from a newer patch or read, and what it reads again (#498, #499, #480). */
+  readonly settleReplayed: typeof settleReplayed
   readonly pruneOverlays: (
     optimistic: OptimisticState,
     connection: string,
@@ -251,8 +262,6 @@ export interface LiveCapability {
   readonly applyConnection: typeof applyConnectionEvent
   /** What a write's answer leaves the streams to send back (#485). */
   readonly awaitEchoes: typeof awaitEchoes
-  /** What an answer does to the values kept from before a stream's patches (#498, #499). */
-  readonly settleKept: typeof settleKept
   /**
    * What to do with a row a live event inserts into a list: none for the
    * position the event names, `ignore` where the list's body says the row

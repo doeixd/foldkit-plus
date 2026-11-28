@@ -15,14 +15,10 @@ import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
 import { Projection, Surface, type Surface as SurfaceType } from 'foldkit-surface'
 import type * as Update from 'foldkit/update'
-import { Message, Model, initialModel, makeUpdate } from './app.js'
-
-/**
- * The application's own transitions. The assembly routes the mirrors'
- * Messages before `own` ever sees them, so the fallback only sees another
- * mirror's `MirrorRestored`, which is correctly ignored.
- */
-const ownUpdate = makeUpdate(model => model)
+import { Declared, type SuppliedStep } from 'foldkit-surface/declared'
+import { WritesCheck } from 'foldkit-surface/writes'
+import { Message, Model, initialModel, todoCommands } from './app.js'
+import { makeMachine, type TodoMachine } from './machine.js'
 
 export const App = Surface.application({
   Model,
@@ -39,6 +35,39 @@ export const Filters = Mirror.url(App, { name: 'filters', fields: [App.model.fil
 /** The composer's draft survives a reload; restored only while the draft is still empty. */
 export const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.model.draft] })
 
+/** Every Message's transition (`machine.ts`), the mirrors' steps declared by what they read and write. */
+export const todoMachine: TodoMachine = makeMachine({ url: Filters.reduce, restored: Prefs.reduce })
+
+/** What a new todo's transition is supplied: a fresh id and the time now. */
+const newTodo = () => ({ id: crypto.randomUUID(), now: Date.now() })
+
+/**
+ * Every Message's transition (`machine.ts`), joined to its Command table and
+ * `Writes` path-skipping through `Declared.of`: no hand-written `Message.match`
+ * forwarding table is needed.
+ */
+export const declared: Declared<
+  Model,
+  Message,
+  keyof TodoMachine['transitions'] & string,
+  never,
+  SuppliedStep<TodoMachine['transitions'], Message>
+> = Declared.of(App, todoMachine, {
+  commands: todoCommands,
+  // A new todo's id and time, made once per step and sent on in `SubmittedTodo`.
+  supply: { DraftSubmitted: newTodo, RequestedTodo: newTodo },
+  sends: {
+    Rename: ['RenamedTodo'],
+    Focus: ['CompletedFocus'],
+    Submit: ['SubmittedTodo'],
+    Delete: ['DeletedTodo'],
+    RenameList: ['RenamedList'],
+    FocusNeighbour: ['CompletedFocus'],
+    ExpireUndo: ['UndoExpired'],
+    Restore: ['RestoredTodo'],
+  },
+})
+
 const Page = Bundle.parent({ Model, Message })
 
 /**
@@ -49,17 +78,27 @@ const Page = Bundle.parent({ Model, Message })
  */
 export const wiring = Page.assemble(Filters.wiring('UrlChanged'), Prefs.wiring())
 
-/**
- * The mirrors' Messages go to their mirror; every other Message goes to `own`.
- * Annotated to break the inference cycle: `App` above is built from this
- * update, which is built from the mirrors, which are built over `App`. The
- * `KeyValueStore` requirement rides along from the key-value mirror's wiring;
- * only its startup Command uses the store, and the runtime provides it.
- */
-export const update: (
+/** `update` without the writes' tracking, for the test that checks every Message against its Transition. */
+export const assembled: (
   model: Model,
   message: Message,
-) => Update.Return<Model, Message, KeyValueStore.KeyValueStore> = wiring.update(ownUpdate)
+) => Update.Return<Model, Message, KeyValueStore.KeyValueStore> = wiring.update(declared.step)
+
+/**
+ * What each Message writes (`machine.ts`), joined to what each Surface reads:
+ * `view.ts` draws its Surfaces through `writes.rootView`, so a Message redraws
+ * only the Surfaces that read a field it is declared to write.
+ */
+export const writes = declared.writes
+
+/**
+ * The application's `update`, noting which Message made each Model. In
+ * development every Message is also checked to change no more than its
+ * Transition declares, which a kept drawing would otherwise hide.
+ */
+export const update: typeof assembled = writes.track(
+  import.meta.env?.DEV === true ? WritesCheck.verify(writes, assembled) : assembled,
+)
 
 // --- the writable projections the sync contract replicates (see sync.ts) ------
 
@@ -75,7 +114,7 @@ export const ListMeta = Projection.pick(App.model.listTitle)
 
 export const Header = App.surface('Header', {
   model: ({ model }) => ({ listTitle: model.listTitle, todos: model.todos }),
-  messages: [Message.RenamedList],
+  messages: [Message.ListRenameRequested],
 })
 
 export const Composer = App.surface('Composer', {

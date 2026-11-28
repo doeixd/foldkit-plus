@@ -32,7 +32,24 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // 0.3%, rounded up.
 // +500 on 2026-11-19: CI read 228,029 (+29 over 228,000) after recipe `.style` (0.42.0) and
 // `Expr.add`/`sub`/`implies`, `Entity.transition`, `decrement` and `Mutation.update`'s `input` (#600).
-const CEILING = 228_500
+// +7,675 on 2026-11-21 (step 5 of the metakit unification plan: entity's judge on metakit through a
+// translation layer), -507 the same day (the lean judge), +394 after step 9 (guard's conditions as one
+// metakit expression).
+// -2,796 on 2026-11-22, permanent: 232,966 measured (235,736 before, in one tree) after step 10. Entity's
+// constructors build metakit nodes, the translation layer is deleted, `Expr`, `Query` and `Order` are
+// namespaces, and metakit's reading of related rows arrives only with an `Expr.exists` (foldkit-entity
+// 55,973 to 47,347 minified, metakit 19,698 to 15,218). What stays over the pre-step-5 228,500 (4,466) is
+// metakit's evaluator and judge on every page that reaches entity (15.2 kB minified, `node`,
+// `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
+// 2026-11-21. Ceiling: the reading plus 300.
+// +875 on 2026-11-22: CI on Linux read 233,841 after the Phase 1 gate fixes, which every page that
+// evaluates carries: an operand past the safe range refused by every reader (63fac3ae0: ops/judge,
+// ops/kind, ops/laws, ops/num) and a fraction beside an integer term refused (ops/integerTerm, guard's
+// condition). Part of the Phase 1 cost the maintainer accepted. Ceiling: CI's reading plus 300.
+// +2,359 on 2026-11-26 (CI read 236,063): metakit's core evaluator and judge grew with Sets,
+// Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote/sync gained IVM and Effect
+// integration. Ceiling: CI's reading plus ~400, rounded up.
+const CEILING = 236_500
 
 clientBudget({
   name: 'auth',

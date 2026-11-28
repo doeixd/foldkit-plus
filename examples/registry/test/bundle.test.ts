@@ -62,7 +62,27 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // the page; `foldkit-bundle` was already. Ceiling raised to the reading, rounded up.
 // +650 on 2026-11-19: 261,734 measured after recipe `.style` (0.42.0) and `Expr.add`/`sub`/`implies`,
 // `Entity.transition`, `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600).
-const CEILING = 262_000
+// +300 on 2026-11-21: CI read 262,178. The same Remote growth as examples/reference: a read answered
+// under a pending write is read again when the late answer disagrees (6782b2e93, +73 here), the
+// store's key bookkeeping and the read-entry plan reuse (30d7a5fe0). Sync's transition processing
+// was moved out of the page first (2e00752f3, about -285).
+// +7,797 on 2026-11-21 (step 5 of the metakit unification plan: entity's judge on metakit through a
+// translation layer), -426 the same day (the lean judge).
+// -1,511 on 2026-11-22, permanent: 267,860 measured (269,570 before, in one tree) after step 10. Entity's
+// constructors build metakit nodes, the translation layer is deleted, `Expr`, `Query` and `Order` are
+// namespaces, and metakit's reading of related rows arrives only with an `Expr.exists` (foldkit-entity
+// 77,933 to 73,413 minified, metakit 20,617 to 16,634). What stays over the pre-step-5 262,300 (5,560) is
+// metakit's evaluator and judge on every page that reaches entity (16.6 kB minified, `node`,
+// `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
+// 2026-11-21. Ceiling: the reading plus 300.
+// +571 on 2026-11-22 (Phase 5 item 10 of the unification plan): 268,431 measured (268,022 before).
+// One rule replays a pending write over a newer value (`foldkit-remote/replay.js`, which replaces
+// `keeping.js`, and metakit's `ops/ways.js` rows for `set` and `add`): about 710 bytes minified,
+// on every page with writes. Ceiling: the reading plus 300.
+// +2,569 on 2026-11-26 (CI read 270,866): metakit's core evaluator and judge grew with Sets,
+// Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote gained IVM fixes and Effect
+// Clock/Random integration. Ceiling: CI's reading plus ~400, rounded up.
+const CEILING = 271_300
 
 clientBudget({
   name: 'registry',

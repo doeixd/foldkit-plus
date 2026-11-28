@@ -4,6 +4,7 @@
  * the same rule kept for one that reads the row before.
  */
 import { Schema } from 'effect'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
 import { Entity, Expr, Relation, type AfterRow, type BeforeRow } from '../src/index.js'
 
@@ -29,8 +30,8 @@ describe('An invariant in a state', () => {
       }),
     )
     const [rule] = Entity.invariants(Account)
-    expect(rule!.predicate).toEqual(
-      Expr.implies(Open.after, Expr.gte(Expr.next(Account.fields.balance), 0)),
+    expect(Node.key(rule!.predicate.node)).toBe(
+      Node.key(Expr.implies(Open.after, Expr.gte(Expr.next(Account.fields.balance), 0)).node),
     )
     expect(rule!.after).toEqual(['status', 'balance'])
     expect(rule!.path).toEqual(['status', 'balance'])
@@ -86,7 +87,12 @@ describe('A transition', () => {
       Entity.invariant('asInvariant', staysClosed, { message: 'A closed account stays closed' }),
     )
     const [transition, invariant] = Entity.invariants(Account)
-    expect({ ...transition, id: 'same' }).toEqual({ ...invariant, id: 'same' })
+    const stored = (rule: NonNullable<typeof transition>) => ({
+      ...rule,
+      id: 'same',
+      predicate: Node.key(rule.predicate.node),
+    })
+    expect(stored(transition!)).toEqual(stored(invariant!))
     expect(Entity.readsBefore(transition!)).toBe(true)
     expect(Entity.judge(Account, { before: overdrawn('closed'), after: open })._tag).toBe('Invalid')
     expect(Entity.judge(Account, { after: open })._tag).toBe('Valid')

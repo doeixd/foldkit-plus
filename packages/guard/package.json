@@ -53,6 +53,11 @@
       "foldkit-plus:source": "./src/media.ts",
       "types": "./dist/media.d.mts",
       "import": "./dist/media.mjs"
+    },
+    "./check": {
+      "foldkit-plus:source": "./src/check.ts",
+      "types": "./dist/check.d.mts",
+      "import": "./dist/check.mjs"
     }
   },
   "files": [
@@ -66,7 +71,8 @@
   },
   "dependencies": {
     "foldkit-entity": "workspace:*",
-    "foldkit-metadata": "workspace:*"
+    "foldkit-metadata": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5",

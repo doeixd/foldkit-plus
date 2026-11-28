@@ -33,7 +33,7 @@ export default [
   edit(
     'an echo leaves the stream waiting',
     events,
-    'echo: named.length === 0 ? echo : { ...echo, heard: [...echo.heard, stream] },',
+    'matched.length === 0 ? echo : { ...echo, heard: [...echo.heard, ...matched.map(fieldMark)] }',
     'echo,',
   ),
   edit(

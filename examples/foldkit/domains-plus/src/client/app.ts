@@ -18,6 +18,8 @@ import { ListboxView, Sheet, WindowList } from 'foldkit-mixins-ui'
 import { Remote, RemoteData, RemotePolicy, entityKey, type RemoteClient } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
+import { Declared } from 'foldkit-surface/declared'
+import { domainsForeign, makeDomainsMachine, type DomainsMachine } from './machine.js'
 import {
   Domain as DomainCase,
   type Domain as DomainValue,
@@ -609,6 +611,55 @@ const Settled = Page.at(Search, {
     },
 })
 
+export const domainsMachine: DomainsMachine = makeDomainsMachine(Model, (model, name) =>
+  Array.findFirst(shown(Data.get(Quote, name).read(model)), DomainCase.guards.Available),
+)
+
+const declared = Declared.of(App, domainsMachine, {
+  foreign: domainsForeign,
+  commands: {
+    RevealResultsListStart: () => [RevealResultsListStart()],
+    ScrollPage: ({ key }) => [ScrollPage({ key })],
+    FollowLink: ({ request }) => [
+      UrlRequest.match(request, {
+        Internal: ({ url }) => NavigateInternal({ url: urlToString(url) }),
+        External: ({ href }) => LoadExternal({ href }),
+      }),
+    ],
+    FocusCartCloseButton: () => [FocusCartCloseButton()],
+    DismissSearchKeyboard: () => [DismissSearchKeyboard()],
+    OpenFiltersSheet: ({ sheet }) =>
+      Command.mapMessages(Sheet.open(sheet).commands ?? [], filtersSheet.wrap),
+    CloseFiltersSheet: ({ sheet }) =>
+      Command.mapMessages(Sheet.close(sheet).commands ?? [], filtersSheet.wrap),
+    OpenTldSheet: ({ sheet }) =>
+      Command.mapMessages(Sheet.open(sheet).commands ?? [], tldSheet.wrap),
+    CloseTldSheet: ({ sheet }) =>
+      Command.mapMessages(Sheet.close(sheet).commands ?? [], tldSheet.wrap),
+    OpenCartSheet: ({ sheet }) =>
+      Command.mapMessages(Sheet.open(sheet).commands ?? [], cartSheet.wrap),
+    FiltersSheetStep: ({ sheet, message }) => {
+      const cmds = Command.mapMessages(
+        Sheet.update(sheet, message).commands ?? [],
+        filtersSheet.wrap,
+      )
+      const closed = isSheetDialogMessage(message) && isCompletedCloseDialog(message.message)
+      return closed ? [...cmds, FocusFiltersButton()] : cmds
+    },
+    TldSheetStep: ({ sheet, message }) => {
+      const cmds = Command.mapMessages(Sheet.update(sheet, message).commands ?? [], tldSheet.wrap)
+      const closed = isSheetDialogMessage(message) && isCompletedCloseDialog(message.message)
+      return closed ? [...cmds, FocusTldFilterButton()] : cmds
+    },
+    CartSheetStep: ({ sheet, message }) => {
+      const cmds = Command.mapMessages(Sheet.update(sheet, message).commands ?? [], cartSheet.wrap)
+      const closed = isSheetDialogMessage(message) && isCompletedCloseDialog(message.message)
+      return closed ? [...cmds, FocusCartButton()] : cmds
+    },
+  },
+  fallback: (model, message) => own(model, message as Own),
+})
+
 const placements = Page.assemble(
   SearchInUrl.wiring('ChangedUrl'),
   CartInCookie.wiring(),
@@ -616,7 +667,7 @@ const placements = Page.assemble(
   Data.wiring(actives, { policy: freshness, grace: '1 minute' }),
 )
 
-export const update = placements.update(own)
+export const update = placements.update((model, message) => declared.step(model, message))
 
 /**
  * The page at `route` for the search the address names, read at once: the
@@ -671,7 +722,8 @@ export const CartControls = App.surface('CartControls', {
  * `DOMAINS_PLUS_LOADER=1`). Read with `?.`: a module tsx runs has no
  * `import.meta.env`.
  */
-const loaderBuild = import.meta.env?.DOMAINS_PLUS_LOADER === '1'
+const loaderBuild =
+  import.meta.env?.DOMAINS_PLUS_LOADER === '1' || import.meta.env?.DOMAINS_PLUS_BINDER === '1'
 
 /**
  * What crosses from the server's render to the browser, which starts from it

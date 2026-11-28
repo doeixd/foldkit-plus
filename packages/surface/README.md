@@ -310,6 +310,10 @@ The Surface's `Model` type is the projected record (`{ todos, selectedTodoId }`)
 - `Surface.at(surface, params)` tracks an active Surface instance where `params` is either static or `(model) => Option<Params>`, exposing `projectionOf(model)`, `owner`, and `messages` for consumers such as `foldkit-remote`'s `Data.subscriptions`.
 - `Surface.each(child, { from, instances })` expands one Surface definition into zero-to-many keyed instances while its parent `from` Surface is active, throwing on duplicate keys or `__proto__`. Both `at` and `each` share the `SurfaceSource` interface read via `Surface.instances(source, model)`.
 
+### Draw a Surface only when a Message writes what it reads
+
+Foldkit runs every view after every Message. `writes.rootView(surface, params, render)` is `Surface.rootView` that keeps the Surface's last drawing until a Message is declared to write a field the Surface reads: `render` does not run and Foldkit does not compare the drawing with the page. `writes` comes from `Writes.of` in `foldkit-surface/writes`, which takes one declared transition per Message, and `WritesCheck.verify` checks those declarations against what `update` changes while you develop. [Draw only the parts of a page a Message can change](../../docs/surface-writes.md) shows both.
+
 ### `Surface.make`, the explicit form
 
 `Surface.make(app, name, { Params?, model, messages? })` is the underlying function `App.surface` calls, taking a `Params` schema and a `model` callback returning a `Projection`.
@@ -515,3 +519,4 @@ Reading `model.settings.theme` through a `ModelRef` keeps ownership inside `Sett
 - Fetch server-derived slices declared on Surfaces: [`foldkit-remote`](../remote/README.md) and [Server-derived state](../../docs/remote.md).
 - Replicate a closed slice offline across devices: [`foldkit-sync`](../sync/README.md).
 - Expose Actions and Surfaces to an AI agent: [`foldkit-agent`](../agent/README.md).
+- Stop drawing the parts of a page a Message did not change: [Draw only the parts of a page a Message can change](../../docs/surface-writes.md).

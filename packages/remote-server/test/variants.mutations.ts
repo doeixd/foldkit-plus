@@ -7,9 +7,9 @@ export default [
     name: 'Expr.is evaluates without its tag',
     edits: [
       {
-        file: '../../entity/src/expr.ts',
-        find: '  return Expr.and(is, asked)\n',
-        replace: '  return asked\n',
+        file: '../../entity/src/expr/relation.ts',
+        find: '  return and(is, asked as Predicate)\n',
+        replace: '  return asked as Predicate\n',
       },
     ],
     tests: ['packages/remote-server/test/conformance.test.ts'],

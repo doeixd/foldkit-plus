@@ -18,9 +18,20 @@ import {
   reportingTo,
   type SsrDiagnostic,
 } from './diagnostics.js'
-import { claim, type HeldEvent } from './handoff.js'
+import { claim, claimBinder, type HeldEvent } from './handoff.js'
 import { UNTIL_LIMIT_MS } from './marks.js'
-import { hold, keptFields, restore, typedMessages, type Held, type KeptField } from './keep.js'
+import {
+  BINDER_TOUCHED_ATTRIBUTE,
+  hold,
+  holdPageState,
+  keptFields,
+  restore,
+  restorePageState,
+  typedMessages,
+  type Held,
+  type HeldPageState,
+  type KeptField,
+} from './keep.js'
 import { listen, listening, type DecodedBinding } from './listen.js'
 import {
   BINDING_ATTRIBUTE,
@@ -148,9 +159,20 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     Effect.runFork(reportingTo(options.diagnostics)(Diagnostics.report(diagnostic)))
   }
   const loader = Option.fromNullishOr(claim())
+  const binder = Option.fromNullishOr(claimBinder())
+  let takenBinder:
+    | Option.Option<ReturnType<NonNullable<ReturnType<typeof claimBinder>>['take']>>
+    | undefined
+  const takeBinder = () => {
+    if (takenBinder === undefined) takenBinder = Option.map(binder, b => b.take())
+    return takenBinder
+  }
   // Every path below that does not resume the page lets the browser have what
-  // the loader held: a held submission posts.
-  const release = (): void => Option.match(loader, { onNone: () => {}, onSome: it => it.release() })
+  // the loader held (a held submission posts) and stops any active binder.
+  const release = (): void => {
+    takeBinder()
+    Option.match(loader, { onNone: () => {}, onSome: it => it.release() })
+  }
   const planMeta = plan.meta
   if (planMeta !== undefined) {
     config = {
@@ -209,7 +231,10 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     contain()
     return
   }
-  const adoptFrom = (model: Model): void => {
+  const adoptFrom = (
+    model: Model,
+    binderSnapshot: Option.Option<ReturnType<NonNullable<ReturnType<typeof claimBinder>>['take']>>,
+  ): void => {
     // A page recorded for its path, opened at a query: the application learns
     // the URL, as from a navigation, and the page starts now, since what it
     // shows is not yet the address.
@@ -228,7 +253,12 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     // Message the runtime processes, whatever it is, runs them through `update`
     // ahead of itself: they reach the Model before anything the live page
     // answers, an event dispatched in the task that boots it included.
-    const answered: Array<unknown> = []
+    // Messages queued by the binder while the runtime was loading run ahead of
+    // any live page Message, each dispatched once.
+    const answered: Array<unknown> = Option.match(binderSnapshot, {
+      onNone: () => [],
+      onSome: snap => [...snap.queued],
+    })
     // Each answered Message was decoded through the plan's Message Schema.
     const apply: ResumableConfig<Model>['update'] = config.update
     const update = (current: Model, message: unknown) => {
@@ -287,7 +317,28 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     // With a loader, the page reads its bindings first: the loader may hold
     // events for them.
     if (eager && Option.isNone(loader) && root.querySelector(`[${KEEP_ATTRIBUTE}]`) === null) {
-      boot()
+      const heldPage = holdPageState(root)
+      if (answered.length === 0) {
+        boot()
+        restorePageState(heldPage)
+      } else {
+        boot({
+          'foldkit-ssr.handover': {
+            dependenciesSchema: Schema.Null,
+            modelToDependencies: () => null,
+            dependenciesToStream: () =>
+              Stream.fromEffect(
+                Effect.as(
+                  Effect.andThen(
+                    root.hasAttribute(FOLDKIT_APP_ATTRIBUTE) ? Render.afterCommit : Effect.void,
+                    Effect.sync(() => restorePageState(heldPage)),
+                  ),
+                  HANDOVER,
+                ),
+              ),
+          },
+        })
+      }
       return
     }
     const decoded = bindingsAndEvents(plan, document, root, model)
@@ -318,17 +369,47 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     deferBoot(root, decoded.success, typed, { boot, answered }, pending, report, kept.success, held)
   }
   const prepare = options.prepare
-  let startingModel: Model
+  const mergeBinderModel = (
+    base: Model,
+    snapOpt: Option.Option<ReturnType<NonNullable<ReturnType<typeof claimBinder>>['take']>>,
+  ): Model =>
+    Option.match(snapOpt, {
+      onNone: () => base,
+      onSome: snap => {
+        if (!snap.mutated) return base
+        if (
+          typeof base === 'object' &&
+          base !== null &&
+          typeof snap.model === 'object' &&
+          snap.model !== null &&
+          !Array.isArray(base) &&
+          !Array.isArray(snap.model)
+        ) {
+          return { ...base, ...(snap.model as Partial<Model>) }
+        }
+        return snap.model as Model
+      },
+    })
+  let restoredModel: Model
   try {
-    startingModel = plan.restore === undefined ? resumed.success : plan.restore(resumed.success)
+    restoredModel = plan.restore === undefined ? resumed.success : plan.restore(resumed.success)
   } catch (error) {
     report(pageContained('Invalid', error instanceof Error ? error.message : String(error)))
     release()
     contain()
     return
   }
-  if (prepare === undefined) adoptFrom(startingModel)
-  else void Effect.runPromise(prepare(startingModel)).then(adoptFrom)
+  if (prepare === undefined) {
+    const snap = takeBinder()
+    adoptFrom(mergeBinderModel(restoredModel, snap), snap)
+  } else {
+    // Keep the binder alive while async `prepare` runs, then take its final
+    // snapshot right before adopting so clicks during `prepare` are never lost.
+    void Effect.runPromise(prepare(restoredModel)).then(preparedModel => {
+      const snap = takeBinder()
+      adoptFrom(mergeBinderModel(preparedModel, snap), snap)
+    })
+  }
 }
 
 /**
@@ -345,7 +426,12 @@ const unmark = (root: Element): void => {
   root.removeAttribute(RESUME_ATTRIBUTE)
   for (const element of [root, ...root.querySelectorAll('*')]) {
     for (const name of element.getAttributeNames()) {
-      if (name.startsWith(BINDING_ATTRIBUTE) || name === KEEP_ATTRIBUTE || name === SLOT_ATTRIBUTE)
+      if (
+        name.startsWith(BINDING_ATTRIBUTE) ||
+        name === KEEP_ATTRIBUTE ||
+        name === SLOT_ATTRIBUTE ||
+        name === BINDER_TOUCHED_ATTRIBUTE
+      )
         element.removeAttribute(name)
     }
   }
@@ -477,8 +563,10 @@ const deferBoot = (
   // `waiting` for an interaction or idle, `loading` bodies, `starting` the
   // runtime until its first render commits, then `live`.
   let phase: 'waiting' | 'loading' | 'starting' | 'live' = 'waiting'
-  // The kept fields as the person left them, which the first render resets.
+  // The kept fields and page state (scroll, `<details>`, binder-touched controls)
+  // as the person left them, which the first render resets.
   let held: ReadonlyArray<Held> = []
+  let heldPage: HeldPageState | undefined
   const { stop, answer } = listening(root, {
     bindings: decoded.bindings,
     ...(decoded.events === undefined ? {} : { events: decoded.events }),
@@ -511,6 +599,7 @@ const deferBoot = (
     phase = 'live'
     // Before the queue runs, so its Messages find the fields holding their values.
     restore(held)
+    if (heldPage !== undefined) restorePageState(heldPage)
     stop()
     for (const { event, element } of unanswered.splice(0)) {
       const Ctor = event.constructor as new (type: string, init: Event) => Event
@@ -520,6 +609,7 @@ const deferBoot = (
   const commit = () => {
     phase = 'starting'
     held = hold(kept)
+    heldPage = holdPageState(root)
     runtime.boot({
       'foldkit-ssr.handover': {
         dependenciesSchema: Schema.Null,

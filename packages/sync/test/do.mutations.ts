@@ -10,6 +10,48 @@ const file = '../src/do.ts'
 
 export default [
   {
+    name: "the host opens a socket over a store that cannot hold the document's laws",
+    edits: [
+      {
+        file: host,
+        find: '      holdsLaws(options.sync, journal.success)\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a journal exchange holds no law to its store',
+    edits: [{ file: host, find: '  holdsLaws(sync, journal)\n', replace: '' }],
+    tests,
+  },
+  {
+    name: "a document's laws are taken to need nothing",
+    edits: [{ file: host, find: 'sync.journalContract().judge === undefined', replace: 'true' }],
+    tests,
+  },
+  {
+    name: "a document's laws are judged as a read before the append",
+    edits: [{ file: host, find: "judged: 'constraint',", replace: "judged: 'read-first'," }],
+    tests,
+  },
+  {
+    name: 'a document with no laws is held to them anyway',
+    edits: [{ file: host, find: 'sync.journalContract().judge === undefined', replace: 'false' }],
+    tests,
+  },
+  {
+    name: 'the host declares a store of its own, not the journal one',
+    edits: [
+      {
+        file: host,
+        find: 'store: journal.success.store,',
+        replace: "store: { name: 'host', isolation: 'eventual', parentRowLock: false },",
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a socket is never asked who it serves again',
     edits: [{ file: host, find: 'if (revalidate !== undefined) {', replace: 'if (false) {' }],
     tests,

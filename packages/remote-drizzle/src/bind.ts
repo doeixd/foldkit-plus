@@ -7,7 +7,7 @@
  * take it unchanged.
  */
 import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
-import { getTableColumns } from 'drizzle-orm'
+import { getTableColumns, getTableName } from 'drizzle-orm'
 import { getTableConfig as sqliteTableConfig } from 'drizzle-orm/sqlite-core'
 import { holdsChecks } from './checks.js'
 import { isPostgresTable, isSqliteTable, postgresOperations } from './dialect.js'
@@ -256,17 +256,35 @@ const inverseOne = (
 }
 
 /** What the table's own foreign key on `column` does on delete, where it declares one. */
-const onDeleteOf = (table: DrizzleTable, column: AnyColumn): Option.Option<string> => {
+const onDeleteOf = (
+  table: DrizzleTable,
+  column: AnyColumn,
+  target?: { readonly table: DrizzleTable; readonly idColumn: AnyColumn },
+): Option.Option<string> => {
   const foreignKeys = isPostgresTable(table)
     ? postgresOperations().tableConfig(table).foreignKeys
     : isSqliteTable(table)
       ? sqliteTableConfig(table).foreignKeys
       : []
   for (const key of foreignKeys) {
-    const { columns } = key.reference()
+    const ref = key.reference() as {
+      readonly columns: ReadonlyArray<AnyColumn>
+      readonly foreignTable?: DrizzleTable
+      readonly foreignColumns?: ReadonlyArray<AnyColumn>
+    }
     // By name: a table-level `foreignKey(…)` hands back copies of the table's columns.
-    if (columns.length === 1 && columns[0]?.name === column.name)
-      return Option.some(key.onDelete ?? 'no action')
+    if (ref.columns.length !== 1 || ref.columns[0]?.name !== column.name) continue
+    if (
+      target !== undefined &&
+      ref.foreignTable !== undefined &&
+      ref.foreignColumns !== undefined &&
+      (getTableName(ref.foreignTable) !== getTableName(target.table) ||
+        ref.foreignColumns.length !== 1 ||
+        ref.foreignColumns[0]?.name !== target.idColumn.name)
+    ) {
+      continue
+    }
+    return Option.some(key.onDelete ?? 'no action')
   }
   return Option.none()
 }
@@ -493,10 +511,28 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       }) as RelationBinding
     }
 
+    const guards: Array<string> = []
+    const keyed: Array<string> = []
     for (const [field, relation] of Object.entries(members))
       if (relation._tag === 'Relation') {
         const link = relations[field]
-        if (link?.kind === 'one') agreesOnDelete(config.table, relation, link.field, name, field)
+        if (link?.kind !== 'one') continue
+        agreesOnDelete(config.table, relation, link.field, name, field)
+        if (Option.isSome(relation.onDelete)) guards.push(field)
+        const targetKey = Object.keys(entities).find(k =>
+          Domain.Entity.same(entities[k]!, relation.target()),
+        )
+        const targetCfg = targetKey === undefined ? undefined : tables[targetKey]
+        const targetTable = targetCfg?.table
+        const targetIdCol =
+          targetTable === undefined
+            ? undefined
+            : (targetCfg?.fields?.['id'] ?? getTableColumns(targetTable)['id'])
+        const targetCheck =
+          targetTable !== undefined && targetIdCol !== undefined
+            ? { table: targetTable, idColumn: targetIdCol }
+            : undefined
+        if (Option.isSome(onDeleteOf(config.table, link.field, targetCheck))) keyed.push(field)
       }
 
     // Each relation of an Entity bound beside this one that a delete of its row cascades
@@ -612,13 +648,15 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       computed,
       invariants: Domain.Entity.invariants(entity),
       clocked: Object.entries(entity.sets)
-        .filter(([, set]) => set.value._tag === 'Now')
+        .filter(([, set]) => set.value.term === 'now')
         .map(([field]) => field),
       operators,
       reach,
       cascades,
       restricts,
       clears,
+      guards,
+      keyed,
       ...(config.visible === undefined ? {} : { visible: config.visible }),
     } as unknown as EntityBinding<string, DrizzleTable>
   }

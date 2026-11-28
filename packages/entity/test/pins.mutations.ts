@@ -2,7 +2,7 @@
  * What a conjunction fixes by field (#409), broken in turn:
  * `pnpm mutate packages/entity/test/pins.mutations.ts`.
  */
-const evaluate = '../src/evaluate.ts'
+const evaluate = '../src/pins.ts'
 const tests = ['packages/entity/test/pins.test.ts']
 
 export default [
@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: 'Option.map(fieldOf(right), field => [field, left] as const)',
-        replace: 'Option.none()',
+        find: '() => Option.map(fieldKey(right), key => [key, left] as const),',
+        replace: '() => Option.none(),',
       },
     ],
     tests,
@@ -51,8 +51,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: 'Viewer: viewer => (context === undefined ? Option.none() : contextValue(viewer, context)),',
-        replace: 'Viewer: () => Option.none(),',
+        find: '        : Option.some<unknown>(Option.getOrNull(viewerIdOf(entity, context))),',
+        replace: '        : Option.none(),',
       },
     ],
     tests,
@@ -62,8 +62,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: 'Literal: ({ value }) => Option.some<unknown>(value),',
-        replace: 'Literal: () => Option.none(),',
+        find: "if (Node.$is('Lit')(node)) return Option.some(node.value)",
+        replace: "if (Node.$is('Lit')(node)) return Option.none()",
       },
     ],
     tests,

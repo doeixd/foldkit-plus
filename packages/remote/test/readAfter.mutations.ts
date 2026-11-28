@@ -123,8 +123,8 @@ export default [
   edit(
     'a newer write waits as the last one did',
     store,
-    '    const { behind: _waited, ...rest } = held\n    next[key] = { ...rest, floor: token }',
-    '    next[key] = { ...held, floor: token }',
+    '    const { behind: _waited, ...rest } = held\n    edit.set(key, { ...rest, floor: token })',
+    '    edit.set(key, { ...held, floor: token })',
   ),
   edit(
     'the retry is never read',
@@ -153,7 +153,7 @@ export default [
   edit(
     'a live patch at the token keeps the floor',
     events,
-    'store: floor === undefined ? patched : clearFloors(patched, [key]),',
+    'store: !hasWritten || floor === undefined ? patched : clearFloors(patched, [key]),',
     'store: patched,',
   ),
   edit(

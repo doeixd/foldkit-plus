@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { Entity, Expr } from 'foldkit-entity'
+import { Entity, Expr, Query, dependenciesOf, evaluate } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation, Remote, Selection } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
@@ -85,7 +85,14 @@ describe('Cms.published', () => {
   it('is `cms.published` over the field the published role names, and means it holds a value', () => {
     const published = Cms.published(Post)
     expect(Expr.show(published)).toBe('cms.published(Post.publishedAt)')
-    expect(Expr.expanded(published)).toEqual(Expr.isNotNull(Post.fields.publishedAt))
+    const rows = [
+      { id: 'a', title: 'A', slug: 'a', views: 0, publishedAt: null },
+      { id: 'b', title: 'B', slug: 'b', views: 0, publishedAt: '2026-01-01' },
+    ]
+    const ids = (where: typeof published) =>
+      evaluate(Query.from(Post).pipe(Query.where(where)), {}, rows).map(row => row['id'])
+    expect(ids(published)).toEqual(['b'])
+    expect(ids(Expr.isNotNull(Post.fields.publishedAt))).toEqual(ids(published))
   })
 
   it('is one operator, whichever Entity asks it', () => {
@@ -93,7 +100,10 @@ describe('Cms.published', () => {
       'Page',
       Schema.Struct({ id: Schema.String, shownAt: Schema.NullOr(Schema.String) }),
     ).pipe(Cms.roles({ published: 'shownAt' }))
-    expect(Cms.published(Page).operator).toBe(Cms.published(Post).operator)
+    const operatorsOf = (predicate: ReturnType<typeof Cms.published>) =>
+      dependenciesOf(predicate).operators
+    expect(operatorsOf(Cms.published(Post))).toHaveLength(1)
+    expect(operatorsOf(Cms.published(Page))).toEqual(operatorsOf(Cms.published(Post)))
     expect(Expr.show(Cms.published(Page))).toBe('cms.published(Page.shownAt)')
   })
 

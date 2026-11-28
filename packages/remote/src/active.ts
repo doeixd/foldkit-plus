@@ -3,7 +3,7 @@
  * the store: shared by the read entries and `foldkit-remote/why`.
  */
 import { Option } from 'effect'
-import type { ActiveSurface, Projection, SurfaceSource } from 'foldkit-surface'
+import { type ActiveSurface, type Projection, type SurfaceSource } from 'foldkit-surface'
 import type { ActiveEntry } from './index.js'
 import { stableStringify } from './query.js'
 import {
@@ -18,6 +18,46 @@ import {
 export interface Asked {
   readonly requirements: ReadonlyArray<Requirement>
   readonly connections: ReadonlyArray<ConnectionRequirement>
+}
+
+/**
+ * What a read entry asks of a Model. `storeOnly` says the ask is worked out
+ * from nothing of the Model beside the store, so while the store is the object
+ * it was the plan is too (#580): a bare Surface, a Surface with fixed params.
+ */
+export interface AskedRead<AppModel> {
+  readonly of: (model: AppModel) => Asked
+  readonly storeOnly: boolean
+  /**
+   * Model paths beyond the Remote store that determine what `of(model)` asks
+   * (e.g. `Surface.when`'s `activation.path`). Absent when unknown (such as an
+   * opaque `Surface.at` callback), in which case planning is never skipped.
+   */
+  readonly reads?: ReadonlyArray<ReadonlyArray<string>> | undefined
+}
+
+/** Whether an active entry resolves without the Model: not a `Surface.at`, `Surface.when` or family, which may read anything of it. */
+export const storeOnly = <AppModel>(entry: ActiveEntry<AppModel>): boolean =>
+  !('projectionOf' in entry || 'instancesOf' in entry)
+
+/**
+ * The declared Model paths beyond the store that decide what `entry` asks, or
+ * `undefined` when unknown (`Surface.at`, families, a Site node that reads the
+ * viewer: its activation names the route, not everything the ask reads).
+ */
+export const askReads = <AppModel>(
+  entry: ActiveEntry<AppModel>,
+): ReadonlyArray<ReadonlyArray<string>> | undefined => {
+  if (storeOnly(entry)) return []
+  // `readsBeyondActivation` is what a Site node that reads the viewer carries:
+  // its `activation` labels the route, but the viewer decides the ask too.
+  if (
+    'activation' in entry &&
+    entry.activation !== undefined &&
+    !('readsBeyondActivation' in entry)
+  )
+    return [entry.activation.path]
+  return undefined
 }
 
 export const askedOf = (projection: Projection<any, unknown>): Asked => ({

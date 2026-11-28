@@ -1,7 +1,7 @@
 /** An invariant reads each `one` relation as the id it points at (#345); a `many` it cannot. */
 import { Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
-import { Entity, Expr, Relation, type NextExpr } from '../src/index.js'
+import { Entity, Expr, Relation, type Expr as ExprOf } from '../src/index.js'
 
 const PersonFields = Entity.define('Person', Schema.Struct({ id: Schema.String }))
 const FollowFields = Entity.define(
@@ -23,8 +23,8 @@ const Social = Entity.relate(
 Entity.invariant<typeof Social.Follow>(
   'notSelf',
   ({ after }) => {
-    expectTypeOf(after.follower).toExtend<NextExpr<string>>()
-    expectTypeOf(after.via).toExtend<NextExpr<string | null>>()
+    expectTypeOf(after.follower).toExtend<ExprOf<string>>()
+    expectTypeOf(after.via).toExtend<ExprOf<string | null>>()
     return Expr.not(Expr.eq(after.follower, after.followee))
   },
   { message: 'x', path: ['followee'] },
@@ -59,6 +59,6 @@ Entity.invariant<typeof FollowFields>(
   { message: 'x' },
 )
 
-expectTypeOf(Expr.next(Social.Follow.relations.via)).toExtend<NextExpr<string | null>>()
+expectTypeOf(Expr.next(Social.Follow.relations.via)).toExtend<ExprOf<string | null>>()
 // @ts-expect-error Expr.next takes a field or a one relation
 Expr.next(Social.Person.relations.follows)

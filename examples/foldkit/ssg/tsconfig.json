@@ -21,10 +21,13 @@
       "foldkit-mixins/utilities": ["../../../packages/mixins/src/utilities.ts"],
       "foldkit-mixins/vite": ["../../../packages/mixins/src/vite.ts"],
       "foldkit-ssr": ["../../../packages/ssr/src/index.ts"],
+      "foldkit-ssr/binder": ["../../../packages/ssr/src/binder.ts"],
       "foldkit-ssr/client": ["../../../packages/ssr/src/client.ts"],
       "foldkit-ssr/loader": ["../../../packages/ssr/src/loader.ts"],
       "foldkit-ssr/vite": ["../../../packages/ssr/src/vite.ts"],
-      "foldkit-surface": ["../../../packages/surface/src/index.ts"]
+      "foldkit-surface": ["../../../packages/surface/src/index.ts"],
+      "foldkit-surface/declared": ["../../../packages/surface/src/declared.ts"],
+      "foldkit-surface/writes": ["../../../packages/surface/src/writes.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],

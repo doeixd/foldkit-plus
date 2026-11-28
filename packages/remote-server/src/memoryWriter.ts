@@ -10,6 +10,7 @@ import {
   Expr,
   Operators,
   Query,
+  QueryEvaluateError,
   Write,
   evaluate,
   supported,
@@ -34,13 +35,18 @@ import {
 } from './index.js'
 
 /** What `RemoteServer.memoryWriter` is made with. */
-export interface MemoryWriterOptions {
+export interface MemoryWriterOptions<E extends AnyEntity = AnyEntity> {
   /**
    * How the write's `when`, its computed fields and the Entity's invariants
    * run their primitive operators: the memory backend's own table, as a
    * Drizzle writer names its binding's. `Operators.kernel` when not given.
    */
   readonly operators?: MemoryOperators | undefined
+  /**
+   * The field holding the row's revision, a number: every update moves it on
+   * by one, whatever it `expect`s, and answers it (`EntityWriter.revision`).
+   */
+  readonly revision?: (keyof E['fields'] & string) | undefined
 }
 
 /**
@@ -88,7 +94,8 @@ const linkIds = (
  * A writer of `entity`'s rows in `store` (a memory backend's), for
  * `RemoteServer.write`: an update lands while the row is at the revision it
  * `expect`s, holds its `when`, and the row it would leave keeps every
- * invariant, and moves the revision on by one; an insert lands while its id is
+ * invariant, and moves the revision on by one (and the `revision` option's
+ * field, on every update, which it answers); an insert lands while its id is
  * free and its row keeps the state invariants; a delete while the row is at
  * its revision and holds its `when`. Each refusal is the writer's own error,
  * which `RemoteServer.write` answers as the mutation's `Conflict`, `Unmet`,
@@ -96,7 +103,9 @@ const linkIds = (
  * row, and removes, restricts or clears nothing a delete would take with it,
  * so `RemoteServer.write` and `GuardServer.writer` refuse, by name, a write or
  * a rule that needs one of those. A write's postcondition (`ensures`) is
- * judged beside the invariants, and refused the same way.
+ * judged beside the invariants, and refused the same way. A link through a
+ * relation declared `onDelete` is written only while the row it points at is
+ * in the store, and refused as `Invalid` otherwise.
  *
  * ```ts
  * RemoteServer.memory({
@@ -106,12 +115,18 @@ const linkIds = (
  * })
  * ```
  */
-export const memoryWriter = <P>(
+export const memoryWriter = <P, E extends AnyEntity = AnyEntity>(
   store: MemoryStore,
-  entity: AnyEntity,
-  options: MemoryWriterOptions = {},
+  entity: E,
+  options: MemoryWriterOptions<E> = {},
 ): EntityWriter<P> => {
   const operators = options.operators ?? Operators.kernel
+  const revisionField = options.revision
+  if (revisionField !== undefined && !Object.hasOwn(entity.fields, revisionField)) {
+    throw new Error(
+      `[foldkit-remote-server] RemoteServer.memoryWriter: ${entity.name} has no field "${revisionField}" for its revision`,
+    )
+  }
   const invariants = Entity.invariants(entity)
   // An invariant reads the row after the write (`next`), which a query does not.
   const unrun = Expr.unsupported(
@@ -138,12 +153,46 @@ export const memoryWriter = <P>(
   }
   const clocked = new Set(
     Object.entries(entity.sets)
-      .filter(([, set]) => set.value._tag === 'Now')
+      .filter(([, set]) => set.value.term === 'now')
       .map(([field]) => field),
   )
 
   const stored = (id: string): Option.Option<Readonly<Record<string, unknown>>> =>
     Option.fromUndefinedOr(store.rows(entity.name).find(row => String(row['id']) === id))
+
+  // Each relation declared onDelete, by key, with the Entity it points at: its link is
+  // written only while that row is there (`EntityWriter.checksTargets`).
+  const guarded = Object.entries(relations).flatMap(([key, member]) =>
+    Match.value(member).pipe(
+      Match.tag('Relation', relation =>
+        Option.isSome(relation.onDelete) ? [{ key, target: relation.target().name }] : [],
+      ),
+      Match.orElse(() => []),
+    ),
+  )
+  /** Refuses the first link of `links` to a row that is not there, named by the relation alone. */
+  const refuseGone = (
+    id: string,
+    links: Readonly<Record<string, Option.Option<EntityRef>>>,
+  ): Effect.Effect<void, RemoteInvalid> => {
+    const gone = guarded.find(({ key, target }) => {
+      const link = Object.hasOwn(links, key) ? links[key] : undefined
+      return (
+        link !== undefined &&
+        Option.isSome(link) &&
+        !store.rows(target).some(row => String(row['id']) === link.value.id)
+      )
+    })
+    return gone === undefined
+      ? Effect.void
+      : Effect.fail(
+          new RemoteInvalid({
+            message: `${entity.name} ${id} links "${gone.key}" to a row that is not there`,
+            rule: Option.none(),
+            path: [gone.key],
+          }),
+        )
+  }
 
   /**
    * The first invariant the change breaks, the write's postcondition after the
@@ -218,6 +267,16 @@ export const memoryWriter = <P>(
     postconditions: true,
     // One synchronous step reads and writes the row: no other write lands between.
     pins: true,
+    // The same step reads the row a link through an onDelete relation points at.
+    checksTargets: true,
+    revision: revisionField,
+    // The same step, and one thread: every write runs alone.
+    store: {
+      name: 'memory',
+      isolation: 'serializable',
+      isolates: 'transaction',
+      parentRowLock: false,
+    },
     operators,
     refuses: write => [
       ...Option.match(write.when, {
@@ -253,6 +312,7 @@ export const memoryWriter = <P>(
       Effect.gen(function* () {
         const found = stored(id)
         if (Option.isNone(found)) return Option.none()
+        yield* refuseGone(id, links)
         const row = found.value
         const written = { ...values, ...linkRefs(links) }
         const answer = (from: Readonly<Record<string, unknown>>) =>
@@ -263,6 +323,7 @@ export const memoryWriter = <P>(
               ...Object.keys(assignments),
               ...Object.keys(links),
               ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
+              ...(revisionField === undefined ? [] : [revisionField]),
             ]),
           )
         // A row a revision on could be another's increment or computation: only the
@@ -291,11 +352,26 @@ export const memoryWriter = <P>(
         }
         const before = judged(row)
         // Amounts and computations read the row before the write, as a statement's do.
-        const applied = Write.apply(
-          before,
-          { values: { ...values, ...linkIds(links) }, increments, assignments },
-          { operators },
-        )
+        // A value the evaluator refuses (a sum past the safe range) is the writer's error,
+        // as an operator's own is; its message is not sent, since an operator may say anything.
+        const applied = yield* Effect.suspend(() => {
+          try {
+            return Effect.succeed(
+              Write.apply(
+                before,
+                { values: { ...values, ...linkIds(links) }, increments, assignments },
+                { operators },
+              ),
+            )
+          } catch (error) {
+            if (!(error instanceof QueryEvaluateError)) throw error
+            return Effect.fail(
+              new RemoteServerError({
+                message: `${entity.name} ${id}: the write was refused while working out its row`,
+              }),
+            )
+          }
+        })
         if (applied.unknown.length > 0) {
           return yield* new RemoteServerError({
             message: `${entity.name} ${id}: the write could not work out ${applied.unknown.join(', ')}`,
@@ -310,16 +386,16 @@ export const memoryWriter = <P>(
           return answer(row)
         }
         const moved = [...Object.keys(increments), ...Object.keys(assignments)]
+        const movedOn = (field: string) => {
+          const revision = row[field]
+          return { [field]: typeof revision === 'number' ? revision + 1 : revision }
+        }
         const next = {
           ...written,
           ...picked(after, moved),
-          ...Option.match(expect, {
-            onNone: () => ({}),
-            onSome: ({ field }) => {
-              const revision = row[field]
-              return { [field]: typeof revision === 'number' ? revision + 1 : revision }
-            },
-          }),
+          ...Option.match(expect, { onNone: () => ({}), onSome: ({ field }) => movedOn(field) }),
+          // The same field as `expect`'s moves once: both spread the one value.
+          ...(revisionField === undefined ? {} : movedOn(revisionField)),
         }
         store.write(entity.name, id, next)
         return answer({ ...row, ...next })
@@ -332,6 +408,7 @@ export const memoryWriter = <P>(
         if (Option.isSome(stored(id))) {
           return yield* new RemoteTaken({ message: `${entity.name} ${id} is already taken` })
         }
+        yield* refuseGone(id, links)
         const row = { ...values, ...linkRefs(links) }
         store.write(entity.name, id, row)
         return row

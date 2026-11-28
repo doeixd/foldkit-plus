@@ -15,19 +15,22 @@
  *   `Sync.forApplication` enforces this: a durable Message whose transition
  *   returns a Command or touches a local field is refused at `submit`.
  * - **Effectful intents** are local Messages whose `update` returns a Command.
- *   The Command does the impure work (mint an id, read the clock) and emits the
- *   durable fact. `RequestedTodo` -> `SubmittedTodo` is the pattern.
+ *   An id and a time are supplied to the intent's transition when it runs
+ *   (`surface.ts`), and its Command sends them on in the durable fact.
+ *   `RequestedTodo` -> `SubmittedTodo` is the pattern.
  * - **Local Messages** change per-device UI state (draft, filter, editing) and
  *   never leave the tab.
  */
-import { Clock, Effect, Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import * as Dom from 'foldkit/dom'
-import { modifyFields } from 'foldkit/struct'
 import { Url } from 'foldkit/url'
 import { Mirror } from 'foldkit-mirror'
 import { fact } from 'foldkit-sync'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
+import type { CommandTable } from 'foldkit-surface/declared'
+import type { EmitOf } from 'metakit/machine'
+import type { TodoMachine } from './machine.js'
 
 export const Priority = Schema.Union([
   Schema.Literal('low'),
@@ -41,7 +44,7 @@ export const Todo = Schema.Struct({
   title: Schema.String,
   completed: Schema.Boolean,
   priority: Priority,
-  /** Milliseconds since the epoch, minted by the Command that created the todo. */
+  /** Milliseconds since the epoch, supplied to the Message that created the todo. */
   createdAt: Schema.Number,
 })
 export type Todo = typeof Todo.Type
@@ -95,7 +98,7 @@ export const Message = defineMessageUnion({
    */
   DraftSubmitted: {},
   /**
-   * An agent asked for a todo. The Command mints the id and
+   * An agent asked for a todo. Its transition is supplied the id and
    * the timestamp; `requestId` is the call that waits for the fact (an agent's
    * invocation), carried onto it so two requests for one title are told apart.
    * Messages cross ports and the journal as they are, so it is a plain optional
@@ -110,6 +113,8 @@ export const Message = defineMessageUnion({
   DeleteRequested: { id: Schema.String },
   /** Puts the last deleted todo back. */
   UndoRequested: {},
+  /** The list's title input changed. A blank title is dropped here: `RenamedList` is only for a title its guard accepts. */
+  ListRenameRequested: { title: Schema.String },
 
   // --- durable facts: replicated, replayed, journaled ----------------------
   SubmittedTodo: {
@@ -158,14 +163,6 @@ export const initialModel: Model = {
 
 type Return = Update.Return<Model, Message>
 
-/** Mints what a durable fact needs and cannot compute itself: an id and a time. */
-const mintTodo = (title: string, request: { readonly requestId?: string }) => ({
-  name: 'MintTodo',
-  effect: Effect.map(Clock.currentTimeMillis, createdAt =>
-    Message.SubmittedTodo({ id: crypto.randomUUID(), title, createdAt, ...request }),
-  ),
-})
-
 const focusSelector = (selector: string) => ({
   name: 'Focus',
   effect: Dom.focus(selector).pipe(Effect.ignore, Effect.as(Message.CompletedFocus())),
@@ -181,164 +178,49 @@ const UNDO_FOR = '8 seconds'
 
 const nextPriority: Record<Priority, Priority> = { low: 'normal', normal: 'high', high: 'low' }
 
+/** A record a step of the machine emits (`machine.ts`): what a Command needs. */
+type Emitted = EmitOf<TodoMachine['transitions']>
+
 /**
- * What the mirrors do with their two Messages. They live in `surface.ts`,
- * beside the `App` they are declared over, so `update` takes them as an
- * argument instead of importing them: the Model, the Message union, and the
- * reducer stay the leaves of the import graph.
+ * The Command table for each record `machine.ts` emits: ordinary code, run
+ * after the step, so it may do what the language cannot (move focus, wait,
+ * sort the rows shown). Passed to `Declared.of` in `surface.ts`.
  */
-export type MirrorReducer = (model: Model, message: Message) => Model
-
-export const makeUpdate =
-  (mirrors: MirrorReducer) =>
-  (model: Model, message: Message): Return =>
-    Message.match<Return>(message, {
-      // Mirrors: the URL and the store are read back into the Model.
-      UrlChanged: () => ({ model: mirrors(model, message) }),
-      MirrorRestored: () => ({ model: mirrors(model, message) }),
-      // Intents. Note that each one clears its *local* state here, in the local
-      // transition; the durable fact it causes never touches local fields.
-      DraftSubmitted: () =>
-        model.draft.trim() === ''
-          ? { model }
-          : {
-              model: modifyFields(model, { draft: () => '' }),
-              commands: [mintTodo(model.draft.trim(), {})],
-            },
-      // An agent's request leaves the person's draft as it is.
-      RequestedTodo: ({ title, requestId }) =>
-        title.trim() === ''
-          ? { model }
-          : {
-              model,
-              commands: [mintTodo(title.trim(), requestId === undefined ? {} : { requestId })],
-            },
-      EditingCommitted: () => commitEdit(model),
-      EditingSubmitted: () => {
-        const committed = commitEdit(model)
-        return Option.match(model.editingId, {
-          onNone: () => committed,
-          onSome: id => ({
-            ...committed,
-            commands: [...(committed.commands ?? []), focusTitle(id)],
-          }),
-        })
-      },
-      DeleteRequested: ({ id }) => {
-        const todo = model.todos.find(candidate => candidate.id === id)
-        if (todo === undefined) return { model }
-        const rows = visibleTodos(model)
-        const at = rows.findIndex(row => row.id === id)
-        const neighbour = rows[at + 1] ?? rows[at - 1]
-        return {
-          model: modifyFields(model, { undo: () => Option.some(todo) }),
-          commands: [
-            fact(Message.DeletedTodo({ id })),
-            neighbour === undefined ? focusSelector(`#${COMPOSER_ID}`) : focusTitle(neighbour.id),
-            {
-              name: 'ExpireUndo',
-              effect: Effect.sleep(UNDO_FOR).pipe(Effect.as(Message.UndoExpired({ id }))),
-            },
-          ],
-        }
-      },
-      // The fact is applied within this transition (`fact`), so the todo is
-      // drawn again before focus looks for it.
-      UndoRequested: () =>
-        Option.match(model.undo, {
-          onNone: () => ({ model }),
-          onSome: todo => ({
-            model: modifyFields(model, { undo: () => Option.none() }),
-            commands: [fact(Message.RestoredTodo({ todo })), focusTitle(todo.id)],
-          }),
-        }),
-
-      // Durable facts: pure over the shared slice, idempotent where a retry could
-      // deliver one twice.
-      SubmittedTodo: ({ id, title, createdAt }) => ({
-        model: modifyFields(model, {
-          todos: () =>
-            model.todos.some(todo => todo.id === id)
-              ? model.todos
-              : [...model.todos, { id, title, completed: false, priority: 'normal', createdAt }],
-        }),
+export const todoCommands: CommandTable<Emitted, Model, Message> = {
+  Rename: ({ id, title }) =>
+    id === null
+      ? []
+      : [{ name: 'Rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) }],
+  Focus: ({ id }) => (id === null ? [] : [focusTitle(id)]),
+  // A request's id is absent from a draft's, and from a request that has none.
+  Submit: ({ id, title, createdAt, requestId }) => [
+    fact(
+      Message.SubmittedTodo({
+        id,
+        title,
+        createdAt,
+        ...(typeof requestId === 'string' ? { requestId } : {}),
       }),
-      RestoredTodo: ({ todo }) =>
-        model.todos.some(({ id }) => id === todo.id)
-          ? { model }
-          : { model: modifyFields(model, { todos: () => [...model.todos, todo] }) },
-      ToggledTodo: ({ id }) => ({
-        model: modifyFields(model, {
-          todos: () =>
-            model.todos.map(todo =>
-              todo.id === id ? { ...todo, completed: !todo.completed } : todo,
-            ),
-        }),
-      }),
-      RenamedTodo: ({ id, title }) => ({
-        model: modifyFields(model, {
-          todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
-        }),
-      }),
-      PrioritySet: ({ id, priority }) => ({
-        model: modifyFields(model, {
-          todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, priority } : todo)),
-        }),
-      }),
-      DeletedTodo: ({ id }) => ({
-        model: modifyFields(model, { todos: () => model.todos.filter(todo => todo.id !== id) }),
-      }),
-      ClearedCompleted: () => ({
-        model: modifyFields(model, { todos: () => model.todos.filter(todo => !todo.completed) }),
-      }),
-      RenamedList: ({ title }) =>
-        title.trim() === ''
-          ? { model }
-          : { model: modifyFields(model, { listTitle: () => title.trim() }) },
-
-      // Local.
-      DraftChanged: ({ value }) => ({ model: modifyFields(model, { draft: () => value }) }),
-      FilterSelected: ({ filter }) => ({ model: modifyFields(model, { filter: () => filter }) }),
-      EditingStarted: ({ id }) => ({
-        model: modifyFields(model, {
-          editingId: () => Option.some(id),
-          editDraft: () => model.todos.find(todo => todo.id === id)?.title ?? '',
-        }),
-      }),
-      EditDraftChanged: ({ value }) => ({ model: modifyFields(model, { editDraft: () => value }) }),
-      EditingStopped: () => ({
-        model: modifyFields(model, { editingId: () => Option.none(), editDraft: () => '' }),
-        commands: Option.match(model.editingId, {
-          onNone: () => [],
-          onSome: id => [focusTitle(id)],
-        }),
-      }),
-      UndoExpired: ({ id }) =>
-        Option.exists(model.undo, todo => todo.id === id)
-          ? { model: modifyFields(model, { undo: () => Option.none() }) }
-          : { model },
-      OfflineSet: ({ offline }) =>
-        offline === model.offline
-          ? { model }
-          : { model: modifyFields(model, { offline: () => offline }) },
-      SyncStatusChanged: ({ pending, failed }) =>
-        pending === model.pending && failed === model.syncFailed
-          ? { model }
-          : { model: modifyFields(model, { pending: () => pending, syncFailed: () => failed }) },
-      CompletedFocus: () => ({ model }),
-    })
-
-/** An edit's end: the title is renamed through a fact unless it came out empty or the todo is gone. */
-const commitEdit = (model: Model): Return => {
-  if (Option.isNone(model.editingId)) return { model }
-  const id = model.editingId.value
-  const title = model.editDraft.trim()
-  const stopped = modifyFields(model, { editingId: () => Option.none(), editDraft: () => '' })
-  if (title === '' || model.todos.every(todo => todo.id !== id)) return { model: stopped }
-  return {
-    model: stopped,
-    commands: [{ name: 'Rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) }],
-  }
+    ),
+  ],
+  Delete: ({ id }) => [fact(Message.DeletedTodo({ id }))],
+  RenameList: ({ title }) => [fact(Message.RenamedList({ title }))],
+  // Focus moves to the next row in the order shown, or the one before at the end.
+  FocusNeighbour: ({ id, todos, filter }) => {
+    const rows = visibleTodos({ todos, filter })
+    const at = rows.findIndex(row => row.id === id)
+    const neighbour = rows[at + 1] ?? rows[at - 1]
+    return [neighbour === undefined ? focusSelector(`#${COMPOSER_ID}`) : focusTitle(neighbour.id)]
+  },
+  ExpireUndo: ({ id }) => [
+    {
+      name: 'ExpireUndo',
+      effect: Effect.sleep(UNDO_FOR).pipe(Effect.as(Message.UndoExpired({ id }))),
+    },
+  ],
+  // The fact is applied within this transition (`fact`), so the todo is
+  // drawn again before focus looks for it.
+  Restore: ({ todo }) => (todo === null ? [] : [fact(Message.RestoredTodo({ todo }))]),
 }
 
 export type SyncState = 'synced' | 'saving' | 'offline' | 'retrying'

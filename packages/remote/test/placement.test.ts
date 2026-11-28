@@ -352,4 +352,41 @@ describe('a row with a number id', () => {
       _tag: 'Unknown',
     })
   })
+
+  it('skips a row’s own old edge when binary searching after a move to the front', () => {
+    const moved = Items.reduce(
+      { remote: Remote.initial },
+      {
+        _tag: 'ReadReceived',
+        requests: [1, 2, 3].map(id => ({ entity: 'Item', id: String(id), fields: ['id', 'rank'] })),
+        result: {
+          settled: [],
+          entities: [
+            { entity: 'Item', id: '1', values: { id: 1, rank: 10 } },
+            // Item 2 was in the middle (rank 5) and moved to rank 20 (before Item 1).
+            { entity: 'Item', id: '2', values: { id: 2, rank: 20 } },
+            { entity: 'Item', id: '3', values: { id: 3, rank: 1 } },
+          ],
+        },
+        now: 0,
+      },
+    ).remote.entities
+    const loaded: Connection = {
+      segments: [
+        {
+          edges: [1, 2, 3].map(id => ({
+            key: entityKey('Item', String(id)),
+            ref: { entity: 'Item', id: String(id) },
+          })),
+          start: terminal,
+          end: terminal,
+        },
+      ],
+      stale: false,
+      receivedAt: 0,
+    }
+    expect(placeIn(moved, loaded, Newest.body!, {}, 'Item:2', Operators.kernel)).toEqual(
+      RowPlace.Before({ segment: 0, edge: 'Item:1' }),
+    )
+  })
 })

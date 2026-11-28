@@ -48,6 +48,11 @@
       "types": "./dist/agent.d.mts",
       "import": "./dist/agent.mjs"
     },
+    "./agent/metakit": {
+      "foldkit-plus:source": "./src/agent/metakit.ts",
+      "types": "./dist/agent/metakit.d.mts",
+      "import": "./dist/agent/metakit.mjs"
+    },
     "./agent-a2a": {
       "foldkit-plus:source": "./src/agent-a2a.ts",
       "types": "./dist/agent-a2a.d.mts",
@@ -163,6 +168,21 @@
       "types": "./dist/entity.d.mts",
       "import": "./dist/entity.mjs"
     },
+    "./entity/lowering": {
+      "foldkit-plus:source": "./src/entity/lowering.ts",
+      "types": "./dist/entity/lowering.d.mts",
+      "import": "./dist/entity/lowering.mjs"
+    },
+    "./entity/laws": {
+      "foldkit-plus:source": "./src/entity/laws.ts",
+      "types": "./dist/entity/laws.d.mts",
+      "import": "./dist/entity/laws.mjs"
+    },
+    "./entity/transition": {
+      "foldkit-plus:source": "./src/entity/transition.ts",
+      "types": "./dist/entity/transition.d.mts",
+      "import": "./dist/entity/transition.mjs"
+    },
     "./entity/conformance": {
       "foldkit-plus:source": "./src/entity/conformance.ts",
       "types": "./dist/entity/conformance.d.mts",
@@ -172,6 +192,11 @@
       "foldkit-plus:source": "./src/form.ts",
       "types": "./dist/form.d.mts",
       "import": "./dist/form.mjs"
+    },
+    "./form/metakit": {
+      "foldkit-plus:source": "./src/form/metakit.ts",
+      "types": "./dist/form/metakit.d.mts",
+      "import": "./dist/form/metakit.mjs"
     },
     "./form-recipes/file": {
       "foldkit-plus:source": "./src/form-recipes/file.ts",
@@ -228,6 +253,11 @@
       "types": "./dist/guard/media.d.mts",
       "import": "./dist/guard/media.mjs"
     },
+    "./guard/check": {
+      "foldkit-plus:source": "./src/guard/check.ts",
+      "types": "./dist/guard/check.d.mts",
+      "import": "./dist/guard/check.mjs"
+    },
     "./host": {
       "foldkit-plus:source": "./src/host.ts",
       "types": "./dist/host.d.mts",
@@ -277,6 +307,151 @@
       "foldkit-plus:source": "./src/metadata.ts",
       "types": "./dist/metadata.d.mts",
       "import": "./dist/metadata.mjs"
+    },
+    "./metakit": {
+      "foldkit-plus:source": "./src/metakit.ts",
+      "types": "./dist/metakit.d.mts",
+      "import": "./dist/metakit.mjs"
+    },
+    "./metakit/domain": {
+      "foldkit-plus:source": "./src/metakit/domain.ts",
+      "types": "./dist/metakit/domain.d.mts",
+      "import": "./dist/metakit/domain.mjs"
+    },
+    "./metakit/aggregates": {
+      "foldkit-plus:source": "./src/metakit/aggregates.ts",
+      "types": "./dist/metakit/aggregates.d.mts",
+      "import": "./dist/metakit/aggregates.mjs"
+    },
+    "./metakit/aggregates/sql": {
+      "foldkit-plus:source": "./src/metakit/aggregates/sql.ts",
+      "types": "./dist/metakit/aggregates/sql.d.mts",
+      "import": "./dist/metakit/aggregates/sql.mjs"
+    },
+    "./metakit/artifact": {
+      "foldkit-plus:source": "./src/metakit/artifact.ts",
+      "types": "./dist/metakit/artifact.d.mts",
+      "import": "./dist/metakit/artifact.mjs"
+    },
+    "./metakit/drizzle": {
+      "foldkit-plus:source": "./src/metakit/drizzle.ts",
+      "types": "./dist/metakit/drizzle.d.mts",
+      "import": "./dist/metakit/drizzle.mjs"
+    },
+    "./metakit/fn": {
+      "foldkit-plus:source": "./src/metakit/fn.ts",
+      "types": "./dist/metakit/fn.d.mts",
+      "import": "./dist/metakit/fn.mjs"
+    },
+    "./metakit/machine": {
+      "foldkit-plus:source": "./src/metakit/machine.ts",
+      "types": "./dist/metakit/machine.d.mts",
+      "import": "./dist/metakit/machine.mjs"
+    },
+    "./metakit/inspect": {
+      "foldkit-plus:source": "./src/metakit/inspect.ts",
+      "types": "./dist/metakit/inspect.d.mts",
+      "import": "./dist/metakit/inspect.mjs"
+    },
+    "./metakit/interpreter": {
+      "foldkit-plus:source": "./src/metakit/interpreter.ts",
+      "types": "./dist/metakit/interpreter.d.mts",
+      "import": "./dist/metakit/interpreter.mjs"
+    },
+    "./metakit/graph": {
+      "foldkit-plus:source": "./src/metakit/graph.ts",
+      "types": "./dist/metakit/graph.d.mts",
+      "import": "./dist/metakit/graph.mjs"
+    },
+    "./metakit/graph/match": {
+      "foldkit-plus:source": "./src/metakit/graph/match.ts",
+      "types": "./dist/metakit/graph/match.d.mts",
+      "import": "./dist/metakit/graph/match.mjs"
+    },
+    "./metakit/graph/prune": {
+      "foldkit-plus:source": "./src/metakit/graph/prune.ts",
+      "types": "./dist/metakit/graph/prune.d.mts",
+      "import": "./dist/metakit/graph/prune.mjs"
+    },
+    "./metakit/graph/readiness": {
+      "foldkit-plus:source": "./src/metakit/graph/readiness.ts",
+      "types": "./dist/metakit/graph/readiness.d.mts",
+      "import": "./dist/metakit/graph/readiness.mjs"
+    },
+    "./metakit/policy": {
+      "foldkit-plus:source": "./src/metakit/policy.ts",
+      "types": "./dist/metakit/policy.d.mts",
+      "import": "./dist/metakit/policy.mjs"
+    },
+    "./metakit/operation": {
+      "foldkit-plus:source": "./src/metakit/operation.ts",
+      "types": "./dist/metakit/operation.d.mts",
+      "import": "./dist/metakit/operation.mjs"
+    },
+    "./metakit/operation/sql": {
+      "foldkit-plus:source": "./src/metakit/operation/sql.ts",
+      "types": "./dist/metakit/operation/sql.d.mts",
+      "import": "./dist/metakit/operation/sql.mjs"
+    },
+    "./metakit/language": {
+      "foldkit-plus:source": "./src/metakit/language.ts",
+      "types": "./dist/metakit/language.d.mts",
+      "import": "./dist/metakit/language.mjs"
+    },
+    "./metakit/store": {
+      "foldkit-plus:source": "./src/metakit/store.ts",
+      "types": "./dist/metakit/store.d.mts",
+      "import": "./dist/metakit/store.mjs"
+    },
+    "./metakit/store/check": {
+      "foldkit-plus:source": "./src/metakit/store/check.ts",
+      "types": "./dist/metakit/store/check.d.mts",
+      "import": "./dist/metakit/store/check.mjs"
+    },
+    "./metakit/syntax": {
+      "foldkit-plus:source": "./src/metakit/syntax.ts",
+      "types": "./dist/metakit/syntax.d.mts",
+      "import": "./dist/metakit/syntax.mjs"
+    },
+    "./metakit/pairs": {
+      "foldkit-plus:source": "./src/metakit/pairs.ts",
+      "types": "./dist/metakit/pairs.d.mts",
+      "import": "./dist/metakit/pairs.mjs"
+    },
+    "./metakit/temporal": {
+      "foldkit-plus:source": "./src/metakit/temporal.ts",
+      "types": "./dist/metakit/temporal.d.mts",
+      "import": "./dist/metakit/temporal.mjs"
+    },
+    "./metakit/tooling": {
+      "foldkit-plus:source": "./src/metakit/tooling.ts",
+      "types": "./dist/metakit/tooling.d.mts",
+      "import": "./dist/metakit/tooling.mjs"
+    },
+    "./metakit/sql": {
+      "foldkit-plus:source": "./src/metakit/sql.ts",
+      "types": "./dist/metakit/sql.d.mts",
+      "import": "./dist/metakit/sql.mjs"
+    },
+    "./metakit/prove": {
+      "foldkit-plus:source": "./src/metakit/prove.ts",
+      "types": "./dist/metakit/prove.d.mts",
+      "import": "./dist/metakit/prove.mjs"
+    },
+    "./metakit/conformance": {
+      "foldkit-plus:source": "./src/metakit/conformance.ts",
+      "types": "./dist/metakit/conformance.d.mts",
+      "import": "./dist/metakit/conformance.mjs"
+    },
+    "./metakit/build": {
+      "foldkit-plus:source": "./src/metakit/build.ts",
+      "types": "./dist/metakit/build.d.mts",
+      "import": "./dist/metakit/build.mjs"
+    },
+    "./metakit/relation": {
+      "foldkit-plus:source": "./src/metakit/relation.ts",
+      "types": "./dist/metakit/relation.d.mts",
+      "import": "./dist/metakit/relation.mjs"
     },
     "./mirror": {
       "foldkit-plus:source": "./src/mirror.ts",
@@ -378,6 +553,11 @@
       "types": "./dist/mixins-form/recipes.d.mts",
       "import": "./dist/mixins-form/recipes.mjs"
     },
+    "./mixins-form/declared": {
+      "foldkit-plus:source": "./src/mixins-form/declared.ts",
+      "types": "./dist/mixins-form/declared.d.mts",
+      "import": "./dist/mixins-form/declared.mjs"
+    },
     "./mixins-form": {
       "foldkit-plus:source": "./src/mixins-form.ts",
       "types": "./dist/mixins-form.d.mts",
@@ -477,6 +657,11 @@
       "foldkit-plus:source": "./src/remote/live.ts",
       "types": "./dist/remote/live.d.mts",
       "import": "./dist/remote/live.mjs"
+    },
+    "./remote/maintained": {
+      "foldkit-plus:source": "./src/remote/maintained.ts",
+      "types": "./dist/remote/maintained.d.mts",
+      "import": "./dist/remote/maintained.mjs"
     },
     "./remote/outbox": {
       "foldkit-plus:source": "./src/remote/outbox.ts",
@@ -643,6 +828,11 @@
       "types": "./dist/ssr/loader.d.mts",
       "import": "./dist/ssr/loader.mjs"
     },
+    "./ssr/binder": {
+      "foldkit-plus:source": "./src/ssr/binder.ts",
+      "types": "./dist/ssr/binder.d.mts",
+      "import": "./dist/ssr/binder.mjs"
+    },
     "./ssr/vite": {
       "foldkit-plus:source": "./src/ssr/vite.ts",
       "types": "./dist/ssr/vite.d.mts",
@@ -652,6 +842,16 @@
       "foldkit-plus:source": "./src/surface.ts",
       "types": "./dist/surface.d.mts",
       "import": "./dist/surface.mjs"
+    },
+    "./surface/writes": {
+      "foldkit-plus:source": "./src/surface/writes.ts",
+      "types": "./dist/surface/writes.d.mts",
+      "import": "./dist/surface/writes.mjs"
+    },
+    "./surface/declared": {
+      "foldkit-plus:source": "./src/surface/declared.ts",
+      "types": "./dist/surface/declared.d.mts",
+      "import": "./dist/surface/declared.mjs"
     },
     "./sync": {
       "foldkit-plus:source": "./src/sync.ts",
@@ -677,6 +877,11 @@
       "foldkit-plus:source": "./src/sync/remote.ts",
       "types": "./dist/sync/remote.d.mts",
       "import": "./dist/sync/remote.mjs"
+    },
+    "./sync/metakit": {
+      "foldkit-plus:source": "./src/sync/metakit.ts",
+      "types": "./dist/sync/metakit.d.mts",
+      "import": "./dist/sync/metakit.mjs"
     }
   },
   "files": [
@@ -729,7 +934,8 @@
     "foldkit-site": "workspace:*",
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",
-    "foldkit-sync": "workspace:*"
+    "foldkit-sync": "workspace:*",
+    "metakit": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.1.0",

@@ -4,83 +4,53 @@
  * checks that a test fails for every one.
  */
 const compile = '../src/compile.ts'
-const evaluate = '../../entity/src/evaluate.ts'
+const lowering = '../src/lowering.ts'
+const sqlLowering = '../../metakit/src/sqlLowering.ts'
 const tests = [
   'packages/remote-drizzle/test/compile.test.ts',
   'packages/remote-drizzle/test/conformance.test.ts',
+  'packages/remote-drizzle/test/lowering.test.ts',
 ]
+
+const rewrites = '../src/rewrites.ts'
 
 export default [
   {
-    name: 'a decisive operand does not decide the whole',
+    name: 'nothing is settled: the request is not bound into the nodes',
     edits: [
       {
-        file: compile,
-        find: '  if (parts.includes(decisive)) return constant(decisive)\n',
-        replace: '',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a settled operand reaches the database as a constant',
-    edits: [
-      {
-        file: compile,
-        find: "typeof part === 'boolean' ? [] :",
-        replace: "typeof part === 'boolean' ? [constant(part)] :",
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'nothing is settled: every operand is sent to the database',
-    edits: [
-      {
-        file: evaluate,
-        find: '      field: read.fields.length + read.next.length + read.reaches.length > 0,\n',
-        replace: '      field: true,\n',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a decided operand stops the others being compiled',
-    edits: [
-      {
-        file: compile,
-        find: '  const parts = operands.map(each =>',
-        replace:
-          '  const parts = operands.some(each => Option.getOrUndefined(decide(each, input, query)) === decisive)\n    ? [decisive]\n    : operands.map(each =>',
+        file: lowering,
+        find: '    envFor(node, reading, target, input),\n    readsStored',
+        replace: '    {},\n    readsStored',
       },
     ],
     tests,
   },
   {
     name: 'a field written second keeps its operator',
-    edits: [
-      {
-        file: compile,
-        find: '[node.right, node.left, flipped[node.operator]]',
-        replace: '[node.right, node.left, node.operator]',
-      },
-    ],
+    edits: [{ file: rewrites, find: "'ord.gt': 'ord.lt',", replace: "'ord.gt': 'ord.gt'," }],
     tests,
   },
   {
     name: 'a comparison ignores its collation',
     edits: [
       {
-        file: compile,
-        find: '  return Option.match(node.collation, {',
-        replace: '  return Option.match(Option.none(), {',
+        file: rewrites,
+        find: '  if (column === undefined) return node\n',
+        replace: '  return node\n',
       },
     ],
     tests,
   },
   {
     name: 'lt is written as lte',
-    edits: [{ file: compile, find: "  lt: '<',\n", replace: "  lt: '<=',\n" }],
+    edits: [
+      {
+        file: sqlLowering,
+        find: "'ord.lt': numeric(() => '<'),",
+        replace: "'ord.lt': numeric(() => '<='),",
+      },
+    ],
     tests,
   },
   {
@@ -88,9 +58,8 @@ export default [
     edits: [
       {
         file: compile,
-        find: '    onSome: constant,\n    onNone: () => undecided(node, target, input, query),',
-        replace:
-          '    onSome: () => undecided(node, target, input, query),\n    onNone: () => undecided(node, target, input, query),',
+        find: "  return Node.$is('Lit')(residual)\n",
+        replace: '  return false\n',
       },
     ],
     tests,
@@ -99,9 +68,9 @@ export default [
     name: 'a not compiles to its operand',
     edits: [
       {
-        file: compile,
-        find: '      return negate(predicate(node.operand, target, input, query))',
-        replace: '      return predicate(node.operand, target, input, query)',
+        file: sqlLowering,
+        find: "'bool.not': (args, ctx) => one(args, ctx, inner => q`(NOT ${inner})`),",
+        replace: "'bool.not': (args, ctx) => one(args, ctx, inner => q`(${inner})`),",
       },
     ],
     tests,
@@ -109,11 +78,7 @@ export default [
   {
     name: 'an or compiles as an and',
     edits: [
-      {
-        file: compile,
-        find: "      return connective(node.operands, 'or', target, input, query)",
-        replace: "      return connective(node.operands, 'and', target, input, query)",
-      },
+      { file: sqlLowering, find: "'bool.or': infix('OR'),", replace: "'bool.or': infix('AND')," },
     ],
     tests,
   },

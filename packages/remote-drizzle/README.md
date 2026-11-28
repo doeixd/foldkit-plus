@@ -636,6 +636,23 @@ A table whose revisions start again when a row is created again should send
 none: the client keeps a deleted row's revision, and holds a row of that
 revision or a lower one away.
 
+Give the writer the same column and every update it lands moves the revision
+on by one in its statement (once, beside `revisionTrigger` or an `expect` of
+it) and sends it with the answer. A client whose pending increment landed
+right after the row it read then takes the answer without reading the row
+again.
+
+<!-- docs-check standalone
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { entity, writer } from 'foldkit-remote-drizzle'
+const items = sqliteTable('items', { id: text('id').primaryKey(), name: text('name').notNull(), revision: integer('revision').notNull() })
+const Item = entity('Item', items)
+-->
+
+```ts
+const ItemWriter = writer(Item, { revision: 'revision' })
+```
+
 ### A collection read whole is bounded
 
 A collection relation read with no window (`comments: true`) comes back as the
@@ -1081,10 +1098,14 @@ const Db = bind(
 )
 ```
 
-An implementation is given its arguments compiled, the dialect, the call's
-collation and `collate`, which writes text under it as the comparisons above
-do. It must agree with the memory implementation, nulls included. The
-compiler adds what SQL cannot say for itself:
+An implementation is given its arguments compiled and the dialect. An operator
+that compares text itself (`collation: 'required'`) is given its text arguments
+folded under the call's collation (`asciiFold` lowers ASCII letters, `binary`
+leaves them), so none comes beside them. It must agree with the memory
+implementation, nulls included. `Text.startsWith`, `Expr.add` and `Expr.sub`
+are metakit's own operations, which carry their SQL: `DrizzleOperators.kernel`
+holds none, and an implementation of one is refused. The compiler adds what SQL
+cannot say for itself:
 
 - On Postgres, a literal or input argument the operator takes as a number or a
   boolean is cast (`cast($1 as integer)` while the value fits one, so a function
@@ -1280,15 +1301,24 @@ foresaw. One that refuses the delete (`restrict`, `no action`, or no
 the delete then fails as a database error, not `Referenced`, so declare
 `onDelete: 'restrict'` to have it answered.
 
-**On Postgres, keep the foreign key.** A cascade, a restriction or a clear
-the writer holds alone sees what had committed when its statements ran. On
-SQLite and D1, which write one transaction at a time, that is everything. On
-Postgres a transaction that links a row to the one being deleted, committed
-while the delete runs, is not seen, and the link outlives its target; under
-`serializable` too, since the link's write reads nothing the delete writes.
-Only a foreign key holds there: `on delete cascade`, `restrict` (or `no
-action`) or `set null`, as the relation declares, which `bind` checks
-against it.
+**A link through such a relation points at a row.** An insert or update
+that sets a link through a relation declared `onDelete` writes it only while
+the row it points at is there, in the statement that writes
+(`checksTargets`), and otherwise answers `Invalid` with the relation's key
+as the path. A taken id is still answered as taken.
+
+**On Postgres, keep the foreign key.** A cascade, a restriction, a clear or
+a link the writer holds alone sees what had committed when its statement
+ran. On SQLite and D1, which write one transaction at a time, that is
+everything. On Postgres at read committed a link committed while the delete
+runs is not seen, and would outlive its target, so `RemoteServer.write`
+refuses such a delete, and such a link, through `writer(binding)` there,
+naming the relation, what it needs and the store. It registers where the
+table's foreign key holds the relation, one on the link's column that
+references the target's id (`on delete cascade`, `restrict` or
+`no action`, or `set null`, as the relation declares, which `bind` checks
+against it), or with `isolation: 'serializable'`, where the link's write
+reads the row the delete removes, so one of the two is refused.
 
 **A cascade takes no row its deleter may not delete.** `delete` takes
 `cascading`, each Entity's `Delete` rule as a `CascadeRequirement` (Guard's

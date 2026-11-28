@@ -3,10 +3,13 @@
  * `pnpm mutate packages/entity/test/primitive.mutations.ts` checks that a test
  * fails for every one.
  */
-const expr = '../src/expr.ts'
+const operator = '../src/expr/operator.ts'
+const operand = '../src/expr/operand.ts'
+const dependencies = '../src/expr/dependencies.ts'
 const evaluate = '../src/evaluate.ts'
 const operators = '../src/operators.ts'
 const memoryTable = '../src/memoryTable.ts'
+const reading = '../src/reading.ts'
 const invariant = '../src/invariant.ts'
 const tests = [
   'packages/entity/test/primitive.test.ts',
@@ -22,46 +25,17 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 export default [
   // ---- running a call
   edit(
-    'a strict operator is asked about a null',
-    evaluate,
-    "if (operator.nulls === 'strict' && values.some(isNull)) return null",
-    '',
-  ),
-  edit(
     'text holding NUL reaches an implementation',
-    evaluate,
-    'if (values.some(holdsNul)) {',
+    reading,
+    "if (values.some(value => typeof value === 'string' && value.includes(NUL))) {",
     'if (false) {',
   ),
-  edit(
-    'a throw from an implementation goes out unnamed',
-    evaluate,
-    'if (error instanceof QueryEvaluateError) throw error',
-    'throw error',
-  ),
-  edit(
-    'a checked table checks nothing',
-    evaluate,
-    'if (checked && !unknownTruth',
-    'if (false && !unknownTruth',
-  ),
-  edit(
-    'a predicate may answer something that is not a truth',
-    evaluate,
-    "if (typeof answer !== 'boolean') {",
-    'if (false) {',
-  ),
-  edit(
-    'a predicate answering null is not unknown',
-    evaluate,
-    "if (answer === null || answer === undefined) return 'unknown'",
-    '',
-  ),
+  edit('a checked table checks nothing', reading, 'return operators.checked &&', 'return false &&'),
   edit(
     'a table is never asked',
-    evaluate,
-    'Option.match(scope.operators.get(call.operator), {',
-    'Option.match(Option.none<never>(), {',
+    '../src/judgeRun.ts',
+    'const foreign: ForeignImplementations = foreignOf(reading, over.operators)',
+    'const foreign: ForeignImplementations = {}',
   ),
   edit(
     'evaluate ignores the table it is given',
@@ -78,14 +52,14 @@ export default [
   edit(
     'deciding over the input ignores the table',
     evaluate,
-    '            operators,\n            judging: false,\n            find: noRows,\n            context,\n',
-    '            operators: kernelOperators,\n            judging: false,\n            find: noRows,\n            context,\n',
+    '{ row: noRow, next: noRow, input, operators, context }',
+    '{ row: noRow, next: noRow, input, operators: kernelOperators, context }',
   ),
   edit(
     'a row is judged with the kernel whatever the table',
     evaluate,
-    '      next: flat(next),\n      operators,\n',
-    '      next: flat(next),\n      operators: kernelOperators,\n',
+    '{ row: flatRow(row), next: flatRow(next), input, operators }',
+    '{ row: flatRow(row), next: flatRow(next), input, operators: kernelOperators }',
   ),
 
   // ---- tables
@@ -116,69 +90,69 @@ export default [
   ),
   edit(
     'startsWith never folds',
-    memoryTable,
-    "const folded = Option.exists(collation, each => each._tag === 'AsciiFold')",
-    'const folded = false',
+    '../src/text.ts',
+    '(args, fold) => Node.Call({ op: Str.startsWithOp, args: args.map(fold) }),',
+    '(args) => Node.Call({ op: Str.startsWithOp, args }),',
   ),
 
   // ---- declaring and calling
   edit(
     'a defined operator may declare a null rule',
-    expr,
+    operator,
     '(options.nulls !== undefined || options.collation !== undefined)',
     'false',
   ),
   edit(
     'a result that is not text may carry a collation',
-    expr,
-    "if (collation === 'operands' && orderKindOf(",
-    'if (false && orderKindOf(',
+    operator,
+    "if (collation === 'operands' && storedKindOf(options.output) !== 'text') {",
+    'if (false) {',
   ),
   edit(
     'text with no collation may be compared by a call needing one',
-    expr,
+    operator,
     'if (shared === undefined) {',
     'if (false) {',
   ),
   edit(
     'operands declaring different collations are taken',
-    expr,
+    operator,
     'if (collations.some(each => each._tag !== shared._tag)) {',
     'if (false) {',
   ),
   edit(
     'a declared locale is taken where a collation is required',
-    expr,
+    operator,
     "if (shared._tag === 'Locale') {",
     'if (false) {',
   ),
   edit(
     'a collation is taken by an operator comparing no text',
-    expr,
+    operator,
     "if (Option.isSome(descriptor.definedAs) || descriptor.collation === 'none') {",
     'if (false) {',
   ),
   edit(
     'a given locale is taken where a collation is required',
-    expr,
+    operator,
     "if (collation._tag === 'Locale') {",
     'if (false) {',
   ),
   edit(
     'a comparison reads no collation from a call',
-    expr,
-    'Call: call => [{ name: showExpr(call), collation: call.collation }],',
-    'Call: () => [],',
+    operand,
+    'Call: call => call.collation,',
+    'Call: () => Option.none<Collation>(),',
   ),
   edit(
     'a table implementing an operator still leaves it unsupported',
-    expr,
+    dependencies,
     '.filter(operator => Option.isNone(operator.definedAs) && !operators.has(operator))',
     '.filter(operator => Option.isNone(operator.definedAs))',
   ),
   edit(
     'a defined operator is unsupported',
-    expr,
+    dependencies,
     '.filter(operator => Option.isNone(operator.definedAs) && !operators.has(operator))',
     '.filter(operator => !operators.has(operator))',
   ),
@@ -217,7 +191,7 @@ export default [
   edit(
     'a check counts what the judge runs as missing',
     invariant,
-    'operations: dependenciesOf(...predicates).operations,',
-    'operations: [],',
+    '    dependenciesOf(...predicates).operations,',
+    '    [],',
   ),
 ]

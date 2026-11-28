@@ -20,6 +20,7 @@ const memory = (saved: unknown = undefined) => {
   let state = saved
   let closes = 0
   const storage: Storage = {
+    store: { name: 'test replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => structuredClone(state)),
     save: (next, expectedRevision) =>
       Effect.gen(function* () {

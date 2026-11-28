@@ -166,8 +166,9 @@ export default [
     edits: [
       {
         file: '../src/sheet.ts',
-        find: "Match.tag('RequestedOpen', () => (model.dialog.isOpen ? {} : { at: model.opensAt })),",
-        replace: "Match.tag('RequestedOpen', () => ({})),",
+        find: "        updateDialog(model.dialog, message),\n        Match.value(message).pipe(\n          Match.tag('RequestedOpen', () => (model.dialog.isOpen ? {} : { at: model.opensAt })),",
+        replace:
+          "        updateDialog(model.dialog, message),\n        Match.value(message).pipe(\n          Match.tag('RequestedOpen', () => ({})),",
       },
     ],
     tests: [bundles],
@@ -177,8 +178,9 @@ export default [
     edits: [
       {
         file: '../src/sheet.ts',
-        find: '() => (model.dialog.isOpen ? {} : { at: model.opensAt })',
-        replace: '() => ({ at: model.opensAt })',
+        find: "        updateDialog(model.dialog, message),\n        Match.value(message).pipe(\n          Match.tag('RequestedOpen', () => (model.dialog.isOpen ? {} : { at: model.opensAt })),",
+        replace:
+          "        updateDialog(model.dialog, message),\n        Match.value(message).pipe(\n          Match.tag('RequestedOpen', () => ({ at: model.opensAt })),",
       },
     ],
     tests: [bundles],

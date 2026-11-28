@@ -7,7 +7,7 @@
 import { Effect, Result } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { RESUME_ATTRIBUTE, SSR, type ResumePart } from 'foldkit-ssr'
-import { Projection } from 'foldkit-surface'
+import { Projection, Surface } from 'foldkit-surface'
 import { App, config, loaded, plan, type Model } from './remoteFixture.js'
 
 /** A page holding one envelope on its stamped root, set through the DOM. */
@@ -125,15 +125,44 @@ describe('parts in the plan and the render', () => {
   it('counts a Remote read as resumed when a part covers it', () => {
     expect(SSR.inspect(plan, loaded)).toMatchObject({
       parts: ['remote'],
-      surfaces: [{ name: 'Author', unresumed: [], reads: [], sameInBrowser: true }],
+      // The part restores the store the Remote read names as what it reads.
+      surfaces: [
+        {
+          name: 'Author',
+          unresumed: [],
+          reads: [{ path: 'remote', cover: 'part' }],
+          sameInBrowser: true,
+        },
+      ],
     })
     const uncovered = SSR.plan(App, {
       id: 'author',
       state: Projection.pick(App.model.theme),
       surfaces: plan.surfaces,
     })
-    expect(SSR.inspect(uncovered, loaded).surfaces[0]?.unresumed).toEqual([
-      { name: 'remote', entries: ['User:u1'] },
-    ])
+    expect(SSR.inspect(uncovered, loaded).surfaces[0]).toMatchObject({
+      unresumed: [{ name: 'remote', entries: ['User:u1'] }],
+      reads: [{ path: 'remote', cover: 'missing' }],
+    })
+  })
+
+  it('does not count a plain reference to the store as resumed: the part carries what its reads ask, not the field', async () => {
+    // No Remote read: the part captures nothing for this Surface, whatever the store holds.
+    const Raw = App.surface('Raw', { model: ({ model }) => ({ store: model.remote }) })
+    const raw = SSR.plan(App, {
+      id: 'raw',
+      state: Projection.pick(App.model.theme),
+      surfaces: [Surface.at(Raw, undefined)],
+      parts: plan.parts,
+    })
+    expect(JSON.parse(SSR.envelope(raw, loaded)).parts.remote.entities).toEqual({})
+    expect(SSR.inspect(raw, loaded).surfaces[0]).toMatchObject({
+      name: 'Raw',
+      reads: [{ path: 'remote', cover: 'missing' }],
+    })
+    const refused = await Effect.runPromise(Effect.flip(SSR.render(config, raw, { buildId: 'b' })))
+    expect(refused.message).toContain(
+      `Surface "Raw" reads remote, which is neither in the plan's state nor local`,
+    )
   })
 })

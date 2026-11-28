@@ -6,12 +6,13 @@
  * page's WebAssembly and arrives later.
  */
 import { Effect, Option, Result, Schema } from 'effect'
+import { Verdict } from 'metakit'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
-import { Expr, Judge, Query, type EntityRef } from 'foldkit-entity'
+import { Expr, Query, type EntityRef } from 'foldkit-entity'
 import {
   evaluated,
   held,
@@ -219,7 +220,7 @@ export const readout = (inputs: Inputs): Readout => {
   const question = questionOf(inputs)
   const dependencies = Query.dependencies(question.body)
   const own = dependencies.fields.map(field => field.key).join(', ')
-  const others = dependencies.reaches.map(reach => Expr.show(reach)).join(', ')
+  const others = dependencies.reaches.map(reach => Expr.show(reach.expr)).join(', ')
   return {
     question,
     expression: Query.show(question.body),
@@ -227,13 +228,10 @@ export const readout = (inputs: Inputs): Readout => {
     evaluate: evaluated(question, world),
     judgeAll: judgedIn(question, world, held(world)),
     judgePart: judged(question, world, held(world, pageHolds)).map(({ row, verdict }) =>
-      Judge.match(verdict, {
-        onKnown: truth => ({
-          post: row,
-          known: Option.some(truth),
-          text: truth ? 'in' : 'out',
-        }),
-        onUnknown: reason => ({ post: row, known: Option.none(), text: `unknown: ${reason}` }),
+      Verdict.match<never, PartVerdict>(verdict, {
+        True: () => ({ post: row, known: Option.some(true), text: 'in' }),
+        False: () => ({ post: row, known: Option.some(false), text: 'out' }),
+        Unknown: ({ reason }) => ({ post: row, known: Option.none(), text: `unknown: ${reason}` }),
       }),
     ),
   }

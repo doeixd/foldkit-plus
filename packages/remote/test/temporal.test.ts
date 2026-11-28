@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest'
 import {
   Entity,
   Mutation,
+  Query,
   Remote,
   RemoteClient,
   RemotePolicy,
@@ -23,7 +24,7 @@ import {
 } from '../src/index.js'
 import { noKept } from '../src/kept.js'
 import { layers } from '../src/layers.js'
-import { live } from '../src/live.js'
+import { live, liveQuery } from '../src/live.js'
 import { Respond, Trace } from '../src/testing.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
@@ -292,6 +293,99 @@ describe('a write answered while the stream still delivers what came before it',
     // `b` started after Eve was heard, so Eve is no race for it, as `a`'s answer is.
     const model = Data.reduce(late, succeeded('b', 'Hopper'))
     expect(Data.plan(model, user)).toEqual([])
+  })
+})
+
+describe('a read answered while a write is pending', () => {
+  // Our `Grace` is stored and its answer is on its way; another writer's `Eve`
+  // lands after it. A read answered meanwhile brings Eve, and a stream opened
+  // after Eve never sends it. Nothing in the answer says it is older than the
+  // read, so the answer is written, as ever, and the field is read again (#480).
+  const written = rename(known, 'a', 'Grace')
+  const read = (name: string, now = 3): RemoteMessage => ({
+    _tag: 'ReadReceived',
+    requests: [asked('u1')],
+    result: { entities: [{ entity: 'User', id: 'u1', values: { name } }], settled: [] },
+    now,
+  })
+  const behind = (name: string): RemoteMessage => ({
+    _tag: 'ReadReceived',
+    requests: [asked('u1')],
+    result: {
+      entities: [{ entity: 'User', id: 'u1', values: { name } }],
+      settled: [],
+      behind: [{ entity: 'User', id: 'u1' }],
+    },
+    now: 3,
+  })
+  const answer = succeeded('a', 'Grace')
+
+  it('reads the field again when the late answer is not what the read brought, and ends on the read', () => {
+    const recorded = replay(written, [read('Eve'), answer])
+    expect(shown(recorded)).toEqual(['Grace/Ada', 'Grace/Eve', 'Grace/Grace'])
+    const model = [read('Eve'), answer].reduce(Data.reduce, written)
+    expect(user.read(model)).toEqual({ _tag: 'Refreshing', value: { name: 'Grace' } })
+    expect(Data.plan(model, user)).toEqual([asked('u1')])
+    expect(frameOf(Data.reduce(model, read('Eve', 20)))).toEqual({
+      tag: 'Ready',
+      visible: 'Eve',
+      confirmed: 'Eve',
+    })
+  })
+
+  it.each([
+    // The read is of the write itself: the answer says nothing new.
+    ['a read that brought the write', false, written, [read('Grace')]],
+    // The read moved nothing: it is behind the write, as any read asked before it is.
+    ['a read of what was held', false, written, [read('Ada')]],
+    ['a read that brought another value', true, written, [read('Eve')]],
+    // The server says its read is behind the row: it wrote nothing, so it moved nothing.
+    ['a read the server was behind on', false, written, [behind('Eve')]],
+    // Eve was read before the write began, so it is no race for its answer.
+    [
+      'a read answered before the write began',
+      false,
+      rename(Data.reduce(known, read('Eve')), 'a', 'Grace'),
+      [],
+    ],
+  ])('plans a read after the answer for %s: %s', (_name, planned, from, during) => {
+    const model = [...during, answer].reduce(Data.reduce, from)
+    expect(Data.plan(model, user)).toEqual(planned ? [asked('u1')] : [])
+  })
+
+  it('reads a listed row again when the page that brought another value came while the write was pending', () => {
+    const All = Query.make('All', { Input: {}, Result: User })
+    const Listed = Remote.make({
+      model: App.model.remote,
+      entities: [User],
+      queries: [All],
+      mutations: [Rename],
+    })
+    const list = liveQuery(Listed, All, {}, { select: selection, first: 10 })
+    const page = (name: string): RemoteMessage => ({
+      _tag: 'ConnectionMerged',
+      connection: list.ref.identity,
+      page: {
+        edges: [{ key: 'User:u1', ref: { entity: 'User', id: 'u1' } }],
+        start: { _tag: 'Terminal' },
+        end: { _tag: 'Terminal' },
+      },
+      select: { entity: 'User', fields: ['name'] },
+      entities: [{ entity: 'User', id: 'u1', values: { name } }],
+      now: 3,
+    })
+    const pending = Listed.mutate(
+      Listed.reduce(start, page('Ada')),
+      Rename,
+      { id: 'u1', name: 'Grace' },
+      { requestId: 'a', optimistic: [User.patch('u1', { name: 'Grace' })] },
+    ).model
+    const row = Listed.get(selection, 'u1')
+    const settled = [page('Eve'), answer].reduce(Listed.reduce, pending)
+    expect(row.read(settled)).toEqual({ _tag: 'Refreshing', value: { name: 'Grace' } })
+    expect(Listed.plan(settled, row)).toEqual([asked('u1')])
+    // The page was of the write itself: nothing is read again.
+    expect(Listed.plan([page('Grace'), answer].reduce(Listed.reduce, pending), row)).toEqual([])
   })
 })
 

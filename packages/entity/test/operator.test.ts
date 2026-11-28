@@ -3,8 +3,10 @@
  * interpreter runs as that body. See `docs/design/expr-operations-DESIGN.md`.
  */
 import { Schema } from 'effect'
+import { Node } from 'metakit'
 import { describe, expect, it } from 'vitest'
-import { Entity, Expr, Order, Query, evaluate, truthOver } from '../src/index.js'
+import { Entity, Expr, Order, Query, evaluate, truthOver, type Predicate } from '../src/index.js'
+import { substituteNext } from './substituteNext.js'
 
 const Article = Entity.define(
   'Article',
@@ -166,8 +168,11 @@ describe('A call of a defined operator', () => {
       output: Schema.Boolean,
     })
     const ranked = Expr.gt(fields.rank, 0)
-    expect(negate(ranked).args).toEqual([ranked])
-    expect(either(ranked).args).toEqual([ranked])
+    // A primitive operator's call holds its arguments, the predicate as it is.
+    const argumentsOf = (call: Predicate) =>
+      Node.$is('Call')(call.node) ? call.node.args.map(Node.key) : []
+    expect(argumentsOf(negate(ranked))).toEqual([Node.key(ranked.node)])
+    expect(argumentsOf(either(ranked))).toEqual([Node.key(ranked.node)])
     const onlyTrue = Expr.operator('acme.onlyTrue', {
       input: [Schema.Literal(true)],
       output: Schema.Boolean,
@@ -224,7 +229,12 @@ describe('Expr.operator', () => {
     const first = published(fields.publishedAt)
     const second = published(Expr.input('at', Schema.NullOr(Schema.String)))
     expect(first).not.toBe(second)
-    expect(first.operator).toBe(second.operator)
+    expect(Node.key(first.node)).not.toBe(Node.key(second.node))
+    // Each is the defined body over its own argument, named for what it calls.
+    expect(Node.key(second.node)).toBe(
+      Node.key(Expr.isNotNull(Expr.input('at', Schema.NullOr(Schema.String))).node),
+    )
+    expect(Expr.show(first)).toBe('cms.published(Article.publishedAt)')
     expect(Expr.show(second)).toBe('cms.published($at)')
   })
 })
@@ -263,17 +273,15 @@ describe('The node budget', () => {
   })
 })
 
-describe('Expr.expanded', () => {
-  it('writes each defined call out as its body, which compiles as if written by hand', () => {
+describe('A defined call is already its body', () => {
+  it('is the node its body builds, which every reader sees as written by hand', () => {
     const call = Expr.and(published(fields.publishedAt), Expr.eq(rankOf(fields.rank), 2))
     const written = Expr.and(Expr.isNotNull(fields.publishedAt), Expr.eq(fields.rank, 2))
-    expect(Expr.expanded(call)).toEqual(written)
-    expect(Expr.show(Expr.expanded(call))).toBe(Expr.show(written))
-  })
-
-  it('builds the expansion of one node once', () => {
-    const call = published(fields.publishedAt)
-    expect(Expr.expanded(call)).toBe(Expr.expanded(call))
+    expect(Node.key(call.node)).toBe(Node.key(written.node))
+    // Only `show` keeps the name it was called by.
+    expect(Expr.show(call)).toBe(
+      'cms.published(Article.publishedAt) and acme.rankOf(Article.rank) = 2',
+    )
   })
 })
 
@@ -281,10 +289,8 @@ describe('An invariant over a defined operator', () => {
   it('reads the row after a write through the call, and judges the value a write sets', () => {
     const after = published(Expr.next(fields.publishedAt))
     expect(truthOver(after, {}, {}, { publishedAt: '2026-10-03' })).toBe(true)
-    // `substituteNext` reaches the field under the call, as it does one written out: the
+    // Substituting `next` reaches the field under the call, as it does one written out: the
     // value set decides it, though the row after holds nothing (which reads as null).
-    expect(truthOver(Expr.substituteNext(after, { publishedAt: '2026-10-03' }), {}, {}, {})).toBe(
-      true,
-    )
+    expect(truthOver(substituteNext(after, { publishedAt: '2026-10-03' }), {}, {}, {})).toBe(true)
   })
 })

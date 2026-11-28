@@ -23,8 +23,8 @@ export default [
   edit(
     'the amount is not added',
     '../src/optimistic.ts',
-    'increments: adds ?? {}',
-    'increments: {}',
+    'increments: unincluded(adds, kept.get(key), layer.id),',
+    'increments: {},',
   ),
   edit(
     'an earlier layer is not added to',

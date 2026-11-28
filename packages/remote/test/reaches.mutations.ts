@@ -1,175 +1,185 @@
 /**
  * `reaches`: each reach variant, the own fields, the Unknown cases and the
  * owner comparison dropped. `pnpm mutate packages/remote/test/reaches.mutations.ts`.
+ *
+ * `reaches` builds a `metakit/graph` of row edges (one namespace per Entity
+ * identity) and asks which readers the write affects, so each entry drops the
+ * edges one kind of read contributes, or changes how a namespace is named.
  */
+const file = '../src/reaches.ts'
+const tests = ['packages/remote/test/reaches.test.ts']
+const edge = (owner: string, key: string) =>
+  `knownEdge(rowPath(nsOf(${owner}), [${key}]), 'derived')`
+
 export default [
   {
     name: 'a body field is not read as its own',
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: 'const own = read.fields.some(field => written(field.owner, field.key))',
-        replace: 'const own = false',
+        file,
+        find: `const readEdges: Array<PathEdge> = read.fields.map(field =>\n    ${edge('field.owner', 'field.key')},\n  )`,
+        replace: 'const readEdges: Array<PathEdge> = []',
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: "a path's field is not read",
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: '        Path: path =>\n          written(path.field.owner, path.field.key) ||\n',
-        replace: '        Path: path =>\n          false ||\n',
+        file,
+        find: `        Path: path => {\n          readEdges.push(${edge('path.field.owner', 'path.field.key')})\n`,
+        replace: '        Path: path => {\n',
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: "a path's link is not read",
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: '          path.via.some(relation => written(relation.owner, relation.key)),\n        Exists:',
-        replace: '          false,\n        Exists:',
+        file,
+        find: `for (const relation of path.via) {\n            readEdges.push(${edge('relation.owner', 'relation.key')})\n          }\n        },\n        Exists:`,
+        replace: `for (const relation of path.via.slice(0, 0)) {\n            readEdges.push(${edge('relation.owner', 'relation.key')})\n          }\n        },\n        Exists:`,
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: "an exists' relation is not read",
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: '          written(exists.relation.owner, exists.relation.key) ||\n',
-        replace: '          false ||\n',
+        file,
+        find: `          readEdges.push(\n            ${edge('exists.relation.owner', 'exists.relation.key')},\n          )\n`,
+        replace: '',
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: 'the link an exists is reached by is not read',
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: '          exists.via.some(relation => written(relation.owner, relation.key)) ||\n',
-        replace: '',
+        file,
+        find: 'for (const relation of exists.via) {',
+        replace: 'for (const relation of exists.via.slice(0, 0)) {',
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: "an exists' where is not read",
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: '          Option.exists(exists.where, where =>\n            dependenciesOf(where).fields.some(field => written(field.owner, field.key)),\n          ),\n',
-        replace: '          false,\n',
+        file,
+        find: 'for (const field of dependenciesOf(exists.where.value).fields) {',
+        replace: 'for (const field of dependenciesOf(exists.where.value).fields.slice(0, 0)) {',
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts', 'packages/remote/test/writeTrace.test.ts'],
+    tests: [...tests, 'packages/remote/test/writeTrace.test.ts'],
   },
   {
     name: "a path from the viewer's field is not read",
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: '        ViewerPath: path =>\n          written(path.field.owner, path.field.key) ||\n',
-        replace: '        ViewerPath: path =>\n          false ||\n',
+        file,
+        find: `        ViewerPath: path => {\n          readEdges.push(${edge('path.field.owner', 'path.field.key')})\n`,
+        replace: '        ViewerPath: path => {\n',
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: "a path from the viewer's link is not read",
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: '          path.via.some(relation => written(relation.owner, relation.key)),\n      }),',
-        replace: '          false,\n      }),',
+        file,
+        find: `for (const relation of path.via) {\n            readEdges.push(${edge('relation.owner', 'relation.key')})\n          }\n        },\n      }),`,
+        replace: `for (const relation of path.via.slice(0, 0)) {\n            readEdges.push(${edge('relation.owner', 'relation.key')})\n          }\n        },\n      }),`,
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
-    name: 'members are compared by their Entity name, not its identity',
+    // One namespace per owner decides the members and the footprint alike: the
+    // rewrite onto `metakit/graph` left a single place where owners are compared.
+    name: 'members and footprints are compared by their Entity name, not its identity',
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: 'writes.some(member => member.owner.token === owner.token && member.key === key)',
-        replace:
-          'writes.some(member => (member.owner as { readonly name?: string }).name === (owner as { readonly name?: string }).name && member.key === key)',
+        file,
+        find: 'const known = ids.get(owner.token)',
+        replace: 'const known = ids.get((owner as { readonly name?: string }).name as never)',
+      },
+      {
+        file,
+        find: 'ids.set(owner.token, id)',
+        replace: 'ids.set((owner as { readonly name?: string }).name as never, id)',
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: 'a query with no body is unaffected',
     edits: [
       {
-        file: '../src/reaches.ts',
+        file,
         find: "return Reach.Unknown({ why: 'NoBody' })",
         replace: 'return Reach.Unaffected()',
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts', 'packages/remote/test/writeTrace.test.ts'],
+    tests: [...tests, 'packages/remote/test/writeTrace.test.ts'],
   },
   {
     name: 'a handler mutation is unaffected',
     edits: [
       {
-        file: '../src/reaches.ts',
+        file,
         find: "return Reach.Unknown({ why: 'Handler' })",
         replace: 'return Reach.Unaffected()',
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: 'a body-less query is named before a handler mutation',
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: "  if (written === undefined) return Reach.Unknown({ why: 'Handler' })\n  if (query.body === undefined) return Reach.Unknown({ why: 'NoBody' })",
+        file,
+        find: "  if (writeEdges === undefined) return Reach.Unknown({ why: 'Handler' })\n  if (query.body === undefined) return Reach.Unknown({ why: 'NoBody' })",
         replace:
-          "  if (query.body === undefined) return Reach.Unknown({ why: 'NoBody' })\n  if (written === undefined) return Reach.Unknown({ why: 'Handler' })",
+          "  if (query.body === undefined) return Reach.Unknown({ why: 'NoBody' })\n  if (writeEdges === undefined) return Reach.Unknown({ why: 'Handler' })",
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
-  },
-  {
-    name: 'a footprint is compared by its Entity name, not its identity',
-    edits: [
-      {
-        file: '../src/reaches.ts',
-        find: 'owner.token === touched.entity.token && writes.includes(key)',
-        replace:
-          '(owner as { readonly name?: string }).name === touched.entity.name && writes.includes(key)',
-      },
-    ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: 'an Unknown footprint is read as writing nothing',
     edits: [
       {
-        file: '../src/reaches.ts',
+        file,
         find: '    Unknown: () => undefined,',
-        replace: '    Unknown: () => () => false,',
+        replace: '    Unknown: () => [],',
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: 'a footprint names its reads as its writes',
     edits: [
       {
-        file: '../src/reaches.ts',
-        find: '({ writes }: { readonly writes: ReadonlyArray<string> }): Wrote =>',
-        replace: '({ reads: writes }: { readonly reads: ReadonlyArray<string> }): Wrote =>',
+        file,
+        find: "Derived: ({ writes }) => writes.map(key => knownEdge(rowPath(entityNs, [key]), 'derived')),",
+        replace:
+          "Derived: ({ reads }: { readonly reads: ReadonlyArray<string> }) => reads.map(key => knownEdge(rowPath(entityNs, [key]), 'derived')),",
+      },
+      {
+        file,
+        find: "Declared: ({ writes }) => writes.map(key => knownEdge(rowPath(entityNs, [key]), 'declared')),",
+        replace:
+          "Declared: ({ reads }: { readonly reads: ReadonlyArray<string> }) => reads.map(key => knownEdge(rowPath(entityNs, [key]), 'declared')),",
       },
     ],
-    tests: ['packages/remote/test/reaches.test.ts'],
+    tests,
   },
   {
     name: 'explain lists every mutation, reaching or not',

@@ -45,7 +45,22 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // through `CheckboxSlots`. Ceiling raised to the reading plus about 0.4%, rounded up.
 // +1,000 on 2026-11-19: CI read 221,307 (+307 over 221,000) after `Expr.add`/`sub`/`implies`,
 // `Entity.transition`, `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600).
-const CEILING = 222_000
+// +7,710 on 2026-11-21 (step 5 of the metakit unification plan: entity's judge on metakit through a
+// translation layer), -534 the same day (the lean judge).
+// -2,069 on 2026-11-22, permanent: 226,807 measured (229,294 before, in one tree) after step 10. Entity's
+// constructors build metakit nodes, the translation layer is deleted, `Expr`, `Query` and `Order` are
+// namespaces, and metakit's reading of related rows arrives only with an `Expr.exists` (foldkit-entity
+// 82,319 to 76,123 minified, metakit 20,534 to 15,892). What stays over the pre-step-5 222,000 (4,807) is
+// metakit's evaluator and judge on every page that reaches entity (15.9 kB minified, `node`,
+// `ops/judge`, `ops/laws`, `ops/eval`, `ops/kind` and the operation modules), accepted by the maintainer on
+// 2026-11-21. Ceiling: the reading plus 300.
+// +832 on 2026-11-22: 227,639 measured after the Phase 1 gate fixes (an operand past the safe range refused
+// by every reader; ops/integerTerm) and Phase 5 items 5 and 10 (the late-answer record for every domain
+// with writes; `replayOver`), code every page that evaluates and writes runs. Ceiling: the reading plus 300.
+// +2,561 on 2026-11-26 (CI read 230,055): metakit's core evaluator and judge grew with Sets,
+// Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote gained IVM coverage/reparenting
+// fixes and Effect Clock integration. Ceiling: CI's reading plus ~400, rounded up.
+const CEILING = 230_500
 
 clientBudget({
   name: 'entity',

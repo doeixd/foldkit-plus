@@ -7,7 +7,10 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Write } from 'foldkit-entity'
 import { Evidence } from 'foldkit-metadata'
+import { Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
 import { describe, expect, it } from 'vitest'
+import { Declared } from '../src/declared.js'
 import {
   Graph,
   GraphEdge,
@@ -400,5 +403,237 @@ describe('Module', () => {
     expect(rulesOf(Graph.validate(module))).toEqual(
       expect.arrayContaining(['law-unwitnessed', 'level-declared-twice']),
     )
+  })
+})
+
+describe('unified dependency graph (graph.dependencies)', () => {
+  it('joins remote entity writes to model surfaces observing the owned store path and machine transitions', () => {
+    const ShopView = Surface.make(App, 'ShopView', {
+      model: ({ model }) => Projection.struct({ remote: model.remote }),
+      messages: [],
+    })
+    const FilterBar = Surface.make(App, 'FilterBar', {
+      model: ({ model }) => Projection.struct({ filter: model.filter }),
+      messages: [Message.ChangedFilter],
+    })
+    const ChangedFilter = Transition.make({
+      state: Model,
+      input: Schema.Struct({ filter: Schema.String }),
+      apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
+    })
+    const machine = Machine.make({
+      state: Model,
+      transitions: { ChangedFilter },
+    })
+    const graph = Graph.of(Module.make(App, [document, shop, ShopView, FilterBar]), {
+      machine,
+      sends: [{ from: 'ChangedFilter', emit: 'Persist', to: 'CreatedTodo' }],
+    })
+
+    expect(graph.edges.filter(GraphEdge.$is('Sends')).map(edge => ({ ...edge }))).toEqual([
+      {
+        _tag: 'Sends',
+        from: 'message:ChangedFilter',
+        emit: 'Persist',
+        to: 'message:CreatedTodo',
+      },
+    ])
+
+    // write:Sell writes entity:Product.stock -> directly affects Product.reservedWithinStock
+    // AND bridges through remote:shop's row->model link to surface:ShopView (observing ['remote']).
+    expect(graph.dependencies.affectedBy('write:Sell')).toEqual([
+      'Product.reservedWithinStock',
+      'surface:ShopView',
+    ])
+    // Machine transition message:ChangedFilter writes model:filter -> affects only surface:FilterBar.
+    expect(graph.dependencies.affectedBy('message:ChangedFilter')).toEqual(['surface:FilterBar'])
+    // Durable transition durable:CreatedTodo writes model:todos -> affects sync:todos.capped only.
+    expect(graph.dependencies.affectedBy('durable:CreatedTodo')).toEqual(['sync:todos.capped'])
+  })
+
+  it('tracks opaque and partially unnamed Surfaces as unknown readers instead of dropping them', () => {
+    const Opaque = Surface.make(App, 'Opaque', {
+      model: () => Projection.fromReader(Schema.String, model => model.filter),
+      messages: [],
+    })
+    const Mixed = Surface.make(App, 'Mixed', {
+      model: ({ model }) =>
+        Projection.struct({
+          todos: model.todos,
+          extra: Projection.fromReader(Schema.String, root => root.filter),
+        }),
+      messages: [],
+    })
+    const ChangedFilter = Transition.make({
+      state: Model,
+      input: Schema.Struct({ filter: Schema.String }),
+      apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
+    })
+    const machine = Machine.make({ state: Model, transitions: { ChangedFilter } })
+    const graph = Graph.of(Module.make(App, [Opaque, Mixed]), { machine })
+
+    expect(graph.dependencies.unknowns().readers).toEqual(['surface:Opaque', 'surface:Mixed'])
+    expect(graph.dependencies.affectedBy('message:ChangedFilter')).toEqual([
+      'surface:Opaque',
+      'surface:Mixed',
+    ])
+  })
+
+  it('reports transition-declared-twice without crashing when two contracts share a write name across entities', () => {
+    const otherShop: Contract = {
+      kind: 'remote',
+      name: 'otherShop',
+      owner: App.owner,
+      owns: [],
+      observes: [],
+      messages: [],
+      metadata: [],
+      laws: {
+        entities: [
+          {
+            name: 'Sell',
+            write: Write.update(
+              Entity.input(Order, Schema.Struct({ id: Schema.String, paid: Schema.Number })),
+              { id: 'id' },
+            ),
+          },
+        ],
+      },
+    }
+    const findings = Graph.validate(Module.make(App, [shop, otherShop]))
+    expect(findings.some(finding => finding.rule === 'transition-declared-twice')).toBe(true)
+  })
+})
+
+describe('a Message that sends another (Declared.messageEdges)', () => {
+  const FilterBar = Surface.make(App, 'FilterBar', {
+    model: ({ model }) => Projection.struct({ filter: model.filter }),
+    messages: [Message.ChangedFilter],
+  })
+  const TodoList = Surface.make(App, 'TodoList', {
+    model: ({ model }) => Projection.struct({ todos: model.todos }),
+    messages: [],
+  })
+  const created = Transition.make({
+    state: Model,
+    input: Message.CreatedTodo,
+    apply: ({ state, input }) => [
+      Transition.insert(state.todos, { id: input.id, title: input.title }),
+    ],
+  })
+  const removed = <const Emit extends string>(emit: Emit) =>
+    Transition.make({
+      state: Model,
+      input: Message.RemovedTodo,
+      apply: ({ state, input }) => [Transition.remove(state.todos, input.id)],
+      emits: () => [Transition.emit(emit, {})],
+    })
+  const changed = <const Emit extends string>(emit: Emit) =>
+    Transition.make({
+      state: Model,
+      input: Message.ChangedFilter,
+      apply: ({ state, input }) => [Transition.set(state.filter, input.filter)],
+      emits: () => [Transition.emit(emit, {})],
+    })
+  const graphOf = (
+    machine: NonNullable<NonNullable<Parameters<typeof Graph.of>[1]>['machine']>,
+    edges: ReadonlyArray<{ readonly from: string; readonly emit: string; readonly to: string }>,
+  ) => Graph.of(Module.make(App, [document, FilterBar, TodoList]), { machine, sends: edges })
+
+  it('affects what the Message it sends writes, and what that one sends', () => {
+    const machine = Machine.make({
+      state: Model,
+      transitions: {
+        CreatedTodo: created,
+        RemovedTodo: removed('Log'),
+        ChangedFilter: changed('Persist'),
+      },
+    })
+    const declared = Declared.of(App, machine, {
+      commands: { Log: () => [], Persist: () => [] },
+      sends: { Log: ['ChangedFilter'], Persist: ['CreatedTodo'] },
+    })
+    expect(declared.messageEdges).toEqual([
+      { from: 'RemovedTodo', emit: 'Log', to: 'ChangedFilter' },
+      { from: 'ChangedFilter', emit: 'Persist', to: 'CreatedTodo' },
+    ])
+    const graph = graphOf(machine, declared.messageEdges)
+
+    // RemovedTodo writes `todos` itself; it reaches the filter bar through ChangedFilter.
+    expect(graph.dependencies.affectedBy('message:RemovedTodo')).toEqual(
+      expect.arrayContaining(['surface:FilterBar', 'surface:TodoList']),
+    )
+    // ChangedFilter writes `filter`, and reaches the list through CreatedTodo.
+    expect(graph.dependencies.affectedBy('message:ChangedFilter')).toEqual(
+      expect.arrayContaining(['surface:FilterBar', 'surface:TodoList']),
+    )
+    // CreatedTodo sends nothing: only what it writes.
+    expect(graph.dependencies.affectedBy('message:CreatedTodo')).not.toContain('surface:FilterBar')
+  })
+
+  it('does not widen a Message by an edge it is not on', () => {
+    const machine = Machine.make({
+      state: Model,
+      transitions: {
+        CreatedTodo: created,
+        RemovedTodo: removed('Log'),
+        ChangedFilter: changed('Persist'),
+      },
+    })
+    const declared = Declared.of(App, machine, {
+      commands: { Log: () => [], Persist: () => [] },
+      sends: { Log: ['CreatedTodo'], Persist: ['CreatedTodo'] },
+    })
+    const graph = graphOf(machine, declared.messageEdges)
+    // `Log` is RemovedTodo's: it sends CreatedTodo, which writes the list; nothing reaches the filter bar.
+    expect(graph.dependencies.affectedBy('message:RemovedTodo')).not.toContain('surface:FilterBar')
+    expect(graph.dependencies.affectedBy('message:CreatedTodo')).not.toContain('surface:FilterBar')
+  })
+
+  it('walks a cycle once', () => {
+    const machine = Machine.make({
+      state: Model,
+      transitions: {
+        CreatedTodo: Transition.make({
+          state: Model,
+          input: Message.CreatedTodo,
+          apply: ({ state, input }) => [
+            Transition.insert(state.todos, { id: input.id, title: input.title }),
+          ],
+          emits: () => [Transition.emit('Echo', {})],
+        }),
+        RemovedTodo: removed('Log'),
+        ChangedFilter: changed('Persist'),
+      },
+    })
+    const declared = Declared.of(App, machine, {
+      commands: { Echo: () => [], Log: () => [], Persist: () => [] },
+      sends: { Echo: ['RemovedTodo'], Log: ['ChangedFilter'], Persist: ['CreatedTodo'] },
+    })
+    const graph = graphOf(machine, declared.messageEdges)
+    for (const tag of ['CreatedTodo', 'RemovedTodo', 'ChangedFilter'] as const)
+      expect(graph.dependencies.affectedBy(`message:${tag}`), tag).toEqual(
+        expect.arrayContaining(['surface:FilterBar', 'surface:TodoList']),
+      )
+  })
+
+  it('draws a node for each end of an edge', () => {
+    const machine = Machine.make({
+      state: Model,
+      transitions: {
+        CreatedTodo: created,
+        RemovedTodo: removed('Log'),
+        ChangedFilter: changed('Persist'),
+      },
+    })
+    const declared = Declared.of(App, machine, {
+      commands: { Log: () => [], Persist: () => [] },
+      sends: { Log: ['ChangedFilter'], Persist: ['CreatedTodo'] },
+    })
+    const graph = graphOf(machine, declared.messageEdges)
+    const nodes = new Set(graph.nodes.filter(GraphNode.$is('Message')).map(({ id }) => id))
+    const ends = graph.edges.filter(GraphEdge.$is('Sends')).flatMap(edge => [edge.from, edge.to])
+    expect(ends.length).toBeGreaterThan(0)
+    expect(ends.filter(end => !nodes.has(end))).toEqual([])
   })
 })

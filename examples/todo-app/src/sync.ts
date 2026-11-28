@@ -2,12 +2,14 @@
  * The local-first contract, derived from the application.
  *
  * Nothing here restates behaviour. `forApplication(App)` reads the Model and
- * Message schemas, the initial Model, and `update` from `surface.ts`, and the
- * fragments below say only *which* fields replicate and *which* Messages change
- * them. Replay is the application's `update` on the shared slice, and it is
- * guarded: a durable Message that returns a Command or touches a local field is
- * refused at `submit` with a `ReplayError`, so a mistake fails on the first
- * edit rather than diverging replicas later.
+ * Message schemas and the initial Model from `surface.ts`, and the fragments
+ * below say only *which* fields replicate and *which* Messages change them.
+ * Replay is `fromMachine(todoMachine, …)`: each durable Message replays as its
+ * transition in `machine.ts` over the shared slice, and `fromMachine` refuses at
+ * definition a transition that emits a Command, declares supplied values, or
+ * reads or writes outside the slice. A Message whose guard is false is refused
+ * at `submit` with a `ReplayError`, so `view.ts` sends a rename through
+ * `ListRenameRequested`, which drops a blank title before it is a durable fact.
  *
  * Two features contribute to one document as fragments. `compose` merges their
  * projections and Message sets and refuses a field declared twice with a
@@ -22,7 +24,7 @@
  * principal); a refused operation comes back as a rejection and the replica
  * reverts it.
  */
-import type { Layer } from 'effect'
+import type { Layer, Option } from 'effect'
 import type { KeyValueStore } from 'effect/persistence'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import type { Subscriptions } from 'foldkit/subscription'
@@ -39,9 +41,10 @@ import {
   type ReplicaError,
   type Sync as SyncContract,
 } from 'foldkit-sync'
+import { fromMachine } from 'foldkit-sync/metakit'
 import { Message, type Model, type Shared } from './app.js'
 import { isOwner, type SyncPrincipal } from './principal.js'
-import { App, ListMeta, Todos } from './surface.js'
+import { App, ListMeta, Todos, todoMachine } from './surface.js'
 
 const TodoApp = forApplication(App).withPrincipal<SyncPrincipal>()
 
@@ -65,9 +68,26 @@ export const ListMetaFragment = TodoApp.fragment({
   durable: MessageSet.make(App, [Message.RenamedList]),
 })
 
+const composed = TodoApp.compose(TodosFragment, ListMetaFragment)
+
 const definition = TodoApp.make({
   documentId: DocumentId.make('todos'),
-  ...TodoApp.compose(TodosFragment, ListMetaFragment),
+  ...composed,
+  transitions: fromMachine(
+    todoMachine,
+    [
+      'SubmittedTodo',
+      'ToggledTodo',
+      'RenamedTodo',
+      'PrioritySet',
+      'DeletedTodo',
+      'RestoredTodo',
+      'ClearedCompleted',
+      'RenamedList',
+    ],
+    composed.shared,
+    App.initial,
+  ),
   authorize: {
     // Destructive, list-wide operations are the owner's. `principal` is typed
     // from `withPrincipal`, so a rule cannot read a field the transport does
@@ -98,6 +118,12 @@ export type DurableMessage =
   | typeof ListMetaFragment.durable.schema.Type
 
 export const TodoSync: SyncContract<Message, Shared, DurableMessage> = definition
+
+/** The paths each durable transition (`fromMachine` above) reads and writes, by tag. */
+export const footprints = definition.footprints
+
+/** The Model a durable Message gives by its transition; none for a local Message. */
+export const liveModel: (model: Model, message: Message) => Option.Option<Model> = definition.live
 
 /** For `Module`: this contract owns `todos` and `listTitle` and records the durable tags. */
 export const contract: Contract = definition.contract

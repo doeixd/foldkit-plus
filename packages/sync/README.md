@@ -604,6 +604,240 @@ Commit pipeline: `operation` → `validate` → `authorize` → `reduce` → `la
 `make` throws for a law whose id or message is over 500 characters, or whose
 `path` names more than 16 fields: its refusal could not be sent.
 
+### Write a law and a replay as expressions
+
+A `holds` callback is code `make` can only run, so it cannot tell you that the
+Message you wrote for `CreatedTodo` keeps the cap: you learn it when the
+journal refuses an operation. [metakit](../metakit/README.md) writes a rule as
+an **expression** (a value built from `Num`, `Arr` and the like, which a
+checker can read as well as evaluate), and `foldkit-sync/metakit` turns two of
+them into what `make` takes:
+
+- `SyncDeclared.holds(expression)` is a law's `holds`. The expression reads the
+  snapshot the operation leaves as `model`, so `before` is not available to
+  it: a cap that lets an over-full document shrink needs the callback form.
+  The law holds only where the expression is true. A snapshot it is null over,
+  or that metakit refuses to evaluate it over (an integer result past
+  ±(2^53 − 1)), breaks the law.
+- `SyncDeclared.transition(transition)` declares what one durable Message does
+  as a metakit `Transition`, under its tag in `make({ transitions })`. The
+  Transition's state is `{ model }` over the shared slice, and its input is the
+  Message's own constructor (an input of another shape is a type error). Its `when`
+  is a guard: a Message whose guard is false is refused, by the replica's
+  `submit` and by the journal. It may change the shared slice and nothing else;
+  one that emits a Command is rejected.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, forApplication } from 'foldkit-sync'
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+  filter: Schema.String,
+})
+const Message = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  ChangedFilter: { filter: Schema.String },
+})
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { todos: [], filter: '' },
+  update: model => ({ model }),
+})
+-->
+```ts
+import { Arr, Num, Path, Transition } from 'metakit'
+import { SyncDeclared } from 'foldkit-sync/metakit'
+
+const todos = Projection.pick(App.model.todos)
+const { model } = Path.forEnv({ model: todos.schema })
+
+const CappedBoard = forApplication(App).make({
+  documentId: DocumentId.make('capped-board'),
+  shared: todos,
+  durable: MessageSet.make(App, [Message.CreatedTodo]),
+  laws: {
+    atMost100Todos: {
+      holds: SyncDeclared.holds(Num.lte(Arr.count(model.todos), 100)),
+      message: 'A board holds 100 todos',
+      path: ['todos'],
+    },
+  },
+  transitions: {
+    CreatedTodo: SyncDeclared.transition(
+      Transition.make({
+        state: Schema.Struct({ model: todos.schema }),
+        input: Message.CreatedTodo,
+        when: ({ state }) => Num.lt(Arr.count(state.model.todos), 100),
+        apply: ({ state, input }) => [
+          Transition.append(state.model.todos, { id: input.id, title: input.title }),
+        ],
+      }),
+    ),
+  },
+})
+```
+
+The mount and the journal replay `CreatedTodo` with that Transition in place
+of your `update`; a tag with no declaration still goes through `update`. At
+definition time `make` also checks each declared transition against the laws
+written with `SyncDeclared.holds`: it throws `Sync.make: "CreatedTodo" has an
+unreachable guard` for a guard that no snapshot satisfying those laws can
+pass, and `… violates a shared-state invariant` for a transition proved to
+break one. A check the solver cannot decide lets the declaration through, and
+the journal still judges every operation on admission. A law written as a
+callback is run, never read by this check.
+
+`foldkit-sync/metakit` is the only part of `foldkit-sync` that imports metakit,
+so a page whose laws are callbacks carries none of it. If your application
+already declares a metakit `Machine`, `SyncDeclared.fromMachine(machine, tags,
+shared, initial)` takes the durable tags from it as one transition each. A
+replay runs the transition over `initial` (your application's initial Model)
+with the shared slice written in, as `forApplication` does for `update`.
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, forApplication } from 'foldkit-sync'
+import { SyncDeclared } from 'foldkit-sync/metakit'
+import { Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+  filter: Schema.String,
+})
+const Message = defineMessageUnion({
+  CreatedTodo: { id: Schema.String, title: Schema.String },
+  ChangedFilter: { filter: Schema.String },
+})
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { todos: [], filter: '' },
+  update: model => ({ model }),
+})
+-->
+```ts
+const machine = Machine.make({
+  state: Model,
+  transitions: {
+    CreatedTodo: Transition.make({
+      state: Model,
+      input: Message.CreatedTodo,
+      apply: ({ state, input }) => [
+        Transition.append(state.todos, { id: input.id, title: input.title }),
+      ],
+    }),
+  },
+})
+
+const todos = Projection.pick(App.model.todos)
+
+const Board = forApplication(App).make({
+  documentId: DocumentId.make('board'),
+  shared: todos,
+  durable: MessageSet.make(App, [Message.CreatedTodo]),
+  transitions: SyncDeclared.fromMachine(machine, ['CreatedTodo'], todos, App.initial),
+})
+```
+
+`fromMachine` throws at definition, naming the tag, for a transition that:
+
+- is not one of the Machine's;
+- emits a Command (a durable transition is state-only);
+- declares supplied values (a time, a new id): a replay passes none, so every
+  replay would be refused;
+- has a read it does not bound (an opaque term may read anything);
+- reads or writes a path that is not inside a shared path. A write to a parent
+  of the shared slice is refused, as is a read of one; a path below it is
+  fine.
+
+It does not check the document's laws, and it does not check for an
+unreachable guard: those checks need the solver, which `foldkit-sync/metakit`
+keeps out of a page that only replays. Declare a transition with
+`SyncDeclared.transition` where you want them. As with that function, a
+Message whose guard is false is refused: `replica.submit` fails with
+`ReplayError`, so an application should not submit a durable Message its own
+guard refuses.
+
+### Which edits can the server's order change?
+
+Two replicas edit at once. Each shows its own edit at the moment it is made;
+when the server has put the edits in one order, each replays its own after the
+other's (a rebase). If the two edits commute, nothing a person saw changes.
+`convergence(machine, tags)` reads which pairs of durable Messages might
+change it, from the transitions you already declared:
+
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Transition } from 'metakit'
+import * as Machine from 'metakit/machine'
+const Model = Schema.Struct({
+  title: Schema.String,
+  tags: Schema.Array(Schema.String),
+  items: Schema.Array(Schema.Struct({ id: Schema.String, done: Schema.Boolean })),
+})
+const Input = Schema.Struct({ text: Schema.String })
+-->
+```ts
+import { convergence } from 'foldkit-sync/metakit'
+
+const machine = Machine.make({
+  state: Model,
+  transitions: {
+    Titled: Transition.make({
+      state: Model,
+      input: Input,
+      apply: ({ state, input }) => [Transition.set(state.title, input.text)],
+    }),
+    Tagged: Transition.make({
+      state: Model,
+      input: Input,
+      apply: ({ state, input }) => [Transition.append(state.tags, input.text)],
+    }),
+    Cleared: Transition.make({
+      state: Model,
+      input: Input,
+      apply: ({ state }) => [Transition.removeWhere(state.items, item => item.done)],
+    }),
+  },
+})
+
+const { pairs, redelivery } = convergence(machine, ['Titled', 'Tagged', 'Cleared'])
+for (const pair of pairs) console.log(`${pair.name}: ${pair.rebase}`)
+for (const entry of redelivery) console.log(`${entry.tag}: ${entry.copy}`)
+```
+
+It prints:
+
+```text
+Titled/Titled: possible
+Tagged/Tagged: possible
+Cleared/Cleared: never
+Titled: harmless
+Tagged: removed by id
+Cleared: harmless
+```
+
+A pair is listed when one Message writes a path the other reads or writes; a pair left out touches
+different state and never changes the other. `never` is
+`Transition.commutes` answering true (two clears of the done items), and
+`possible` is it not deciding (two titles: the later one stays, so the order
+shows). An immediate back-to-back copy of a Message is `harmless` when every way it
+writes is idempotent (`Transition.idempotent`: a `set` from the input, an
+`insert`, a `remove`), and `removed by id` otherwise (an `append` would list
+twice, so the operation's id removes the copy); a copy arriving later after another
+write still relies on id deduplication unless the Message also commutes with every
+durable Message. The answers say what the
+declaration lets a rebase do; they run nothing. `settleConvergence(machine,
+tags, { owner, walkPair, walkRedelivery })` files each `possible` pair and each
+copy as an obligation of `metakit/temporal`, and discharges them with the
+two-replica walks you give it. `examples/todo-app/test/sync.convergence.ts` is
+one, over the real replica and journal.
+
 ### Stamp what only the commit decides
 
 A fact carries its own nondeterminism, but a client cannot know where its
@@ -1114,8 +1348,10 @@ whole of it.
 
 ## Testing without a browser or a server
 
-A `Storage` needs three members, and the loopback transport takes a handler in
-place of a socket:
+A `Storage` needs four members (`store` says what it guarantees of concurrent
+writes; a replica's is `eventual`, since it accepts writes apart and the
+journal's order merges them later), and the loopback transport takes a handler
+in place of a socket:
 
 <!-- docs-check standalone
 import { Option, Schema } from 'effect'
@@ -1148,6 +1384,7 @@ import type { Storage } from 'foldkit-sync'
 const memoryStorage = (): Storage => {
   let state: unknown
   return {
+    store: { name: 'memory replica', isolation: 'eventual', parentRowLock: false },
     load: () => Effect.sync(() => state),
     save: next => Effect.sync(() => void (state = structuredClone(next))),
     close: Effect.void,
@@ -1444,7 +1681,7 @@ Local Model fields belong to your Foldkit app, server-derived read caches belong
 
 ## Limits
 
-- IndexedDB is the only built-in browser storage; custom `Storage` requires implementing three methods (`load`, `save`, `close`).
+- IndexedDB is the only built-in browser storage; custom `Storage` requires `store` (what it guarantees of concurrent writes) and three methods (`load`, `save`, `close`).
 - One server order per document; use a CRDT if you need peer-to-peer collaborative text merging.
 - Binding the socket transport to a platform WebSocket server uses thin glue (`ws` in Node, or `foldkit-sync/do` and `Sync.transport.workerSocket` on Cloudflare Workers).
 

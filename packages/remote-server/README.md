@@ -962,7 +962,7 @@ and `server`, so nothing can read the rows as nobody.
 ### Declared writes over the rows: `memoryWriter`
 
 A [declared write](#declared-writes-no-handler) needs no handler over the
-rows either. `RemoteServer.memoryWriter(store, entity, { operators? })` is the
+rows either. `RemoteServer.memoryWriter(store, entity, { operators?, revision? })` is the
 `EntityWriter` for one Entity's rows in a backend's store, and it decides what
 `foldkit-remote-drizzle`'s writer decides in its statement, so a write lands
 here as it would over a database:
@@ -1021,7 +1021,10 @@ one. An insert lands while its id is free and its row keeps the invariants; a
 revision and holds its `when`. Each refusal reaches the client as the
 mutation's own: `Conflict`, `Unmet`, `Invalid` naming the invariant, `Taken`.
 `operators` runs the `when`, computed fields and invariants, as a memory
-backend's `operators` runs its query bodies.
+backend's `operators` runs its query bodies. `revision` names the field that
+holds the row's revision: every update then moves it on by one, whatever it
+`expect`s, and the answer carries it, so a client can tell its write landed
+right after the row it read.
 
 The rows are one process's, read and written in one step, so a write cannot
 interleave with another. What a database writer holds beyond that it does

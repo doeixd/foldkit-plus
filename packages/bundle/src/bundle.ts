@@ -9,6 +9,7 @@ import type * as ManagedResource from 'foldkit/managedResource'
 import type * as Submodel from 'foldkit/submodel'
 import type * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
+import type * as Machine from 'metakit/machine'
 import type { AnyMessage, Link } from './link.js'
 import { each, type EachConfig, type PlacedCollection } from './collection.js'
 import {
@@ -16,6 +17,7 @@ import {
   place,
   type ArgsSource,
   type Invalid,
+  type LiftedOf,
   type NoView,
   type PlaceConfig,
   type Placed,
@@ -89,6 +91,14 @@ type ViewFor<Model, Message, ViewInputs> = 0 extends 1 & ViewInputs
     ? never
     : Submodel.View<Model, Message, ViewInputs>
 
+export type AnyMachine = {
+  readonly stateSchema: Schema.Codec<any>
+  readonly transitions: Readonly<Record<string, unknown>>
+  readonly dispatch: (state: any, message: never) => unknown
+  readonly update: (state: any, message: never) => unknown
+  readonly footprints: Readonly<Record<string, unknown>>
+}
+
 export interface BundleSpec<
   Name extends string,
   Args,
@@ -100,6 +110,7 @@ export interface BundleSpec<
   ViewInputs,
   Resources extends ResourceEntries<Model, Message>,
   Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
+  Machine = AnyMachine | undefined,
 > {
   readonly name: Name
   readonly Model: Schema.Codec<Model, unknown>
@@ -127,6 +138,8 @@ export interface BundleSpec<
    * needs them, as `update` does: the placement calls it with the args it holds.
    */
   readonly helpers?: Helpers | ((args: Args) => Helpers)
+  /** Declarative `metakit` machine for this bundle, lifted at each placement's path. */
+  readonly machine?: Machine | undefined
 }
 
 export interface Bundle<
@@ -140,18 +153,32 @@ export interface Bundle<
   ViewInputs,
   Resources extends ResourceEntries<Model, Message>,
   Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
+  Machine = AnyMachine | undefined,
 >
   extends
-    BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
+    BundleSpec<
+      Name,
+      Args,
+      Model,
+      Message,
+      OutMessage,
+      R,
+      S,
+      ViewInputs,
+      Resources,
+      Helpers,
+      Machine
+    >,
     Pipeable.Pipeable {
   readonly [BundleTypeId]: typeof BundleTypeId
+  readonly machine: Machine
   /**
    * A preset: the same bundle with its args bound, so placements need no `args`.
    * The args are checked against the args Schema when there is one.
    */
   readonly with: (
     args: Args,
-  ) => Bundle<Name, void, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>
+  ) => Bundle<Name, void, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers, Machine>
   /** Places the bundle where `link` points. */
   readonly at: <Parent, LinkMessage, Field extends string, OutStepMessage = never, R2 = never>(
     link: Link<Parent, LinkMessage, Model, Message, Field>,
@@ -178,7 +205,8 @@ export interface Bundle<
     Resources,
     Helpers,
     Field,
-    TagOf<LinkMessage>
+    TagOf<LinkMessage>,
+    LiftedOf<Parent, Machine>
   >
   /** Places the bundle once per key of the collection `link` points at. */
   readonly each: [keyof Resources] extends [never]
@@ -259,6 +287,13 @@ export type PlacementConfig<
    * since it is given nothing else: opt out for one that reads outside it.
    */
   readonly memo?: false
+  /**
+   * Keeps the drawing while this epoch, read from the parent's Model at each
+   * draw, stays the same, instead of while the child's Model is the same
+   * object: `writes.epochFor(paths)` from `foldkit-surface/writes` for a
+   * placement on the root (#586).
+   */
+  readonly pathEpoch?: (parent: Parent) => unknown
 } & ([Args] extends [void]
   ? { readonly args?: never }
   : { readonly args: ArgsSource<ParentSeed, Args> }) &
@@ -442,10 +477,9 @@ const build = <
   ViewInputs = NoView,
   Resources extends ResourceEntries<Model, Message> = {},
   Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
+  Machine = undefined,
 >(
-  spec: BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
-): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers> => {
-  const bundle: Bundle<
+  spec: BundleSpec<
     Name,
     Args,
     Model,
@@ -455,14 +489,45 @@ const build = <
     S,
     ViewInputs,
     Resources,
-    Helpers
-  > = {
-    ...spec,
+    Helpers,
+    Machine
+  >,
+): Bundle<
+  Name,
+  Args,
+  Model,
+  Message,
+  OutMessage,
+  R,
+  S,
+  ViewInputs,
+  Resources,
+  Helpers,
+  Machine
+> => {
+  const { machine, ...rest } = spec
+  const bundle = {
+    ...rest,
+    ...(machine === undefined ? {} : { machine }),
     [BundleTypeId]: BundleTypeId,
     pipe() {
       return Pipeable.pipeArguments(this, arguments)
     },
-    with: args => {
+    with: (
+      args: Args,
+    ): Bundle<
+      Name,
+      void,
+      Model,
+      Message,
+      OutMessage,
+      R,
+      S,
+      ViewInputs,
+      Resources,
+      Helpers,
+      Machine
+    > => {
       // A preset of a preset has no args Schema left, so it keeps the first preset's args.
       const preset = checkArgs(spec, args, spec.name) ?? spec.preset
       return build({
@@ -479,15 +544,17 @@ const build = <
         ...(spec.view === undefined ? {} : { view: spec.view }),
         // A preset has its args, so helpers that read them become a record.
         ...(spec.helpers === undefined ? {} : { helpers: helpersFor(spec.helpers, args) }),
+        ...(machine === undefined ? {} : { machine }),
       })
     },
     // A refused `viewInputs` is a type error at the call, never a value here.
-    at: (link, ...[config]) => place(bundle, link, config as never),
+    at: (link: Link<any, any, Model, Message, any>, ...[config]: ReadonlyArray<unknown>) =>
+      place(bundle as never, link, config as never),
     // The conditional type only hides `each` from bundles with resources; the function is the same.
     each: ((
       link: CollectionLink<any, any, Model, Message>,
       config?: EachConfig<any, any, any, Message, OutMessage, any, any>,
-    ) => each(bundle, link, config)) as unknown as Bundle<
+    ) => each(bundle as never, link, config)) as unknown as Bundle<
       Name,
       Args,
       Model,
@@ -497,9 +564,22 @@ const build = <
       S,
       ViewInputs,
       Resources,
-      Helpers
+      Helpers,
+      Machine
     >['each'],
-  }
+  } as unknown as Bundle<
+    Name,
+    Args,
+    Model,
+    Message,
+    OutMessage,
+    R,
+    S,
+    ViewInputs,
+    Resources,
+    Helpers,
+    Machine
+  >
   return bundle
 }
 
@@ -522,6 +602,8 @@ export interface MakeSpec<
   ViewInputs,
   Resources extends ResourceEntries<Model, Message>,
   Helpers extends HelperRecord<Model, Message, OutMessage>,
+  Transitions extends Readonly<Record<string, unknown>> = never,
+  Mach extends Machine.Machine<NoInfer<Model>, Transitions> | undefined = undefined,
 > {
   readonly name: Name
   readonly Model: Schema.Codec<Model, unknown>
@@ -547,7 +629,17 @@ export interface MakeSpec<
   readonly view?: Submodel.View<NoInfer<Model>, NoInfer<Message>, ViewInputs>
   /** A record, or a function of the args returning one, as `BundleSpec`'s. */
   readonly helpers?: Helpers | ((args: Args) => Helpers)
+  /** Declarative `metakit` machine for this bundle, lifted at each placement's path. */
+  readonly machine?: Mach & (Machine.Machine<NoInfer<Model>, Transitions> | undefined)
 }
+
+type InferredMachine<Model, Transitions extends Readonly<Record<string, unknown>>, Mach> = [
+  Transitions,
+] extends [never]
+  ? undefined
+  : undefined extends Mach
+    ? Machine.Machine<Model, Transitions> | undefined
+    : Machine.Machine<Model, Transitions>
 
 // `Model` is `const` because a paramless `init` is typed before the Schema
 // fixes `Model`, and `NoInfer` alone let its literals widen to `string` there.
@@ -569,6 +661,8 @@ export function make<
   ViewInputs = NoView,
   Resources extends ResourceEntries<Model, Message> = {},
   Helpers extends HelperRecord<Model, Message, OutMessage> = {},
+  Transitions extends Readonly<Record<string, unknown>> = never,
+  Mach extends Machine.Machine<NoInfer<Model>, Transitions> | undefined = undefined,
 >(
   name: Name,
   spec: Omit<
@@ -583,7 +677,9 @@ export function make<
       S,
       ViewInputs,
       Resources,
-      Helpers
+      Helpers,
+      Transitions,
+      Mach
     >,
     'name'
   > & { readonly name?: never },
@@ -597,7 +693,8 @@ export function make<
   S,
   ViewInputs,
   Resources,
-  Helpers
+  Helpers,
+  InferredMachine<Model, Transitions, Mach>
 >
 export function make<
   const Name extends string,
@@ -611,6 +708,8 @@ export function make<
   ViewInputs = NoView,
   Resources extends ResourceEntries<Model, Message> = {},
   Helpers extends HelperRecord<Model, Message, OutMessage> = {},
+  Transitions extends Readonly<Record<string, unknown>> = never,
+  Mach extends Machine.Machine<NoInfer<Model>, Transitions> | undefined = undefined,
 >(
   spec: MakeSpec<
     Name,
@@ -623,7 +722,9 @@ export function make<
     S,
     ViewInputs,
     Resources,
-    Helpers
+    Helpers,
+    Transitions,
+    Mach
   >,
 ): Bundle<
   Name,
@@ -635,7 +736,8 @@ export function make<
   S,
   ViewInputs,
   Resources,
-  Helpers
+  Helpers,
+  InferredMachine<Model, Transitions, Mach>
 >
 export function make(
   nameOrSpec: string | BundleSpec<string, any, any, any, any, any, any, any, any, any>,
@@ -709,7 +811,8 @@ export function fromParts<
   S,
   ViewInputs,
   {},
-  Helpers
+  Helpers,
+  undefined
 >
 export function fromParts<
   const Name extends string,
@@ -733,7 +836,8 @@ export function fromParts<
   S,
   ViewInputs,
   {},
-  Helpers
+  Helpers,
+  undefined
 >
 export function fromParts(
   nameOrConfig: string | ErasedPartsConfig,

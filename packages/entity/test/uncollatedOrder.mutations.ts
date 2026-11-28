@@ -5,6 +5,7 @@
  */
 const tests = ['packages/entity/test/uncollatedOrder.test.ts']
 const evaluate = '../src/evaluate.ts'
+const rowOrder = '../src/rowOrder.ts'
 const uncollated = '../src/uncollated.ts'
 
 export default [
@@ -12,7 +13,7 @@ export default [
     name: 'evaluate sorts text with no collation',
     edits: [
       {
-        file: evaluate,
+        file: rowOrder,
         find: 'if (terms.length === 0) return [...rows]\n  checkCollated(terms, query)',
         replace: 'if (terms.length === 0) return [...rows]',
       },
@@ -23,9 +24,9 @@ export default [
     name: 'compareRows compares text with no collation',
     edits: [
       {
-        file: evaluate,
-        find: '  checkCollated(terms, query)\n  checkOrder(keys, terms, query)',
-        replace: '  checkOrder(keys, terms, query)',
+        file: rowOrder,
+        find: '  checkCollated(terms, query)\n  checkTerms(terms, query)\n  const keys',
+        replace: '  checkTerms(terms, query)\n  const keys',
       },
     ],
     tests,
@@ -36,9 +37,15 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: '  const terms = Query.orderFor(body, input)\n  const read =',
+        find: '  checkTerms(terms, body.entity.name)\n  const read =',
         replace:
-          '  const terms = Query.orderFor(body, input)\n  checkCollated(terms, body.entity.name)\n  const read =',
+          "  checkTerms(terms, body.entity.name)\n  if (terms.some(term => Option.isSome(uncollatedText(term)))) throw new QueryEvaluateError('uncollated')\n  const read =",
+      },
+      {
+        file: evaluate,
+        find: "import { byTerms, checkKeys, checkTerms, keysOf, ordered } from './rowOrder.js'",
+        replace:
+          "import { byTerms, checkKeys, checkTerms, keysOf, ordered } from './rowOrder.js'\nimport { uncollatedText } from './uncollated.js'",
       },
     ],
     tests: [

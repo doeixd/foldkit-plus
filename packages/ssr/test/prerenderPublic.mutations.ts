@@ -19,7 +19,7 @@ export default [
   ),
   edit(
     'an entry with a cache renders a prerendered page per request',
-    'if (prerendering(request)) return prerender(request)',
+    'if (prerendering(request)) return yield* Effect.promise(() => prerender(request))',
     '',
   ),
   edit(

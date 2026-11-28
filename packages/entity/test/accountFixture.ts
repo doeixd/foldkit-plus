@@ -5,7 +5,7 @@
  * built by `writes`, so each test can weaken or strengthen one of them.
  */
 import { Schema } from 'effect'
-import { Entity, Expr, Operators, Write, type FieldExpr, type InputExpr } from '../src/index.js'
+import { Entity, Expr, Operators, Write, type InputExpr } from '../src/index.js'
 
 export const DAILY_LIMIT = 1000
 
@@ -78,7 +78,7 @@ export const writes = (
     ? Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))
     : Schema.Number
   const withdraw = options.withdraw ?? 'sub'
-  const by = (balance: FieldExpr<number>, taken: InputExpr<number>) =>
+  const by = (balance: Expr<number>, taken: InputExpr<number>) =>
     withdraw === 'opaqueMinus' ? opaqueMinus(balance, taken) : Expr.sub(balance, taken)
   const byAmount = Entity.input(Account, Schema.Struct({ id: Schema.String, amount }), {
     amount: Entity.unmapped,
