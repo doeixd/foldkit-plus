@@ -67,15 +67,50 @@ The successor needs four things from MetaKit that are not finished: named phases
 | Aim | Concretely | In the repository today | Evidence so far |
 |---|---|---|---|
 | Correct transitions | Every state change is a declared transition; invariants are proved; states are named; a refusal says why | `metakit/machine`, `Prove.machine`; `packages/successor` (1,537 lines: `block`, `surface`, `dom`, an event-sourced machine with a journal) proves and replays a composed Todo | A proof over arbitrary keyed rows passes (`#626`). Phases are designed, not built |
-| Best-in-class performance | Work proportional to what changed: no root view call, no scan of bindings | The fine-grained contract of `#612` §4.1; a path-indexed graph in `metakit/graph` | **None yet against Effect UI.** Upstream reports 0.7 to 1.1 ms per update on a 1,000-row table with `h.lazy`, so update speed alone will not be the win. Measure cold start, bytes shipped, costly derived values and memory |
+| Best-in-class performance | Fine-grained rendering, end to end: a write reaches only the derived values and the DOM targets that read it. No root view call, no diff, no scan of bindings | The fine-grained contract of `#612` §4.1; a path-indexed graph in `metakit/graph`; observed write deltas from a step (`#614`) | **Nothing measured against Effect UI yet.** The repository's own earlier measurements say where the time goes; see "Performance" below |
 | Resumability | The first interaction runs without re-rendering the page or shipping the whole Model | `packages/ssr`: a binder, a live set, static pruning, a manifest, script cut by message | Built, opt-in, and **short of its own gates**: 54.6 kB of script before the first press against a 20 kB bar, and 1.4 to 1.5 s of blocking against 200 ms |
 | Incremental view maintenance | A derived value is updated from a change, under a stated law, with a fallback to recomputing | `packages/remote/src/maintained/` for Remote; aggregates with deltas in `metakit/aggregates` | Works for Remote placement (17 comparisons where there were 100,000). Not general, not on the client view path |
 | Sync | Optimistic and offline writes that reconcile, with typed outcomes | `packages/sync`, `packages/durable`, stores with declared capabilities | In use in examples; conflict policies per operation are designed in `#612` §8 |
 | Great TypeScript | Call sites infer with no annotations; a mistake is an error on its own line; things are referred to by typed reference, never by a magic string | The rules in the plan (§4, rule 22) | Existing API breaks the reference rule in several places (plan ledger, T17) |
 
+### Performance: fine-grained, end to end
+
+The successor is faster because it does not redraw. `#612` §4.1 makes this a core requirement, and the idea is the maintainer's own (`#608`): "If the data flow is properly declarative and static, you don't have to run things to discover dependencies. You don't need components or component boundaries. If you can track which bits of the view relate to which bits of the model you can get fine-grained updates."
+
+An update in Effect UI runs the changed component's view and compares the result with the last one; `h.lazy` skips a subtree whose arguments are identical. That is work proportional to the size of what might have changed. Fine-grained rendering is work proportional to what did change: one text node, one attribute, one keyed range.
+
+This repository has already measured the question once, on upstream Foldkit, and the result shapes what "fine-grained" has to mean here.
+
+| When | What was tried | What was found |
+|---|---|---|
+| 2026-10-31, `#384` | Memoising Remote reads and derivations by the Model paths they read | A repeated read became about 8 times cheaper (556 reads: 1.80 to 0.23 ms). A filter toggle on `domains-plus` redrew 0 rows where it had redrawn 48 |
+| 2026-11-10, `#433` | Would compiling views to templates and fine-grained patches fix the slow frames? Two frames were over 16 ms at 4 times CPU slowdown; their drawing was removed to see what was left | The frames kept 59 to 72% and 87 to 101% of their cost. Drawing and diffing were **under half**. What remained was "derivation, the patch the frame still needs, and the runtime's fixed cost". The client half was closed as not planned |
+| 2026-11-10, `#376` | A fine-grained runtime under Foldkit's existing contract | Parked: "what remained of a domains-plus frame was a derivation over Remote reads, which a fine-grained renderer would recompute too" |
+| 2026-11-12, `#432` | Skipping static regions at hydration | Not kept: boot moved by −7 and +96 ms across two runs. The maintainer then asked for full resumability instead (2026-11-20) |
+| 2026-11-26, `#643` | Upstream's own numbers for Effect UI, 1,000 keyed rows | 0.7 to 1.1 ms per update with `h.lazy` or a component per row; 3.6 to 3.8 ms plain. Reported by upstream, not reproduced here |
+
+Three lessons, and they point the same way:
+
+1. **Fine-grained drawing alone is not enough.** On our own production-shaped page, most of a slow frame was computing derived values, not drawing them. A renderer that patches one text node but recomputes a filter over 556 rows to learn its value has saved the small part.
+2. **So the grain has to run the whole way.** A write produces a delta; the delta selects the derived values that read it; each is updated incrementally where a law allows, or recomputed once; only those whose value changed reach their bindings. This is the commit-to-patch algorithm of `#612` §4.1, and it is why incremental view maintenance is in the same sentence as performance in the direction. It is also only possible because transitions and derivations are data: their reads are known without running them.
+3. **The runtime's fixed cost is ours to set.** Those measurements were taken under a runtime we did not own. A successor with its own runtime can remove what an adapter could not.
+
+The decisions of 2026-11-10 (park `#376`, close `#433`'s client half) are reopened by this direction. They were sound for their question, which was whether to replace the renderer underneath Foldkit's contract, where a view is a function. The successor changes the premise. Their method stands: `#376`'s last comment says "measure a production-shaped slice rather than assume speedups".
+
+**What a fair claim needs** (`#643` sets the protocol):
+
+- The same behaviour built idiomatically in Effect UI, with `h.lazy` and keyed children, not a weakened version.
+- Sizes where the difference shows: 1,000 rows is already under a millisecond upstream, so also 10,000 and 100,000 rows (the data grid), on a slowed CPU.
+- Derived values that cost something: a filter, a sort, an aggregate over the list. Report derivation and drawing separately.
+- Counts as well as times: view calls, projection evaluations and DOM mutations per update. `#612` §10 gives the test: change one row's quantity among 1,000 and require one text patch, the changed totals, zero sibling evaluations and zero root view calls.
+- The fixed cost on a small page, where an index may cost more than a redraw.
+- Cold start and resume, measured separately from updates.
+
+`#587` is a fix available today on the current runtime: a Surface's renderer runs on every render although its projection already declares the paths it reads.
+
 **What is not yet known, and decides whether the bet pays.**
 
-- Whether a path-indexed, binding-level renderer beats an idiomatic Effect UI page on a production-shaped fixture, on measures that matter to a user. `#643` defines the fixture and the gates. Nothing has been measured.
+- How much faster end-to-end fine-grained updates are than an idiomatic Effect UI page on a production-shaped fixture. The mechanism is sound and the earlier numbers say where to aim; nothing has been measured against Effect UI.
 - Whether resumption can meet its bars at all on a real page, given how far the first attempt missed.
 - How much of an application can be declared. `domains-plus` reached 31 of 39 messages. The rest stay ordinary TypeScript, and the successor must make that an easy, honest fallback (a callback with a conservative footprint), not a cliff.
 - The authoring cost. The smallest MetaKit language takes five imports and nine statements today. A framework people choose must be as easy to start as the one it replaces.
@@ -130,5 +165,6 @@ Decisions for this direction are made the way the MetaKit plan records (its §9.
 
 - The maintainer's statement of direction, 2026-11-28.
 - Upstream state from the GitHub API that day: `foldkit/foldkit`'s last commits; `Effect-TS/ui`'s creation date, packages and recent commits; and Effect UI's `LLMS.md`, read in part (its opening, "Changing the Model", "Code splitting", and its lines on hydration). Its source was **not** read. The comparison table's Effect UI column also draws on the source reading recorded in `#643` at commit `193d2fb`, which was not repeated here.
+- The rendering history: issues `#376`, `#384`, `#432`, `#433`, `#436`, `#587` and `#608` read whole, body and comments. `#581` (application-wide semantic propagation) and the design note `docs/design/376-433-148-149-renderer-DESIGN.md` were not read beyond the note's status line; the successor plan must read both.
 - The repository: package counts and import counts by `grep`; `packages/successor` by its file list and headers; the gates and measurements from `docs/design/metakit-unification-LEDGER.md`.
 - Nothing was run or benchmarked for this page.
