@@ -317,14 +317,14 @@ export default [
     nullStrict,
     'a guard that is null fires',
     transition,
-    'if (evalNode(transition.when.node, env, options?.foreign) !== true) {',
-    'if (evalNode(transition.when.node, env, options?.foreign) === false) {',
+    'if (answer !== true) {',
+    'if (answer !== true && answer !== null && answer !== undefined) {',
   ),
   mutation(
     nullStrict,
     'a refused write is written',
     transition,
-    'if (refusals.length > 0) {',
+    'if (refusal !== undefined) {',
     'if (false) {',
   ),
   mutation(

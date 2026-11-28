@@ -11,14 +11,14 @@ export default [
     edits: [
       {
         file: '../src/artifact.ts',
-        find: `        Opaque: ({ name }) =>
-          Effect.fail(
-            new UnsupportedNodeError({
-              nodeTag: 'Opaque',
-              detail: \`opaque node "\${name}" cannot be serialized as a portable artifact\`,
-            }),
-          ),`,
-        replace: `        Opaque: () => Effect.succeed({ _tag: 'Lit' as const, value: null }),`,
+        find: `          Opaque: ({ name }) =>
+            Effect.fail(
+              new UnsupportedNodeError({
+                nodeTag: 'Opaque',
+                detail: \`opaque node "\${name}" cannot be serialized as a portable artifact\`,
+              }),
+            ),`,
+        replace: `          Opaque: () => Effect.succeed({ _tag: 'Lit' as const, value: null }),`,
       },
     ],
     tests,
@@ -50,14 +50,12 @@ export default [
     tests,
   },
   {
-    name: 'decode skips arity validation on core operators',
+    name: 'decode skips arity validation',
     edits: [
       {
         file: '../src/artifact.ts',
-        find: `                    const expectedArity = coreArity[id]
-                    if (args.length !== expectedArity) {`,
-        replace: `                    const expectedArity = coreArity[id]
-                    if (false && args.length !== expectedArity) {`,
+        find: 'yield* checkArity(resolvedOp, args.length)',
+        replace: '',
       },
     ],
     tests,
@@ -80,10 +78,10 @@ export default [
     edits: [
       {
         file: '../src/artifact.ts',
-        find: `            const resolved = resolveRootSegment(segments)
-            if (Option.isNone(resolved)) {`,
-        replace: `            const resolved = resolveRootSegment(segments)
-            if (false && Option.isNone(resolved)) {`,
+        find: `                const resolved = resolveRootSegment(segments)
+                if (Option.isNone(resolved)) {`,
+        replace: `                const resolved = resolveRootSegment(segments)
+                if (false && Option.isNone(resolved)) {`,
       },
     ],
     tests,
