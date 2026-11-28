@@ -9,6 +9,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Breaking
 
+- `@doeixd/metakit/artifact`: fingerprints change for rules with a free path whose first segment starts with `$`. `ArtifactLimits` gains `maxStringLength` (65,536 UTF-16 code units by default), `ArtifactLimitError.kind` gains `'string'`, and `encodeExpr` and `fingerprint` can return `ArtifactDecodeError` for calls with the wrong arity.
 - MetaKit is now `@doeixd/metakit`. Replace imports of `metakit` and `metakit/*` with `@doeixd/metakit` and `@doeixd/metakit/*`.
 - `@doeixd/metakit/prove`: counterexample reports preserve scalar values, including `null` and `undefined`. The report types `before`, `input`, and `after` as `unknown`. Use the corresponding schemas to narrow `before` and `input`. Check the shape of `after` before reading fields because the state schema rejects it.
 - `@doeixd/metakit`: transition writes require paths from the transition's `state` accessor. Use `Transition.pathsOf` to obtain writable paths outside a declaration callback (#628).
@@ -105,6 +106,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `@doeixd/metakit/artifact`: encoding and decoding count literal values toward the node limit, enforce the same depth and string limits, and reject calls with the wrong arity. Canonicalization escapes free `$` path heads so they cannot collide with `Rows` binders (#656, #657).
 - `@doeixd/metakit`: a transition refuses a write under a field that holds null or is absent, which made a partial struct the state Schema does not admit; write the whole value instead (#652).
 - `@doeixd/metakit`: `Expr.judge` and `residualize` no longer fold `x == x` to true over a list of text that may hold a NUL, which evaluation refuses (#650).
 - `@doeixd/metakit`: `Transition.can` applies the `rewritePolicy` it is given, and `intent` and `affordances` take reader options (custom operations' implementations and the rewrite policy) as an optional last argument (#651).

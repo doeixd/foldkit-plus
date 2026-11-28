@@ -25,14 +25,19 @@ export const CODEC_VERSION = 1 as const
 
 /** Bounds enforced during both encoding and decoding to guard against hostile inputs. */
 export interface ArtifactLimits {
+  /** Maximum depth from the expression root, and maximum segments per path. */
   readonly maxDepth: number
+  /** Maximum combined count of expression nodes and literal values. */
   readonly maxNodes: number
+  /** Maximum UTF-16 code units in a literal string, path segment, Match label, or relation name. */
+  readonly maxStringLength: number
 }
 
 /** Default resource bounds for portable artifacts. */
 export const DEFAULT_LIMITS: ArtifactLimits = {
   maxDepth: 64,
   maxNodes: 2048,
+  maxStringLength: 65_536,
 }
 
 // ---------------------------------------------------------------------------
@@ -48,11 +53,11 @@ export class UnsupportedNodeError extends Schema.TaggedError<UnsupportedNodeErro
   },
 ) {}
 
-/** An artifact exceeded the configured depth or node-count limit. */
+/** An artifact exceeded a configured resource limit. */
 export class ArtifactLimitError extends Schema.TaggedError<ArtifactLimitError>()(
   'ArtifactLimitError',
   {
-    kind: Schema.Literals(['depth', 'nodes']),
+    kind: Schema.Literals(['depth', 'nodes', 'string']),
     limit: Schema.Number,
     actual: Schema.Number,
   },
@@ -93,6 +98,8 @@ export type ArtifactError =
   | DuplicateOperationError
   | UnknownOperationError
   | ArtifactDecodeError
+
+type EncodeError = UnsupportedNodeError | ArtifactLimitError | ArtifactDecodeError
 
 // ---------------------------------------------------------------------------
 // Portable wire schemas
@@ -185,49 +192,54 @@ export type PortableNode =
       readonly each?: string
     }
 
-const PortableRowsOverSchema: Schema.Codec<PortableRowsOver> = Schema.suspend(() =>
+const portableRowsOverSchema = <N extends Schema.Top>(node: N) =>
   Schema.Union([
-    Schema.TaggedStruct('List', { list: PortableNodeSchema }),
+    Schema.TaggedStruct('List', { list: node }),
     Schema.TaggedStruct('Related', {
-      of: PortableNodeSchema,
+      of: node,
       relation: Schema.String,
       cardinality: Schema.optionalKey(CardinalitySchema),
     }),
-  ]),
-)
+  ])
 
-export const PortableNodeSchema: Schema.Codec<PortableNode> = Schema.suspend(() =>
+const portableNodeSchema = <N extends Schema.Top, L extends Schema.Top>(node: N, literal: L) =>
   Schema.Union([
-    Schema.TaggedStruct('Lit', { value: PortableLiteral }),
+    Schema.TaggedStruct('Lit', { value: literal }),
     Schema.TaggedStruct('Path', { segments: Schema.Array(Schema.String) }),
-    Schema.TaggedStruct('Call', { op: PortableOpRef, args: Schema.Array(PortableNodeSchema) }),
+    Schema.TaggedStruct('Call', { op: PortableOpRef, args: Schema.Array(node) }),
     Schema.TaggedStruct('If', {
-      cond: PortableNodeSchema,
-      then: PortableNodeSchema,
-      otherwise: PortableNodeSchema,
+      cond: node,
+      then: node,
+      otherwise: node,
     }),
     Schema.TaggedStruct('Match', {
-      on: PortableNodeSchema,
-      cases: Schema.Array(Schema.Tuple([Schema.String, PortableNodeSchema])),
-      otherwise: Schema.optionalKey(PortableNodeSchema),
+      on: node,
+      cases: Schema.Array(Schema.Tuple([Schema.String, node])),
+      otherwise: Schema.optionalKey(node),
     }),
     Schema.TaggedStruct('Rows', {
       fold: RowsFoldSchema,
-      over: PortableRowsOverSchema,
-      where: Schema.optionalKey(PortableNodeSchema),
-      value: Schema.optionalKey(PortableNodeSchema),
-      set: Schema.Array(Schema.Tuple([Schema.String, PortableNodeSchema])),
+      over: portableRowsOverSchema(node),
+      where: Schema.optionalKey(node),
+      value: Schema.optionalKey(node),
+      set: Schema.Array(Schema.Tuple([Schema.String, node])),
       op: Schema.optionalKey(Schema.Struct({ id: Schema.String, version: PositiveVersion })),
       each: Schema.optionalKey(Schema.String),
     }),
-  ]),
+  ])
+
+export const PortableNodeSchema: Schema.Codec<PortableNode> = Schema.suspend(() =>
+  portableNodeSchema(PortableNodeSchema, PortableLiteral),
 )
 
-export const PortableArtifactV1 = Schema.Struct({
-  codecVersion: Schema.Literal(CODEC_VERSION),
-  node: PortableNodeSchema,
-  requiredOps: Schema.Array(PortableOpRef),
-})
+const portableArtifactSchema = <N extends Schema.Top>(node: N) =>
+  Schema.Struct({
+    codecVersion: Schema.Literal(CODEC_VERSION),
+    node,
+    requiredOps: Schema.Array(PortableOpRef),
+  })
+
+export const PortableArtifactV1 = portableArtifactSchema(PortableNodeSchema)
 export type PortableArtifactV1 = Schema.Schema.Type<typeof PortableArtifactV1>
 
 // ---------------------------------------------------------------------------
@@ -321,7 +333,28 @@ export const registry = (
 const resolveLimits = (limits?: Partial<ArtifactLimits>): ArtifactLimits => ({
   maxDepth: limits?.maxDepth ?? DEFAULT_LIMITS.maxDepth,
   maxNodes: limits?.maxNodes ?? DEFAULT_LIMITS.maxNodes,
+  maxStringLength: limits?.maxStringLength ?? DEFAULT_LIMITS.maxStringLength,
 })
+
+const checkLimit = (kind: ArtifactLimitError['kind'], limit: number, actual: number) =>
+  actual > limit ? Effect.fail(new ArtifactLimitError({ kind, limit, actual })) : Effect.void
+
+const makeBudget = (limits: ArtifactLimits) => {
+  let nodes = 0
+  const depth = (actual: number) => checkLimit('depth', limits.maxDepth, actual)
+  const node = (level: number) =>
+    Effect.gen(function* () {
+      yield* checkLimit('nodes', limits.maxNodes, ++nodes)
+      yield* depth(level)
+    })
+  const string = (value: string) => checkLimit('string', limits.maxStringLength, value.length)
+  const path = (segments: ReadonlyArray<string>) =>
+    Effect.gen(function* () {
+      yield* depth(segments.length)
+      yield* Effect.forEach(segments, string, { discard: true })
+    })
+  return { node, string, path }
+}
 
 const isPlainObject = (value: object): boolean => {
   const proto: unknown = Object.getPrototypeOf(value)
@@ -341,94 +374,55 @@ const setOwn = (
   })
 }
 
-const checkRawBounds = (
-  raw: unknown,
-  limits: ArtifactLimits,
-): Effect.Effect<void, ArtifactLimitError> =>
-  Effect.suspend(() => {
-    let nodes = 0
-    const stack: Array<readonly [value: unknown, depth: number]> = [[raw, 0]]
-    const maxRawDepth = limits.maxDepth * 3 + 8
-    const maxRawValues = limits.maxNodes * 16 + 64
-    while (stack.length > 0) {
-      const [current, depth] = stack.pop()!
-      nodes += 1
-      if (nodes > maxRawValues) {
-        return Effect.fail(
-          new ArtifactLimitError({ kind: 'nodes', limit: limits.maxNodes, actual: nodes }),
-        )
-      }
-      if (depth > maxRawDepth) {
-        return Effect.fail(
-          new ArtifactLimitError({ kind: 'depth', limit: limits.maxDepth, actual: depth }),
-        )
-      }
-      if (current !== null && typeof current === 'object') {
-        if (Array.isArray(current)) {
-          for (let i = 0; i < current.length; i++) stack.push([current[i], depth + 1])
-        } else {
-          for (const key of Object.keys(current)) {
-            stack.push([(current as Record<string, unknown>)[key], depth + 1])
-          }
-        }
-      }
-    }
-    return Effect.void
-  })
-
-const encodeLiteral = (
+const copyLiteral = (
   value: unknown,
   depth: number,
-  limits: ArtifactLimits,
-): Effect.Effect<PortableLiteral, UnsupportedNodeError | ArtifactLimitError> => {
-  if (depth > limits.maxDepth) {
-    return Effect.fail(
-      new ArtifactLimitError({ kind: 'depth', limit: limits.maxDepth, actual: depth }),
-    )
-  }
-  if (value === null) return Effect.succeed(null)
-  if (typeof value === 'boolean' || typeof value === 'string') return Effect.succeed(value)
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      return Effect.fail(
-        new UnsupportedNodeError({
-          nodeTag: 'Lit',
-          detail: `non-finite number literal (${String(value)}) is not portable`,
-        }),
-      )
+  budget: Pick<ReturnType<typeof makeBudget>, 'node' | 'string'>,
+): Effect.Effect<PortableLiteral, UnsupportedNodeError | ArtifactLimitError> =>
+  Effect.gen(function* () {
+    yield* budget.node(depth)
+    if (value === null || typeof value === 'boolean') return value
+    if (typeof value === 'string') {
+      yield* budget.string(value)
+      return value
     }
-    if (Object.is(value, -0)) {
-      return Effect.fail(
-        new UnsupportedNodeError({
-          nodeTag: 'Lit',
-          detail: 'negative zero (-0) literal is not portable across JSON codecs',
-        }),
-      )
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) {
+        return yield* Effect.fail(
+          new UnsupportedNodeError({
+            nodeTag: 'Lit',
+            detail: `non-finite number literal (${String(value)}) is not portable`,
+          }),
+        )
+      }
+      if (Object.is(value, -0)) {
+        return yield* Effect.fail(
+          new UnsupportedNodeError({
+            nodeTag: 'Lit',
+            detail: 'negative zero (-0) literal is not portable across JSON codecs',
+          }),
+        )
+      }
+      return value
     }
-    return Effect.succeed(value)
-  }
-  if (Array.isArray(value)) {
-    return Effect.forEach(value, item => encodeLiteral(item, depth + 1, limits))
-  }
-  if (typeof value === 'object' && isPlainObject(value)) {
-    const entries = Object.entries(value as Record<string, unknown>)
-    return Effect.forEach(entries, ([k, v]) =>
-      encodeLiteral(v, depth + 1, limits).pipe(Effect.map(ev => [k, ev] as const)),
-    ).pipe(
-      Effect.map(pairs => {
-        const out: Record<string, PortableLiteral> = {}
-        for (const [k, v] of pairs) setOwn(out, k, v)
-        return out
+    if (Array.isArray(value)) {
+      return yield* Effect.forEach(value, item => copyLiteral(item, depth + 1, budget))
+    }
+    if (typeof value === 'object' && isPlainObject(value)) {
+      const out: Record<string, PortableLiteral> = {}
+      const record = value as Readonly<Record<string, unknown>>
+      for (const key of Object.keys(record)) {
+        setOwn(out, key, yield* copyLiteral(record[key], depth + 1, budget))
+      }
+      return out
+    }
+    return yield* Effect.fail(
+      new UnsupportedNodeError({
+        nodeTag: 'Lit',
+        detail: `literal of type ${typeof value} is not portable`,
       }),
     )
-  }
-  return Effect.fail(
-    new UnsupportedNodeError({
-      nodeTag: 'Lit',
-      detail: `literal of type ${typeof value} is not portable`,
-    }),
-  )
-}
+  })
 
 const opRefKey = (ref: PortableOpRef): string =>
   Match.value(ref).pipe(
@@ -438,6 +432,20 @@ const opRefKey = (ref: PortableOpRef): string =>
     }),
     Match.exhaustive,
   )
+
+const checkArity = (op: Node.AnyOp, actual: number): Effect.Effect<void, ArtifactDecodeError> => {
+  const foreign = Node.isForeign(op)
+  const expected = foreign ? op.args?.length : coreArity[op.id]
+  if (expected === undefined || actual === expected) return Effect.void
+  const name = foreign ? Node.foreignName(op) : op.id
+  return Effect.fail(
+    new ArtifactDecodeError({
+      phase: 'arity',
+      path: name,
+      detail: `${foreign ? 'foreign' : 'core'} operator "${name}" expects ${expected} argument(s), got ${actual}`,
+    }),
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Encoding
@@ -450,129 +458,127 @@ export interface EncodeOptions {
 /**
  * Encode an `Expr` into a versioned `PortableArtifactV1`.
  * Rejects `Opaque` nodes, non-portable literals (`NaN`, `Infinity`, `-0`,
- * functions, symbols, class instances), and expressions exceeding `limits`.
+ * functions, symbols, class instances), calls with the wrong arity, and
+ * expressions exceeding `limits`.
  */
 export const encodeExpr = (
   expr: Expr<never, unknown>,
   options?: EncodeOptions,
-): Effect.Effect<PortableArtifactV1, UnsupportedNodeError | ArtifactLimitError> =>
+): Effect.Effect<PortableArtifactV1, EncodeError> =>
   Effect.suspend(() => {
-    const limits = resolveLimits(options?.limits)
+    const budget = makeBudget(resolveLimits(options?.limits))
     const ops = new Map<string, PortableOpRef>()
-    let nodeCount = 0
 
     const recordOp = (ref: PortableOpRef): void => {
       ops.set(opRefKey(ref), ref)
     }
 
-    const visit = (
-      node: Node.Node,
-      depth: number,
-    ): Effect.Effect<PortableNode, UnsupportedNodeError | ArtifactLimitError> => {
-      nodeCount += 1
-      if (nodeCount > limits.maxNodes) {
-        return Effect.fail(
-          new ArtifactLimitError({ kind: 'nodes', limit: limits.maxNodes, actual: nodeCount }),
-        )
-      }
-      if (depth > limits.maxDepth) {
-        return Effect.fail(
-          new ArtifactLimitError({ kind: 'depth', limit: limits.maxDepth, actual: depth }),
-        )
-      }
-      return Node.$match(node, {
-        Lit: ({ value }) =>
-          encodeLiteral(value, depth, limits).pipe(
-            Effect.map(v => ({ _tag: 'Lit' as const, value: v })),
-          ),
-        Path: ({ segments }) => Effect.succeed({ _tag: 'Path' as const, segments: [...segments] }),
-        Call: ({ op, args }) => {
-          const ref: PortableOpRef = Node.isForeign(op)
-            ? { _tag: 'Foreign', id: op.id, version: op.version }
-            : { _tag: 'Core', id: op.id }
-          recordOp(ref)
-          return Effect.forEach(args, arg => visit(arg, depth + 1)).pipe(
-            Effect.map(encodedArgs => ({ _tag: 'Call' as const, op: ref, args: encodedArgs })),
-          )
-        },
-        If: ({ cond, then: t, otherwise }) =>
-          Effect.all([
-            visit(cond, depth + 1),
-            visit(t, depth + 1),
-            visit(otherwise, depth + 1),
-          ]).pipe(
-            Effect.map(([c, th, el]) => ({
-              _tag: 'If' as const,
-              cond: c,
-              then: th,
-              otherwise: el,
-            })),
-          ),
-        Match: ({ on, cases, otherwise }) =>
-          Effect.gen(function* () {
-            const encodedOn = yield* visit(on, depth + 1)
-            const encodedCases = yield* Effect.forEach(cases, ([label, branch]) =>
-              visit(branch, depth + 1).pipe(Effect.map(b => [label, b] as const)),
-            )
-            const encodedOtherwise = Option.isSome(otherwise)
-              ? yield* visit(otherwise.value, depth + 1)
-              : undefined
-            return {
-              _tag: 'Match' as const,
-              on: encodedOn,
-              cases: encodedCases,
-              ...(encodedOtherwise === undefined ? {} : { otherwise: encodedOtherwise }),
-            }
-          }),
-        Opaque: ({ name }) =>
-          Effect.fail(
-            new UnsupportedNodeError({
-              nodeTag: 'Opaque',
-              detail: `opaque node "${name}" cannot be serialized as a portable artifact`,
+    const visit = (node: Node.Node, depth: number): Effect.Effect<PortableNode, EncodeError> =>
+      Effect.gen(function* () {
+        yield* budget.node(depth)
+        return yield* Node.$match(node, {
+          Lit: ({ value }) =>
+            copyLiteral(value, depth, budget).pipe(
+              Effect.map(v => ({ _tag: 'Lit' as const, value: v })),
+            ),
+          Path: ({ segments }) =>
+            budget
+              .path(segments)
+              .pipe(Effect.map(() => ({ _tag: 'Path' as const, segments: [...segments] }))),
+          Call: ({ op, args }) =>
+            Effect.gen(function* () {
+              yield* checkArity(op, args.length)
+              const ref: PortableOpRef = Node.isForeign(op)
+                ? { _tag: 'Foreign', id: op.id, version: op.version }
+                : { _tag: 'Core', id: op.id }
+              recordOp(ref)
+              const encodedArgs = yield* Effect.forEach(args, arg => visit(arg, depth + 1))
+              return { _tag: 'Call' as const, op: ref, args: encodedArgs }
             }),
-          ),
-        Rows: rows =>
-          Effect.gen(function* () {
-            const over: PortableRowsOver = yield* Node.RowsOver.$match(rows.over, {
-              List: ({ list }) =>
-                visit(list, depth + 1).pipe(Effect.map(l => ({ _tag: 'List' as const, list: l }))),
-              Related: ({ of, relation, cardinality }) =>
-                visit(of, depth + 1).pipe(
-                  Effect.map(o => ({
-                    _tag: 'Related' as const,
-                    of: o,
-                    relation,
-                    ...(cardinality === undefined ? {} : { cardinality }),
-                  })),
-                ),
-            })
-            const where = Option.isSome(rows.where)
-              ? yield* visit(rows.where.value, depth + 1)
-              : undefined
-            const value = Option.isSome(rows.value)
-              ? yield* visit(rows.value.value, depth + 1)
-              : undefined
-            const set = yield* Effect.forEach(rows.set, ([field, v]) =>
-              visit(v, depth + 1).pipe(Effect.map(ev => [field, ev] as const)),
-            )
-            if (rows.op !== undefined) {
-              recordOp({ _tag: 'Foreign', id: rows.op.id, version: rows.op.version })
-            }
-            return {
-              _tag: 'Rows' as const,
-              fold: rows.fold,
-              over,
-              ...(where === undefined ? {} : { where }),
-              ...(value === undefined ? {} : { value }),
-              set,
-              ...(rows.op === undefined
-                ? {}
-                : { op: { id: rows.op.id, version: rows.op.version } }),
-              ...(rows.each === undefined ? {} : { each: rows.each }),
-            }
-          }),
+          If: ({ cond, then: t, otherwise }) =>
+            Effect.all([
+              visit(cond, depth + 1),
+              visit(t, depth + 1),
+              visit(otherwise, depth + 1),
+            ]).pipe(
+              Effect.map(([c, th, el]) => ({
+                _tag: 'If' as const,
+                cond: c,
+                then: th,
+                otherwise: el,
+              })),
+            ),
+          Match: ({ on, cases, otherwise }) =>
+            Effect.gen(function* () {
+              const encodedOn = yield* visit(on, depth + 1)
+              const encodedCases = yield* Effect.forEach(cases, ([label, branch]) =>
+                Effect.gen(function* () {
+                  yield* budget.string(label)
+                  return [label, yield* visit(branch, depth + 1)] as const
+                }),
+              )
+              const encodedOtherwise = Option.isSome(otherwise)
+                ? yield* visit(otherwise.value, depth + 1)
+                : undefined
+              return {
+                _tag: 'Match' as const,
+                on: encodedOn,
+                cases: encodedCases,
+                ...(encodedOtherwise === undefined ? {} : { otherwise: encodedOtherwise }),
+              }
+            }),
+          Opaque: ({ name }) =>
+            Effect.fail(
+              new UnsupportedNodeError({
+                nodeTag: 'Opaque',
+                detail: `opaque node "${name}" cannot be serialized as a portable artifact`,
+              }),
+            ),
+          Rows: rows =>
+            Effect.gen(function* () {
+              const over: PortableRowsOver = yield* Node.RowsOver.$match(rows.over, {
+                List: ({ list }) =>
+                  visit(list, depth + 1).pipe(
+                    Effect.map(l => ({ _tag: 'List' as const, list: l })),
+                  ),
+                Related: ({ of, relation, cardinality }) =>
+                  Effect.gen(function* () {
+                    yield* budget.string(relation)
+                    return {
+                      _tag: 'Related' as const,
+                      of: yield* visit(of, depth + 1),
+                      relation,
+                      ...(cardinality === undefined ? {} : { cardinality }),
+                    }
+                  }),
+              })
+              const where = Option.isSome(rows.where)
+                ? yield* visit(rows.where.value, depth + 1)
+                : undefined
+              const value = Option.isSome(rows.value)
+                ? yield* visit(rows.value.value, depth + 1)
+                : undefined
+              const set = yield* Effect.forEach(rows.set, ([field, v]) =>
+                visit(v, depth + 1).pipe(Effect.map(ev => [field, ev] as const)),
+              )
+              if (rows.op !== undefined) {
+                recordOp({ _tag: 'Foreign', id: rows.op.id, version: rows.op.version })
+              }
+              return {
+                _tag: 'Rows' as const,
+                fold: rows.fold,
+                over,
+                ...(where === undefined ? {} : { where }),
+                ...(value === undefined ? {} : { value }),
+                set,
+                ...(rows.op === undefined
+                  ? {}
+                  : { op: { id: rows.op.id, version: rows.op.version } }),
+                ...(rows.each === undefined ? {} : { each: rows.each }),
+              }
+            }),
+        })
       })
-    }
 
     return visit(expr.node, 0).pipe(
       Effect.map(node => ({
@@ -794,6 +800,14 @@ const toSet = <T>(
 ): ReadonlySet<T> | undefined =>
   input === undefined ? undefined : input instanceof Set ? input : new Set(input)
 
+const wireSchemaError = (detail: string) =>
+  new ArtifactDecodeError({ phase: 'schema', path: '$', detail })
+
+// Parse one level at a time so a recursive decode cannot run ahead of the budget.
+const WireValue = Schema.Unknown.check(Schema.makeFilter(value => value !== undefined))
+const decodeWireArtifact = Schema.decodeUnknownEffect(portableArtifactSchema(WireValue))
+const decodeWireNode = Schema.decodeUnknownEffect(portableNodeSchema(WireValue, WireValue))
+
 const decodeAgainstRoot = <Env, A>(
   raw: unknown,
   rootAst: SchemaAST.AST,
@@ -816,18 +830,9 @@ const decodeAgainstRoot = <Env, A>(
       )
     }
 
-    const limits = resolveLimits(options.limits)
-    yield* checkRawBounds(raw, limits)
-
-    const artifact = yield* Schema.decodeUnknownEffect(PortableArtifactV1)(raw).pipe(
-      Effect.mapError(
-        err =>
-          new ArtifactDecodeError({
-            phase: 'schema',
-            path: '$',
-            detail: String(err),
-          }),
-      ),
+    const budget = makeBudget(resolveLimits(options.limits))
+    const artifact = yield* decodeWireArtifact(raw).pipe(
+      Effect.mapError(err => wireSchemaError(String(err))),
     )
 
     const reg = options.registry ?? emptyRegistry
@@ -837,7 +842,6 @@ const decodeAgainstRoot = <Env, A>(
         ? undefined
         : (toSet(options.allowlist.foreign) ?? new Set<string>())
     const actualOps = new Set<string>()
-    let nodeCount = 0
 
     const resolveForeign = (
       id: string,
@@ -867,265 +871,249 @@ const decodeAgainstRoot = <Env, A>(
     }
 
     const rebuild = (
-      pnode: PortableNode,
+      wireNode: unknown,
       depth: number,
       bound: ReadonlyMap<string, Option.Option<SchemaAST.AST>>,
-    ): Effect.Effect<Node.Node, ArtifactError> => {
-      nodeCount += 1
-      if (nodeCount > limits.maxNodes) {
-        return Effect.fail(
-          new ArtifactLimitError({ kind: 'nodes', limit: limits.maxNodes, actual: nodeCount }),
+    ): Effect.Effect<Node.Node, ArtifactError> =>
+      Effect.gen(function* () {
+        yield* budget.node(depth)
+        const pnode = yield* decodeWireNode(wireNode).pipe(
+          Effect.mapError(err => wireSchemaError(String(err))),
         )
-      }
-      if (depth > limits.maxDepth) {
-        return Effect.fail(
-          new ArtifactLimitError({ kind: 'depth', limit: limits.maxDepth, actual: depth }),
-        )
-      }
-
-      return Match.value(pnode).pipe(
-        Match.tags({
-          Lit: ({ value }) => Effect.succeed(Node.Lit({ value })),
-          Path: ({ segments }) => {
-            if (segments.length === 0) {
-              return Effect.succeed(Node.Path({ segments: [], ast: Option.some(rootAst) }))
-            }
-            const head = segments[0]!
-            const binderAst = bound.get(head)
-            if (binderAst !== undefined) {
-              if (segments.length === 1) {
-                return Effect.succeed(Node.Path({ segments: [...segments], ast: binderAst }))
-              }
-              if (Option.isNone(binderAst)) {
-                return Effect.succeed(Node.Path({ segments: [...segments], ast: Option.none() }))
-              }
-              const resolved = resolveAstSegments(binderAst.value, segments.slice(1))
-              if (Option.isNone(resolved)) {
-                return Effect.fail(
-                  new ArtifactDecodeError({
-                    phase: 'scope',
-                    path: formatPath(segments),
-                    detail: `path "${formatPath(segments)}" is not in scope of binder "${head}"`,
-                  }),
-                )
-              }
-              return Effect.succeed(Node.Path({ segments: [...segments], ast: resolved }))
-            }
-            const resolved = resolveRootSegment(segments)
-            if (Option.isNone(resolved)) {
-              return Effect.fail(
-                new ArtifactDecodeError({
-                  phase: 'scope',
-                  path: formatPath(segments),
-                  detail: `path "${formatPath(segments)}" does not exist in the target environment Schema`,
-                }),
-              )
-            }
-            return Effect.succeed(Node.Path({ segments: [...segments], ast: resolved }))
-          },
-          Call: ({ op, args }) =>
-            Effect.gen(function* () {
-              actualOps.add(opRefKey(op))
-              const resolvedOp: Node.AnyOp = yield* Match.value(op).pipe(
-                Match.tags({
-                  Core: ({ id }) => {
-                    if (!isCoreOpId(id)) {
-                      return Effect.fail(
-                        new UnknownOperationError({
-                          op: id,
-                          kind: 'core',
-                          detail: `unknown core operator "${id}"`,
-                        }),
-                      )
-                    }
-                    if (coreAllow !== undefined && !coreAllow.has(id)) {
-                      return Effect.fail(
-                        new UnknownOperationError({
-                          op: id,
-                          kind: 'core',
-                          detail: `core operator "${id}" is not permitted by allowlist`,
-                        }),
-                      )
-                    }
-                    const expectedArity = coreArity[id]
-                    if (args.length !== expectedArity) {
-                      return Effect.fail(
-                        new ArtifactDecodeError({
-                          phase: 'arity',
-                          path: id,
-                          detail: `core operator "${id}" expects ${expectedArity} argument(s), got ${args.length}`,
-                        }),
-                      )
-                    }
-                    return Effect.succeed(coreOps[id])
-                  },
-                  Foreign: ({ id, version }) =>
-                    resolveForeign(id, version).pipe(
-                      Effect.flatMap(found => {
-                        const expectedArity = found.descriptor.args.length
-                        if (args.length !== expectedArity) {
-                          return Effect.fail(
-                            new ArtifactDecodeError({
-                              phase: 'arity',
-                              path: Node.foreignName({ id, version }),
-                              detail: `foreign operator "${Node.foreignName({ id, version })}" expects ${expectedArity} argument(s), got ${args.length}`,
-                            }),
-                          )
-                        }
-                        return Effect.succeed(found.descriptor)
+        return yield* Match.value(pnode).pipe(
+          Match.tags({
+            Lit: ({ value }) =>
+              copyLiteral(value, depth, budget).pipe(
+                Effect.catchTag('UnsupportedNodeError', err =>
+                  Effect.fail(wireSchemaError(err.detail)),
+                ),
+                Effect.map(literal => Node.Lit({ value: literal })),
+              ),
+            Path: ({ segments }) =>
+              Effect.gen(function* () {
+                yield* budget.path(segments)
+                if (segments.length === 0) {
+                  return Node.Path({ segments: [], ast: Option.some(rootAst) })
+                }
+                const head = segments[0]!
+                const binderAst = bound.get(head)
+                if (binderAst !== undefined) {
+                  if (segments.length === 1) {
+                    return Node.Path({ segments: [...segments], ast: binderAst })
+                  }
+                  if (Option.isNone(binderAst)) {
+                    return Node.Path({ segments: [...segments], ast: Option.none() })
+                  }
+                  const resolved = resolveAstSegments(binderAst.value, segments.slice(1))
+                  if (Option.isNone(resolved)) {
+                    return yield* Effect.fail(
+                      new ArtifactDecodeError({
+                        phase: 'scope',
+                        path: formatPath(segments),
+                        detail: `path "${formatPath(segments)}" is not in scope of binder "${head}"`,
                       }),
-                    ),
-                }),
-                Match.exhaustive,
-              )
-              const rebuiltArgs = yield* Effect.forEach(args, a => rebuild(a, depth + 1, bound))
-              return Node.Call({ op: resolvedOp, args: rebuiltArgs })
-            }),
-          If: ({ cond, then: t, otherwise }) =>
-            Effect.all([
-              rebuild(cond, depth + 1, bound),
-              rebuild(t, depth + 1, bound),
-              rebuild(otherwise, depth + 1, bound),
-            ]).pipe(Effect.map(([c, th, el]) => Node.If({ cond: c, then: th, otherwise: el }))),
-          Match: ({ on, cases, otherwise }) =>
-            Effect.gen(function* () {
-              const rebuiltOn = yield* rebuild(on, depth + 1, bound)
-              const rebuiltCases = yield* Effect.forEach(cases, ([label, branch]) =>
-                rebuild(branch, depth + 1, bound).pipe(Effect.map(b => [label, b] as const)),
-              )
-              const rebuiltOtherwise =
-                otherwise === undefined
-                  ? Option.none()
-                  : Option.some(yield* rebuild(otherwise, depth + 1, bound))
-              return Node.Match({ on: rebuiltOn, cases: rebuiltCases, otherwise: rebuiltOtherwise })
-            }),
-          Rows: rows =>
-            Effect.gen(function* () {
-              loadRows()
-              if (rows.set.length > 0 && rows.fold !== 'patch') {
-                return yield* Effect.fail(
-                  new ArtifactDecodeError({
-                    phase: 'schema',
-                    path: 'Rows.set',
-                    detail: `Rows.set is only valid for fold "patch", got "${rows.fold}"`,
+                    )
+                  }
+                  return Node.Path({ segments: [...segments], ast: resolved })
+                }
+                const resolved = resolveRootSegment(segments)
+                if (Option.isNone(resolved)) {
+                  return yield* Effect.fail(
+                    new ArtifactDecodeError({
+                      phase: 'scope',
+                      path: formatPath(segments),
+                      detail: `path "${formatPath(segments)}" does not exist in the target environment Schema`,
+                    }),
+                  )
+                }
+                return Node.Path({ segments: [...segments], ast: resolved })
+              }),
+            Call: ({ op, args }) =>
+              Effect.gen(function* () {
+                actualOps.add(opRefKey(op))
+                const resolvedOp: Node.AnyOp = yield* Match.value(op).pipe(
+                  Match.tags({
+                    Core: ({ id }) => {
+                      if (!isCoreOpId(id)) {
+                        return Effect.fail(
+                          new UnknownOperationError({
+                            op: id,
+                            kind: 'core',
+                            detail: `unknown core operator "${id}"`,
+                          }),
+                        )
+                      }
+                      if (coreAllow !== undefined && !coreAllow.has(id)) {
+                        return Effect.fail(
+                          new UnknownOperationError({
+                            op: id,
+                            kind: 'core',
+                            detail: `core operator "${id}" is not permitted by allowlist`,
+                          }),
+                        )
+                      }
+                      return Effect.succeed(coreOps[id])
+                    },
+                    Foreign: ({ id, version }) =>
+                      resolveForeign(id, version).pipe(Effect.map(found => found.descriptor)),
+                  }),
+                  Match.exhaustive,
+                )
+                yield* checkArity(resolvedOp, args.length)
+                const rebuiltArgs = yield* Effect.forEach(args, a => rebuild(a, depth + 1, bound))
+                return Node.Call({ op: resolvedOp, args: rebuiltArgs })
+              }),
+            If: ({ cond, then: t, otherwise }) =>
+              Effect.all([
+                rebuild(cond, depth + 1, bound),
+                rebuild(t, depth + 1, bound),
+                rebuild(otherwise, depth + 1, bound),
+              ]).pipe(Effect.map(([c, th, el]) => Node.If({ cond: c, then: th, otherwise: el }))),
+            Match: ({ on, cases, otherwise }) =>
+              Effect.gen(function* () {
+                const rebuiltOn = yield* rebuild(on, depth + 1, bound)
+                const rebuiltCases = yield* Effect.forEach(cases, ([label, branch]) =>
+                  Effect.gen(function* () {
+                    yield* budget.string(label)
+                    return [label, yield* rebuild(branch, depth + 1, bound)] as const
                   }),
                 )
-              }
-              if (
-                rows.value === undefined &&
-                (rows.fold === 'sum' ||
-                  rows.fold === 'min' ||
-                  rows.fold === 'max' ||
-                  rows.fold === 'reduce')
-              ) {
-                return yield* Effect.fail(
-                  new ArtifactDecodeError({
-                    phase: 'schema',
-                    path: 'Rows.value',
-                    detail: `Rows with fold "${rows.fold}" requires a value expression`,
-                  }),
-                )
-              }
-              let elementAst: Option.Option<SchemaAST.AST> = Option.none()
-              const rebuiltOver: Node.RowsOver = yield* Match.value(rows.over).pipe(
-                Match.tags({
-                  List: ({ list }) =>
-                    rebuild(list, depth + 1, bound).pipe(
-                      Effect.flatMap(rebuiltList => {
-                        if (Node.$is('Lit')(rebuiltList) && !Array.isArray(rebuiltList.value)) {
-                          return Effect.fail(
-                            new ArtifactDecodeError({
-                              phase: 'type',
-                              path: 'Rows.over.list',
-                              detail: 'Rows List source literal must be an array',
-                            }),
-                          )
-                        }
-                        if (Node.$is('Path')(rebuiltList) && Option.isSome(rebuiltList.ast)) {
-                          const elem = arrayElementAst(rebuiltList.ast.value)
-                          if (Option.isNone(elem)) {
+                const rebuiltOtherwise =
+                  otherwise === undefined
+                    ? Option.none()
+                    : Option.some(yield* rebuild(otherwise, depth + 1, bound))
+                return Node.Match({
+                  on: rebuiltOn,
+                  cases: rebuiltCases,
+                  otherwise: rebuiltOtherwise,
+                })
+              }),
+            Rows: rows =>
+              Effect.gen(function* () {
+                loadRows()
+                if (rows.set.length > 0 && rows.fold !== 'patch') {
+                  return yield* Effect.fail(
+                    new ArtifactDecodeError({
+                      phase: 'schema',
+                      path: 'Rows.set',
+                      detail: `Rows.set is only valid for fold "patch", got "${rows.fold}"`,
+                    }),
+                  )
+                }
+                if (
+                  rows.value === undefined &&
+                  (rows.fold === 'sum' ||
+                    rows.fold === 'min' ||
+                    rows.fold === 'max' ||
+                    rows.fold === 'reduce')
+                ) {
+                  return yield* Effect.fail(
+                    new ArtifactDecodeError({
+                      phase: 'schema',
+                      path: 'Rows.value',
+                      detail: `Rows with fold "${rows.fold}" requires a value expression`,
+                    }),
+                  )
+                }
+                let elementAst: Option.Option<SchemaAST.AST> = Option.none()
+                const rebuiltOver: Node.RowsOver = yield* Match.value(rows.over).pipe(
+                  Match.tags({
+                    List: ({ list }) =>
+                      rebuild(list, depth + 1, bound).pipe(
+                        Effect.flatMap(rebuiltList => {
+                          if (Node.$is('Lit')(rebuiltList) && !Array.isArray(rebuiltList.value)) {
                             return Effect.fail(
                               new ArtifactDecodeError({
                                 phase: 'type',
-                                path: formatPath(rebuiltList.segments),
-                                detail: `Rows List source "${formatPath(rebuiltList.segments)}" is not an array Schema`,
+                                path: 'Rows.over.list',
+                                detail: 'Rows List source literal must be an array',
                               }),
                             )
                           }
-                          elementAst = elem
-                        }
-                        return Effect.succeed(Node.RowsOver.List({ list: rebuiltList }))
-                      }),
-                    ),
-                  Related: ({ of, relation, cardinality }) =>
-                    rebuild(of, depth + 1, bound).pipe(
-                      Effect.map(rebuiltOf =>
-                        Node.RowsOver.Related({
-                          of: rebuiltOf,
-                          relation,
-                          ...(cardinality === undefined ? {} : { cardinality }),
+                          if (Node.$is('Path')(rebuiltList) && Option.isSome(rebuiltList.ast)) {
+                            const elem = arrayElementAst(rebuiltList.ast.value)
+                            if (Option.isNone(elem)) {
+                              return Effect.fail(
+                                new ArtifactDecodeError({
+                                  phase: 'type',
+                                  path: formatPath(rebuiltList.segments),
+                                  detail: `Rows List source "${formatPath(rebuiltList.segments)}" is not an array Schema`,
+                                }),
+                              )
+                            }
+                            elementAst = elem
+                          }
+                          return Effect.succeed(Node.RowsOver.List({ list: rebuiltList }))
                         }),
                       ),
-                    ),
-                }),
-                Match.exhaustive,
-              )
+                    Related: ({ of, relation, cardinality }) =>
+                      Effect.gen(function* () {
+                        yield* budget.string(relation)
+                        return Node.RowsOver.Related({
+                          of: yield* rebuild(of, depth + 1, bound),
+                          relation,
+                          ...(cardinality === undefined ? {} : { cardinality }),
+                        })
+                      }),
+                  }),
+                  Match.exhaustive,
+                )
 
-              let foreignOp: Node.ForeignOp | undefined = undefined
-              if (rows.op !== undefined) {
-                if (rows.fold !== 'reduce') {
+                let foreignOp: Node.ForeignOp | undefined = undefined
+                if (rows.op !== undefined) {
+                  if (rows.fold !== 'reduce') {
+                    return yield* Effect.fail(
+                      new ArtifactDecodeError({
+                        phase: 'schema',
+                        path: 'Rows.op',
+                        detail: `Rows.op is only valid for fold "reduce", got "${rows.fold}"`,
+                      }),
+                    )
+                  }
+                  foreignOp = (yield* resolveForeign(rows.op.id, rows.op.version)).descriptor
+                  actualOps.add(
+                    opRefKey({ _tag: 'Foreign', id: rows.op.id, version: rows.op.version }),
+                  )
+                } else if (rows.fold === 'reduce') {
                   return yield* Effect.fail(
                     new ArtifactDecodeError({
                       phase: 'schema',
                       path: 'Rows.op',
-                      detail: `Rows.op is only valid for fold "reduce", got "${rows.fold}"`,
+                      detail: 'Rows with fold "reduce" requires an op reference',
                     }),
                   )
                 }
-                foreignOp = (yield* resolveForeign(rows.op.id, rows.op.version)).descriptor
-                actualOps.add(
-                  opRefKey({ _tag: 'Foreign', id: rows.op.id, version: rows.op.version }),
+
+                const binderName = rows.each ?? Node.EACH
+                const innerBound = new Map(bound)
+                innerBound.set(binderName, elementAst)
+
+                const where =
+                  rows.where === undefined
+                    ? Option.none()
+                    : Option.some(yield* rebuild(rows.where, depth + 1, innerBound))
+                const value =
+                  rows.value === undefined
+                    ? Option.none()
+                    : Option.some(yield* rebuild(rows.value, depth + 1, innerBound))
+                const set = yield* Effect.forEach(rows.set, ([field, v]) =>
+                  rebuild(v, depth + 1, innerBound).pipe(Effect.map(rv => [field, rv] as const)),
                 )
-              } else if (rows.fold === 'reduce') {
-                return yield* Effect.fail(
-                  new ArtifactDecodeError({
-                    phase: 'schema',
-                    path: 'Rows.op',
-                    detail: 'Rows with fold "reduce" requires an op reference',
-                  }),
-                )
-              }
 
-              const binderName = rows.each ?? Node.EACH
-              const innerBound = new Map(bound)
-              innerBound.set(binderName, elementAst)
-
-              const where =
-                rows.where === undefined
-                  ? Option.none()
-                  : Option.some(yield* rebuild(rows.where, depth + 1, innerBound))
-              const value =
-                rows.value === undefined
-                  ? Option.none()
-                  : Option.some(yield* rebuild(rows.value, depth + 1, innerBound))
-              const set = yield* Effect.forEach(rows.set, ([field, v]) =>
-                rebuild(v, depth + 1, innerBound).pipe(Effect.map(rv => [field, rv] as const)),
-              )
-
-              return Node.Rows({
-                fold: rows.fold,
-                over: rebuiltOver,
-                where,
-                value,
-                set,
-                ...(foreignOp === undefined ? {} : { op: foreignOp }),
-                ...(rows.each === undefined ? {} : { each: rows.each }),
-              })
-            }),
-        }),
-        Match.exhaustive,
-      )
-    }
+                return Node.Rows({
+                  fold: rows.fold,
+                  over: rebuiltOver,
+                  where,
+                  value,
+                  set,
+                  ...(foreignOp === undefined ? {} : { op: foreignOp }),
+                  ...(rows.each === undefined ? {} : { each: rows.each }),
+                })
+              }),
+          }),
+          Match.exhaustive,
+        )
+      })
 
     const decodedNode = yield* rebuild(artifact.node, 0, new Map())
     const declaredOps = new Set(artifact.requiredOps.map(opRefKey))
@@ -1226,6 +1214,7 @@ const canonicalizeLiteral = (value: PortableLiteral): PortableLiteral => {
  * and sorts literal object keys, while strictly preserving evaluation order,
  * `If`/`Match` branch order, and operator argument order (never reassociates
  * numeric operations).
+ * Free path heads starting with `$` gain a second leading `$` to distinguish them from binders.
  */
 export const canonicalizeNode = (root: PortableNode): PortableNode => {
   let nextBinder = 0
@@ -1234,12 +1223,12 @@ export const canonicalizeNode = (root: PortableNode): PortableNode => {
     Match.value(node).pipe(
       Match.tags({
         Lit: ({ value }) => ({ _tag: 'Lit' as const, value: canonicalizeLiteral(value) }),
-        Path: ({ segments }) => {
-          if (segments.length === 0) return { _tag: 'Path' as const, segments: [] }
-          const renamed = renames.get(segments[0]!)
+        Path: ({ segments: [head, ...tail] }) => {
+          if (head === undefined) return { _tag: 'Path' as const, segments: [] }
+          const canonicalHead = renames.get(head) ?? (head.startsWith('$') ? `$${head}` : head)
           return {
             _tag: 'Path' as const,
-            segments: renamed === undefined ? [...segments] : [renamed, ...segments.slice(1)],
+            segments: [canonicalHead, ...tail],
           }
         },
         Call: ({ op, args }) => ({
@@ -1340,7 +1329,7 @@ const isPortableArtifact = (
 export const fingerprint = (
   input: Expr<never, unknown> | PortableArtifactV1,
   options?: EncodeOptions,
-): Effect.Effect<ArtifactFingerprint, UnsupportedNodeError | ArtifactLimitError> =>
+): Effect.Effect<ArtifactFingerprint, EncodeError> =>
   (isPortableArtifact(input) ? Effect.succeed(input) : encodeExpr(input, options)).pipe(
     Effect.flatMap(artifact => sha256Hex(canonicalJson(artifact))),
     Effect.map(hex => `sha256:${hex}` as ArtifactFingerprint),
