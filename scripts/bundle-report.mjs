@@ -423,6 +423,7 @@ const groupOf = ({ name, file }) => {
   if (
     name === 'foldkit' ||
     name === 'effect' ||
+    name === '@doeixd/metakit' ||
     name.startsWith('@foldkit/') ||
     name.startsWith('foldkit-')
   )

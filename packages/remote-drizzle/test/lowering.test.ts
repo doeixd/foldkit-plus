@@ -54,6 +54,13 @@ const pgLanes = entity(
 const lite = (value: SQL) => new SQLiteDialect().sqlToQuery(value)
 const pg = (value: SQL) => new PgDialect().sqlToQuery(value)
 
+// Arithmetic a row decides is NULL past ±(2^53−1), where evaluation refuses it (#674).
+const PAST_SAFE = '9007199254740992'
+const pgSafe = (sum: string) =>
+  `NULLIF(NULLIF(LEAST(GREATEST((${sum}), -${PAST_SAFE}), ${PAST_SAFE}), ${PAST_SAFE}), -${PAST_SAFE})`
+const liteSafe = (sum: string) =>
+  `NULLIF(NULLIF(max(min((${sum}), ${PAST_SAFE}), -${PAST_SAFE}), ${PAST_SAFE}), -${PAST_SAFE})`
+
 const compile = (
   predicate: Predicate,
   target: CompileTarget,
@@ -148,11 +155,11 @@ describe('a fraction beside an integer field', () => {
   it('is read as it is beside a number field, and typed so on Postgres', () => {
     const where = Expr.eq(Expr.add(Lane.fields.weight, 0.5), 2.5)
     expect(pg(compile(where, pgLanes))).toEqual({
-      sql: '("lanes"."weight" + cast($1 as double precision)) = $2',
+      sql: `${pgSafe('"lanes"."weight" + cast($1 as double precision)')} = $2`,
       params: [0.5, 2.5],
     })
     expect(lite(compile(where, sqliteLanes))).toEqual({
-      sql: '("lanes"."weight" + ?) = ?',
+      sql: `${liteSafe('"lanes"."weight" + ?')} = ?`,
       params: [0.5, 2.5],
     })
   })
@@ -201,11 +208,11 @@ describe('a computed assignment', () => {
 
   it('types a number by its own value on Postgres, as no column types it', () => {
     expect(pg(computationSql(add, pgLanes, 'Lane.count'))).toEqual({
-      sql: '"lanes"."count" + cast($1 as integer)',
+      sql: pgSafe('"lanes"."count" + cast($1 as integer)'),
       params: [1],
     })
     expect(lite(computationSql(add, sqliteLanes, 'Lane.count'))).toEqual({
-      sql: '"lanes"."count" + ?',
+      sql: liteSafe('"lanes"."count" + ?'),
       params: [1],
     })
   })
@@ -216,14 +223,14 @@ describe('a computed assignment', () => {
       args: [Computation.Field({ key: 'count' }), Computation.Value({ value: 3_000_000_000 })],
     })
     expect(pg(computationSql(wide, pgLanes, 'Lane.count')).sql).toBe(
-      '"lanes"."count" + cast($1 as bigint)',
+      pgSafe('"lanes"."count" + cast($1 as bigint)'),
     )
     const fraction = Computation.Call({
       operator: 'number.add',
       args: [Computation.Field({ key: 'weight' }), Computation.Value({ value: 0.5 })],
     })
     expect(pg(computationSql(fraction, pgLanes, 'Lane.weight')).sql).toBe(
-      '"lanes"."weight" + cast($1 as double precision)',
+      pgSafe('"lanes"."weight" + cast($1 as double precision)'),
     )
   })
 

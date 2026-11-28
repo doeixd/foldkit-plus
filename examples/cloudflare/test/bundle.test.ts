@@ -39,7 +39,8 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +2,647 on 2026-11-26 (CI read 232,409; local 232,471): metakit's core evaluator and judge grew
 // with Sets, Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote gained IVM fixes and
 // Effect Clock/Random integration. Ceiling: reading plus ~400, rounded up.
-const CEILING = 232_900
+// +9 bytes over the last ceiling: MetaKit's W1 correctness fixes (2026-11-28: the checker's drop log, the NUL and NaN screens, throw-free refusal text, the literal domain check, the safe-range SQL guard).
+const CEILING = 233_000
 
 clientBudget({
   name: 'cloudflare',

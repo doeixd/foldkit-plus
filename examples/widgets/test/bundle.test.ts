@@ -37,7 +37,8 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +7,500 on 2026-11-26 (CI read 162,989): foldkit-bundle placement machine-lifting and mixins-ui
 // widget/surface updates across the toolbar and window-list start chunks. Ceiling: CI's reading
 // plus ~500, rounded up.
-const CEILING = 163_500
+// +273 bytes over the last ceiling: MetaKit's W1 correctness fixes (2026-11-28: the checker's drop log, the NUL and NaN screens, throw-free refusal text, the literal domain check, the safe-range SQL guard).
+const CEILING = 163_800
 
 clientBudget({
   name: 'widgets',

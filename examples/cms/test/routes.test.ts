@@ -26,7 +26,8 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // studio +4,432 and site +4,486 on 2026-11-26 (CI read 382,052 and 336,151): metakit's core
 // evaluator/judge growth (Sets, Domain.Id/Ordinal, Pipeable/Inspectable) and foldkit-remote
 // IVM/Effect integration carried by the shared entry. Ceilings: CI's reading plus ~450, rounded up.
-const CEILINGS = { studio: 382_500, site: 336_600 }
+// Studio +3 bytes over its last ceiling: MetaKit's W1 correctness fixes (2026-11-28).
+const CEILINGS = { studio: 382_600, site: 336_600 }
 
 /** Strings only the editor's code writes: its form control's kind, its toolbar's keys. */
 const EDITOR = ['RichTextInput', 'FormattingToolbarKeys']

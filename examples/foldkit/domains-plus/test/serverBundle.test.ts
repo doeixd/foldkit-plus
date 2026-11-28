@@ -106,7 +106,8 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // +1,000 on 2026-11-27 (3,395,203 measured): metakit #648 P0 #3 evidence-gated foreign rewrites
 // (`permitsForeignRewrite`, `foreignCallCannotRefuse`) and `claims.total` parity/soundness in
 // `ops/laws.ts` and `ops/residualize.ts`. Ceiling: reading plus ~800, rounded up.
-const CEILING = 3_396_000
+// +4502 bytes over the last ceiling: MetaKit's W1 correctness fixes (2026-11-28: the checker's drop log, the NUL and NaN screens, throw-free refusal text, the literal domain check, the safe-range SQL guard).
+const CEILING = 3_401_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

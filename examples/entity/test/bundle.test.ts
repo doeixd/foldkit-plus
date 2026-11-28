@@ -60,7 +60,8 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +2,561 on 2026-11-26 (CI read 230,055): metakit's core evaluator and judge grew with Sets,
 // Domain.Id/Ordinal and Pipeable/Inspectable, and foldkit-remote gained IVM coverage/reparenting
 // fixes and Effect Clock integration. Ceiling: CI's reading plus ~400, rounded up.
-const CEILING = 230_500
+// +177 bytes over the last ceiling: MetaKit's W1 correctness fixes (2026-11-28: the checker's drop log, the NUL and NaN screens, throw-free refusal text, the literal domain check, the safe-range SQL guard).
+const CEILING = 230_700
 
 clientBudget({
   name: 'entity',
