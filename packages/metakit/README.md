@@ -125,19 +125,28 @@ REFUTED Withdraw [PIN BROKEN]
 
 | Import | Runs in | Purpose |
 | --- | --- | --- |
-| `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 50-op core (`Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr` + derived helpers), the folds over a list (`Arr.any`, `Arr.sum`, …), what each op, fold and way of writing keeps (`opProperties`, `foldProperties`, `writeProperties`), operations your application defines (`Node.foreign`), and synchronous Interval + Zone checks (`Abstract`). A path to an `Option` field reads as its value or null. |
+| `metakit` | Browser / server | `Path`, `Expr`, `Transition`, `Verdict`, the 50-op core (`Bool`, `Eq`, `Null`, `Ord`, `Num`, `Str`, `Arr` + derived helpers), the folds over a list (`Arr.any`, `Arr.sum`, …), what each op, fold and way of writing keeps (`opProperties`, `foldProperties`, `writeProperties`), and synchronous Interval + Zone checks (`Abstract`). A path to an `Option` field reads as its value or null. |
 | `metakit/relation` | Browser / server | Questions asked of the rows of another kind pointing at a row (`Relation.any`, `every`, `count`, `sum`, `min`, `max`, `reduce`), with `Relation.withRows` for typed in-memory evaluation; SQL writes each as a correlated subquery. |
-| `metakit/operation` | Browser / server | Typed custom expression operations (`Operation.define`, `implement`, `implementations`) with algebraic claims checked by `Conformance.checkOperation` (high-level API over `Node.foreign`). |
+| `metakit/fn` | Browser / server | `Fn.make` and `Fn.params` define callable expression functions with optional input and output rules. |
+| `metakit/operation` | Browser / server | Declare typed expression operations with `Operation.define` and supply their JavaScript with `implement` and `implementations`. Use `Conformance.checkOperation` to test algebraic claims on samples. |
 | `metakit/operation/sql` | Server | Dialect-specific SQL & aggregate lowerings (`lowering`, `lowerings`, `piece`) for custom operations. |
 | `metakit/language` | Browser / server | Bundles `Operation.define` families (`Language.make`) with exhaustive `implement`, dialect-checked `sql`, and `describe()` handshakes. |
+| `metakit/syntax` | Browser / server | Pipeable calls (`dual`, `dualLanguage`), staged builders (`grammar`), and checks (`testLanguage`). |
+| `metakit/artifact` | Browser / server | `encodeExpr` and `decodeExpr` round-trip portable expressions. `fingerprint` hashes them. |
+| `metakit/tooling` | Dev / build | Index named definitions (`SemanticIndex`). `semanticDiff` shows changes and what they affect. |
 | `metakit/domain` | Browser / server | Currency-safe `Money`, fixed-scale `Decimal` (`Decimal.mul` and `Money.mul` round half-even in integers; evaluation, SQL on SQLite and Postgres, the checkers and `Rows.sum` read them, and a product past the safe range is refused), timezone-free `CalendarDay`, `OrderedEnum`, `Text` (text holding no NUL, which the checkers can prove rules over), and `Domain.domainOf`. |
 | `metakit/aggregates` | Browser / server | `Rows.sum` (of integers) and `Rows.count`, kept by O(1) deltas, and `Rows.min`, `Rows.max`, `Rows.every`, `Rows.any`, which rescan on a delete of the extreme. Imports no SQL. |
 | `metakit/aggregates/sql` | Server | `RowsSql.toSql(aggregate, options)`: an aggregate as a SQL expression. |
 | `metakit/machine` | Browser / server | Declarative state machine (`dispatch`, TEA `update`, which returns the records a step emits, and `footprints`); `Machine.canDispatch(machine, tag, partial)` and `Machine.affordances(machine, state)` ask what a partial state allows; `lift` and `compose` build a parent machine from child machines. |
+| `metakit/interpreter` | Browser / server | `Interpreter` runs `evalExpr` and `step` in Effect. `withForeign` supplies custom implementations. |
 | `metakit/inspect` | Browser / server | Form `fieldSpecs` and an enriched `toJsonSchema`, read straight off the Schema. |
 | `metakit/graph` | Build / SSR / planner | Static `Graph.analyze` (`affectedBy`, `deadBindings`), SSR `Graph.pruneStatic`, and `Graph.queryReadiness`. |
+| `metakit/graph/match` | Browser / server | `pathsOverlap` compares paths. `affectedTags` names transitions whose writes can affect a reader. |
+| `metakit/graph/prune` | Server | `pruneStatic` splits fixed values from live bindings and tracks the paths needed to resume. |
+| `metakit/graph/readiness` | Browser / server | `queryReadiness` fills in known parameters and checks if the remaining filter can be prepared. |
 | `metakit/policy` | Browser / server | Named rules over a row and a principal (`Policy.make`), and the synchronous `checkImplication` and `checkConsistent`. |
 | `metakit/store` | Server | What a store guarantees of concurrent writes (`StoreCapabilities`), and `Store.mount`, which throws where a store is set up to hold a rule it cannot. |
+| `metakit/store/check` | Dev / CI only | `checkStore` and `checkStoreEffect` race writers to test a store's declared isolation and locks. |
 | `metakit/temporal` | Dev / CI only | `Temporal.requirements` (what each rule needs of its store), `Temporal.obligations` (the pairs of transitions whose order a proof leaves open), and `Temporal.walk`, which runs a scenario's steps in seeded orders. |
 | `metakit/pairs` | Dev / CI only | `Pairs.pairs` (each pair of transitions whose footprints overlap, with `Transition.commutes`' answer and the rule behind a `True`), `Pairs.walkPair` (both orders from generated states, compared), and `Pairs.settle`, which walks every pair into `Temporal.registry`, whose `report()` lists what is open, discharged and decided. |
 | `metakit/sql` | Server | `Sql.toCheck`, `Sql.toWhere`, `Sql.toUpdate` as text for Postgres and SQLite. A predicate selects the rows `Expr.eval` holds true, null included; rows related to a row are read from the tables you give as `relations`, and a list in a column is refused by name. |
