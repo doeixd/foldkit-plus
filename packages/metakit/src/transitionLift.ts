@@ -98,7 +98,7 @@ const rewriteStatePrefix = (
         // One projected environment per outer step, so a child's body runs once
         // however many of its written values read it. Scoped to this lift, so
         // separate mounts stay independent.
-        run: env => {
+        run: (env, foreign) => {
           const outer = env as TransitionEnv<unknown, unknown, unknown> & {
             readonly next?: unknown
           }
@@ -111,7 +111,7 @@ const rewriteStatePrefix = (
             onSome: state => {
               if (projectState && (state === null || state === undefined)) return null
               const known = projected.get(outer)
-              if (known !== undefined) return fn(known)
+              if (known !== undefined) return fn(known, foreign)
               let projectedEnv: Record<string, unknown> = projectState
                 ? { ...outer, state }
                 : { ...outer }
@@ -127,7 +127,7 @@ const rewriteStatePrefix = (
                 projectedEnv = { ...projectedEnv, next: innerNext.value }
               }
               projected.set(outer, projectedEnv)
-              return fn(projectedEnv)
+              return fn(projectedEnv, foreign)
             },
           })
         },

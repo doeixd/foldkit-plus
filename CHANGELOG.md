@@ -112,6 +112,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `@doeixd/metakit/machine`: `Machine.each` runs child guards, emits and steps with the caller's operation implementations, and a child guard that refuses refuses the dispatch instead of matching nothing (#663).
 - `@doeixd/metakit/operation`: a derived operation runs its inner operations from the implementations table it is evaluated with, falling back to the one it was defined with only for what that table lacks (#664).
 - `@doeixd/metakit/interpreter`: an operation must appear in every layered `withAllowlist` to be available to the interpreter (#668).
 - `@doeixd/metakit/language`: `Language.restrict` preserves default SQL lowerings for retained operations. `Language.compose` merges defaults and fails with `LanguageConflictError` when two lowerings for the same operation and dialect differ by reference (#669).

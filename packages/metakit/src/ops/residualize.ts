@@ -176,7 +176,7 @@ export const residualizeNode = (
             Option.isSome(lookupPartial(env, segments, Option.none())),
           )
         ) {
-          return Node.Lit({ value: opaque.run(env) })
+          return Node.Lit({ value: opaque.run(env, foreign) })
         }
         return opaque
       },

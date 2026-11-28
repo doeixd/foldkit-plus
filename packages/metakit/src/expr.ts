@@ -427,7 +427,7 @@ export const opaque = <Env, A>(
         options.reads === undefined
           ? Option.none()
           : Option.some(options.reads.map(p => p.segments)),
-      run: run as (env: unknown) => unknown,
+      run: env => run(env as Env),
     }),
   )
 

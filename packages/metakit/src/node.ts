@@ -357,15 +357,31 @@ export interface Match {
   readonly otherwise: Option.Option<Node>
 }
 
+/** One implementation of a foreign operation. */
+export interface ForeignImplementation {
+  /**
+   * The operation on argument values, after its null rule. It returns a
+   * value, null, or a `Node.Refusal`; a throw is refused as `failed`.
+   */
+  readonly run: (args: ReadonlyArray<unknown>, foreign?: ForeignImplementations) => unknown
+}
+
+/**
+ * The implementations a reader is given, by `id@version` (`Node.foreignName`),
+ * so two versions of one operation each have theirs.
+ */
+export type ForeignImplementations = Readonly<Record<string, ForeignImplementation>>
+
 /**
  * Arbitrary code no reader can see into. It declares what it reads (none:
- * everything), runs in evaluation, and leaves every static reader undecided.
+ * everything), runs in evaluation with the caller's foreign implementations,
+ * and leaves every static reader undecided.
  */
 export interface Opaque {
   readonly _tag: 'Opaque'
   readonly name: string
   readonly reads: Option.Option<ReadonlyArray<ReadonlyArray<string>>>
-  readonly run: (env: unknown) => unknown
+  readonly run: (env: unknown, foreign: ForeignImplementations) => unknown
 }
 
 /** The question a `Rows` node asks of each element. */
@@ -584,7 +600,7 @@ export const prefix = (node: Node, segments: ReadonlyArray<string>): Node => {
         Opaque({
           name,
           reads: Option.map(reads, list => list.map(s => [...segments, ...s])),
-          run: env => {
+          run: (env, foreign) => {
             let sub: unknown = env
             for (const seg of segments) {
               if (
@@ -597,7 +613,7 @@ export const prefix = (node: Node, segments: ReadonlyArray<string>): Node => {
               }
               sub = (sub as Record<string, unknown>)[seg]
             }
-            return run(sub)
+            return run(sub, foreign)
           },
         }),
     })

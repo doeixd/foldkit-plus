@@ -15,7 +15,7 @@ export default [
       {
         file: '../src/transitionLift.ts',
         find: `              const known = projected.get(outer)
-              if (known !== undefined) return fn(known)`,
+              if (known !== undefined) return fn(known, foreign)`,
         replace: '',
       },
     ],

@@ -641,7 +641,7 @@ const compileNode = (
       Opaque: ({ run }): CompiledFn => {
         hybrid = true
         return (env: unknown) => {
-          const out = run(env)
+          const out = run(env, foreign)
           return out === undefined ? null : out
         }
       },

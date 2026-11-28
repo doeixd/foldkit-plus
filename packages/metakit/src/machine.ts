@@ -270,7 +270,7 @@ const rewriteStateToEach = (
         reads: Option.map(reads, list =>
           list.map(segs => (segs[0] === 'state' ? [Node.EACH, ...segs.slice(1)] : segs)),
         ),
-        run: env => {
+        run: (env, foreign) => {
           const e = env as {
             readonly [Node.EACH]?: unknown
             readonly input: unknown
@@ -289,12 +289,12 @@ const rewriteStateToEach = (
               projected.set(env, perElem)
             }
             const known = perElem.get(elem)
-            if (known !== undefined) return run(known)
+            if (known !== undefined) return run(known, foreign)
             const childEnv = { state: elem, input: e.input, supplied: e.supplied }
             perElem.set(elem, childEnv)
-            return run(childEnv)
+            return run(childEnv, foreign)
           }
-          return run({ state: elem, input: e.input, supplied: e.supplied })
+          return run({ state: elem, input: e.input, supplied: e.supplied }, foreign)
         },
       }),
     Rows: rows =>
@@ -380,17 +380,23 @@ const liftEachTransition = <Outer, Child, K extends string>(
 
   const findMatchedElement = (
     outer: Transition.TransitionEnv<Outer, Record<string, unknown>>,
-  ): Option.Option<Child> => {
+    foreign: Node.ForeignImplementations,
+  ): Option.Option<Child> | Node.Refusal => {
     const current = Path.get(list, outer.state)
     if (Option.isNone(current) || !Array.isArray(current.value)) return Option.none()
     const targetKey = outer.input[key]
     for (const item of current.value) {
       if (!matchElement(item, targetKey)) continue
-      const guard = evalNode(transition.when.node, {
-        state: item,
-        input: outer.input,
-        supplied: outer.supplied,
-      })
+      const guard = evalNode(
+        transition.when.node,
+        {
+          state: item,
+          input: outer.input,
+          supplied: outer.supplied,
+        },
+        foreign,
+      )
+      if (Node.isRefusal(guard)) return guard
       if (guard === true) return Option.some(item)
     }
     return Option.none()
@@ -403,12 +409,14 @@ const liftEachTransition = <Outer, Child, K extends string>(
     return Node.Opaque({
       name: `Machine.each.emit(${Path.format(list.segments)})`,
       reads: rewriteFootprintReads(nodeReads, list.segments, key),
-      run: env => {
+      run: (env, foreign) => {
         const outer = env as Transition.TransitionEnv<Outer, Record<string, unknown>>
-        return Option.match(findMatchedElement(outer), {
+        const matched = findMatchedElement(outer, foreign)
+        if (Node.isRefusal(matched)) return matched
+        return Option.match(matched, {
           onNone: () => null,
           onSome: item =>
-            evalNode(node, { state: item, input: outer.input, supplied: outer.supplied }),
+            evalNode(node, { state: item, input: outer.input, supplied: outer.supplied }, foreign),
         })
       },
     })
@@ -437,10 +445,13 @@ const liftEachTransition = <Outer, Child, K extends string>(
         Node.Opaque({
           name: `Machine.each.when(${Path.format(list.segments)})`,
           reads: liftedReads,
-          run: env =>
-            Option.isSome(
-              findMatchedElement(env as Transition.TransitionEnv<Outer, Record<string, unknown>>),
-            ),
+          run: (env, foreign) => {
+            const matched = findMatchedElement(
+              env as Transition.TransitionEnv<Outer, Record<string, unknown>>,
+              foreign,
+            )
+            return Node.isRefusal(matched) ? matched : Option.isSome(matched)
+          },
         }),
       )
     : wrap(rowsOver('any', listNode, { where: elementCond }))
@@ -470,7 +481,7 @@ const liftEachTransition = <Outer, Child, K extends string>(
                 Node.Opaque({
                   name: `Machine.each(${Path.format(list.segments)})`,
                   reads: liftedReads,
-                  run: env => {
+                  run: (env, foreign) => {
                     const outer = env as Transition.TransitionEnv<Outer, Record<string, unknown>>
                     const current = Path.get(list, outer.state)
                     if (Option.isNone(current) || !Array.isArray(current.value)) return null
@@ -482,16 +493,27 @@ const liftEachTransition = <Outer, Child, K extends string>(
                         next.push(item)
                         continue
                       }
-                      const guard = evalNode(transition.when.node, {
-                        state: item,
-                        input: outer.input,
-                        supplied: outer.supplied,
-                      })
+                      const guard = evalNode(
+                        transition.when.node,
+                        {
+                          state: item,
+                          input: outer.input,
+                          supplied: outer.supplied,
+                        },
+                        foreign,
+                      )
+                      if (Node.isRefusal(guard)) return guard
                       if (guard !== true) {
                         next.push(item)
                         continue
                       }
-                      const stepped = Transition.step(transition, item, outer.input, outer.supplied)
+                      const stepped = Transition.step(
+                        transition,
+                        item,
+                        outer.input,
+                        outer.supplied,
+                        { foreign },
+                      )
                       if (Result.isFailure(stepped)) {
                         // Expression readers propagate a Node.Refusal. The step recovers its child failure.
                         return Object.assign(

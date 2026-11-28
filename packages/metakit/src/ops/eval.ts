@@ -89,22 +89,9 @@ export const ifArm = (
   return { value: Node.illTyped('if', 'a boolean', cond) }
 }
 
-/** One implementation of a foreign operation. */
-export interface ForeignImplementation {
-  /**
-   * The operation on argument values, after its null rule. It returns a
-   * value, null, or a `Node.Refusal`; a throw is refused as `failed`.
-   */
-  readonly run: (args: ReadonlyArray<unknown>, foreign?: ForeignImplementations) => unknown
-}
+export type { ForeignImplementation, ForeignImplementations } from '../node.js'
 
-/**
- * The implementations a reader is given, by `id@version` (`Node.foreignName`),
- * so two versions of one operation each have theirs.
- */
-export type ForeignImplementations = Readonly<Record<string, ForeignImplementation>>
-
-const none: ForeignImplementations = {}
+const none: Node.ForeignImplementations = {}
 
 const kindOfValue = (value: unknown): Node.ValueKind | 'other' =>
   typeof value === 'number'
@@ -124,7 +111,7 @@ const kindOfValue = (value: unknown): Node.ValueKind | 'other' =>
 export const applyForeign = (
   op: Node.ForeignOp,
   args: ReadonlyArray<unknown>,
-  implementations: ForeignImplementations,
+  implementations: Node.ForeignImplementations,
 ): unknown => {
   const name = Node.foreignName(op)
   const implementation = Object.hasOwn(implementations, name) ? implementations[name] : undefined
@@ -178,7 +165,7 @@ export const applyForeign = (
 export const evalNode = (
   node: Node.Node,
   env: unknown,
-  foreign: ForeignImplementations = none,
+  foreign: Node.ForeignImplementations = none,
 ): unknown =>
   Node.$match(node, {
     Lit: ({ value }) => (value === undefined ? null : value),
@@ -196,7 +183,7 @@ export const evalNode = (
       return 'arm' in taken ? evalNode(taken.arm, env, foreign) : taken.value
     },
     Opaque: ({ run }) => {
-      const value = run(env)
+      const value = run(env, foreign)
       return value === undefined ? null : value
     },
     // Read by `rowsLoad.ts`, which whatever built the node loaded.
