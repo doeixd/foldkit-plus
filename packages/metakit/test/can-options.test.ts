@@ -16,7 +16,14 @@ const foreign = Operation.implementations(
   'can-options',
   Operation.implement(add, (left, right) => left + right),
 )
-const verified = { foreign, rewritePolicy: { mode: 'verified' } } satisfies Expr.ReaderOptions
+const verified = {
+  foreign,
+  rewritePolicy: Expr.RewritePolicy.verified([]),
+} satisfies Expr.ReaderOptions
+const trustedOptions = {
+  foreign,
+  rewritePolicy: Expr.RewritePolicy.trusted,
+} satisfies Expr.ReaderOptions
 
 const State = Schema.Struct({ total: Schema.Int })
 const Confirm = Transition.make({
@@ -33,9 +40,13 @@ it('Transition.can agrees with Expr.judge on the rewrite policy', () => {
   expect(Verdict.isUnknown(withoutEvidence)).toBe(true)
   expect(Transition.can(Confirm, {}, verified)).toEqual(withoutEvidence)
 
-  const trusted = Expr.judge(Confirm.when, {}, { foreign })
+  const withoutPolicy = Expr.judge(Confirm.when, {}, { foreign })
+  expect(Verdict.isUnknown(withoutPolicy)).toBe(true)
+  expect(Transition.can(Confirm, {}, { foreign })).toEqual(withoutPolicy)
+
+  const trusted = Expr.judge(Confirm.when, {}, trustedOptions)
   expect(Verdict.isTrue(trusted)).toBe(true)
-  expect(Transition.can(Confirm, {}, { foreign })).toEqual(trusted)
+  expect(Transition.can(Confirm, {}, trustedOptions)).toEqual(trusted)
 })
 
 it('Machine.intent uses reader options to judge its guard', () => {
@@ -46,6 +57,9 @@ it('Machine.intent uses reader options to judge its guard', () => {
 
   const verifiedConfirm = Machine.intent(machine, 'Confirm', verified)
   expect(Verdict.isUnknown(verifiedConfirm.can({}))).toBe(true)
+
+  const trustedConfirm = Machine.intent(machine, 'Confirm', trustedOptions)
+  expect(Verdict.isTrue(trustedConfirm.can({}))).toBe(true)
 })
 
 it('Machine.affordances uses reader options to classify its guard', () => {
@@ -58,5 +72,10 @@ it('Machine.affordances uses reader options to classify its guard', () => {
     available: [],
     disabled: [],
     pending: ['Confirm'],
+  })
+  expect(Machine.affordances(machine, {}, trustedOptions)).toEqual({
+    available: ['Confirm'],
+    disabled: [],
+    pending: [],
   })
 })

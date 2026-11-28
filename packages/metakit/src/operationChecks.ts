@@ -18,6 +18,7 @@ import {
 import type { SqlDialect } from './operationSql.js'
 import { applyForeign } from './ops/eval.js'
 import { present } from './ops/kind.js'
+import type { ForeignClaimKind, ForeignRewriteEvidence } from './ops/laws.js'
 import type { Expr } from './path.js'
 import { sameAnswer } from './propertyChecks.js'
 import * as Temporal from './temporal.js'
@@ -175,6 +176,8 @@ export interface OperationReport {
   readonly calls: number
   readonly failures: ReadonlyArray<string>
   readonly discharges: ReadonlyArray<Temporal.Discharge>
+  /** Bound rewrite evidence (`assurance: 'tested'`) for each checked rewrite claim that held. */
+  readonly evidence: ReadonlyArray<ForeignRewriteEvidence>
 }
 
 const failMsg = (
@@ -236,6 +239,8 @@ export const checkOperation = (
 
   const failures: Array<string> = []
   const discharges: Array<Temporal.Discharge> = []
+  const heldRewriteClaims: Array<ForeignClaimKind> = []
+  const boundImpl = Object.hasOwn(table, name) ? table[name] : undefined
   const returnedValues = (args: ReadonlyArray<unknown>, left: unknown, right: unknown): boolean =>
     (desc.nulls === 'own' || !args.includes(null)) &&
     !Node.isRefusal(left) &&
@@ -268,6 +273,9 @@ export const checkOperation = (
         obligation,
         result: Temporal.WalkResult.Held({ seed, runs }),
       })
+      if (claimName === 'identity' || claimName === 'absorbing' || claimName === 'idempotent') {
+        heldRewriteClaims.push(claimName)
+      }
     }
   }
 
@@ -618,7 +626,19 @@ export const checkOperation = (
     }
   }
 
-  return { ok: failures.length === 0, seed, calls: callCount, failures, discharges }
+  const evidence: ReadonlyArray<ForeignRewriteEvidence> =
+    boundImpl !== undefined && heldRewriteClaims.length > 0
+      ? [
+          {
+            descriptor: desc,
+            implementation: boundImpl,
+            claims: new Set(heldRewriteClaims),
+            assurance: 'tested',
+          },
+        ]
+      : []
+
+  return { ok: failures.length === 0, seed, calls: callCount, failures, discharges, evidence }
 }
 
 const collectNodeOps = (node: Node.Node, out: Map<string, Node.ForeignOp>): void => {

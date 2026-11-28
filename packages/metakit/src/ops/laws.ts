@@ -10,7 +10,7 @@
  * `associative`, `invertible`, `monotone`) and the ways of writing are in
  * `properties.ts`, which joins both into `opProperties`.
  */
-import { Match, Option, SchemaAST } from 'effect'
+import { Data, Match, Option, SchemaAST } from 'effect'
 import * as Node from '../node.js'
 import { optionInner } from '../path.js'
 import type { Direction, OpProperties } from '../properties.js'
@@ -377,11 +377,12 @@ const ASSURANCE_RANK: Readonly<Record<EvidenceAssurance, number>> = {
 
 /**
  * Evidence authorizing algebraic rewrites for a specific foreign operation
- * (`id@version`) bound to a specific JS implementation function. Rebinding the
- * operation to a different implementation invalidates this evidence.
+ * descriptor bound to a specific JS implementation function. Rebinding the
+ * operation to a different implementation or using a different descriptor
+ * invalidates this evidence.
  */
 export interface ForeignRewriteEvidence {
-  readonly op: string
+  readonly descriptor: Node.ForeignOp
   readonly implementation: ForeignImplementation
   readonly claims: ReadonlySet<ForeignClaimKind>
   readonly assurance: EvidenceAssurance
@@ -391,43 +392,42 @@ export interface ForeignRewriteEvidence {
  * Trust policy controlling whether `rewriteForeign` applies algebraic rewrites
  * from a foreign operation's declared `claims`.
  *
- * - `mode: 'trusted'` (default when omitted): applies declared `op.claims` when
- *   an implementation is bound.
- * - `mode: 'verified'`: applies a claim rewrite only when `evidence` holds a
- *   matching entry for the exact `(op id@version, bound implementation, claim)`
- *   at or above `minAssurance` (default `'tested'`). Conservative fallback
- *   preserves the original call (`Unknown` in `judge`) when evidence is absent,
- *   insufficient, or invalidated by rebinding.
+ * - Absent (`undefined`): applies no claim rewrites.
+ * - `Expr.RewritePolicy.trusted`: applies declared `op.claims` when an
+ *   implementation is bound.
+ * - `Expr.RewritePolicy.verified(evidence, { minAssurance? })`: applies a claim
+ *   rewrite only when `evidence` holds a matching entry for the exact operation
+ *   descriptor, bound implementation, and claim at or above `minAssurance`
+ *   (default `'tested'`). Conservative fallback preserves the original call
+ *   (`Unknown` in `judge`) when evidence is absent, insufficient, or
+ *   invalidated by rebinding.
  */
-export interface ForeignRewritePolicy {
-  readonly mode: 'trusted' | 'verified'
-  readonly minAssurance?: EvidenceAssurance
-  readonly evidence?: ReadonlyArray<ForeignRewriteEvidence>
-}
+export type ForeignRewritePolicy = Data.TaggedEnum<{
+  readonly Trusted: {}
+  readonly Verified: {
+    readonly evidence: ReadonlyArray<ForeignRewriteEvidence>
+    readonly minAssurance: EvidenceAssurance
+  }
+}>
 
-/**
- * Build a `ForeignRewriteEvidence` bound to the exact implementation currently
- * registered for `op` in `foreign`. Throws if `foreign` does not implement `op`.
- */
-export const foreignEvidence = (
-  op: { readonly descriptor: { readonly id: string; readonly version: number } },
-  foreign: ForeignImplementations,
-  options: {
-    readonly claims: ReadonlyArray<ForeignClaimKind>
-    readonly assurance: EvidenceAssurance
-  },
-): ForeignRewriteEvidence => {
-  const key = Node.foreignName(op.descriptor)
-  if (!Object.hasOwn(foreign, key)) {
-    throw new Error(`[metakit] foreignEvidence: implementation for "${key}" is not bound`)
-  }
-  return {
-    op: key,
-    implementation: foreign[key]!,
-    claims: new Set(options.claims),
-    assurance: options.assurance,
-  }
-}
+const ForeignRewritePolicyEnum = Data.taggedEnum<ForeignRewritePolicy>()
+
+/** Constructors and matchers for `ForeignRewritePolicy`. */
+export const RewritePolicy = {
+  /** Trust declared claims on any bound foreign operation without evidence. */
+  trusted: ForeignRewritePolicyEnum.Trusted(),
+  /** Permit a claim rewrite only when bound evidence at or above `minAssurance` (default `'tested'`) matches. */
+  verified: (
+    evidence: ReadonlyArray<ForeignRewriteEvidence>,
+    options?: { readonly minAssurance?: EvidenceAssurance },
+  ): ForeignRewritePolicy =>
+    ForeignRewritePolicyEnum.Verified({
+      evidence,
+      minAssurance: options?.minAssurance ?? 'tested',
+    }),
+  $match: ForeignRewritePolicyEnum.$match,
+  $is: ForeignRewritePolicyEnum.$is,
+} as const
 
 /** Whether `policy` permits rewriting `op` using `claim` for `boundImpl`. */
 export const permitsForeignRewrite = (
@@ -436,17 +436,21 @@ export const permitsForeignRewrite = (
   boundImpl: ForeignImplementation | undefined,
   claim: ForeignClaimKind,
 ): boolean => {
-  if (policy === undefined || policy.mode === 'trusted') return true
-  if (boundImpl === undefined || policy.evidence === undefined) return false
-  const minRank = ASSURANCE_RANK[policy.minAssurance ?? 'tested']
-  const key = Node.foreignName(op)
-  return policy.evidence.some(
-    entry =>
-      entry.op === key &&
-      entry.implementation === boundImpl &&
-      entry.claims.has(claim) &&
-      ASSURANCE_RANK[entry.assurance] >= minRank,
-  )
+  if (policy === undefined) return false
+  return RewritePolicy.$match(policy, {
+    Trusted: () => true,
+    Verified: ({ evidence, minAssurance }) => {
+      if (boundImpl === undefined) return false
+      const minRank = ASSURANCE_RANK[minAssurance]
+      return evidence.some(
+        entry =>
+          entry.descriptor === op &&
+          entry.implementation === boundImpl &&
+          entry.claims.has(claim) &&
+          ASSURANCE_RANK[entry.assurance] >= minRank,
+      )
+    },
+  })
 }
 
 const operandWithinSchema = <T>(
@@ -501,7 +505,7 @@ export const foreignCallCannotRefuse = <T>(
  * null for a strict operation's `identity`/`idempotent`), and for `absorbing`
  * must also be known not to be refused.
  *
- * When `policy` has `mode: 'verified'`, each claim rewrite is additionally
+ * No claim rewrites without a policy; under `RewritePolicy.verified` each is
  * gated on matching `ForeignRewriteEvidence` bound to `boundImpl`.
  */
 export const rewriteForeign = <T>(

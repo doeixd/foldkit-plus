@@ -7,8 +7,9 @@ export default [
     edits: [
       {
         file: '../src/fn.ts',
-        find: '  if (outerEach !== Node.EACH) avoided.add(outerEach)\n  const hygienic = hasCollidingRowsBinder(node, avoided)\n    ? freshenRows(node, nextSafeDepth(avoided, node))\n    : node',
-        replace: '  if (outerEach !== Node.EACH) avoided.add(outerEach)\n  const hygienic = node',
+        find: '  const avoided = new Set(collectRootSegments(argNodes.values()))\n  if (outerEach !== Node.EACH) avoided.add(outerEach)\n  const hygienic = hasCollidingRowsBinder(node, avoided)\n    ? freshenRows(node, nextSafeDepth(avoided, node))\n    : node',
+        replace:
+          '  const avoided = new Set(collectRootSegments(argNodes.values()))\n  if (outerEach !== Node.EACH) avoided.add(outerEach)\n  const hygienic = node',
       },
     ],
     tests: ['packages/metakit/test/fn.test.ts'],
@@ -29,8 +30,8 @@ export default [
     edits: [
       {
         file: '../src/fn.ts',
-        find: '    for (const e of parts.ensuresClauses) {',
-        replace: '    for (const e of [] as typeof parts.ensuresClauses) {',
+        find: '    for (const e of parts.ensuresClauses) {\n      try {',
+        replace: '    for (const e of [] as typeof parts.ensuresClauses) {\n      try {',
       },
     ],
     tests: ['packages/metakit/test/fn.test.ts'],
@@ -51,8 +52,8 @@ export default [
     edits: [
       {
         file: '../src/fn.ts',
-        find: '  assertNoOpaque(node)',
-        replace: '  void node',
+        find: '  assertNoOpaque(node)\n  const argNodes = new Map<string, Node.Node>()',
+        replace: '  void node\n  const argNodes = new Map<string, Node.Node>()',
       },
     ],
     tests: ['packages/metakit/test/fn.test.ts'],

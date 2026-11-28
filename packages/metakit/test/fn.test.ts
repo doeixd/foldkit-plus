@@ -56,8 +56,12 @@ describe('metakit/fn: hygiene, partial evaluation, inspection & contract phases'
     const $ = Path.from(Env)
     const expr = isDiscounted({ price: $.price, pct: $.pct })
 
-    // Knowing only pct = 0 settles the whole conjunction to false!
-    expect(Verdict.isFalse(Expr.judge(expr, { pct: 0 }))).toBe(true)
+    // Guarded symbolic call checks non-nullness of `price`, so knowing only pct = 0 stays Unknown;
+    // `bare` omits parameter guards and settles the conjunction to False.
+    expect(Verdict.isUnknown(Expr.judge(expr, { pct: 0 }))).toBe(true)
+    expect(
+      Verdict.isFalse(Expr.judge(isDiscounted.bare({ price: $.price, pct: $.pct }), { pct: 0 })),
+    ).toBe(true)
     // Knowing only pct = 10 leaves price > 0 undecided
     expect(Verdict.isUnknown(Expr.judge(expr, { pct: 10 }))).toBe(true)
   })

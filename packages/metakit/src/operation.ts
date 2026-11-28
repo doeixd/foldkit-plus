@@ -8,11 +8,14 @@
  * Schemas so every claim's domain is enforced at run time.
  */
 import { Equal, Option, Schema, SchemaAST } from 'effect'
+import { rulesOfExact, type UnreadCheck } from './expr.js'
 import type { Fn, ParamSchemas, ReturnCarrier } from './fn.js'
 import * as Node from './node.js'
 import { orOp } from './ops/bool.js'
 import { toNode, wrap, type ExprInput, type NullOf } from './ops/core.js'
 import { evalNode, type ForeignImplementation, type ForeignImplementations } from './ops/eval.js'
+import { guardedBy, type GuardCondition } from './ops/guard.js'
+import { isAlwaysInteger } from './ops/integerTerm.js'
 import { isNullOp } from './ops/null.js'
 export { applyForeign } from './ops/eval.js'
 import type { Expr } from './path.js'
@@ -637,7 +640,10 @@ export interface DerivedOperation<
 
 /** Any `DerivedOperation`, regardless of its concrete signature. */
 export interface AnyDerivedOperation extends AnyOperation {
-  readonly definition: (args: never) => Expr<never, unknown>
+  readonly definition: {
+    (args: never): Expr<never, unknown>
+    readonly bare: (args: never) => Expr<never, unknown>
+  }
   readonly paramOrder: ReadonlyArray<string>
   readonly implementation: Implementation
 }
@@ -738,10 +744,32 @@ export const derived = <
 
 const DEFAULT_MAX_DERIVED_NODES = 10_000
 
+const canDischargeUnread = (unread: ReadonlyArray<UnreadCheck>, target: Node.Node): boolean =>
+  unread.every(
+    check =>
+      check.at.length === 0 &&
+      Option.exists(check.id, id => id === 'effect/schema/isInt') &&
+      isAlwaysInteger(target),
+  )
+
+const substituteRuleTarget = (ruleNode: Node.Node, target: Node.Node): Node.Node =>
+  Node.substitutePaths(ruleNode, segments =>
+    segments.length === 0 ? Option.some(target) : Option.none(),
+  )
+
+const allowNullRule = (target: Node.Node, cond: Node.Node): Node.Node =>
+  Node.Call({
+    op: orOp,
+    args: [Node.Call({ op: isNullOp, args: [target] }), cond],
+  })
+
 /**
  * Symbolically expand calls to any `DerivedOperation` in `ops` using their
- * canonical `Fn` definitions, so SQL, Tier 3, and Z3 readers can lower and
- * verify them directly. Detects cyclic expansions and enforces `maxNodes`.
+ * canonical `Fn` definitions, preserving argument and result Schema refusals
+ * and strict null propagation so SQL, Tier 3, and Z3 readers can lower and
+ * verify them directly. Calls whose argument or result Schemas carry checks
+ * that cannot be stated or discharged stay unexpanded. Detects cyclic
+ * expansions and enforces `maxNodes`.
  */
 export const expandDerived = <Env, A>(
   expr: Expr<Env, A>,
@@ -785,10 +813,47 @@ export const expandDerived = <Env, A>(
         for (let i = 0; i < derivedOp.paramOrder.length; i++) {
           argRecord[derivedOp.paramOrder[i]!] = wrap(expandedArgs[i]!)
         }
-        const inlined = derivedOp.definition(argRecord as never).node
+        const inlined = derivedOp.definition.bare(argRecord as never).node
         const nextActive = new Set(active)
         nextActive.add(key)
         const expandedBody = expandNode(inlined, nextActive)
+
+        const argSchemas = derivedOp.descriptor.args
+        const resultSchema = derivedOp.descriptor.result
+        const argExact = argSchemas.map(schema => rulesOfExact(schema))
+        const resultExact = rulesOfExact(resultSchema)
+
+        for (let i = 0; i < argExact.length; i++) {
+          if (!canDischargeUnread(argExact[i]!.unread, expandedArgs[i]!)) {
+            return Node.Call({ op, args: expandedArgs })
+          }
+        }
+        if (!canDischargeUnread(resultExact.unread, expandedBody)) {
+          return Node.Call({ op, args: expandedArgs })
+        }
+
+        const conditions: Array<GuardCondition> = []
+        const ownNulls = derivedOp.descriptor.nulls === 'own'
+        for (let i = 0; i < argExact.length; i++) {
+          const argNode = expandedArgs[i]!
+          const contract = `${key}: argument ${i + 1}`
+          for (const rule of argExact[i]!.rules) {
+            const cond = substituteRuleTarget(rule.expr.node, argNode)
+            conditions.push({
+              cond: ownNulls ? allowNullRule(argNode, cond) : cond,
+              contract,
+            })
+          }
+        }
+        for (const rule of resultExact.rules) {
+          const cond = substituteRuleTarget(rule.expr.node, expandedBody)
+          conditions.push({
+            cond: allowNullRule(expandedBody, cond),
+            contract: `${key}: result`,
+          })
+        }
+
+        const guardedBody = guardedBy(conditions, expandedBody)
         if (derivedOp.descriptor.nulls === 'strict' && expandedArgs.length > 0) {
           let anyNull: Node.Node = Node.Call({ op: isNullOp, args: [expandedArgs[0]!] })
           for (let i = 1; i < expandedArgs.length; i++) {
@@ -800,10 +865,10 @@ export const expandDerived = <Env, A>(
           return Node.If({
             cond: anyNull,
             then: Node.Lit({ value: null }),
-            otherwise: expandedBody,
+            otherwise: guardedBody,
           })
         }
-        return expandedBody
+        return guardedBody
       },
       If: ({ cond, then: t, otherwise }) =>
         Node.If({

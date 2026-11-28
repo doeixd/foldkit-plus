@@ -91,7 +91,7 @@ describe('metakit/interpreter (Effect service & composable layers)', () => {
           { id: 'a1', balance: 10 },
           { amount: 25 },
         )
-        const fnVal = yield* Interpreter.runFn(BonusFn, { amount: 7 }, { checked: true })
+        const fnVal = yield* Interpreter.runFn(BonusFn, { amount: 7 })
         const allowed = yield* Interpreter.allow(AccountPolicy, 'highValue', {
           row: { id: 'a1', balance: 50 },
           principal: { id: 'u1', role: 'viewer' },

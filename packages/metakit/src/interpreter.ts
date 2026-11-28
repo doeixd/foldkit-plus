@@ -48,7 +48,6 @@ export type InterpreterEvent =
   | {
       readonly kind: 'runFn'
       readonly backend: string
-      readonly checked: boolean
       readonly durationMs: number
       readonly ok: boolean
     }
@@ -96,12 +95,11 @@ export interface InterpreterBackend {
     input: NoInfer<Input>,
     ...args: Transition.SuppliedArgs<Supplied>
   ) => Effect.Effect<StepOutput<State, Emit>, Transition.Refused>
-  /** Execute a `Fn` (optionally contract-checked via `runChecked`). */
+  /** Execute a `Fn` with contract checking (`runChecked`). */
   readonly runFn: <P extends Fn.ParamSchemas, R>(
     fn: Fn.Fn<P, R>,
     args: Fn.ParamValues<P>,
-    options?: { readonly checked?: boolean },
-  ) => Effect.Effect<R | null, Node.Refusal | Fn.FnContractError>
+  ) => Effect.Effect<R, Fn.FnContractError>
   /** Evaluate a named `Policy` rule. */
   readonly allow: <
     Row,
@@ -191,10 +189,7 @@ export const makeMemoryBackend = (options?: MemoryBackendOptions): InterpreterBa
       const callArgs = [supplied, mergedOptions] as unknown as Transition.SuppliedArgs<Supplied>
       return Effect.fromResult(Transition.step(transition, state, input, ...callArgs))
     },
-    runFn: (fn, args, opts) =>
-      opts?.checked === true
-        ? Effect.fromResult(fn.runChecked(args, readerOptions))
-        : Effect.fromResult(Expr.evalResult(fn.body, args, readerOptions)),
+    runFn: (fn, args) => Effect.fromResult(fn.runChecked(args, readerOptions)),
     allow: (policy, rule, env) =>
       Effect.sync(() => {
         if (!Object.hasOwn(policy.rules, rule)) {
@@ -283,10 +278,10 @@ const wrapTracing = (inner: InterpreterBackend, prefix: string): InterpreterBack
     inner
       .step(transition, state, input, ...args)
       .pipe(Effect.withSpan(`${prefix}.step`, { attributes: { backend: inner.name } })),
-  runFn: (fn, args, opts) =>
-    inner.runFn(fn, args, opts).pipe(
+  runFn: (fn, args) =>
+    inner.runFn(fn, args).pipe(
       Effect.withSpan(`${prefix}.runFn`, {
-        attributes: { backend: inner.name, checked: opts?.checked === true },
+        attributes: { backend: inner.name },
       }),
     ),
   allow: (policy, rule, env) =>
@@ -368,15 +363,14 @@ const wrapObserver = (
       })
       return yield* exit
     }),
-  runFn: (fn, args, opts) =>
+  runFn: (fn, args) =>
     Effect.gen(function* () {
       const start = yield* Clock.currentTimeMillis
-      const exit = yield* Effect.exit(inner.runFn(fn, args, opts))
+      const exit = yield* Effect.exit(inner.runFn(fn, args))
       const end = yield* Clock.currentTimeMillis
       yield* observer({
         kind: 'runFn',
         backend: inner.name,
-        checked: opts?.checked === true,
         durationMs: end - start,
         ok: Exit.isSuccess(exit),
       })
@@ -460,13 +454,12 @@ export const run = <State, Input, Emit, Supplied>(
 ): Effect.Effect<State, Transition.Refused> =>
   Effect.map(step(transition, state, input, ...args), s => s.state)
 
-/** Execute a `Fn` using the current `Interpreter`. */
+/** Execute a `Fn` with contract checking (`runChecked`) using the current `Interpreter`. */
 export const runFn = <P extends Fn.ParamSchemas, R>(
   fn: Fn.Fn<P, R>,
   args: Fn.ParamValues<P>,
-  options?: { readonly checked?: boolean },
-): Effect.Effect<R | null, Node.Refusal | Fn.FnContractError> =>
-  Effect.flatMap(Effect.service(Interpreter), i => i.runFn(fn, args, options))
+): Effect.Effect<R, Fn.FnContractError> =>
+  Effect.flatMap(Effect.service(Interpreter), i => i.runFn(fn, args))
 
 /** Evaluate a named `Policy` rule using the current `Interpreter`. */
 export const allow = <

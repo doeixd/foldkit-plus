@@ -992,39 +992,13 @@ export const lowering = (z3: Z3, solver: Solver<'metakit'>, shape: Shape) => {
         const arms = cases.map(([value, branch]) => [takes(value), lower(branch)] as const)
         const rest = Option.match(otherwise, {
           onSome: lower,
-          onNone: () => {
-            // Evaluation refuses a value no case names; only a Schema or expression whose
-            // every non-null outcome is in `named` rules it out.
-            const named = new Set(cases.map(([value]) => Node.wellFormed(value)))
-            const isCovered = (subject: Node.Node): boolean =>
-              Node.$match(subject, {
-                Lit: ({ value }) =>
-                  value === null ||
-                  (typeof value === 'string' && named.has(Node.wellFormed(value))),
-                Path: ({ segments }) => {
-                  const info = shape.paths.get(Path.format(segments))
-                  return (
-                    info !== undefined &&
-                    info.sort === 'text' &&
-                    info.literals.length > 0 &&
-                    info.literals.every(value => named.has(Node.wellFormed(String(value))))
-                  )
-                },
-                Call: ({ op, args }) =>
-                  op.id === 'null.coalesce' && args.length >= 2 && args.every(isCovered),
-                If: ({ then, otherwise: alt }) => isCovered(then) && isCovered(alt),
-                Match: ({ cases: innerCases, otherwise: alt }) =>
-                  innerCases.every(([, arm]) => isCovered(arm)) &&
-                  Option.match(alt, { onNone: () => true, onSome: isCovered }),
-                Opaque: () => false,
-                Rows: () => false,
-              })
-            if (!isCovered(on)) {
-              throw new Unsupported('a match that may meet a value none of its cases names')
-            }
-            // A null subject, the one value left, gives null.
-            return literal(null)
-          },
+          onNone: (): Term => ({
+            // When no case names the subject: null gives null; any other value refuses `unmatched`.
+            value: z3.Int.val(0),
+            isNull: target.isNull,
+            refused: z3.Not(target.isNull),
+            kind: 'null',
+          }),
         })
         // A null subject takes no arm, so it reaches `rest`; a refused subject or one holding a NUL refuses before any arm.
         const chosen = arms.reduceRight((acc, [takesArm, arm]) => choose(takesArm, arm, acc), rest)

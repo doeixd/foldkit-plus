@@ -1,6 +1,7 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Abstract, Bool, Eq, Expr, Node, Ord, Path, Transition, Verdict } from '../src/index.js'
+import * as Conformance from '../src/conformance.js'
 import * as Operation from '../src/operation.js'
 
 const Flags = Schema.Int.pipe(
@@ -85,17 +86,26 @@ const State = Schema.Struct({
 })
 const $ = Path.forSchema(State)
 
+const trusted = {
+  foreign: impls,
+  rewritePolicy: Expr.RewritePolicy.trusted,
+} satisfies Expr.ReaderOptions
+
 describe('custom operation readers (partial evaluation and judge)', () => {
   it('rewrites identity when the operand lies within the argument Schema, not on a wider Schema', () => {
-    const narrowed = Expr.residualize(flagsOr($.granted, 0), {}, { foreign: impls })
+    const narrowed = Expr.residualize(flagsOr($.granted, 0), {}, trusted)
     expect(Node.$is('Path')(narrowed.node)).toBe(true)
 
-    const nullable = Expr.residualize(flagsOr($.maybe, 0), {}, { foreign: impls })
+    const nullable = Expr.residualize(flagsOr($.maybe, 0), {}, trusted)
     expect(Node.$is('Path')(nullable.node)).toBe(true)
 
     // Wide number may hold 2^31, which flagsOr refuses; must stay a Call.
-    const wide = Expr.residualize(flagsOr($.wide, 0), {}, { foreign: impls })
+    const wide = Expr.residualize(flagsOr($.wide, 0), {}, trusted)
     expect(Node.$is('Call')(wide.node)).toBe(true)
+
+    // Without rewritePolicy, stays a Call.
+    const noPolicy = Expr.residualize(flagsOr($.granted, 0), {}, { foreign: impls })
+    expect(Node.$is('Call')(noPolicy.node)).toBe(true)
 
     // Without implementation, stays a Call.
     const unsupported = Expr.residualize(flagsOr($.granted, 0), {})
@@ -103,49 +113,37 @@ describe('custom operation readers (partial evaluation and judge)', () => {
   })
 
   it('rewrites absorbing only when the dropped operand cannot refuse and is non-null', () => {
-    const absorbed = Expr.residualize(flagsOr($.granted, 0x7fff_ffff), {}, { foreign: impls })
+    const absorbed = Expr.residualize(flagsOr($.granted, 0x7fff_ffff), {}, trusted)
     expect(Node.$is('Lit')(absorbed.node) && absorbed.node.value === 0x7fff_ffff).toBe(true)
 
     // Nullable operand may be null, where strict flagsOr returns null, not 0x7fffffff.
-    const nullable = Expr.residualize(flagsOr($.maybe, 0x7fff_ffff), {}, { foreign: impls })
+    const nullable = Expr.residualize(flagsOr($.maybe, 0x7fff_ffff), {}, trusted)
     expect(Node.$is('Call')(nullable.node)).toBe(true)
 
-    const judged = Expr.judge(
-      Eq.is(flagsOr($.granted, 0x7fff_ffff), 0x7fff_ffff),
-      {},
-      { foreign: impls },
-    )
+    const judged = Expr.judge(Eq.is(flagsOr($.granted, 0x7fff_ffff), 0x7fff_ffff), {}, trusted)
     expect(Verdict.isTrue(judged)).toBe(true)
 
     const judgedNullable = Expr.judge(
       Eq.is(flagsOr($.maybe, 0x7fff_ffff), 0x7fff_ffff),
       {},
-      { foreign: impls },
+      trusted,
     )
     expect(Verdict.isUnknown(judgedNullable)).toBe(true)
   })
 
   it('rewrites binary and unary idempotent calls', () => {
-    const bin = Expr.residualize(flagsOr($.granted, $.granted), {}, { foreign: impls })
+    const bin = Expr.residualize(flagsOr($.granted, $.granted), {}, trusted)
     expect(Node.$is('Path')(bin.node)).toBe(true)
 
-    const un = Expr.residualize(flagsNorm(flagsNorm($.granted)), {}, { foreign: impls })
+    const un = Expr.residualize(flagsNorm(flagsNorm($.granted)), {}, trusted)
     expect(
       Node.$is('Call')(un.node) && un.node.args.length === 1 && Node.$is('Path')(un.node.args[0]!),
     ).toBe(true)
 
-    const judgedBin = Expr.judge(
-      Eq.is(flagsOr($.granted, $.granted), $.granted),
-      {},
-      { foreign: impls },
-    )
+    const judgedBin = Expr.judge(Eq.is(flagsOr($.granted, $.granted), $.granted), {}, trusted)
     expect(Verdict.isTrue(judgedBin)).toBe(true)
 
-    const judgedIdentity = Expr.judge(
-      Eq.is(flagsOr($.granted, 0), $.granted),
-      {},
-      { foreign: impls },
-    )
+    const judgedIdentity = Expr.judge(Eq.is(flagsOr($.granted, 0), $.granted), {}, trusted)
     expect(Verdict.isTrue(judgedIdentity)).toBe(true)
 
     // Reflexive Eq.is on a foreign call stays Unknown (a call may refuse), while
@@ -154,7 +152,7 @@ describe('custom operation readers (partial evaluation and judge)', () => {
     const collapsed = Expr.residualize(
       flagsOr(flagsNorm(flagsNorm($.granted)), flagsNorm($.granted)),
       {},
-      { foreign: impls },
+      trusted,
     )
     expect(
       Node.$is('Call')(collapsed.node) &&
@@ -271,8 +269,8 @@ describe('custom operation readers (abstract checker)', () => {
     // 1. Conservative verified mode with no evidence: refuses to rewrite -> preserves Call & Unknown, matching lyingImpls eval!
     const verifiedNoEvidence = {
       foreign: lyingImpls,
-      rewritePolicy: { mode: 'verified' as const },
-    }
+      rewritePolicy: Expr.RewritePolicy.verified([]),
+    } satisfies Expr.ReaderOptions
     const keptResidual = Expr.residualize(expr, {}, verifiedNoEvidence)
     expect(Node.$is('Call')(keptResidual.node)).toBe(true)
     expect(Verdict.isUnknown(Expr.judge(eqExpr, {}, verifiedNoEvidence))).toBe(true)
@@ -284,15 +282,15 @@ describe('custom operation readers (abstract checker)', () => {
       ),
     ).toBe(6)
 
-    // 2. Assurance rank check: 'claim' does NOT satisfy default minAssurance ('tested'), and 'tested' does NOT satisfy 'proven'.
-    const claimOnly = Expr.foreignEvidence(maybeAdd, honestImpls, {
-      claims: ['identity'],
-      assurance: 'claim',
-    })
-    const testedEv = Expr.foreignEvidence(maybeAdd, honestImpls, {
-      claims: ['identity'],
-      assurance: 'tested',
-    })
+    // 2. Evidence produced by checkOperation ('tested'): fails against lyingImpls, succeeds against honestImpls, and does NOT satisfy 'proven'.
+    const lyingReport = Conformance.checkOperation(maybeAdd, lyingImpls)
+    expect(lyingReport.ok).toBe(false)
+    expect(lyingReport.evidence).toEqual([])
+
+    const honestReport = Conformance.checkOperation(maybeAdd, honestImpls)
+    expect(honestReport.ok).toBe(true)
+    expect(honestReport.evidence.length).toBeGreaterThan(0)
+
     expect(
       Node.$is('Call')(
         Expr.residualize(
@@ -300,31 +298,22 @@ describe('custom operation readers (abstract checker)', () => {
           {},
           {
             foreign: honestImpls,
-            rewritePolicy: { mode: 'verified', evidence: [claimOnly] },
-          },
-        ).node,
-      ),
-    ).toBe(true)
-    expect(
-      Node.$is('Call')(
-        Expr.residualize(
-          expr,
-          {},
-          {
-            foreign: honestImpls,
-            rewritePolicy: { mode: 'verified', minAssurance: 'proven', evidence: [testedEv] },
+            rewritePolicy: Expr.RewritePolicy.verified(honestReport.evidence, {
+              minAssurance: 'proven',
+            }),
           },
         ).node,
       ),
     ).toBe(true)
 
     // 3. Matching bound evidence at required assurance enables rewrite.
+    const verifiedHonest = Expr.RewritePolicy.verified(honestReport.evidence)
     const rewritten = Expr.residualize(
       expr,
       {},
       {
         foreign: honestImpls,
-        rewritePolicy: { mode: 'verified', evidence: [testedEv] },
+        rewritePolicy: verifiedHonest,
       },
     )
     expect(Node.$is('Path')(rewritten.node)).toBe(true)
@@ -335,7 +324,7 @@ describe('custom operation readers (abstract checker)', () => {
           {},
           {
             foreign: honestImpls,
-            rewritePolicy: { mode: 'verified', evidence: [testedEv] },
+            rewritePolicy: verifiedHonest,
           },
         ),
       ),
@@ -347,7 +336,7 @@ describe('custom operation readers (abstract checker)', () => {
       {},
       {
         foreign: lyingImpls,
-        rewritePolicy: { mode: 'verified', evidence: [testedEv] },
+        rewritePolicy: verifiedHonest,
       },
     )
     expect(Node.$is('Call')(afterRebind.node)).toBe(true)
@@ -358,13 +347,13 @@ describe('custom operation readers (abstract checker)', () => {
           {},
           {
             foreign: lyingImpls,
-            rewritePolicy: { mode: 'verified', evidence: [testedEv] },
+            rewritePolicy: verifiedHonest,
           },
         ),
       ),
     ).toBe(true)
 
-    // 5. claims.total: parity between residualize and judge, gated by verified policy AND argument Schema fit!
+    // 5. claims.total: parity between residualize and judge, gated by policy AND argument Schema fit!
     const totalCheck = Operation.define({
       id: 'test.isEvenFlag',
       version: 1,
@@ -377,16 +366,19 @@ describe('custom operation readers (abstract checker)', () => {
       'total',
       Operation.implement(totalCheck, x => x % 2 === 0),
     )
-    const totalEv = Expr.foreignEvidence(totalCheck, totalImpls, {
-      claims: ['total'],
-      assurance: 'tested',
-    })
+    // checkOperation yields no evidence for total yet (T7)
+    const totalReport = Conformance.checkOperation(totalCheck, totalImpls)
+    expect(totalReport.evidence).toEqual([])
 
-    // On $.granted (fits Flags): verified WITHOUT 'total' evidence keeps Unknown/Call; WITH 'total' evidence absorbs to False/Lit(false) in BOTH judge and residualize!
+    // On $.granted (fits Flags): absent policy or verified without total evidence keeps Unknown/Call; trusted absorbs to False/Lit(false)!
     const onGranted = Bool.and(false, totalCheck($.granted))
     expect(
       Verdict.isUnknown(
-        Expr.judge(onGranted, {}, { foreign: totalImpls, rewritePolicy: { mode: 'verified' } }),
+        Expr.judge(
+          onGranted,
+          {},
+          { foreign: totalImpls, rewritePolicy: Expr.RewritePolicy.verified(totalReport.evidence) },
+        ),
       ),
     ).toBe(true)
     expect(
@@ -394,22 +386,22 @@ describe('custom operation readers (abstract checker)', () => {
         Expr.residualize(
           onGranted,
           {},
-          { foreign: totalImpls, rewritePolicy: { mode: 'verified' } },
+          { foreign: totalImpls, rewritePolicy: Expr.RewritePolicy.verified(totalReport.evidence) },
         ).node,
       ),
     ).toBe(true)
 
-    const verifiedTotalOpts = {
+    const trustedTotalOpts = {
       foreign: totalImpls,
-      rewritePolicy: { mode: 'verified' as const, evidence: [totalEv] },
-    }
-    expect(Verdict.isFalse(Expr.judge(onGranted, {}, verifiedTotalOpts))).toBe(true)
-    const foldedTotal = Expr.residualize(onGranted, {}, verifiedTotalOpts)
+      rewritePolicy: Expr.RewritePolicy.trusted,
+    } satisfies Expr.ReaderOptions
+    expect(Verdict.isFalse(Expr.judge(onGranted, {}, trustedTotalOpts))).toBe(true)
+    const foldedTotal = Expr.residualize(onGranted, {}, trustedTotalOpts)
     expect(Node.$is('Lit')(foldedTotal.node) && foldedTotal.node.value === false).toBe(true)
 
     // On $.wide (Schema.Number — may be -5 or NaN, which fails Flags checkArgs!): must stay Unknown/Call in BOTH judge and residualize!
     const onWide = Bool.and(false, totalCheck($.wide))
-    expect(Verdict.isUnknown(Expr.judge(onWide, {}, verifiedTotalOpts))).toBe(true)
-    expect(Node.$is('Call')(Expr.residualize(onWide, {}, verifiedTotalOpts).node)).toBe(true)
+    expect(Verdict.isUnknown(Expr.judge(onWide, {}, trustedTotalOpts))).toBe(true)
+    expect(Node.$is('Call')(Expr.residualize(onWide, {}, trustedTotalOpts).node)).toBe(true)
   })
 })

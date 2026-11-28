@@ -16,14 +16,14 @@ export default [
   rule(
     'rulesOf drops the message',
     expr,
-    "expr: wrap<S['Type'], boolean>(rule.node),\n    message: rule.message,",
-    "expr: wrap<S['Type'], boolean>(rule.node),\n    message: Option.none(),",
+    "      expr: wrap<S['Type'], boolean>(rule.node),\n      message: rule.message,",
+    "      expr: wrap<S['Type'], boolean>(rule.node),\n      message: Option.none(),",
   ),
   rule(
     'rulesOf drops the property path',
     expr,
-    'collectAstRefinements(schema.ast, []).map(rule => ({\n    at: rule.at,',
-    'collectAstRefinements(schema.ast, []).map(rule => ({\n    at: [],',
+    '    rules: rules.map(rule => ({\n      at: rule.at,',
+    '    rules: rules.map(rule => ({\n      at: [],',
   ),
   rule(
     "a check inside a group ignores the group's message",

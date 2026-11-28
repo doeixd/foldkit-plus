@@ -7,13 +7,14 @@
  * and Tier 4 Z3 all see straight through it. `Prove.fn` verifies `where => returns && ensures`
  * once in Z3.
  */
-import { Data, Option, Pipeable, Result, Schema } from 'effect'
+import { Data, Option, Pipeable, Result, Schema, SchemaAST } from 'effect'
 import * as Expr from './expr.js'
 import * as Node from './node.js'
 import { currentEach } from './ops/arr.js'
 import * as Bool from './ops/bool.js'
 import { toNode, wrap, type EnvOfInput, type ExprInput } from './ops/core.js'
-import { coalesceOp } from './ops/null.js'
+import { guardedBy, type GuardCondition } from './ops/guard.js'
+import { coalesceOp, isNullOp } from './ops/null.js'
 import * as Path from './path.js'
 import type { Expr as ExprType, PathAccessor, SchemaOf } from './path.js'
 
@@ -142,9 +143,12 @@ export interface FnSpec<P extends ParamSchemas, R = unknown> extends Pipeable.Pi
 /**
  * A callable, inspectable, verifiable MetaKit function.
  *
- * - **Symbolic call (`fn(args)`)**: macro-like AST substitution of `args` into
- *   `body` (unchecked at the call site; preconditions and obligations are
- *   available via `fn.precondition(args)` and `fn.obligations`).
+ * - **Symbolic call (`fn(args)`)**: substitutes `args` into `body` under a
+ *   refusing guard enforcing parameter Schemas and non-nullness, `where`,
+ *   `returns`, and `ensures` (decoding literal arguments at build time).
+ *   Use `fn.bare(args)` for the unguarded substituted body.
+ * - **Direct runtime (`fn.run(args)`)**: runs `fn.runChecked(args)` and throws
+ *   `FnContractError` on contract violation.
  * - **Checked runtime (`fn.runChecked(args)`)**: validates `params`, `where`,
  *   all scoped intermediate `obligations`, `body`, `returns`, and `ensures`.
  * - **Formal verification (`Prove.fn(fn)`)**: proves well-definedness, all
@@ -160,8 +164,12 @@ export interface Fn<P extends ParamSchemas, R> extends Pipeable.Pipeable {
   readonly ensuresClauses: ReadonlyArray<ExprType<EnsuresEnv<P, R>, boolean | null>>
   /** Scoped intermediate contract obligations preserved across composition. */
   readonly obligations: ReadonlyArray<FnObligation<ParamValues<P>>>
-  /** Symbolic call: substitutes argument expressions into `body`. */
+  /** Guarded symbolic call: decodes literal arguments and guards `body` with parameter Schemas, `where`, `returns`, and `ensures`. */
   <Args extends ArgInputs<P>>(args: Args): ExprType<MergedArgEnv<Args>, R>
+  /** Unguarded symbolic call: substitutes argument expressions directly into `body` without contract guards. */
+  readonly bare: <Args extends ArgInputs<P>>(
+    args: Args,
+  ) => ExprType<MergedArgEnv<Args>, ReturnCarrier<R>>
   /** Add a precondition (`where` clause). Stackable. */
   readonly where: (
     buildWhere: (args: ParamPaths<P>) => ExprInput<ParamValues<P>, boolean | null>,
@@ -178,7 +186,7 @@ export interface Fn<P extends ParamSchemas, R> extends Pipeable.Pipeable {
   readonly precondition: <Args extends ArgInputs<P>>(
     args: Args,
   ) => ExprType<MergedArgEnv<Args>, boolean | null>
-  /** Fast direct runtime evaluation over concrete parameter values. */
+  /** Checked direct runtime evaluation over concrete parameter values; throws `FnContractError` on failure. */
   readonly run: (args: ParamValues<P>, options?: Expr.ReaderOptions) => R
   /** Checked runtime evaluation verifying params Schema, `where`, intermediate `obligations`, `body`, `returns`, and `ensures`. */
   readonly runChecked: (
@@ -545,6 +553,59 @@ const assertReturnSchemaUnset = (returnSchema: Option.Option<Schema.Top>): void 
   }
 }
 
+const admitsNull = (ast: SchemaAST.AST): boolean =>
+  SchemaAST.isNull(ast) ||
+  SchemaAST.isUndefined(ast) ||
+  SchemaAST.isAny(ast) ||
+  SchemaAST.isUnknown(ast) ||
+  Option.isSome(Path.optionInner(ast)) ||
+  (SchemaAST.isUnion(ast) && ast.types.some(admitsNull))
+
+const isNotNullNode = (node: Node.Node): Node.Node =>
+  Node.Call({ op: Bool.notOp, args: [Node.Call({ op: isNullOp, args: [node] })] })
+
+const substituteSelf = (ruleNode: Node.Node, target: Node.Node, name: string): Node.Node => {
+  const outerEach = currentEach()
+  const avoided = new Set(collectRootSegments([target]))
+  if (outerEach !== Node.EACH) avoided.add(outerEach)
+  const hygienic = hasCollidingRowsBinder(ruleNode, avoided)
+    ? freshenRows(ruleNode, nextSafeDepth(avoided, ruleNode))
+    : ruleNode
+  return Node.substitutePaths(hygienic, segments =>
+    Option.some(segments.length === 0 ? target : projectArg(target, segments, name)),
+  )
+}
+
+const substituteEnsuresCall = (
+  node: Node.Node,
+  argNodes: ReadonlyMap<string, Node.Node>,
+  resultNode: Node.Node,
+): Node.Node => {
+  assertNoOpaque(node)
+  const outerEach = currentEach()
+  const avoided = new Set(collectRootSegments([...argNodes.values(), resultNode]))
+  if (outerEach !== Node.EACH) avoided.add(outerEach)
+  const hygienic = hasCollidingRowsBinder(node, avoided)
+    ? freshenRows(node, nextSafeDepth(avoided, node))
+    : node
+  return Node.substitutePaths(hygienic, segments => {
+    if (segments[0] === 'result') {
+      return Option.some(
+        segments.length === 1 ? resultNode : projectArg(resultNode, segments.slice(1), 'result'),
+      )
+    }
+    if (segments[0] === 'params') {
+      const head = segments[1]
+      if (head === undefined || !argNodes.has(head)) return Option.none()
+      const replacement = argNodes.get(head)!
+      return Option.some(
+        segments.length === 2 ? replacement : projectArg(replacement, segments.slice(2), head),
+      )
+    }
+    return Option.none()
+  })
+}
+
 const buildFn = <P extends ParamSchemas, R>(parts: {
   readonly params: P
   readonly paramsSchema: Schema.Struct<P>
@@ -554,6 +615,7 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
   readonly ensuresClauses: ReadonlyArray<ExprType<EnsuresEnv<P, R>, boolean | null>>
   readonly obligations: ReadonlyArray<FnObligation<ParamValues<P>>>
 }): Fn<P, R> => {
+  const paramEntries = Object.entries(parts.params)
   const paramNames = new Set(Object.keys(parts.params))
   const decodeParams = Schema.decodeUnknownResult(parts.paramsSchema)
   const checkReturn = Option.map(parts.returnSchema, s => Schema.is(s))
@@ -562,8 +624,105 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
     checkSchema: Option.map(ob.schema, s => Schema.is(s)),
   }))
 
-  const callSymbolic = <Args extends ArgInputs<P>>(args: Args): ExprType<MergedArgEnv<Args>, R> =>
+  const bare = <Args extends ArgInputs<P>>(
+    args: Args,
+  ): ExprType<MergedArgEnv<Args>, ReturnCarrier<R>> =>
     wrap(substituteArgs(parts.body.node, paramNames, args))
+
+  const callSymbolic = <Args extends ArgInputs<P>>(args: Args): ExprType<MergedArgEnv<Args>, R> => {
+    const argNodes = new Map<string, Node.Node>()
+    for (const [name, paramSchema] of paramEntries) {
+      if (!Object.hasOwn(args, name)) {
+        throw new Error(`[metakit/fn] missing argument "${name}"`)
+      }
+      const argNode = toNode((args as Readonly<Record<string, unknown>>)[name])
+      if (Node.$is('Lit')(argNode)) {
+        Schema.decodeUnknownSync(paramSchema as unknown as Schema.Codec<unknown>)(argNode.value)
+      }
+      argNodes.set(name, argNode)
+    }
+    const subBody = substituteArgs(parts.body.node, paramNames, args)
+    const conditions: Array<GuardCondition> = []
+
+    for (const [name, paramSchema] of paramEntries) {
+      const argNode = argNodes.get(name)!
+      if (Node.$is('Lit')(argNode)) continue
+      const contract = `fn: param ${name}`
+      for (const rule of Expr.rulesOf(paramSchema)) {
+        conditions.push({
+          cond: substituteSelf(rule.expr.node, argNode, name),
+          contract,
+        })
+      }
+      if (!admitsNull(paramSchema.ast)) {
+        conditions.push({ cond: isNotNullNode(argNode), contract })
+      }
+    }
+
+    for (const w of parts.whereClauses) {
+      conditions.push({
+        cond: substituteArgs(w.node, paramNames, args),
+        contract: 'fn: where',
+      })
+    }
+
+    for (const ob of parts.obligations) {
+      const obExpr = substituteArgs(ob.expr.node, paramNames, args)
+      const wrapWhen = (cond: Node.Node): Node.Node =>
+        Option.match(ob.when, {
+          onNone: () => cond,
+          onSome: whenExpr =>
+            Node.If({
+              cond: Node.Call({
+                op: coalesceOp,
+                args: [substituteArgs(whenExpr.node, paramNames, args), Node.Lit({ value: false })],
+              }),
+              then: cond,
+              otherwise: Node.Lit({ value: true }),
+            }),
+        })
+      const contract = `fn: ${ob.kind === 'param' ? 'param' : 'returns'} (${ob.label})`
+      if (Option.isSome(ob.schema)) {
+        for (const rule of Expr.rulesOf(ob.schema.value)) {
+          conditions.push({
+            cond: wrapWhen(substituteSelf(rule.expr.node, obExpr, ob.label)),
+            contract,
+          })
+        }
+        if (!admitsNull(ob.schema.value.ast)) {
+          conditions.push({ cond: wrapWhen(isNotNullNode(obExpr)), contract })
+        }
+      }
+      for (const e of ob.ensures) {
+        conditions.push({
+          cond: wrapWhen(substituteEnsuresCall(e.node, argNodes, obExpr)),
+          contract: `fn: ensures (${ob.label})`,
+        })
+      }
+    }
+
+    if (Option.isSome(parts.returnSchema)) {
+      const retSchema = parts.returnSchema.value
+      for (const rule of Expr.rulesOf(retSchema)) {
+        conditions.push({
+          cond: substituteSelf(rule.expr.node, subBody, 'result'),
+          contract: 'fn: returns',
+        })
+      }
+      if (!admitsNull(retSchema.ast)) {
+        conditions.push({ cond: isNotNullNode(subBody), contract: 'fn: returns' })
+      }
+    }
+
+    for (const e of parts.ensuresClauses) {
+      conditions.push({
+        cond: substituteEnsuresCall(e.node, argNodes, subBody),
+        contract: 'fn: ensures',
+      })
+    }
+
+    return wrap(guardedBy(conditions, subBody))
+  }
 
   const precondition = <Args extends ArgInputs<P>>(
     args: Args,
@@ -571,7 +730,7 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
     wrap(conjoin(parts.whereClauses.map(w => substituteArgs(w.node, paramNames, args))))
 
   const run = (args: ParamValues<P>, options?: Expr.ReaderOptions): R =>
-    Expr.evaluate(parts.body, args, options)
+    Result.getOrThrow(runChecked(args, options))
 
   const runChecked = (
     rawArgs: unknown,
@@ -725,6 +884,7 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
           ),
         ],
       }),
+    bare,
     precondition,
     run,
     runChecked,

@@ -9,7 +9,7 @@
  * - `Expr.eval`, `Expr.residualize`, `Expr.judge`, `Expr.reads`, and
  *   `Expr.lift` operate on any `Expr`.
  */
-import { Option, Predicate, Result, Schema, SchemaAST } from 'effect'
+import { Match, Option, Predicate, Result, Schema, SchemaAST } from 'effect'
 import * as Node from './node.js'
 import * as Bool from './ops/bool.js'
 import {
@@ -30,7 +30,7 @@ import { gtOp, gteOp, ltOp, lteOp } from './ops/ord.js'
 import { readsOfNode } from './ops/reads.js'
 import { judgeNode } from './ops/judge.js'
 import {
-  foreignEvidence,
+  RewritePolicy,
   type EvidenceAssurance,
   type ForeignClaimKind,
   type ForeignRewriteEvidence,
@@ -53,13 +53,15 @@ export type {
   ForeignRewritePolicy,
 }
 export type { ForeignImplementation } from './ops/eval.js'
-export { isExpr, wrap as fromNode, foreignEvidence }
+export { isExpr, wrap as fromNode, RewritePolicy }
 
 /**
  * What evaluation, `residualize` and `judge` take besides the expression: the
  * implementations of the foreign operations it calls, by id, and an optional
- * `rewritePolicy` gating algebraic claim rewrites on bound evidence. A call
- * with no implementation is refused by evaluation and `Unknown` to `judge`.
+ * `rewritePolicy` controlling algebraic claim rewrites (`Expr.RewritePolicy.trusted`
+ * or `Expr.RewritePolicy.verified(evidence)`). When `rewritePolicy` is omitted,
+ * no foreign claim rewrites are applied. A call with no implementation is
+ * refused by evaluation and `Unknown` to `judge`.
  */
 export interface ReaderOptions {
   readonly foreign?: ForeignImplementations
@@ -485,6 +487,39 @@ export interface Refinement<A> {
   readonly message: Option.Option<string>
 }
 
+/** One check `Expr.rulesOfExact` could not express as an `Expr`. */
+export interface UnreadCheck {
+  /** Property path the check sits on; `[]` is the schema itself. */
+  readonly at: ReadonlyArray<string>
+  /** Representation id when the check carries one (e.g. `'effect/schema/isInt'`), otherwise none. */
+  readonly id: Option.Option<string>
+  /** Human-readable description of the unread check. */
+  readonly describe: string
+}
+
+/** Result of `Expr.rulesOfExact`: every rule read, plus every check that could not be read. */
+export interface ExactRules<A> {
+  readonly rules: ReadonlyArray<Refinement<A>>
+  readonly unread: ReadonlyArray<UnreadCheck>
+}
+
+/**
+ * Read every rule attached to `schema`, along with any checks `rulesOf` could
+ * not express as an `Expr` (such as `effect/schema/isInt`, custom filters, or
+ * checks inside multi-branch non-nullish unions).
+ */
+export const rulesOfExact = <S extends Schema.Top>(schema: S): ExactRules<S['Type']> => {
+  const { rules, unread } = collectAstRefinements(schema.ast, [])
+  return {
+    rules: rules.map(rule => ({
+      at: rule.at,
+      expr: wrap<S['Type'], boolean>(rule.node),
+      message: rule.message,
+    })),
+    unread,
+  }
+}
+
 /**
  * Read every rule attached to `schema`, with where it sits and its message:
  * each `Expr.refine` and each built-in Effect numeric bound (`isGreaterThan`,
@@ -495,11 +530,7 @@ export interface Refinement<A> {
  * null values pass). Checks on multi-branch non-nullish unions are not read.
  */
 export const rulesOf = <S extends Schema.Top>(schema: S): ReadonlyArray<Refinement<S['Type']>> =>
-  collectAstRefinements(schema.ast, []).map(rule => ({
-    at: rule.at,
-    expr: wrap<S['Type'], boolean>(rule.node),
-    message: rule.message,
-  }))
+  rulesOfExact(schema).rules
 
 /** The expressions of `Expr.rulesOf`, in the same order. */
 export const refinementsOf = <S extends Schema.Top>(
@@ -547,11 +578,13 @@ const collectChecks = (
   at: ReadonlyArray<string>,
   groupMessage: Option.Option<string>,
   out: Array<RuleNode>,
+  unread: Array<UnreadCheck>,
 ): void => {
   const self = Node.Path({ segments: at, ast: Option.none() })
   for (const check of checks) {
     const ann = check.annotations
     const message = Option.orElse(Option.fromUndefinedOr(ann?.message), () => groupMessage)
+    let read = false
     if (ann !== undefined) {
       if (REFINEMENT_ANNOTATION_KEY in ann) {
         out.push({
@@ -559,12 +592,36 @@ const collectChecks = (
           node: Node.prefix(ann[REFINEMENT_ANNOTATION_KEY] as Node.Node, at),
           message,
         })
+        read = true
       }
       if (ann.representation !== undefined) {
-        for (const node of boundNodes(ann.representation, self)) out.push({ at, node, message })
+        const nodes = boundNodes(ann.representation, self)
+        for (const node of nodes) out.push({ at, node, message })
+        if (nodes.length > 0) read = true
       }
     }
-    if (check._tag === 'FilterGroup') collectChecks(check.checks, at, message, out)
+    Match.valueTags(check, {
+      FilterGroup: group => {
+        collectChecks(group.checks, at, message, out, unread)
+      },
+      Filter: () => {
+        if (!read) {
+          const repId = ann?.representation?.id
+          const describe =
+            repId ??
+            (typeof ann?.expected === 'string'
+              ? ann.expected
+              : typeof ann?.title === 'string'
+                ? ann.title
+                : 'filter')
+          unread.push({
+            at,
+            id: Option.fromUndefinedOr(repId),
+            describe,
+          })
+        }
+      },
+    })
   }
 }
 
@@ -596,50 +653,65 @@ const guardNullable = (node: Node.Node, at: ReadonlyArray<string>): Node.Node =>
 const collectAstRefinements = (
   ast: SchemaAST.AST,
   at: ReadonlyArray<string>,
-): ReadonlyArray<RuleNode> => {
+): { readonly rules: ReadonlyArray<RuleNode>; readonly unread: ReadonlyArray<UnreadCheck> } => {
   const out: Array<RuleNode> = []
+  const unread: Array<UnreadCheck> = []
   if (SchemaAST.isObjects(ast)) {
     for (const prop of ast.propertySignatures) {
       if (typeof prop.name === 'string') {
         const childAt = [...at, prop.name]
         const isOptionalKey = SchemaAST.isOptional(prop.type)
-        for (const rule of collectAstRefinements(prop.type, childAt)) {
+        const child = collectAstRefinements(prop.type, childAt)
+        for (const rule of child.rules) {
           out.push(
             isOptionalKey
               ? { at: rule.at, node: guardNullable(rule.node, childAt), message: rule.message }
               : rule,
           )
         }
+        unread.push(...child.unread)
       }
     }
   } else if (SchemaAST.isUnion(ast)) {
     const nullish = ast.types.filter(t => SchemaAST.isNull(t) || SchemaAST.isUndefined(t))
     const presentMembers = ast.types.filter(t => !SchemaAST.isNull(t) && !SchemaAST.isUndefined(t))
     if (nullish.length > 0 && presentMembers.length === 1) {
-      for (const rule of collectAstRefinements(presentMembers[0]!, at)) {
+      const inner = collectAstRefinements(presentMembers[0]!, at)
+      for (const rule of inner.rules) {
         out.push({
           at: rule.at,
           node: guardNullable(rule.node, at),
           message: rule.message,
         })
+      }
+      unread.push(...inner.unread)
+    } else if (presentMembers.length > 1) {
+      const hasNested = presentMembers.some(member => {
+        const sub = collectAstRefinements(member, at)
+        return sub.rules.length > 0 || sub.unread.length > 0
+      })
+      if (hasNested) {
+        unread.push({ at, id: Option.none(), describe: 'multi-branch union checks' })
       }
     }
   } else {
     const optInner = Path.optionInner(ast)
     if (Option.isSome(optInner)) {
-      for (const rule of collectAstRefinements(optInner.value, at)) {
+      const inner = collectAstRefinements(optInner.value, at)
+      for (const rule of inner.rules) {
         out.push({
           at: rule.at,
           node: guardNullable(rule.node, at),
           message: rule.message,
         })
       }
+      unread.push(...inner.unread)
     }
   }
   if (ast.checks !== undefined) {
-    collectChecks(ast.checks, at, Option.none(), out)
+    collectChecks(ast.checks, at, Option.none(), out, unread)
   }
-  return out
+  return { rules: out, unread }
 }
 
 /** Lift an `Expr<Inner, A>` along `Path<Outer, Inner>` into `Expr<Outer, A>`. */

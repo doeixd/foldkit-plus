@@ -57,6 +57,32 @@ export const isIntegerTerm = (node: Node.Node): boolean =>
 export const isIntegerLiteral = (node: Node.Node): boolean =>
   Node.$is('Lit')(node) && typeof node.value === 'number' && Number.isInteger(node.value)
 
+/**
+ * Whether `node` always evaluates to an integer, null, or a refusal — including
+ * constant integer expressions (`9000 + 9000`) and conditional branches mixing
+ * integer terms with integer literals. Used to discharge `effect/schema/isInt`
+ * during derived-operation expansion without relaxing `isIntegerTerm` for SQL.
+ */
+export const isAlwaysInteger = (node: Node.Node): boolean =>
+  Node.$match(node, {
+    Lit: ({ value }) => value === null || (typeof value === 'number' && Number.isInteger(value)),
+    Path: ({ ast }) => Option.isSome(ast) && isIntAst(ast.value),
+    Call: ({ op, args }) =>
+      op.id === 'str.len' ||
+      op.id === 'arr.count' ||
+      ((op.id === 'num.div' || op.id === 'num.rem') && args.slice(0, 2).every(isAlwaysInteger)) ||
+      (integerOps.has(op.id) && args.every(isAlwaysInteger)),
+    If: ({ then, otherwise }) => isAlwaysInteger(then) && isAlwaysInteger(otherwise),
+    Match: ({ cases, otherwise }) =>
+      cases.every(([, branch]) => isAlwaysInteger(branch)) &&
+      Option.match(otherwise, { onNone: () => true, onSome: isAlwaysInteger }),
+    Opaque: () => false,
+    Rows: ({ fold, value }) =>
+      fold === 'count' ||
+      ((fold === 'sum' || fold === 'min' || fold === 'max') &&
+        Option.exists(value, isAlwaysInteger)),
+  })
+
 export const isFraction = (value: unknown): boolean =>
   typeof value === 'number' && Number.isFinite(value) && !Number.isInteger(value)
 

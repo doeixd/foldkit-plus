@@ -40,13 +40,14 @@ describe('Example 5: Feature-Flag & Rollout Custom Language', () => {
     ).toBe(false)
 
     // Partial evaluation with known env mismatch decides False without knowing userId
-    // because `bucket` and `semverGte` declare `claims: { total: true }` over `Text.schema`.
+    // because `bucket` and `semverGte` declare `claims: { total: true }` over `Text.schema`
+    // and we pass `Expr.RewritePolicy.trusted`.
     expect(
       Verdict.isFalse(
         Expr.judge(
           flagActiveFor,
           { row: { env: 'staging' }, ctx: { env: 'prod', appVersion: '2.5.0' } },
-          { foreign: rolloutImpl },
+          { foreign: rolloutImpl, rewritePolicy: Expr.RewritePolicy.trusted },
         ),
       ),
     ).toBe(true)

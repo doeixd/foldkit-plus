@@ -9,6 +9,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Breaking
 
+- `@doeixd/metakit`: claim rewrites need evidence unless you pass `Expr.RewritePolicy.trusted`; `checkOperation` returns that evidence and `foreignEvidence` is removed; a `Fn` called inside an expression keeps its contracts (`f.bare` for the body alone); `Interpreter.runFn` always checks (#662, #667).
 - `@doeixd/metakit/fn`: a second `.returns()` declaration throws. Combine the checks you need in one return Schema.
 - `@doeixd/metakit`: a literal (`Expr.lit`, or a plain value where an expression is expected) that is a bigint, a symbol or a function, or a list holding one, throws where it is built; no reader can hold one, and the artifact codec already refused it.
 - `@doeixd/metakit/operation`, `@doeixd/metakit/interpreter`: `Operation.define` throws when an operation id contains `@`, and `Interpreter.withAllowlist` matches exact `id@version` foreign names (matching `@doeixd/metakit/artifact`) instead of matching bare ids before `@`.
@@ -112,6 +113,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `@doeixd/metakit/operation`: `Operation.expandDerived` keeps the refusals of the call it replaces, and leaves a call unexpanded where it cannot state a check (#661).
 - `@doeixd/metakit/machine`: `Machine.each` runs child guards, emits and steps with the caller's operation implementations, and a child guard that refuses refuses the dispatch instead of matching nothing (#663).
 - `@doeixd/metakit/operation`: a derived operation runs its inner operations from the implementations table it is evaluated with, falling back to the one it was defined with only for what that table lacks (#664).
 - `@doeixd/metakit/interpreter`: an operation must appear in every layered `withAllowlist` to be available to the interpreter (#668).

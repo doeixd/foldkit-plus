@@ -123,16 +123,32 @@ describe('examples/metakit permissions (checked custom algebras)', () => {
   it('acts on claims across partial eval, abstract checker, Arr.reduce, Transition.combine, and describe/compare', () => {
     const $ = Path.forSchema(PermissionState)
 
-    // Partial eval & judge: identity and absorbing rewrites.
+    // Partial eval & judge: identity and absorbing rewrites authorized by checkOperation evidence.
+    const verifiedFlagsOr = Expr.RewritePolicy.verified(
+      Conformance.checkOperation(flagsOr, pageImplementations).evidence,
+    )
     expect(
       Node.$is('Path')(
-        Expr.residualize(flagsOr($.granted, 0), {}, { foreign: pageImplementations }).node,
+        Expr.residualize(
+          flagsOr($.granted, 0),
+          {},
+          {
+            foreign: pageImplementations,
+            rewritePolicy: verifiedFlagsOr,
+          },
+        ).node,
       ),
     ).toBe(true)
     expect(
       Node.$is('Lit')(
-        Expr.residualize(flagsOr($.granted, 0x7fff_ffff), {}, { foreign: pageImplementations })
-          .node,
+        Expr.residualize(
+          flagsOr($.granted, 0x7fff_ffff),
+          {},
+          {
+            foreign: pageImplementations,
+            rewritePolicy: verifiedFlagsOr,
+          },
+        ).node,
       ),
     ).toBe(true)
 
