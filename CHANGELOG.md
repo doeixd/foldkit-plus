@@ -111,6 +111,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `@doeixd/metakit`: `Abstract.checkInvariant`, `checkGoal`, `checkTransition` and `Policy.checkConsistent` no longer refute (or call a rule dead) past an equality, inequality or membership they keep only part of, compare a struct or list literal assumed twice as one value, and check a step as refused where a write lies under a field that holds no value.
 - `@doeixd/metakit/sql`: `num.add`, `num.sub` and `num.mul` give `NULL` in SQL where their result is an integer past ±(2^53−1), as evaluation refuses it, over fractional fields and for products too (#674).
 - `@doeixd/metakit` docs: `semantics.md` says what `null.coalesce` promises (its answer, not that the fallback is never computed) and that `eq.among` against a null list or no candidate answers without screening the value, as SQL does.
 - `@doeixd/metakit`: `Abstract.checkInvariant`, `checkGoal` and `checkTransition` answer `Unknown`, not `False`, when they had to leave out an assumption they cannot read (a list fold, an `If` or `Match`, an opaque term, a text order, a membership, a custom operation): a refutation could otherwise lie in a state the left-out rule excludes. A proof stays a proof (#672).

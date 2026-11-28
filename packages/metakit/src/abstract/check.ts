@@ -13,7 +13,9 @@
 import { Option, Schema } from 'effect'
 import * as Expr from '../expr.js'
 import * as Node from '../node.js'
+import { notOp } from '../ops/bool.js'
 import type { ForeignImplementations } from '../ops/eval.js'
+import { isNullOp } from '../ops/null.js'
 import * as Path from '../path.js'
 import type { Transition, TransitionEnv } from '../transition.js'
 import * as Verdict from '../verdict.js'
@@ -136,9 +138,30 @@ const stepState = <S extends Schema.Top, I, Emit, Sup>(
     value: normalize(eq.value.node),
   }))
   const postGoals = goals(writes, preInvariants).map(normalize)
-  const hypotheses = [...preInvariants, ...otherInvariants, transition.when.node, ...extra].map(
-    normalize,
+  // A write under a field that holds no value refuses the step (K3), so a step
+  // taken has a value at every proper prefix of every target.
+  const parentsPresent = writes.flatMap(({ target }) =>
+    target.slice(0, -1).flatMap((_, at) => {
+      const segments = ['state', ...target.slice(0, at + 1)]
+      return fields.get(pathKey(segments))?.nullable === true
+        ? [
+            Node.Call({
+              op: notOp,
+              args: [
+                Node.Call({ op: isNullOp, args: [Node.Path({ segments, ast: Option.none() })] }),
+              ],
+            }),
+          ]
+        : []
+    }),
   )
+  const hypotheses = [
+    ...preInvariants,
+    ...otherInvariants,
+    transition.when.node,
+    ...parentsPresent,
+    ...extra,
+  ].map(normalize)
   const state = new AbstractState(
     [...hypotheses, ...postGoals, ...writes.map(write => write.value)],
     fields,
