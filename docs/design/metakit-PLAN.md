@@ -12,6 +12,8 @@
 - **To do a step:** read §4 (the rules), then the workstream in §8, then the defect entries in §6 it names.
 - **To fix a defect in §6:** write the failing test first, from the entry's input. If the test passes, the defect is not real: say so in the ledger and stop. Then make the smallest fix, add a mutation that the test kills, add the changelog line, and file or update the GitHub issue (a defect in our package is an issue, per `CLAUDE.md`).
 - **To add anything new** (an operator, a node kind, an export, an entry point): it must pass §4.3 first.
+- **Who does the work:** §8.0. Implementation is delegated to the `agy` and `codex` command-line agents; the coordinating session writes briefs, verifies and reviews.
+- **The plan ends with a full audit** (W10) before anything is released.
 - Every rule of the repository's `CLAUDE.md` applies. The traps files to read before touching MetaKit: `traps-types.md`, `traps-effect-4.md`, `traps-tests-general.md`, `traps-tests-mutation.md`, `traps-data-and-sql.md`, `traps-bundling-and-builds.md`, `traps-claims.md`.
 
 ---
@@ -276,7 +278,11 @@ W0 truth ──► W1 kernel ──► W4 contract ──► W6 targets (SQL rep
                                                       │
                                    W7 successor spike ┘ (needs W1; independent of W4–W6)
                                    W9 tooling (needs W3)
+
+W1–W9 ──► W10 full audit ──► release (W8 step 4)
 ```
+
+- **W10 is last and gates the release.** Nothing is published before it finds no High or Medium.
 
 - **W0 first, and small.** Nothing else can be judged while CI is red and the documents disagree.
 - **W1 before W4.** The corpus (W4) records the reference evaluator's answers. Recording them before K1–K8 are fixed would freeze wrong answers into a file another repository copies.
@@ -290,7 +296,42 @@ Do not start new surface (`#646` P1 and later, `#647` P2 and later, anything in 
 
 ## 8. Workstreams
 
-Each lists what it needs, its steps, what "done" means and which model tier suits delegation (`CLAUDE.md`: Haiku for mechanical work, Sonnet for ordinary implementation, the default model for API shape, security and reviews).
+Each lists what it needs, its steps, what "done" means and a tier: **mechanical** (a decided text or config change), **ordinary** (implementation with a clear design), or **judgement** (an API's shape, what a guarantee means, a review).
+
+### 8.0 Who does the work
+
+The maintainer's instruction (2026-11-28): to save money, implementation of this plan is delegated to two external command-line agents, not to Claude subagents.
+
+| Agent | Command (non-interactive) | Model |
+|---|---|---|
+| Gemini | `agy --dangerously-skip-permissions --model gemini-4-neon-high -p "<brief>"` | Gemini 4 Neon |
+| Codex | `codex exec -m gpt-6.2-sol "<brief>"` (the user's `~/.codex/config.toml` already sets this model, no approval prompts and full access) | GPT Sol 6.2 |
+
+Both were checked to exist on this machine (`agy` 1.5.18, `codex-cli` 0.160.0) and to list these models. Neither has been run for this plan yet, so the first delegated step should be a small one (W0 step 2), to learn how each reports.
+
+**Division of labour.**
+
+- **The coordinating Claude session** decides (the **judgement** tier: T1, T2, T3, T8, K6, W3's overlaps, every design note), writes each brief, reads each diff, runs the deciding checks, commits, reads CI and closes issues. It does not hand a decision to a builder.
+- **Gemini and Codex build** the **mechanical** and **ordinary** tiers: a defect fix with its test and mutation, a file split, a document correction, a corpus generator.
+- **A builder's work is reviewed by the other family.** What Gemini built, Codex reviews (`codex exec review`, or a review brief), and the reverse; the coordinator reads both. A model reviewing its own output tends to confirm it.
+- **Alternate them** on comparable steps and note in the ledger which built what, so by W3 there is evidence of which is better at which kind of step.
+
+**What every brief must carry**, because these agents run with all permissions in the shared tree and start with no context:
+
+- The step from this plan, pasted, with the files it may touch and the files it must not (always: `examples/metakit/src/forma/`, the lockfile, `packages/plus` generated entries, tsconfig paths, anything another running agent was given).
+- The git rules of `CLAUDE.md`, pasted, not referenced: no worktrees (never `codex --worktree`), no branches, no `git stash`, no `git checkout -- <file>`, no `git add -A`, no force push; stage and commit in one command with explicit paths. **Default: the builder does not commit.** It leaves its changes in the tree and reports the paths; the coordinator diffs, checks and commits. Allow a builder to commit only for a step with one file.
+- The inner loop only: the one project's `pnpm exec tsc -b packages/metakit` and the one test file, from the repository root. Not the whole suite, not a build, not e2e.
+- "Write the failing test first. If it passes, stop and report: the defect may not be real."
+- "Do not weaken an assertion, raise a budget, add a cast, or widen a type to make a check pass. If you cannot finish, say what blocked you."
+- The traps files to read for the area (§0).
+- What to report: files changed, the test's name, the command run and its last lines, anything it could not do.
+
+**Limits.**
+
+- **One builder at a time while memory is tight**, or two only on disjoint files with each told what the other holds. Never two running typechecks or test suites at once.
+- **Never give a builder Wrangler, a publish, a GitHub write (issue, comment, PR), or a secret.** `--dangerously-skip-permissions` and Codex's full-access mode mean nothing stops them; the brief is the only fence, so keep those actions with the coordinator.
+- **A builder's report is a claim.** The coordinator re-runs the deciding command and reads the diff before committing. A step is not done because an agent said so.
+- **Their code leaves this machine** for Google's and OpenAI's services. That is the maintainer's choice for this repository; do not include secrets or `.env` contents in a brief.
 
 ### W0. Truth and stability
 
@@ -407,7 +448,7 @@ The current intent, after upstream's reply on 2026-11-26: Effect UI is the first
 1. **Standalone documentation** (`#645`, `#649`): the minimal language, adding a second interpreter, composition, supported targets and their limits, progressive adoption from plain Effect Schema. Each to `docs/agents/writing-docs.md`: one page, one job; the first 150 words name the reader's problem; every snippet compiled.
 2. **A profile and conformance matrix and a divergence register** (`#649` §5), modelled on Reffect's `native-divergences.md`: per reader, what is equal, what is refused at compile time, what is not yet tested.
 3. **The skill**: row and reference updated, version bumped.
-4. **Release** under the final name. Extraction to its own repository stays last (`#598`, 2026-11-20), after the import graph is acyclic and the bundle guardrails hold.
+4. **Release** under the final name, **after W10**. Extraction to its own repository stays last (`#598`, 2026-11-20), after the import graph is acyclic and the bundle guardrails hold.
 
 ### W9. Tooling
 
@@ -416,6 +457,45 @@ The current intent, after upstream's reply on 2026-11-26: Effect UI is the first
 1. **T15**: index functions, operations and languages; derive `dependsOn` from the definitions instead of hand-written strings; settle the path-format probe.
 2. **A CLI** over the index (`#646` P0 lists one; nothing claims it).
 3. **Vite, editor, DevTools, MCP** only after a consumer inside the repository asks for one. `#646`'s own order is diagnostics-only first.
+
+### W10. The full audit
+
+*Needs:* W1–W9. *Tier:* judgement. This is the last workstream and gates the release.
+
+Everything before this fixes what was known. W10 looks for what was not, across the whole package as it then stands, in six dimensions. Each has a method that produces evidence, not an opinion.
+
+| Dimension | Question | Method | Passes when |
+|---|---|---|---|
+| **Soundness** | Can any reader give an answer the reference does not? Can a claim act without evidence? Can a guarantee be lost? | Extend W1's generated agreement test to every reader on its supported fragment: prepared, residualize, judge, PGlite, SQLite, the interval checker, Z3 (a solver "proved" must hold on the generated inputs; "refuted" must replay through the evaluator). Rerun W2's composition table. Fuzz the codec and bundle decoders with malformed input. Re-derive each law-driven rewrite's precondition. | Zero disagreements over a recorded seed and count; no rewrite fires without evidence under the default policy; every cell of the composition table passes |
+| **Correctness** | Does each function do what its name and doc comment say, on every edge? | Run every mutation spec (`pnpm mutate` per spec, several names per run) and account for each survivor. Run the `semantics.md` test, the corpus, and the examples' unit tests. Trace each public function against the edge list of `CLAUDE.md` ("empty, missing, duplicate, out-of-order, called twice"). | Every survivor has a written reason; every doc-comment claim checked is kept |
+| **De-slop** | Is anything dead, duplicated, restated, or wrong while looking finished? | Apply the De-slop list of `CLAUDE.md` file by file: unused exports (an export nothing imports and the inventory does not list as deliberate), wrappers that only forward, options nobody passes, comments that restate, copied helpers, quiet fallbacks, tag comparisons the checker cannot see, `null` or `undefined` for absence. Re-take the inventory's counts and compare. | Each count is at or below its target (below), and each remaining instance has a reason on the line |
+| **Type safety** | Does any public type promise what nothing enforces? | List every cast in `src` with its justification; none may sit on a public boundary without a test that would fail if the promise broke. No `any` in emitted declarations (the existing declared-any check). A type test with a positive and a negative case for every export, and a type mutation for each. The T3 pattern (a declared type the body does not satisfy) tried against every constructor that takes a Schema and a body. | No unjustified cast; no export without a type test; no constructor that types an unchecked value as checked |
+| **Inference** | Does a call site work without annotations, and does a mistake fail where it was made? | For every public constructor, a test that calls it with no type arguments and no annotations and asserts the inferred type. For each common mistake (wrong path, wrong operand kind, missing implementation, write to an input), a `@ts-expect-error` test on the line of the mistake, not three calls later. Declaration emit across modules for every example (the `#640` class). Type-instantiation counts and check time on the representative files, against W3's budget. | Every constructor infers; every listed mistake errors at its line; counts within budget |
+| **Developer experience** | Can someone who has never seen MetaKit build with it from the documents? | A cold run: an agent with no context and only the published documents builds W5's integer language and the flagship slice; every stumble, wrong guess and cast is recorded. Every refusal and thrown error collected into one table and judged against rule 6 (names the thing, the reason, the fix). The ceremony count of the smallest language against its budget. A cold-reader pass on every document. | The cold run finishes with no cast and no question the documents do not answer; every message in the table passes rule 6 |
+
+**Baselines for the de-slop and type-safety counts** (from the 2026-11-28 inventory; W3 sets the targets):
+
+| Signal in `src` | Today |
+|---|---|
+| Casts of any kind (` as <Type>`) | 892 in 110 files (`fn.ts` 54, `artifact.ts` 35, `machine.ts` 32) |
+| `as unknown as` | 53 |
+| `as never` | 8 |
+| Non-null assertions | about 271 |
+| `throw new Error(` | 122 |
+| `._tag ===` comparisons | 21 |
+| `default:` in a `switch` | 3 |
+| `: any` | 2 |
+| Source files over 20,000 characters | 17 |
+
+**How it is run.**
+
+1. **Three independent auditors per dimension**, one from each model family (the coordinating Claude session on the default model, Gemini, Codex), each given the code and the dimension's question, and none given this plan's conclusions or each other's findings. Split the package by area so no auditor holds more than it can read whole.
+2. **Merge and verify.** Each finding is settled by a failing test, a compile error or a probe before it is believed. A finding two families report independently is prioritised; one that cannot be reproduced is struck with the reason.
+3. **Fix** by the recipe in §0, most severe first.
+4. **Audit again** the areas that changed. Stop when a round finds no High and no Medium. After three rounds with High or Medium findings still appearing, stop and ask the maintainer: that pattern means a design problem, not a list of bugs.
+5. **Record** in `docs/design/metakit-AUDIT.md`: the seed and counts of every generated run, every finding with its fate, every survivor's reason, the before and after of each count, and what was not examined.
+
+*Done when:* the last round finds no High or Medium; the audit document is committed; CI is green. Then, and only then, W8 step 4 (release).
 
 ---
 
