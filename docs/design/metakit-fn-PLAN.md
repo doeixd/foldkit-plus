@@ -1,5 +1,7 @@
 # MetaKit `Fn` — Inspectable, Callable, Verifiable Functions (Design & Implementation Plan)
 
+> **Status (2026-11-28): superseded.** The current plan for MetaKit is [`metakit-PLAN.md`](./metakit-PLAN.md); read it instead. This file is kept as a record of the design and implementation plan for `metakit/fn` (callable, Schema-typed `Expr` functions with `Prove.fn` verification) and `ensures` postconditions on `Transition.make`.
+
 ## 1. Motivation & Position in MetaKit
 
 MetaKit currently has three expression/computation abstractions, each leaving one gap:

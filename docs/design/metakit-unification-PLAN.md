@@ -1,5 +1,7 @@
 # One declaration, every reader: the metakit unification plan
 
+> **Status (2026-11-28): superseded.** The current plan for MetaKit is [`metakit-PLAN.md`](./metakit-PLAN.md); read it instead. This file is kept as a record of the phases 0–9 plan to unify Foldkit Plus packages on MetaKit. Its phase table (which lists phase 4 as `Next` and phases 6, 7 and 9 as `Not started`) is out of date: [`metakit-unification-HANDOFF.md`](./metakit-unification-HANDOFF.md) reports them done.
+
 Status: plan, written 2026-11-21, revised 2026-11-22 against the tree at `1358ac483`. Phases 0, 1 and 5 are built and reviewed; Phase 2 is built in large part; Phase 3 is done on its first example; Phase 4 is next. A built phase is summarised with its commits, what it moved and what it decided differently; its full brief is in git history (`6f3a3b08c`) and in [the kernel convergence note](./metakit-kernel-convergence-DESIGN.md) ("the kernel note"). Measurements live in [the ledger](./metakit-unification-LEDGER.md). It succeeds [metakit-phases-2-6-PLAN.md](./metakit-phases-2-6-PLAN.md). Every phase ends in a numbered bout list a coordinator briefs from; "Order" says which bouts run side by side.
 
 ## The problem, the idea, and what you get

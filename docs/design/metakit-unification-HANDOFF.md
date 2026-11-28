@@ -1,5 +1,7 @@
 # MetaKit Unification — Current Status & Handoff
 
+> **Status (2026-11-28): superseded.** The current plan for MetaKit is [`metakit-PLAN.md`](./metakit-PLAN.md); read it instead. This file is kept as a record of the 2026-11-25 status and handoff for phases 0–9 of `metakit-unification-PLAN.md`. Although this file reports every phase done, several "done when" conditions were not met (`metakit-PLAN.md` §2.2): the binder ships 54.6 kB against a 20 kB bar and blocks 1,357–1,512 ms against 200 ms (it stayed opt-in, as the plan allowed, but missed those gates), and the Todo handler ratio is 1.57 against 1.5.
+
 **Branch:** `ui-polish`  
 **Master plan:** `docs/design/metakit-unification-PLAN.md`  
 **Measurements ledger:** `docs/design/metakit-unification-LEDGER.md`  
