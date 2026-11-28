@@ -2,6 +2,8 @@
 
 **Status:** Written 2026-11-28 from the source at `3694c771f`, every MetaKit design note in `docs/design/`, every open and closed MetaKit issue, and two independent code reviews. Nothing in this plan has been executed; §6 says, per defect, whether it was confirmed by reading the code or still needs a probe.
 
+**Where MetaKit sits:** [`docs/direction.md`](../direction.md). MetaKit is stage 1 of three: MetaKit, then a successor to Foldkit and Effect UI built on it, then Foldkit Plus rebuilt on that successor.
+
 **This file is the map.** Step-level detail for the portable contract and the Reffect adapter is in [`598-612-metakit-reffect-adapter-PLAN.md`](./598-612-metakit-reffect-adapter-PLAN.md). The older plans (`metakit-unification-PLAN.md`, `metakit-phases-2-6-PLAN.md`, `metakit-next-slice-PLAN.md`, `metakit-fn-PLAN.md`) are history: §3 says what they decided and what they left behind. Where an older plan and this one disagree, this one is the current intent.
 
 ---
@@ -27,7 +29,7 @@ The issues describe four end states. They are layered, and each rests on the one
 1. **One rule, many readers.** Evaluation, partial evaluation, SQL, an interval checker, a solver, forms, JSON Schema. Each reader gives the reference evaluator's answer or refuses by name. (`#598`, `#645`, `packages/metakit/docs/why-metakit.md`.)
 2. **A toolkit for small typed languages.** A language author states the terms, the operations, what they mean and what is known about them, and inherits evaluation, analysis and tooling. (`#647`, `#649`.)
 3. **A portable semantic contract.** A definition can leave the process as versioned data, be fingerprinted, and be run by another implementation (SQL, native Rust through Reffect) to the extent that target's semantics justify. A definition is named by a hash of its content, so a rename costs nothing, an unchanged definition is never re-proved or recompiled, and a change marks exactly what depends on it (§5.1). (`#579`, `#645`, `#649` §8.)
-4. **The base of a Foldkit successor.** Transitions, machines, dependency graphs and resumable rendering built on the single-step core. (`#612`, `#635`, `#637`, `#643`, `#644`.)
+4. **The base of a successor to Foldkit and Effect UI**, with its own runtime: transitions, machines, dependency graphs, incremental maintenance and resumable rendering built on the single-step core. This is the project's stage 2, and Foldkit Plus is then rebuilt on it (`docs/direction.md`; `#612`, `#635`, `#637`, `#643`).
 
 The issues pull in two directions on what MetaKit is: "a tiny, decidable calculus, not a general-purpose language workbench" (`#597`, `#598`, 2026-11-20) and "an elegant, general toolkit for crafting TypeScript DSLs" (`#647`, `#649`, 2026-11-27). This plan resolves it by layering, not by choosing:
 
@@ -351,7 +353,7 @@ A phase with no payload needs none of item 1: `Schema.Literals(['closed', 'editi
 
 - Whether TypeScript infers the phase names and each variant's fields through the `({ from }) => …` callback with no annotations. `matchTags` suggests yes; a type test decides.
 - What the reference evaluator does today when a transition writes a field under a union variant that is not the current one (related to K3).
-- What upstream Effect UI ships. The critique ended "not for long", so they may add states themselves. W7 reads their source first; if they ship a state model, the adapter maps a phase machine onto it instead of competing.
+- What upstream Effect UI ships. The critique ended "not for long", so they may add states themselves. W7 reads their source first and learns from whatever they build; the successor is its own runtime (`docs/direction.md`), so nothing here waits on them.
 
 Questions this table raises, which W3 answers:
 
@@ -623,13 +625,16 @@ Every place one of these needs a cast, a private import or a repeated signature 
 
 *Needs:* W1. *Tier:* the default model for the design note; Sonnet for the slice.
 
-The current intent, after upstream's reply on 2026-11-26: Effect UI is the first integration target; no second renderer for v1; the differentiator is incremental computation over costly derivations, not rendering.
+The direction (maintainer, 2026-11-28; [`docs/direction.md`](../direction.md)): the successor is its own runtime and renderer on MetaKit and Effect, not an adapter onto Effect UI. This supersedes the 2026-11-26 comments on `#612` and `#644` that made Effect UI the first integration target. Effect UI is the baseline to beat and a source of ideas.
 
-1. **Write `docs/design/644-effect-ui-adapter-PLAN.md`** to the standard of the adapter plan: read `#612`, `#635`, `#637`, `#643`, `#644` whole, read Effect UI's source at a pinned commit, and check every claim about it against that source.
-2. **The slice of `#644`**: one MetaKit `Machine` adapted to an Effect UI component's update, a keyed cart with a named derived subtotal, one Surface or Remote integration, using public APIs only.
-3. **The decision gate of `#643`**: benchmark against idiomatic `h.lazy`; report where reuse suffices, where an adapter suffices, and where a different contract is needed.
+This workstream is the bridge from stage 1 to stage 2: a plan and one measured slice. The rest of stage 2 (`#612` phases P2 to P5) and stage 3 are outside this plan.
 
-*Done when:* the plan exists, the slice runs, and the decision is written with measurements. No runtime fork, public API redesign or package migration is part of this workstream.
+1. **Write `docs/design/successor-PLAN.md`** to the standard of this plan. Read `#612`, `#635`, `#637`, `#643` and `#607` whole. Read Effect UI's source at a pinned commit, and check every claim `docs/direction.md` makes about it against that source. Read `packages/successor`, `packages/ssr` and `packages/surface` as the starting material, and the LEDGER's missed gates as the starting evidence. Set measurable gates before any code.
+2. **One vertical slice**: the keyed cart of `#612` (or `domains-plus`, where measurements exist; decide in §9.3), with phases (§5.2), binding-level updates, a named derived subtotal maintained incrementally, and a cold resume.
+3. **Measure against the baseline `#643` defines**: the same behaviour in idiomatic Effect UI (`h.lazy`, keyed children), not a weakened one. Report cold start, bytes shipped, update latency, cost of derived values, memory, and type-check time. Upstream reports 0.7 to 1.1 ms per update on 1,000 rows, so update latency alone will not show an advantage.
+4. **Say what MetaKit still lacks for the successor**, found by building the slice, and feed it back into this plan's ledger.
+
+*Done when:* the plan exists; the slice runs; the measurements are published with their method; each gate is met or recorded as missed with what was decided.
 
 ### W8. Documents, skill and release
 
@@ -709,7 +714,7 @@ Two things stay with the maintainer, because they cannot be undone or are his to
 |---|---|
 | **The package is published as `@doeixd/metakit`** (maintainer, 2026-11-28: "might have to be"). The name is free on npm; `metakit` is another project's. Treat it as the working name: the rename is one mechanical commit in W0 step 7, across 16 packages' `package.json` and every `from 'metakit…'` import, and the publish itself waits for W10 and the maintainer's go-ahead | `metakit` is taken; a scope the maintainer owns needs nothing claimed |
 | **`NUL` and `NaN` (K6): follow what Postgres and SQLite do**, then make `semantics.md` say exactly that. W1 step 2 probes both databases for a NUL in a `CASE` label and for null-safe equality over NaN, and records the outputs here before changing code | §3.2: "the meaning SQL has wins" is a settled decision, and K6 is an instance of it |
-| **The successor (`#612`): an Effect UI adapter first; a separate runtime only on measured evidence** | The 2026-11-26 comments on `#612`, `#635`, `#637`, `#643` and `#644` already say so, after upstream declined a second rendering model |
+| **The successor (`#612`) is its own runtime on MetaKit and Effect, not an Effect UI adapter** (maintainer, 2026-11-28; `docs/direction.md`). The order is MetaKit, then the successor, then Foldkit Plus rebuilt on it. This reverses the 2026-11-26 comments on `#612` and `#644`, and an earlier row of this table that followed them | Foldkit became Effect UI and the maintainer does not want to build on that implementation. A transition as data, not as a function, is the decision the rest follows from |
 | Fix before build: W1 and W2 precede any new surface | §3.4: five review rounds, each finding Critical or High items after the feature landed |
 | The corpus is written after the kernel defects are fixed | It freezes answers another repository copies |
 | Checked is the default; trusted is opt-in by name (W2) | A guarantee that must be opted into is lost in composition |
@@ -737,7 +742,9 @@ Decisions the plan already knows it will need. Each is decided by §9.1 when its
 | 11 | Where stored evidence lives for C6: a committed file, the CI cache, or both | W4 step C6 | open |
 | 12 | Phases: the names (`from`/`to`/`choose`, `replace`), and whether the builder is a callback on `Machine.make` or a separate constructor | W5 step 5 | open |
 | 13 | Whether `replace` is a new way of writing or `Transition.set` accepting a record of field expressions when its target is a struct. Leaning: a new way, since its commute and idempotence properties differ from a scalar `set` | W5 step 5, stage 3 | open |
-| 14 | What a phase machine maps to in Effect UI, once upstream's own answer to the same critique is known | W7 step 1 | open |
+| 14 | Whether an optional Effect UI interoperability adapter is worth keeping, now that the successor is its own runtime | W7 step 1 | open |
+| 17 | The successor's first application: the keyed cart of `#612`, or `domains-plus` where measurements exist | W7 step 2 | open |
+| 18 | The successor's name and package names (`foldkit-successor` is a placeholder) | W7 step 1 | open |
 | 15 | Where a variant's typed reference comes from: an accessor derived from the phase path (`phase.Closed`), or the variant's own Schema value passed as the reference. Leaning: the derived accessor, as `msg.Increment` is in `#612`; one way, not both | W5 step 5 | open |
 | 16 | Arm selection in `#612`: declaration order with each arm excluding its predecessors (disjoint by construction), or unordered arms whose disjointness the prover must show. Leaning: the first, with the prover reporting an arm that can never fire | W5 step 5, W7 | open |
 
@@ -755,7 +762,8 @@ Decisions the plan already knows it will need. Each is decided by §9.1 when its
 | `#649` | W3 (P0, P1), W4 and W8 step 2 (P2), W6 (P3), W5 and W8 (P4) |
 | `#597` | W5 step 4 (the third-party fixture) and W3 (algebra as a plain family) |
 | `#598` | It is the umbrella; close it last, when the others have |
-| `#612`, `#635`, `#637`, `#643`, `#644` | W7 decides; they are not closed by this plan |
+| `#612`, `#635`, `#637`, `#643` | Stage 2 (`docs/direction.md`). W7 writes their plan and one measured slice; they are not closed by this plan |
+| `#644` | No longer the path. Close it, or narrow it to an optional interoperability adapter (§9.3 row 14). The maintainer's to post |
 
 ---
 
@@ -764,4 +772,4 @@ Decisions the plan already knows it will need. Each is decided by §9.1 when its
 - **Design notes read whole** (by research agents, each reporting line ranges): `metakit-unification-PLAN.md`, `-LEDGER.md`, `-HANDOFF.md`, `metakit-phases-2-6-PLAN.md`, `metakit-kernel-convergence-DESIGN.md`, `metakit-phase-6-DESIGN.md`, `478-479-483-185-64-expr-contracts-DESIGN.md`, `601-expression-standard-library-DESIGN.md`, `metakit-checked-operations-DESIGN.md`, `metakit-declared-update-DESIGN.md`, `metakit-fn-PLAN.md`, `effect-integration-PLAN.md`, the five `*-REVIEW.md` files, `metakit-next-slice-PLAN.md`, and `packages/metakit/README.md` and `docs/`.
 - **Issues read whole, body and comments:** open `#597`, `#598`, `#612`, `#635`, `#637`, `#643`–`#649`; closed `#611`, `#613`–`#633`, `#638`–`#642`; referenced `#479`, `#480`, `#579`, `#580`, `#600`, `#601`, `#607`, `#629`, `#634`, `#636`; PR `#610`.
 - **Code:** a package inventory (entries, exports, closures, consumers, tests, mutation specs) by reading and grep; two independent reviews, one of the kernel and one of the toolkit layer, each tracing its findings in the source. The entries marked **Read** in §6 were re-read for this plan.
-- **Not done:** no test, build, typecheck or probe was run. The inventory's closure sizes include type-only imports and overstate what a bundle keeps. Reffect was read at `origin/master` `c3be420`; Effect UI was not read at all (W7 step 1).
+- **Not done:** no test, build, typecheck or probe was run. The inventory's closure sizes include type-only imports and overstate what a bundle keeps. Reffect was read at `origin/master` `c3be420`; Effect UI's documentation was read in part for `docs/direction.md`; its source was not read (W7 step 1).
