@@ -116,7 +116,7 @@ export interface InterpreterBackend {
   /**
    * Return a copy of this backend with `foreign` (and optionally `name` /
    * `allowlist`) updated while preserving any surrounding middleware wrappers
-   * (`withTracing`, `withObserver`).
+   * (`withTracing`, `withObserver`). A supplied allowlist only narrows access.
    */
   readonly rebind?: (options: {
     readonly name?: string | undefined
@@ -151,6 +151,15 @@ const mergeForeign = (
   allowlist?: ReadonlySet<string>,
 ): Expr.ForeignImplementations =>
   filterForeign(override === undefined ? base : { ...base, ...override }, allowlist)
+
+const intersectAllowlists = (
+  current: ReadonlySet<string> | undefined,
+  next: ReadonlySet<string> | undefined,
+): ReadonlySet<string> | undefined => {
+  if (current === undefined) return next
+  if (next === undefined) return current
+  return new Set(Array.from(next).filter(key => current.has(key)))
+}
 
 /** Construct an in-memory `InterpreterBackend` with optional ambient `foreign` implementations. */
 export const makeMemoryBackend = (options?: MemoryBackendOptions): InterpreterBackend => {
@@ -200,7 +209,7 @@ export const makeMemoryBackend = (options?: MemoryBackendOptions): InterpreterBa
       makeMemoryBackend({
         name: next.name ?? name,
         foreign: next.foreign,
-        allowlist: next.allowlist ?? allowlist,
+        allowlist: intersectAllowlists(allowlist, next.allowlist),
       }),
   }
 }
@@ -236,7 +245,7 @@ export const withForeign = (foreign: Expr.ForeignImplementations): Layer.Layer<n
 /**
  * Sandbox layer: restricts the current `Interpreter`'s `foreign` implementations
  * (including any caller-supplied `step` options) to only those whose exact
- * `id@version` names appear in `allowedForeignOps`. Any disallowed foreign op
+ * `id@version` names appear in every layered allowlist. Any disallowed foreign op
  * is omitted so evaluation refuses it cleanly with `Node.Refusal`.
  */
 export const withAllowlist = (allowedForeignOps: ReadonlySet<string>): Layer.Layer<never> =>

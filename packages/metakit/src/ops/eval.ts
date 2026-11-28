@@ -95,7 +95,7 @@ export interface ForeignImplementation {
    * The operation on argument values, after its null rule. It returns a
    * value, null, or a `Node.Refusal`; a throw is refused as `failed`.
    */
-  readonly run: (args: ReadonlyArray<unknown>) => unknown
+  readonly run: (args: ReadonlyArray<unknown>, foreign?: ForeignImplementations) => unknown
 }
 
 /**
@@ -149,7 +149,8 @@ export const applyForeign = (
     }
     let result: unknown
     try {
-      result = implementation.run(values)
+      // The table it is evaluated with, which a derived operation runs its own body against.
+      result = implementation.run(values, implementations)
     } catch (error) {
       return Node.failed(op, error)
     }

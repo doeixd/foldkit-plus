@@ -9,6 +9,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Breaking
 
+- `@doeixd/metakit/fn`: a second `.returns()` declaration throws. Combine the checks you need in one return Schema.
 - `@doeixd/metakit`: a literal (`Expr.lit`, or a plain value where an expression is expected) that is a bigint, a symbol or a function, or a list holding one, throws where it is built; no reader can hold one, and the artifact codec already refused it.
 - `@doeixd/metakit/operation`, `@doeixd/metakit/interpreter`: `Operation.define` throws when an operation id contains `@`, and `Interpreter.withAllowlist` matches exact `id@version` foreign names (matching `@doeixd/metakit/artifact`) instead of matching bare ids before `@`.
 - `@doeixd/metakit`: `Transition.ensures` is now a required `Option.Option` (`Option.none()` when absent) on every transition constructor, and `Transition.lift` carries and rewrites the inner transition's `ensures` postcondition across `state` and `next`.
@@ -111,6 +112,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `@doeixd/metakit/operation`: a derived operation runs its inner operations from the implementations table it is evaluated with, falling back to the one it was defined with only for what that table lacks (#664).
+- `@doeixd/metakit/interpreter`: an operation must appear in every layered `withAllowlist` to be available to the interpreter (#668).
+- `@doeixd/metakit/language`: `Language.restrict` preserves default SQL lowerings for retained operations. `Language.compose` merges defaults and fails with `LanguageConflictError` when two lowerings for the same operation and dialect differ by reference (#669).
 - `@doeixd/metakit`: `Abstract.checkInvariant`, `checkGoal`, `checkTransition` and `Policy.checkConsistent` no longer refute (or call a rule dead) past an equality, inequality or membership they keep only part of, compare a struct or list literal assumed twice as one value, and check a step as refused where a write lies under a field that holds no value.
 - `@doeixd/metakit/sql`: `num.add`, `num.sub` and `num.mul` give `NULL` in SQL where their result is an integer past ±(2^53−1), as evaluation refuses it, over fractional fields and for products too (#674).
 - `@doeixd/metakit` docs: `semantics.md` says what `null.coalesce` promises (its answer, not that the fallback is never computed) and that `eq.among` against a null list or no candidate answers without screening the value, as SQL does.

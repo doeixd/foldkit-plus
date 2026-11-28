@@ -22,7 +22,11 @@ import {
   type RunArgs,
 } from './operation.js'
 import { lawObligations } from './operationChecks.js'
-import type { ForeignLowerings, SqlDialect } from './operationSql.js'
+import {
+  lowerings as sqlLowerings,
+  type ForeignLowerings,
+  type SqlDialect,
+} from './operationSql.js'
 import type { Expr } from './path.js'
 import type * as Temporal from './temporal.js'
 
@@ -92,6 +96,8 @@ export interface LanguageOptions {
   readonly lowerings?: ForeignLowerings | undefined
 }
 
+const defaultLowerings = new WeakMap<object, ForeignLowerings>()
+
 /**
  * Define a domain language from named families of `Operation`s.
  */
@@ -160,7 +166,8 @@ export const make = <
     return implementations(name, ...list)
   }
 
-  return {
+  const defaults = options?.lowerings
+  const language: Language<Families> = {
     families,
     operations,
     implement: (name, impls) =>
@@ -176,7 +183,7 @@ export const make = <
         false,
       ),
     sql: (dialect, lowerings) => {
-      const table = lowerings ?? options?.lowerings
+      const table = lowerings ?? defaults
       for (const op of operations) {
         const key = Node.foreignName(op.descriptor)
         const entry = table?.entries.get(key)
@@ -194,13 +201,15 @@ export const make = <
     describe: () => operations.map(describeOp),
     obligations: (tables, opts) => lawObligations(operations, tables, opts),
   }
+  if (defaults !== undefined) defaultLowerings.set(language, defaults)
+  return language
 }
 
 // ---------------------------------------------------------------------------
 // Phase B (#645 P1): Composable languages & target readiness checks
 // ---------------------------------------------------------------------------
 
-/** Two composed languages declared conflicting definitions for a family member or operation id. */
+/** Two composed languages declared conflicting operations or SQL lowerings. */
 export class LanguageConflictError extends Schema.TaggedError<LanguageConflictError>()(
   'LanguageConflictError',
   {
@@ -210,6 +219,11 @@ export class LanguageConflictError extends Schema.TaggedError<LanguageConflictEr
 ) {}
 
 type FamilyMap = Readonly<Record<string, Readonly<Record<string, AnyOperation>>>>
+
+const sqlDialects: ReadonlyArray<SqlDialect> = ['sqlite', 'postgres']
+
+const distinctLowerings = (left: unknown, right: unknown): boolean =>
+  left !== undefined && right !== undefined && left !== right
 
 /** Merge two family maps, combining operations within shared family names. */
 export type ComposedFamilies<A extends FamilyMap, B extends FamilyMap> = {
@@ -225,8 +239,8 @@ export type ComposedFamilies<A extends FamilyMap, B extends FamilyMap> = {
 /**
  * Compose two `Language`s into one while preserving literal operation IDs and types.
  * Identical `AnyOperation` references are merged idempotently; conflicting
- * definitions for the same `family.op` slot or `id@version` fail with
- * `LanguageConflictError`.
+ * operations or distinct default lowerings for the same operation and dialect
+ * fail with `LanguageConflictError`.
  */
 export const compose = <A extends FamilyMap, B extends FamilyMap>(
   a: Language<A>,
@@ -270,7 +284,42 @@ export const compose = <A extends FamilyMap, B extends FamilyMap>(
     const errB = addLanguage(b.families)
     if (errB !== undefined) return Effect.fail(errB)
 
-    return Effect.succeed(make(merged as ComposedFamilies<A, B>))
+    const families = merged as ComposedFamilies<A, B>
+    const left = defaultLowerings.get(a)
+    const right = defaultLowerings.get(b)
+    if (left === undefined || right === undefined) {
+      return Effect.succeed(make(families, { lowerings: left ?? right }))
+    }
+
+    const entries = new Map(left.entries)
+    for (const [key, entry] of right.entries) {
+      const previous = entries.get(key)
+      if (previous === undefined) {
+        entries.set(key, entry)
+        continue
+      }
+      for (const dialect of sqlDialects) {
+        if (
+          distinctLowerings(previous[dialect], entry[dialect]) ||
+          distinctLowerings(previous.aggregate?.[dialect], entry.aggregate?.[dialect])
+        ) {
+          return Effect.fail(
+            new LanguageConflictError({
+              location: key,
+              detail: `operation "${key}" has different ${dialect} lowerings in both languages`,
+            }),
+          )
+        }
+      }
+      entries.set(key, {
+        ...previous,
+        ...entry,
+        ...(previous.aggregate !== undefined || entry.aggregate !== undefined
+          ? { aggregate: { ...previous.aggregate, ...entry.aggregate } }
+          : {}),
+      })
+    }
+    return Effect.succeed(make(families, { lowerings: sqlLowerings(...entries.values()) }))
   })
 
 /** Selection map accepted by `Language.restrict`: `true` keeps a whole family, or pick op names. */
@@ -288,7 +337,8 @@ export type RestrictedFamilies<F extends FamilyMap, S extends FamilySelection<F>
 
 /**
  * Derive a smaller host-specific vocabulary (e.g. a browser-safe subset) from
- * `language`, preserving exact operation types for the kept families/operations.
+ * `language`, preserving exact operation types and default SQL lowerings for
+ * the retained operations.
  */
 export const restrict = <F extends FamilyMap, const S extends FamilySelection<F>>(
   language: Language<F>,
@@ -317,7 +367,17 @@ export const restrict = <F extends FamilyMap, const S extends FamilySelection<F>
       out[familyName] = subset
     }
   }
-  return make(out as RestrictedFamilies<F, S>)
+  const families = out as RestrictedFamilies<F, S>
+  const defaults = defaultLowerings.get(language)
+  if (defaults === undefined) return make(families)
+
+  const entries = Object.values(out).flatMap(family =>
+    Object.values(family).flatMap(op => {
+      const entry = defaults.entries.get(Node.foreignName(op.descriptor))
+      return entry === undefined ? [] : [entry]
+    }),
+  )
+  return make(families, { lowerings: sqlLowerings(...entries) })
 }
 
 /** Backend target inspected by `Language.readiness`. */

@@ -127,7 +127,7 @@ export interface FnSpec<P extends ParamSchemas, R = unknown> extends Pipeable.Pi
   readonly where: (
     buildWhere: (args: ParamPaths<P>) => ExprInput<ParamValues<P>, boolean | null>,
   ) => FnSpec<P, R>
-  /** Declare the return Schema (verified by `Prove.fn` and `runChecked`). */
+  /** Declare the return Schema for `Prove.fn` and `runChecked`. A second declaration throws. */
   readonly returns: <S extends SchemaOf>(schema: S) => FnSpec<P, S['Type']>
   /** Add a postcondition (`ensures` clause over `{ params, result }`). Stackable. */
   readonly ensures: (
@@ -166,7 +166,7 @@ export interface Fn<P extends ParamSchemas, R> extends Pipeable.Pipeable {
   readonly where: (
     buildWhere: (args: ParamPaths<P>) => ExprInput<ParamValues<P>, boolean | null>,
   ) => Fn<P, R>
-  /** Declare the return Schema (must be structurally compatible with `R`; verified by `Prove.fn` and `runChecked`). */
+  /** Declare a return Schema compatible with `R` for `Prove.fn` and `runChecked`. A second declaration throws. */
   readonly returns: <S extends SchemaOf>(
     schema: [R] extends [ReturnCarrier<S['Type']>] ? S : never,
   ) => Fn<P, S['Type']>
@@ -539,6 +539,12 @@ const conjoin = (nodes: ReadonlyArray<Node.Node>): Node.Node => {
   return acc
 }
 
+const assertReturnSchemaUnset = (returnSchema: Option.Option<Schema.Top>): void => {
+  if (Option.isSome(returnSchema)) {
+    throw new Error('[metakit/fn] a return Schema is already set')
+  }
+}
+
 const buildFn = <P extends ParamSchemas, R>(parts: {
   readonly params: P
   readonly paramsSchema: Schema.Struct<P>
@@ -693,8 +699,9 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
           wrap<ParamValues<P>, boolean | null>(toNode(buildWhere(paramPathsOf(parts.params)))),
         ],
       }),
-    returns: <S extends SchemaOf>(schema: [R] extends [ReturnCarrier<S['Type']>] ? S : never) =>
-      buildFn<P, S['Type']>({
+    returns: <S extends SchemaOf>(schema: [R] extends [ReturnCarrier<S['Type']>] ? S : never) => {
+      assertReturnSchemaUnset(parts.returnSchema)
+      return buildFn<P, S['Type']>({
         params: parts.params,
         paramsSchema: parts.paramsSchema,
         body: parts.body as unknown as ExprType<ParamValues<P>, S['Type']>,
@@ -704,7 +711,8 @@ const buildFn = <P extends ParamSchemas, R>(parts: {
           ExprType<EnsuresEnv<P, S['Type']>, boolean | null>
         >,
         obligations: parts.obligations,
-      }),
+      })
+    },
     ensures: (
       buildEnsures: (env: EnsuresPaths<P, R>) => ExprInput<EnsuresEnv<P, R>, boolean | null>,
     ) =>
@@ -762,8 +770,9 @@ const buildSpec = <P extends ParamSchemas, R>(parts: {
         wrap<ParamValues<P>, boolean | null>(toNode(buildWhere(paramPathsOf(parts.params)))),
       ],
     }),
-  returns: <S extends SchemaOf>(schema: S) =>
-    buildSpec<P, S['Type']>({
+  returns: <S extends SchemaOf>(schema: S) => {
+    assertReturnSchemaUnset(parts.returnSchema)
+    return buildSpec<P, S['Type']>({
       params: parts.params,
       paramsSchema: parts.paramsSchema,
       whereClauses: parts.whereClauses,
@@ -771,7 +780,8 @@ const buildSpec = <P extends ParamSchemas, R>(parts: {
       ensuresClauses: parts.ensuresClauses as unknown as ReadonlyArray<
         ExprType<EnsuresEnv<P, S['Type']>, boolean | null>
       >,
-    }),
+    })
+  },
   ensures: buildEnsures =>
     buildSpec({
       ...parts,

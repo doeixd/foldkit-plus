@@ -711,15 +711,23 @@ export const derived = <
     ...(spec.claims === undefined ? {} : { claims: spec.claims }),
   }) as Operation<Id, V, OrderedParamSchemas<P, Order>, R, N, C>
 
-  const implementation = implement(op, (...values) => {
-    const env: Record<string, unknown> = {}
-    for (let i = 0; i < spec.paramOrder.length; i++) {
-      env[spec.paramOrder[i]!] = values[i]
-    }
-    const result = evalNode(spec.definition.body.node, env, spec.foreign)
-    if (Node.isRefusal(result)) throw result
-    return result as Schema.Schema.Type<R> | null
-  })
+  // The body runs its inner operations from the table it is evaluated with;
+  // the one given at definition fills only what that table lacks (T5).
+  const implementation: Implementation<Operation<Id, V, OrderedParamSchemas<P, Order>, R, N, C>> = {
+    op,
+    key: Node.foreignName(op.descriptor),
+    entry: {
+      run: (values, foreign) => {
+        const env: Record<string, unknown> = {}
+        for (let i = 0; i < spec.paramOrder.length; i++) {
+          env[spec.paramOrder[i]!] = values[i]
+        }
+        const result = evalNode(spec.definition.body.node, env, { ...spec.foreign, ...foreign })
+        if (Node.isRefusal(result)) throw result
+        return result
+      },
+    },
+  }
 
   return Object.assign(op, {
     definition: spec.definition,
